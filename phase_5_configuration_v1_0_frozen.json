@@ -1,0 +1,43 @@
+{
+  "phase": "5",
+  "version": "1.0",
+  "status": "FROZEN",
+  "freeze_date": "2026-08-28T20:29:00.614449",
+  "deployment_date": "2026-10-01",
+  "frozen_parameters": {
+    "pa_calibration_method": "Isotonic Regression",
+    "forecast_horizon": "1-minute",
+    "id_reliability_assessment": "Hybrid (confidence + accuracy + regime)",
+    "id_take_pass_threshold": 0.6,
+    "expected_return_bridge": "Cost-adjusted (P(dir) * magnitude - costs)",
+    "mpc_risk_penalty_lambda": 1.0,
+    "position_limit_per_symbol": 0.2,
+    "position_limit_total": 1.0,
+    "turnover_constraint": 0.5,
+    "cost_model": "NSE empirical (spread + impact)",
+    "mpc_re_optimization_cadence": "5-minute",
+    "multi_position_support": false,
+    "p01d_changes": "NONE (remain sovereign)"
+  },
+  "frozen_architecture": {
+    "pipeline": "Model 0/1 \u2192 PA \u2192 ID \u2192 Expected-Return Bridge \u2192 MPC \u2192 P01D",
+    "no_shortcuts": "Direct PA\u2192MPC path forbidden",
+    "p01d_authority": "SOVEREIGN (can refuse execution)",
+    "immutable_provenance": "SHA256 hash at each stage"
+  },
+  "validation_results": {
+    "symbols_validated": 8,
+    "success_rate_pct": 100.0,
+    "architecture_compliant": true,
+    "ready_for_phase_6": true
+  },
+  "deployment_readiness": {
+    "model_0": "FROZEN (no re-training)",
+    "model_1": "FROZEN (no re-training)",
+    "pa_component": "READY",
+    "id_component": "READY",
+    "mpc_component": "READY",
+    "p01d_component": "SOVEREIGN",
+    "configuration": "LOCKED (v1.0)"
+  }
+}
