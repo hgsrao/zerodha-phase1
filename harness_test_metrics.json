@@ -1,0 +1,22 @@
+{
+  "model_0": {
+    "training": "PASS",
+    "prediction": "PASS",
+    "rank_ic": null,
+    "metrics_valid": true
+  },
+  "model_1": {
+    "training": "PASS",
+    "prediction": "PASS",
+    "rank_ic": null,
+    "metrics_valid": true
+  },
+  "metadata": {
+    "timestamp": "2026-08-28T19:34:20.242887",
+    "test_rows": 100,
+    "train_rows": 50,
+    "val_rows": 50,
+    "features_used": 48,
+    "overall_gate": "PASS"
+  }
+}

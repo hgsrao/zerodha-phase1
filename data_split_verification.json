@@ -1,0 +1,23 @@
+{
+  "panel": {
+    "total_rows": 5928,
+    "duplicate_rows": 0,
+    "null_values": 6105,
+    "status": "PASS"
+  },
+  "p1p2": {
+    "total_rows": 5944,
+    "duplicate_rows": 0,
+    "null_values": 2152,
+    "status": "PASS"
+  },
+  "date_range": {
+    "start": "2023-08-25",
+    "end": "2026-08-24",
+    "days": 1095
+  },
+  "metadata": {
+    "timestamp": "2026-08-28T19:34:32.799617",
+    "overall_status": "PASS"
+  }
+}
