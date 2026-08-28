@@ -1,0 +1,159 @@
+{
+  "architecture": {
+    "serial_path": "Model 0/1 \u2192 PA \u2192 ID \u2192 ID\u2192MPC Packet \u2192 MPC \u2192 P01D",
+    "frozen_rules": [
+      "NO direct PA\u2192MPC path (must route through ID)",
+      "P01D maintains sovereign safety authority",
+      "Immutable provenance at each stage (SHA256)",
+      "Only first MPC action executed; rest re-optimized next cycle",
+      "No execution authority granted to PA/ID/MPC"
+    ]
+  },
+  "model_inputs": {
+    "model_0": {
+      "type": "Ridge Regression (L2)",
+      "lambda": 0.01,
+      "fit_intercept": true,
+      "max_iter": 1000,
+      "tol": 0.001,
+      "scaler": "StandardScaler",
+      "status": "FROZEN (verified on 108 symbols)"
+    },
+    "model_1": {
+      "type": "XGBoost (Gradient Boosting)",
+      "n_estimators": 500,
+      "max_depth": 5,
+      "learning_rate": 0.05,
+      "subsample": 0.8,
+      "colsample_bytree": 0.8,
+      "reg_lambda": 1.0,
+      "gamma": 0.1,
+      "early_stopping_rounds": 50,
+      "scaler": "StandardScaler",
+      "status": "FROZEN (verified on 108 symbols)"
+    }
+  },
+  "pa_configuration": {
+    "status": "UNFROZEN (awaiting calibration)",
+    "frozen_elements": [
+      "Output format: P(DOWN), P(FLAT), P(UP) per horizon",
+      "No execution authority at PA level",
+      "Calibration mandatory (not raw neural confidence)",
+      "Input block validates Model 0/1 forecasts"
+    ],
+    "unfrozen_elements": [
+      "Expected-return mapping (NOT P(UP)-P(DOWN) automatic)",
+      "Prediction horizons (to be preregistered)",
+      "Confidence threshold (to be empirically derived)",
+      "Calibration method (Platt scaling / isotonic / other)",
+      "Model family promotion ladder (baseline \u2192 gradient-boosted \u2192 MLP \u2192 DeepLOB)"
+    ],
+    "discussion_points": [
+      "Should PA output raw probabilities or calibrated confidences?",
+      "What horizon for directional prediction? (1-min / 5-min / end-of-day?)",
+      "How many bars of feature history required for stable prediction?",
+      "Should PA run continuously or only when ID requests?"
+    ]
+  },
+  "id_configuration": {
+    "status": "UNFROZEN (awaiting calibration)",
+    "frozen_elements": [
+      "Output format: TAKE/PASS binary decision",
+      "Secondary role: assesses PA reliability, not originating direction",
+      "Input block validates PA output + state",
+      "Triple-barrier labeling admitted as candidate"
+    ],
+    "unfrozen_elements": [
+      "Reliability assessment metric (Sharpe / Calmar / other?)",
+      "TAKE/PASS threshold (no generic 0.90)",
+      "Barrier parameters (profit target, stop loss, time)",
+      "Calibration method (cross-validation with purge/embargo)",
+      "How to handle regime changes? (adapt or freeze?)"
+    ],
+    "discussion_points": [
+      "What reliability metrics best predict whether PA forecast will work?",
+      "Should ID look at recent PA performance (adaptive) or use static model?",
+      "How aggressive should TAKE/PASS threshold be?",
+      "How to handle periods when ID passes everything or rejects everything?"
+    ]
+  },
+  "expected_return_bridge_configuration": {
+    "status": "UNFROZEN (explicitly not automatic P(UP)-P(DOWN))",
+    "frozen_rule": "Must be empirically validated, not borrowed from literature",
+    "candidates": [
+      "Direct P(direction) \u00d7 magnitude estimate",
+      "Horizon-dependent return expectation",
+      "Regime-conditional return mapping",
+      "Liquidity-adjusted return forecast",
+      "Cost-adjusted return (expected return AFTER spread/impact)"
+    ],
+    "discussion_points": [
+      "Should bridge use Model 0 and Model 1 forecasts separately or combine them?",
+      "How to incorporate market regime (volatile/stable/trending)?",
+      "How to account for symbol-specific liquidity differences?",
+      "Should expected return be in bps or in raw price units?",
+      "How to validate bridge on fresh data without consuming holdout?"
+    ]
+  },
+  "mpc_configuration": {
+    "status": "UNFROZEN (structure frozen, parameters unfrozen)",
+    "frozen_elements": [
+      "Input: (1) ID-qualified packet, (2) MPCConstraintState",
+      "No direct PA\u2192MPC path allowed",
+      "Only first action executed; rest discarded",
+      "External solver: cvxportfolio + CVXPY with OSQP/CLARABEL backend",
+      "Fail-closed: NO_TRADE if no valid policy"
+    ],
+    "unfrozen_parameters": [
+      "Risk penalty coefficient (\u03bb_risk)",
+      "Position limits (per symbol, per portfolio)",
+      "Turnover limits (daily maximum)",
+      "Transaction cost model (NSE-specific)",
+      "Liquidity participation limits (% of symbol volume)"
+    ],
+    "discussion_points": [
+      "What risk model? (Simple variance / Ledoit-Wolf covariance / regime-dependent?)",
+      "How aggressive on position sizing? (Notional / leverage limits?)",
+      "Turnover constraint: daily or intra-day cumulative?",
+      "Should MPC re-optimize every minute or batch decisions?",
+      "How to handle multi-position scenarios? (Current architecture: one position only)"
+    ]
+  },
+  "cost_model_specification": {
+    "status": "NOT YET CALIBRATED",
+    "required_components": [
+      "Spread (NSE top-of-book bid-ask)",
+      "Book walk (estimated cost to walk available top-5 bid/ask)",
+      "Volume participation penalty (moves as function of volume traded)",
+      "Volatility adjustment (higher impact in volatile regimes)",
+      "Empirically calibrated nonlinear impact term"
+    ],
+    "rejected_approaches": [
+      "Inherited US equity defaults from cvxportfolio",
+      "10% of L1 depth as hard trigger (invented threshold)",
+      "Simple linear spread model (ignores depth and volume)"
+    ],
+    "discussion_points": [
+      "Do we have enough L2 history to calibrate NSE cost model yet?",
+      "Should cost model be constant or regime-dependent?",
+      "How to handle symbols with low liquidity (reduced position size)?",
+      "What penalty for market orders vs. limit orders?"
+    ]
+  },
+  "p01d_integration": {
+    "status": "READY (P01D remains sovereign, unchanged)",
+    "frozen_rule": "MPC\u2192P01D handoff is normalization, not execution authority",
+    "p01d_can_refuse": [
+      "Even if MPC recommends BUY",
+      "Even if ID said TAKE",
+      "Even if PA predicted strong UP",
+      "P01D applies: halt status, drawdown limits, cooldowns, position locks"
+    ],
+    "handoff_contract": [
+      "SHA256 hash of MPC input state",
+      "Normalized position sizing (mechanical, not alpha)",
+      "Full provenance chain: Model\u2192PA\u2192ID\u2192MPC\u2192P01D",
+      "Timestamp and regime context"
+    ]
+  }
+}
