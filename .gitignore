@@ -1,0 +1,76 @@
+# Virtual environments
+.venv*/
+venv/
+ENV/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test and cache directories
+.pytest_*
+.testdeps_*
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Ollama and model files (keep source but exclude large binaries)
+ollama_models/
+*.gguf
+*.bin
+*.pt
+*.pth
+
+# Kite API and credentials (CRITICAL - never commit)
+kite_*.json
+credentials/
+*.key
+*.pem
+KITE_*
+
+# Large data files and research outputs (version via CSV snapshots with hashes instead)
+*.parquet
+data/large_*.csv
+backtest_output/
+*.pickle
+*.pkl
+
+# Local development
+.env
+.env.local
+*.log
+temp/
+tmp/
+
+# Build outputs
+dist/
+build/
+*.egg-info
+
+# Notebooks (if any)
+.ipynb_checkpoints/
+
+# Sphinx documentation
+docs/_build/
+
+# Research artifacts that change frequently during iteration
+_local_review_reports/
+*_experimental/
+*.tmp
