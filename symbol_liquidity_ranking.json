@@ -1,0 +1,58 @@
+{
+  "BAJFINANCE": {
+    "avg_spread_bps": 2.0,
+    "avg_volume": 1000.0,
+    "imbalance": 0.5,
+    "liquidity_score": 3.6666666666666665,
+    "rank": 1
+  },
+  "SBIN": {
+    "avg_spread_bps": 2.0,
+    "avg_volume": 1000.0,
+    "imbalance": 0.5,
+    "liquidity_score": 3.6666666666666665,
+    "rank": 2
+  },
+  "SUNPHARMA": {
+    "avg_spread_bps": 2.0,
+    "avg_volume": 1000.0,
+    "imbalance": 0.5,
+    "liquidity_score": 3.6666666666666665,
+    "rank": 3
+  },
+  "RELIANCE": {
+    "avg_spread_bps": 2.0,
+    "avg_volume": 1000.0,
+    "imbalance": 0.5,
+    "liquidity_score": 3.6666666666666665,
+    "rank": 4
+  },
+  "INFY": {
+    "avg_spread_bps": 2.0,
+    "avg_volume": 1000.0,
+    "imbalance": 0.5,
+    "liquidity_score": 3.6666666666666665,
+    "rank": 5
+  },
+  "TCS": {
+    "avg_spread_bps": 2.0,
+    "avg_volume": 1000.0,
+    "imbalance": 0.5,
+    "liquidity_score": 3.6666666666666665,
+    "rank": 6
+  },
+  "HDFCBANK": {
+    "avg_spread_bps": 2.0,
+    "avg_volume": 1000.0,
+    "imbalance": 0.5,
+    "liquidity_score": 3.6666666666666665,
+    "rank": 7
+  },
+  "ICICIBANK": {
+    "avg_spread_bps": 2.0,
+    "avg_volume": 1000.0,
+    "imbalance": 0.5,
+    "liquidity_score": 3.6666666666666665,
+    "rank": 8
+  }
+}
