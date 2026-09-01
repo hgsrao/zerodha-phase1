@@ -1,0 +1,36 @@
+parameter_id,parameter_name,tier,data_type,min_value,max_value,default_value,calibrate_phase1,description,status
+T1-01,base_dp_dt_multiplier,Tier 1,float,0.5,2.0,1.0,YES,Price momentum (dP/dt) multiplier,ACTIVE - CALIBRATE
+T1-02,base_dv_dt_multiplier,Tier 1,float,0.5,2.0,1.0,YES,Volume momentum (dV/dt) multiplier,ACTIVE - CALIBRATE
+T1-03,entry_confidence_threshold,Tier 1,float,0.3,0.8,0.5,YES,Min confidence for entry signal,ACTIVE - CALIBRATE
+T1-04,exit_confidence_threshold,Tier 1,float,0.4,0.9,0.6,YES,Min confidence for exit signal,ACTIVE - CALIBRATE
+T1-05,min_risk_reward_ratio,Tier 1,float,1.0,3.0,1.5,YES,Minimum risk/reward ratio for trade entry,ACTIVE - CALIBRATE
+T1-06,profit_target_margin_buffer,Tier 1,float,0.0,0.5,0.1,YES,Buffer above expected profit target,ACTIVE - CALIBRATE
+T1-07,vwap_weight,Tier 1,float,0.1,0.4,0.25,YES,Weight for VWAP signal,ACTIVE - CALIBRATE
+T1-08,confirmation_2bar_weight,Tier 1,float,0.1,0.4,0.25,YES,Weight for 2-bar confirmation signal,ACTIVE - CALIBRATE
+T1-09,momentum_weight,Tier 1,float,0.1,0.4,0.25,YES,Weight for momentum signal,ACTIVE - CALIBRATE
+T1-10,volatility_weight,Tier 1,float,0.05,0.4,0.25,YES,Weight for volatility signal,ACTIVE - CALIBRATE
+T1-11,green_threshold,Tier 1,float,0.6,0.95,0.75,YES,Green (strong buy) signal threshold,ACTIVE - CALIBRATE
+T1-12,amber_threshold_lower,Tier 1,float,0.3,0.7,0.5,YES,Amber (caution) signal lower threshold,ACTIVE - CALIBRATE
+T1-13,red_threshold,Tier 1,float,0.1,0.5,0.3,YES,Red (hold/exit) signal threshold,ACTIVE - CALIBRATE (⚠️ CONFLICTS WITH HALT)
+T1-14,slippage_guard_threshold,Tier 1,float,0.01,0.15,0.05,YES,Max acceptable slippage % at entry,ACTIVE - CALIBRATE
+T1-15,volatility_regime_multiplier,Tier 1,float,0.7,1.5,1.0,YES,Confidence multiplier in high volatility,ACTIVE - CALIBRATE
+T1-16,low_vol_regime_multiplier,Tier 1,float,0.8,1.5,1.0,YES,Confidence multiplier in low volatility,ACTIVE - CALIBRATE
+T1-17,medium_vol_regime_multiplier,Tier 1,float,0.7,1.5,1.0,YES,Confidence multiplier in medium volatility,ACTIVE - CALIBRATE
+T1-18,high_vol_regime_multiplier,Tier 1,float,0.8,1.5,1.0,YES,Confidence multiplier in very high volatility,ACTIVE - CALIBRATE
+T1-19,profit_target_atr_mult,Tier 1,float,0.8,2.5,1.5,YES,Profit target = ATR × this multiplier,ACTIVE - CALIBRATE
+T1-20,stop_loss_atr_mult,Tier 1,float,0.3,1.2,0.75,YES,Stop loss = ATR × this multiplier,ACTIVE - CALIBRATE
+T2-21,atr_calculation_period,Tier 2,int,10,30,20,YES,Bars for ATR calculation,ACTIVE - CALIBRATE
+T2-22,entry_signal_smoothing_window,Tier 2,int,1,8,3,YES,Bars for entry signal EMA smoothing,ACTIVE - CALIBRATE
+T2-23,exit_signal_smoothing_window,Tier 2,int,1,4,2,YES,Bars for exit signal EMA smoothing,ACTIVE - CALIBRATE
+T2-24,slippage_cost_multiplier,Tier 2,float,0.8,1.5,1.0,YES,Multiplier for assumed slippage costs,ACTIVE - CALIBRATE
+T2-25,minimum_absolute_profit_rupees,Tier 2,float,0,200,50,YES,Min absolute profit required per trade,ACTIVE - CALIBRATE (⚠️ CONFLICTS WITH DAILY LOSS)
+T2-26,momentum_calculation_period,Tier 2,int,10,30,20,YES,Bars for momentum (SPEED) calculation,ACTIVE - CALIBRATE
+T2-27,vwap_calculation_period,Tier 2,int,10,30,20,YES,Bars for VWAP calculation,ACTIVE - CALIBRATE
+T2-28,signal_persistence_requirement,Tier 2,float,1.0,2.5,1.5,YES,Bars required for signal confirmation,ACTIVE - CALIBRATE
+T4-29,min_hold_bars,Tier 1 Positional,int,1,5,2,YES,Minimum bars to hold position,ACTIVE - CALIBRATE
+T4-30,max_hold_bars,Tier 1 Positional,int,20,120,60,YES,Maximum bars to hold position,ACTIVE - CALIBRATE
+CALIB-31,phase1_exploration_intensity,Calibration Only,int,30,100,50,NO,Randomness level in Phase 1,OPTIMIZER CONTROL - DO NOT DEPLOY
+CALIB-32,phase2_optimization_intensity,Calibration Only,int,100,500,250,NO,Bayesian optimization iterations,OPTIMIZER CONTROL - DO NOT DEPLOY
+CALIB-33,learning_rate_exploration_factor,Calibration Only,float,0.01,0.1,0.05,NO,Learning rate for meta-learning,OPTIMIZER CONTROL - DO NOT DEPLOY
+SAFETY-λ1,portfolio_risk_derate_trigger,Safety Gates,float,0.08,0.25,0.15,NO,Portfolio lambda threshold for deration,HARD-CODED OPERATIONAL - DO NOT CALIBRATE
+SAFETY-λ2,portfolio_derated_size_multiplier,Safety Gates,float,0.5,0.99,0.80,NO,Lambda reduction multiplier when risk high,HARD-CODED OPERATIONAL - DO NOT CALIBRATE
