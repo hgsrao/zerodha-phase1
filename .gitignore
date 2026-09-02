@@ -52,6 +52,11 @@ backtest_output/
 *.pickle
 *.pkl
 
+# Revision 2 generated trace/report data — regenerate from a real run,
+# never committed as a stand-in for the code that produced it.
+revision2/dcs_trace_*.json
+REVISION2_*_VALIDATION_REPORT.json
+
 # Local development
 .env
 .env.local

@@ -30,8 +30,15 @@ from revision2.boxes import (
     SafetyGatesTargetBox,
     UnifiedExecutionBox,
 )
-from revision2.contracts import EffectiveConfig, MarketSnapshot, PASignal, SafetyContract
-from runtime.operating_mode import ExecutionGate, PaperBrokerAdapter
+from revision2.contracts import (
+    EffectiveConfig,
+    MarketSnapshot,
+    PASignal,
+    SafetyContract,
+    StartupCertificate,
+    StartupNotCertifiedError,
+)
+from runtime.operating_mode import ExecutionGate, OperatingMode, PaperBrokerAdapter, RuntimeConfig, StartupGate
 
 
 class Revision2Orchestrator:
@@ -71,6 +78,30 @@ class Revision2Orchestrator:
         self.completed_trades: List[Dict[str, Any]] = []
         self._open_trade: Optional[Dict[str, Any]] = None
         self._equity_curve: List[float] = [starting_equity]
+
+        # No certificate, no run: StartupGate is invoked here, before any
+        # data is touched, and a failing certificate raises immediately —
+        # there is no code path in run() that can be reached without one.
+        self.startup_certificate = self._certify_startup()
+        if not self.startup_certificate.passed:
+            raise StartupNotCertifiedError(
+                f"startup certification failed: {'; '.join(self.startup_certificate.reasons)}"
+            )
+
+    def _certify_startup(self) -> StartupCertificate:
+        runtime_config = RuntimeConfig(
+            operating_mode=OperatingMode.PAPER,
+            live_trading_enabled=False,
+            broker_account_id=self.broker.account_id,
+            signing_key="",  # only required for LIVE mode
+            durable_db=True,
+            runtime_parameters=self.config.as_dict(),
+            parameter_registry=self.registry,
+        )
+        gate_report = StartupGate().certify_startup(
+            runtime_config, self.broker, signing_key="", durable_db=True,
+        )
+        return StartupCertificate.issue(gate_report, self.config.config_hash, self.safety_contract.contract_hash)
 
     # ---- helpers --------------------------------------------------------
     def _build_safety_gate_config(self) -> SafetyGateConfig:
@@ -199,10 +230,16 @@ class Revision2Orchestrator:
             return
 
         # Priority 4: discretionary signal exit — the only exit gated by
-        # minimum_hold_bars. Uses the same exit_confidence_threshold ID
-        # computed at entry time, compared against PA's freshly recomputed
-        # exit_confidence for the current bar.
-        if held >= trade["minimum_hold_bars"] and signal.exit_confidence < trade["exit_confidence_threshold"]:
+        # minimum_hold_bars. Fires on either: the exit_confidence_threshold
+        # ID set at entry time being breached by PA's freshly recomputed
+        # exit_confidence, or the current bar's PA read collapsing into the
+        # red quality band (red_threshold's own, independent effect — it
+        # can't ever flip an *entry* approval at default settings, since
+        # red's range sits entirely under entry_confidence_threshold's
+        # default, so it needs this separate path to be causal at all).
+        if held >= trade["minimum_hold_bars"] and (
+            signal.exit_confidence < trade["exit_confidence_threshold"] or signal.quality_band == "red"
+        ):
             self._execute_exit(bar_idx, trade, float(bar["close"]), "signal_exit", funnel)
             return
 
@@ -241,7 +278,11 @@ class Revision2Orchestrator:
         }
 
     # ---- main loop --------------------------------------------------------
-    def run(self, bars: pd.DataFrame, warmup: int = 60) -> Dict[str, Any]:
+    def run(self, bars: pd.DataFrame, warmup: int = 60, trace_sink: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """`trace_sink`, if given a list, gets one record appended per
+        processed bar describing what every box did with it — purely for
+        observability (e.g. driving a live display); it changes no control
+        flow and every field it holds was already computed above it."""
         cols = {c.lower(): c for c in bars.columns}
         bars = bars.rename(columns={v: k for k, v in cols.items()})
 
@@ -271,19 +312,34 @@ class Revision2Orchestrator:
         for bar_idx in range(warmup, n - 1):
             funnel["bars_processed"] += 1
             timestamp = str(bars.iloc[bar_idx]["timestamp"]) if "timestamp" in bars.columns else str(bar_idx)
+            record: Dict[str, Any] = {
+                "bar_idx": bar_idx, "timestamp": timestamp, "close": float(bars.iloc[bar_idx]["close"]),
+                "stage": "data_ingestion", "equity": self._equity(), "open_position": self._open_trade is not None,
+            }
+
+            def _emit():
+                if trace_sink is not None:
+                    trace_sink.append(dict(record))
 
             admitted, _, trace = self.data_ingestion.admit(self.symbol, self.config)
             self._record(trace)
+            record["data_ingestion"] = admitted
             if not admitted:
+                record["stage"] = "rejected_data_ingestion"
+                _emit()
                 continue
 
             certified, _, trace = self.l2_certifier.certify(bars.iloc[max(0, bar_idx - 5):bar_idx + 1], self.config)
             self._record(trace)
+            record["l2_certifier"] = certified
             if not certified:
+                record["stage"] = "rejected_l2_certifier"
+                _emit()
                 continue
 
             in_window, _exploration_bias, trace = self.unified_execution.check_window(timestamp, self.config)
             self._record(trace)
+            record["in_window"] = in_window
 
             # PA runs every admitted/certified bar — both to look for new
             # entries and to keep exit_confidence current for any open
@@ -292,16 +348,29 @@ class Revision2Orchestrator:
             signal, trace = self.pa.evaluate(snapshot, self.config)
             self._record(trace)
             funnel["pa_signals"] += 1
+            record["pa"] = {
+                "confidence": signal.confidence, "direction": signal.direction,
+                "exit_confidence": signal.exit_confidence, "momentum": signal.momentum,
+                "volatility": signal.volatility,
+            }
 
+            trades_before = len(self.completed_trades)
             self._maybe_exit(bar_idx, bars, signal, funnel)
+            if len(self.completed_trades) > trades_before:
+                record["exit"] = self.completed_trades[-1]
 
             if self._open_trade is not None or not in_window:
+                record["stage"] = "holding_or_out_of_window"
+                _emit()
                 continue
 
             decision, trace = self.id_box.evaluate(signal, self.config)
             self._record(trace)
+            record["id"] = {"approved": decision.approved, "reason": decision.reason, "risk_reward_ratio": decision.risk_reward_ratio}
             if not decision.approved:
                 funnel["id_rejections"] += 1
+                record["stage"] = "rejected_id"
+                _emit()
                 continue
             funnel["id_approvals"] += 1
 
@@ -310,30 +379,47 @@ class Revision2Orchestrator:
             plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
             self._record(trace)
             if plan is None:
+                record["stage"] = "rejected_mpc"
+                _emit()
                 continue
             funnel["mpc_plans"] += 1
+            record["mpc"] = {"side": plan.side, "entry_price": plan.entry_price, "stop_price": plan.stop_price, "target_price": plan.target_price}
 
             approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(self._equity_curve, self.config)
             self._record(trace)
             if not approved:
                 funnel["safety_rejections"] += 1
+                record["stage"] = "rejected_safety_pre_sizing"
+                _emit()
                 continue
 
+            # The entry PID's timing-quality multiplier reaches the trade
+            # ledger here: it scales the same size_multiplier the drawdown/
+            # lambda checks already produce, so a poor-timing entry is
+            # sized down (or a good one sized fully), not just diagnosed.
+            size_mult *= pid_info["entry_timing_multiplier"]
             quantity, trace = self.position_manager.size(plan, self._equity(), size_mult, self.config)
             self._record(trace)
+            record["position_manager"] = {"quantity": quantity, "size_multiplier": size_mult}
             if quantity <= 0:
+                record["stage"] = "rejected_zero_quantity"
+                _emit()
                 continue
 
             post_ok, _, trace = self.safety_gates_target.evaluate_post_sizing(self._equity_curve, plan, quantity, self.config)
             self._record(trace)
             if not post_ok:
                 funnel["safety_rejections"] += 1
+                record["stage"] = "rejected_safety_post_sizing"
+                _emit()
                 continue
             funnel["safety_approvals"] += 1
 
             order, trace = self.p01d.create_order(self.symbol, plan, quantity, self.config)
             self._record(trace)
             if order is None:
+                record["stage"] = "rejected_p01d"
+                _emit()
                 continue
 
             # 18-gate EntryDecisionEngine: a distinct, independent
@@ -365,12 +451,17 @@ class Revision2Orchestrator:
                 proposed_notional=quantity * plan.entry_price,
             )
             funnel["gates_evaluated"] += 1
+            record["gates"] = {"passed": gate_result["passed"], "gate": gate_result["gate"], "reason": gate_result["reason"]}
             if not gate_result["passed"]:
                 funnel["gates_rejected"] += 1
+                record["stage"] = "rejected_18_gates"
+                _emit()
                 continue
             funnel["gates_passed"] += 1
             quantity = max(0, int(gate_result["adjusted_quantity"]))
             if quantity <= 0:
+                record["stage"] = "rejected_gate_derated_to_zero"
+                _emit()
                 continue
 
             gate_result2 = ExecutionGate().validate_pre_submit(
@@ -380,6 +471,8 @@ class Revision2Orchestrator:
             )
             if not gate_result2["passed"]:
                 funnel["safety_rejections"] += 1
+                record["stage"] = "rejected_execution_gate"
+                _emit()
                 continue
 
             fill = self.broker.place_order(
@@ -405,6 +498,11 @@ class Revision2Orchestrator:
                     "maximum_hold_bars": plan.maximum_hold_bars,
                     "exit_confidence_threshold": decision.timing_quality,
                 }
+                record["stage"] = "entry_filled"
+                record["entry"] = {"side": plan.side, "price": fill["filled_price"], "quantity": quantity}
+            else:
+                record["stage"] = "entry_fill_rejected"
+            _emit()
 
         # End-of-run reconciliation: never leave a position un-marked.
         open_position_reconciled = False

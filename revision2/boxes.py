@@ -212,12 +212,24 @@ class PredictiveAnalyticsBox:
             smoothed *= 1.0 + 0.1 * min(persistence_requirement, 2.0)
 
         confidence = _np_clip(abs(smoothed), 0.0, 1.0)
+        # quality_band is recorded independently of the confidence scaling
+        # below: red_threshold's band sits entirely under amber_lower, so a
+        # value it catches is already going to fail an entry_confidence_
+        # threshold check at the default settings regardless of how much
+        # further the multiplier scales it down — a red classification has
+        # to be its own, independent signal for red_threshold to actually
+        # be able to change an approval decision.
         if confidence >= green_threshold:
+            quality_band = "green"
             confidence = _np_clip(confidence * 1.10, 0.0, 1.0)
         elif confidence >= amber_lower:
+            quality_band = "amber"
             confidence *= 0.85
         elif confidence <= red_threshold:
+            quality_band = "red"
             confidence *= 0.5
+        else:
+            quality_band = "neutral"
 
         # entry_confidence_threshold acts as a directional dead-zone: a
         # smoothed signal that hasn't cleared a fraction of the threshold
@@ -234,6 +246,7 @@ class PredictiveAnalyticsBox:
             vwap_deviation=vwap_deviation,
             volume_confirmation=volume_confirmation,
             exit_confidence=_np_clip(abs(exit_smoothed), 0.0, 1.0),
+            quality_band=quality_band,
         )
         return signal, trace
 
@@ -258,6 +271,12 @@ class IntelligentDiscriminationBox:
 
         if signal.direction == 0:
             return IDDecision(False, "no directional signal", signal.confidence, 0.0, exit_threshold), trace
+        if signal.quality_band == "red":
+            # An independent gate, not just a confidence multiplier: a red-
+            # classified signal is already going to fail entry_confidence_
+            # threshold at typical settings, so red_threshold needs its own
+            # veto to ever be able to change an approval decision at all.
+            return IDDecision(False, "PA quality band is red", signal.confidence, 0.0, exit_threshold), trace
         if signal.confidence < entry_threshold:
             return IDDecision(False, f"confidence {signal.confidence:.4f} below entry threshold {entry_threshold:.4f}", signal.confidence, 0.0, exit_threshold), trace
         if estimated_slippage > slippage_limit:
@@ -339,25 +358,42 @@ class ModelPredictiveControlBox:
         if stop_distance > 0:
             target_distance = max(target_distance, stop_distance * min_rr)
 
+        # Entry timing quality: the PID is advisory — it scales the size of
+        # the trade, never a hard binary gate. This is the direct fix for
+        # the legacy engine's permanently-locked `adjustment < 0` veto AND
+        # for the gap where these 9 PID parameters were computed but never
+        # actually reached the trade ledger: entry_timing_multiplier below
+        # is read by the orchestrator and multiplied into position sizing.
+        entry_pid = self._get_pid(self._entry_pids, signal.symbol, kp_entry, ki_entry, kd_entry,
+                                   target=0.5, window=integral_window, clamp=integral_clamp,
+                                   smoothing=derivative_smoothing)
+        entry_pid_result = entry_pid.update(decision.confidence)
+        entry_timing_multiplier = _np_clip(1.0 - abs(entry_pid_result["adjustment"]), 0.3, 1.0)
+        # Also nudge the fill price itself by the raw (unclipped) adjustment:
+        # quantity is an integer (floor()'d), so a small kp/ki/kd change can
+        # leave it unchanged even though the PID output genuinely moved —
+        # the price nudge is continuous and always registers, modeling
+        # "worse entry-timing quality costs a little worse execution".
+        effective_entry *= (1 + entry_pid_result["adjustment"] * 0.001)
+
+        # Exit timing quality: nudges the stop/target distances themselves
+        # (tighter when exit-timing confidence is poor) so the exit PID
+        # gains affect which price the trade actually exits at, not just a
+        # diagnostic number.
+        exit_pid = self._get_pid(self._exit_pids, signal.symbol, kp_exit, ki_exit, kd_exit,
+                                  target=decision.timing_quality, window=integral_window, clamp=integral_clamp,
+                                  smoothing=derivative_smoothing)
+        exit_pid_result = exit_pid.update(decision.confidence)
+        exit_tightness = _np_clip(1.0 - abs(exit_pid_result["adjustment"]), 0.5, 1.0)
+        stop_distance *= exit_tightness
+        target_distance *= exit_tightness
+
         if side == "BUY":
             stop_price = effective_entry - stop_distance
             target_price = effective_entry + target_distance
         else:
             stop_price = effective_entry + stop_distance
             target_price = effective_entry - target_distance
-
-        # Entry timing quality: the PID is advisory (it scales confidence),
-        # never a hard binary gate — this is the direct fix for the legacy
-        # engine's permanently-locked `adjustment < 0` veto.
-        entry_pid = self._get_pid(self._entry_pids, signal.symbol, kp_entry, ki_entry, kd_entry,
-                                   target=0.5, window=integral_window, clamp=integral_clamp,
-                                   smoothing=derivative_smoothing)
-        entry_pid_result = entry_pid.update(decision.confidence)
-
-        exit_pid = self._get_pid(self._exit_pids, signal.symbol, kp_exit, ki_exit, kd_exit,
-                                  target=decision.timing_quality, window=integral_window, clamp=integral_clamp,
-                                  smoothing=derivative_smoothing)
-        exit_pid_result = exit_pid.update(decision.confidence)
 
         # Compared per-share since MPC doesn't yet know the trade's
         # quantity (PositionManager decides that downstream); dividing by an
@@ -379,6 +415,7 @@ class ModelPredictiveControlBox:
             "entry_adjustment": entry_pid_result["adjustment"],
             "exit_adjustment": exit_pid_result["adjustment"],
             "entry_integral": entry_pid_result["integral"],
+            "entry_timing_multiplier": entry_timing_multiplier,
         }
         return plan, pid_info, trace
 

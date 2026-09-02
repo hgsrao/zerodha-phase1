@@ -9,13 +9,14 @@
 import os
 import unittest
 from types import MappingProxyType
+from unittest.mock import patch
 
 import pandas as pd
 
 from canonical_parameter_registry import CanonicalParameterRegistry
 from market_data_loader import SingleSymbolReplayFeed
 from revision2.boxes import SafetyGatesTargetBox
-from revision2.contracts import EffectiveConfig, SafetyContract, TradePlan
+from revision2.contracts import EffectiveConfig, SafetyContract, StartupNotCertifiedError, TradePlan
 from revision2.orchestrator import Revision2Orchestrator
 
 DATA_DIR = (
@@ -77,6 +78,65 @@ class TestFixedAndSafetyInvariance(unittest.TestCase):
         self.assertTrue(ok_small_qty)   # 5 * 10 = Rs.50, within cap
         self.assertFalse(ok_large_qty)  # 5 * 50 = Rs.250, exceeds Rs.100 cap
         self.assertIn("worst-case trade loss", reason)
+
+
+class TestStartupCertification(unittest.TestCase):
+    """No certificate, no run: the orchestrator must issue and check a
+    StartupCertificate before it can be used at all."""
+
+    def test_construction_issues_a_passing_certificate(self):
+        orch = Revision2Orchestrator("SUNPHARMA")
+        cert = orch.startup_certificate
+        self.assertTrue(cert.passed)
+        self.assertEqual(cert.reasons, ())
+        self.assertEqual(cert.operating_mode, "OperatingMode.PAPER")
+        self.assertEqual(cert.broker_environment, "paper")
+        self.assertEqual(cert.config_hash, orch.config.config_hash)
+        self.assertEqual(cert.safety_contract_hash, orch.safety_contract.contract_hash)
+
+    def test_failing_certificate_blocks_construction(self):
+        from runtime.operating_mode import StartupGate
+
+        fake_report = {"passed": False, "operating_mode": "OperatingMode.PAPER", "broker_environment": "paper", "reasons": ["forced failure for test"]}
+        with patch.object(StartupGate, "certify_startup", return_value=fake_report):
+            with self.assertRaises(StartupNotCertifiedError):
+                Revision2Orchestrator("SUNPHARMA")
+
+
+class TestTraceInstrumentation(unittest.TestCase):
+    """trace_sink is purely observational: passing one must never change
+    the report, and the record stream itself must be deterministic."""
+
+    def _bars(self, rows=200):
+        idx = pd.date_range("2024-01-01 09:15", periods=rows, freq="min", tz="Asia/Kolkata")
+        data = []
+        price = 1000.0
+        for i in range(rows):
+            price *= 1 + (0.0006 if i % 20 < 10 else -0.0006)
+            data.append({"timestamp": idx[i], "open": price, "high": price * 1.003, "low": price * 0.997, "close": price, "volume": 5000})
+        return pd.DataFrame(data)
+
+    def test_trace_sink_does_not_change_the_report(self):
+        bars = self._bars()
+        report_without = Revision2Orchestrator("TESTSYM").run(bars, warmup=60)
+        sink = []
+        report_with = Revision2Orchestrator("TESTSYM").run(bars, warmup=60, trace_sink=sink)
+        self.assertEqual(report_without, report_with)
+        self.assertEqual(len(sink), report_with["bars_processed"])
+
+    def test_trace_sink_accepts_a_bounded_deque(self):
+        from collections import deque
+        bars = self._bars()
+        bounded = deque(maxlen=10)
+        Revision2Orchestrator("TESTSYM").run(bars, warmup=60, trace_sink=bounded)
+        self.assertLessEqual(len(bounded), 10)
+
+    def test_trace_stream_is_deterministic(self):
+        bars = self._bars()
+        sink_a, sink_b = [], []
+        Revision2Orchestrator("TESTSYM").run(bars, warmup=60, trace_sink=sink_a)
+        Revision2Orchestrator("TESTSYM").run(bars, warmup=60, trace_sink=sink_b)
+        self.assertEqual(sink_a, sink_b)
 
 
 class TestStopPriorityAndReconciliation(unittest.TestCase):

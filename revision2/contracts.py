@@ -9,9 +9,9 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from types import MappingProxyType
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 import pandas as pd
 
@@ -25,6 +25,18 @@ def _freeze(value: Any) -> Any:
         return MappingProxyType({k: _freeze(v) for k, v in value.items()})
     if isinstance(value, list):
         return tuple(_freeze(v) for v in value)
+    return value
+
+
+def _thaw(value: Any) -> Any:
+    """Inverse of _freeze(): MappingProxyType -> dict, tuple -> list.
+    Needed when handing values to code that does a strict `isinstance(x,
+    dict)` / `isinstance(x, list)` check — MappingProxyType and tuple are
+    deliberately not those types."""
+    if isinstance(value, MappingProxyType):
+        return {k: _thaw(v) for k, v in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw(v) for v in value]
     return value
 
 
@@ -51,11 +63,12 @@ class EffectiveConfig:
         return self.values[name]
 
     def as_dict(self) -> Dict[str, Any]:
-        """A plain, mutable-looking `dict` copy for interfacing with code
-        (registry.validate_execution_payload, ExecutionGate, ...) that does
-        a strict `isinstance(x, dict)` check. The frozen values themselves
-        (MappingProxyType/tuple) are still immutable inside the copy."""
-        return dict(self.values)
+        """A plain, fully-thawed `dict` copy (nested MappingProxyType/tuple
+        included) for interfacing with code that does a strict
+        `isinstance(x, dict)` / `isinstance(x, list)` check — the registry
+        validators, StartupGate, ExecutionGate. Mutating this copy never
+        touches the frozen EffectiveConfig itself."""
+        return {k: _thaw(v) for k, v in self.values.items()}
 
     @staticmethod
     def build(values: Dict[str, Any], registry_hash: str) -> "EffectiveConfig":
@@ -78,7 +91,7 @@ class SafetyContract:
     contract_hash: str
 
     def as_dict(self) -> Dict[str, Any]:
-        return dict(self.values)
+        return {k: _thaw(v) for k, v in self.values.items()}
 
     @staticmethod
     def from_registry(registry) -> "SafetyContract":
@@ -110,6 +123,7 @@ class PASignal:
     vwap_deviation: float
     volume_confirmation: float
     exit_confidence: float = 0.0  # separately-smoothed signal for exit timing
+    quality_band: str = "neutral"  # green/amber/neutral/red, from PA's threshold ladder
 
 
 @dataclass(frozen=True)
@@ -157,3 +171,49 @@ class BoxResult:
 
     output: Any
     trace: list = field(default_factory=list)
+
+
+class StartupNotCertifiedError(RuntimeError):
+    """Raised when an orchestrator is constructed without a passing
+    StartupCertificate. No certificate means no run — there is no code path
+    that lets a run proceed past this."""
+
+
+@dataclass(frozen=True)
+class StartupCertificate:
+    """The result of StartupGate.certify_startup(), bound to the exact
+    config/safety hashes it certified and stamped with an integrity hash.
+
+    This is an integrity check, not a cryptographic signature — there is no
+    real key-management infrastructure behind it. Calling it "signed" would
+    overclaim a security property this project doesn't actually have.
+    """
+
+    passed: bool
+    operating_mode: str
+    broker_environment: str
+    reasons: tuple
+    config_hash: str
+    safety_contract_hash: str
+    issued_at: str
+    integrity_hash: str
+
+    @staticmethod
+    def issue(gate_report: Dict[str, Any], config_hash: str, safety_contract_hash: str) -> "StartupCertificate":
+        issued_at = datetime.now(timezone.utc).isoformat()
+        reasons = tuple(gate_report.get("reasons", []))
+        payload = "|".join([
+            str(gate_report["passed"]), str(gate_report["operating_mode"]),
+            str(gate_report["broker_environment"]), config_hash, safety_contract_hash, issued_at,
+        ])
+        integrity_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        return StartupCertificate(
+            passed=bool(gate_report["passed"]),
+            operating_mode=str(gate_report["operating_mode"]),
+            broker_environment=str(gate_report["broker_environment"]),
+            reasons=reasons,
+            config_hash=config_hash,
+            safety_contract_hash=safety_contract_hash,
+            issued_at=issued_at,
+            integrity_hash=integrity_hash,
+        )
