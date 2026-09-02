@@ -44,6 +44,11 @@ from revision2.contracts import (
 )
 from runtime.operating_mode import ExecutionGate, OperatingMode, PaperBrokerAdapter, RuntimeConfig, StartupGate
 
+# See revision2/orchestrator.py's SNAPSHOT_LOOKBACK_BARS comment: PA only
+# ever uses a bounded trailing window, so bounding what's handed to it here
+# avoids O(n^2) total cost over a long, many-symbol run.
+SNAPSHOT_LOOKBACK_BARS = 300
+
 # Approximate NSE sector classification for this 48-symbol universe, hand-
 # assigned from general market knowledge — NOT sourced from a live sector-
 # classification feed. It exists so max_sector_exposure_fraction has a real
@@ -288,7 +293,10 @@ class Revision2PortfolioOrchestrator:
             in_window, _, trace = self.unified_execution.check_window(str(timestamp), self.config)
             self._record(trace)
 
-            snapshot = MarketSnapshot(symbol=symbol, timestamp=str(timestamp), bars=bars.iloc[:bar_idx + 1])
+            snapshot = MarketSnapshot(
+                symbol=symbol, timestamp=str(timestamp),
+                bars=bars.iloc[max(0, bar_idx - SNAPSHOT_LOOKBACK_BARS + 1):bar_idx + 1],
+            )
             signal, trace = self.pa.evaluate(snapshot, self.config)
             self._record(trace)
             funnel["pa_signals"] += 1

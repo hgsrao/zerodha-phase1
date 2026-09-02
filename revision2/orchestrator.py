@@ -40,6 +40,16 @@ from revision2.contracts import (
 )
 from runtime.operating_mode import ExecutionGate, OperatingMode, PaperBrokerAdapter, RuntimeConfig, StartupGate
 
+# PA only ever looks at a bounded trailing window (its largest lookback
+# parameter — atr/momentum/vwap period — maxes out at 30 bars in the
+# registry). Handing it the *entire* history-so-far every bar, as
+# `bars.iloc[:bar_idx + 1]` did, makes both the slice and PA's own
+# `.to_numpy()` conversion O(bar_idx) work repeated on every single bar —
+# O(n^2) total over a run, which is invisible on a short backtest and
+# becomes the dominant cost at real (hundreds-of-thousands-of-bars) scale.
+# 300 bars is generous headroom above any registry lookback max.
+SNAPSHOT_LOOKBACK_BARS = 300
+
 
 class Revision2Orchestrator:
     def __init__(
@@ -344,7 +354,10 @@ class Revision2Orchestrator:
             # PA runs every admitted/certified bar — both to look for new
             # entries and to keep exit_confidence current for any open
             # position's signal-exit check.
-            snapshot = MarketSnapshot(symbol=self.symbol, timestamp=timestamp, bars=bars.iloc[:bar_idx + 1])
+            snapshot = MarketSnapshot(
+                symbol=self.symbol, timestamp=timestamp,
+                bars=bars.iloc[max(0, bar_idx - SNAPSHOT_LOOKBACK_BARS + 1):bar_idx + 1],
+            )
             signal, trace = self.pa.evaluate(snapshot, self.config)
             self._record(trace)
             funnel["pa_signals"] += 1
