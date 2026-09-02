@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -125,7 +125,20 @@ class Revision2PortfolioOrchestrator:
         self.consumed_parameters: set = set()
         self.completed_trades: List[Dict[str, Any]] = []
         self.open_trades: Dict[str, Dict[str, Any]] = {}
-        self._equity_curve: List[float] = [starting_equity]
+        self._equity_curve: List[float] = [starting_equity]  # realized-only, at trade completion; used by SafetyGatesTargetBox
+
+        # Real chronological, marked-to-market portfolio equity — includes
+        # unrealized P&L on every open position, sampled once per unique
+        # timestamp across all symbols. This is deliberately additive and
+        # parallel to _equity_curve above: it never feeds the orchestrator's
+        # own trading decisions (changing that would shift trade counts
+        # across every already-tested scenario), it exists purely so a
+        # caller (the calibration acceptance gates, in particular) can
+        # compute a real intratrade/mark-to-market drawdown and Sharpe
+        # instead of one reconstructed only from completed-trade P&L.
+        self._last_close: Dict[str, float] = {}
+        self._last_mtm_timestamp: Optional[str] = None
+        self._mtm_equity_curve: List[Tuple[str, float]] = [("", starting_equity)]
 
         self.startup_certificate = self._certify_startup()
         if not self.startup_certificate.passed:
@@ -177,6 +190,16 @@ class Revision2PortfolioOrchestrator:
         current = self._equity_curve[-1] if self._equity_curve else self.starting_equity
         return (peak - current) / peak if peak > 0 else 0.0
 
+    def _mark_to_market_equity(self) -> float:
+        unrealized = 0.0
+        for symbol, trade in self.open_trades.items():
+            mark = self._last_close.get(symbol, trade["entry_price"])
+            unrealized += (
+                (mark - trade["entry_price"]) * trade["quantity"] if trade["side"] == "BUY"
+                else (trade["entry_price"] - mark) * trade["quantity"]
+            )
+        return self.starting_equity + self.broker.realized_pnl + unrealized
+
     def _gross_exposure_notional(self) -> float:
         return sum(t["quantity"] * t["entry_price"] for t in self.open_trades.values())
 
@@ -187,6 +210,18 @@ class Revision2PortfolioOrchestrator:
         )
 
     # ---- exit handling ------------------------------------------------
+    @staticmethod
+    def _leg_cost(price: float, quantity: int, side: str) -> float:
+        """Same brokerage/exchange/tax formula as _transaction_costs(),
+        applied to one order leg — used to allocate real, per-trade net P&L
+        instead of leaving costs as a portfolio-level-only aggregate that
+        acceptance gates (profit factor, drawdown, expectancy) never see."""
+        turnover = price * quantity
+        cost = min(20.0, 0.0003 * turnover) + 0.0000345 * turnover
+        if side == "SELL":
+            cost += 0.00025 * turnover
+        return cost
+
     def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
         close_side = "SELL" if trade["side"] == "BUY" else "BUY"
         result = self.broker.place_order(
@@ -198,11 +233,22 @@ class Revision2PortfolioOrchestrator:
                 (result["filled_price"] - trade["entry_price"]) * trade["quantity"]
                 if trade["side"] == "BUY" else (trade["entry_price"] - result["filled_price"]) * trade["quantity"]
             )
+            entry_cost = self._leg_cost(trade["entry_price"], trade["quantity"], trade["side"])
+            exit_cost = self._leg_cost(result["filled_price"], trade["quantity"], close_side)
+            trade_costs = entry_cost + exit_cost
             self.completed_trades.append({
                 "symbol": symbol, "side": trade["side"], "entry_price": trade["entry_price"],
                 "exit_price": result["filled_price"], "quantity": trade["quantity"],
                 "entry_timestamp": trade["entry_timestamp"], "exit_timestamp": str(timestamp),
                 "reason": reason, "pnl": pnl,
+                # Net of this trade's own allocated brokerage/exchange/tax
+                # (not slippage — that's already inside `pnl` via the fill
+                # price itself). Acceptance gates and score_candidate use
+                # this when present so profit factor / drawdown / net
+                # expectancy reflect what the trade actually kept, not its
+                # gross price move.
+                "costs": trade_costs,
+                "net_pnl": pnl - trade_costs,
             })
             self._equity_curve.append(self._equity())
             del self.open_trades[symbol]
@@ -243,7 +289,15 @@ class Revision2PortfolioOrchestrator:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "max_hold")
 
     # ---- chronological clock -------------------------------------------
-    def _build_clock(self, symbol_bars: Dict[str, pd.DataFrame], warmup: int) -> List[_ClockEvent]:
+    @staticmethod
+    def build_clock(symbol_bars: Dict[str, pd.DataFrame], warmup: int) -> List[_ClockEvent]:
+        """Static and side-effect-free so a caller running many candidates
+        against the SAME symbol_bars (a calibration run) can build this
+        once and pass it to every candidate's run() via precomputed_clock=
+        — at real (hundreds-of-thousands-of-bars, 48-symbol) scale this is
+        a multi-million-object sort, and rebuilding it from scratch for
+        every candidate is pure waste when the bars never change between
+        them, only the parameters do."""
         events: List[_ClockEvent] = []
         for symbol, bars in symbol_bars.items():
             ts = pd.to_datetime(bars["timestamp"])
@@ -253,7 +307,10 @@ class Revision2PortfolioOrchestrator:
         return events
 
     # ---- main loop --------------------------------------------------------
-    def run(self, symbol_bars: Dict[str, pd.DataFrame], warmup: int = 60) -> Dict[str, Any]:
+    def run(
+        self, symbol_bars: Dict[str, pd.DataFrame], warmup: int = 60,
+        precomputed_clock: Optional[List[_ClockEvent]] = None,
+    ) -> Dict[str, Any]:
         normalized: Dict[str, pd.DataFrame] = {}
         for symbol, bars in symbol_bars.items():
             cols = {c.lower(): c for c in bars.columns}
@@ -274,13 +331,24 @@ class Revision2PortfolioOrchestrator:
         max_gross_fraction = float(self.safety_contract.values["max_gross_exposure_fraction"])
         sector_cap_fraction = float(self.registry.get("max_sector_exposure_fraction").default)
 
-        clock = self._build_clock(symbol_bars, warmup)
+        clock = precomputed_clock if precomputed_clock is not None else self.build_clock(symbol_bars, warmup)
         entry_bar_index: Dict[str, int] = {}  # symbol -> bar_idx of current open trade's entry
 
         for event in clock:
             funnel["bars_processed"] += 1
             symbol, bar_idx, timestamp = event.symbol, event.bar_idx, event.timestamp
             bars = symbol_bars[symbol]
+
+            # Mark-to-market equity tracking: real market data (this bar's
+            # close) regardless of what the gates below decide. One point
+            # per unique clock tick (not per symbol-event), using every open
+            # position's latest known close — this is the actual
+            # chronological, marked-to-market portfolio curve, not a proxy
+            # built only from completed-trade P&L.
+            self._last_close[symbol] = float(bars.iloc[bar_idx]["close"])
+            if timestamp != self._last_mtm_timestamp:
+                self._mtm_equity_curve.append((str(timestamp), self._mark_to_market_equity()))
+                self._last_mtm_timestamp = timestamp
 
             admitted, _, trace = self.data_ingestion.admit(symbol, self.config)
             self._record(trace)
@@ -452,6 +520,15 @@ class Revision2PortfolioOrchestrator:
         coverage_target = sorted(target_names & self.consumed_parameters)
         safety_consumed = sorted(safety_names) if funnel["orders_submitted"] or funnel["exit_orders_submitted"] or funnel["fills"] else []
 
+        mtm_values = [e for _, e in self._mtm_equity_curve]
+        mtm_peak = mtm_values[0]
+        mtm_max_drawdown_fraction = 0.0
+        for v in mtm_values:
+            mtm_peak = max(mtm_peak, v)
+            if mtm_peak > 0:
+                mtm_max_drawdown_fraction = max(mtm_max_drawdown_fraction, (mtm_peak - v) / mtm_peak)
+        safety_violations = sum(1 for t in self.completed_trades if t["reason"] == "forced_close_drawdown_halt")
+
         return {
             **funnel,
             "symbols": self.symbols,
@@ -468,6 +545,14 @@ class Revision2PortfolioOrchestrator:
                 "safety_total": len(safety_names), "safety_consumed": len(safety_consumed),
             },
             "trades": self.completed_trades,
+            # Real chronological, marked-to-market portfolio equity — see
+            # the constructor comment on self._mtm_equity_curve. Downstream
+            # consumers (CalibrationSupervisor's acceptance gates) should use
+            # mtm_max_drawdown_fraction, not a curve reconstructed only from
+            # completed-trade P&L.
+            "mtm_equity_curve": self._mtm_equity_curve,
+            "mtm_max_drawdown_fraction": mtm_max_drawdown_fraction,
+            "safety_violations": safety_violations,
         }
 
     def _transaction_costs(self) -> Dict[str, float]:

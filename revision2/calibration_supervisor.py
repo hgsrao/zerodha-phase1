@@ -36,6 +36,7 @@ import numpy as np
 import pandas as pd
 
 from canonical_parameter_registry import CanonicalParameterRegistry
+from revision2.contracts import StartupNotCertifiedError
 from revision2.optimizer import CMAES, RandomSearch, SearchSpace, TPESampler, Trial, local_fine_tune
 from revision2.portfolio_orchestrator import Revision2PortfolioOrchestrator
 
@@ -93,12 +94,72 @@ class AcceptanceGateResult:
     reasons: List[str]
 
 
+def _trade_pnl(trade: Dict[str, Any]) -> float:
+    """Net-of-this-trade's-own-cost P&L when the report has it
+    (Revision2PortfolioOrchestrator trades carry `net_pnl`), falling back
+    to gross `pnl` otherwise (e.g. a single-symbol Revision2Orchestrator
+    trade, which doesn't allocate per-trade costs). Every profit-factor /
+    drawdown / expectancy calculation below goes through this so a
+    candidate can't clear the gates on gross trade P&L while being
+    unprofitable net of costs."""
+    return trade.get("net_pnl", trade["pnl"])
+
+
+def _reconstruct_drawdown_from_trades(report: Dict[str, Any]) -> float:
+    """Fallback max-drawdown reconstruction from completed-trade P&L only —
+    used when a report has no real mtm_equity_curve (e.g. a single-symbol
+    Revision2Orchestrator report). This deliberately UNDER-counts risk: it
+    can't see unrealized intratrade drawdown, simultaneous open-position
+    mark-to-market losses, or equity movement between completed trades.
+    Prefer report["mtm_max_drawdown_fraction"] (from
+    Revision2PortfolioOrchestrator) whenever it's present."""
+    trades = report.get("trades", [])
+    starting = report.get("ending_equity", 0.0) - report.get("net_pnl", 0.0)
+    cum = starting
+    peak = starting
+    max_dd = 0.0
+    for t in trades:
+        cum += _trade_pnl(t)
+        peak = max(peak, cum)
+        if peak > 0:
+            max_dd = max(max_dd, (peak - cum) / peak)
+    return max_dd
+
+
+def compute_sharpe_ratio(mtm_equity_curve: List[Any], periods_per_year: int = 252) -> float:
+    """A real, conventional Sharpe ratio: daily-resampled returns from the
+    actual marked-to-market equity curve (last value per calendar date),
+    annualized by sqrt(252) trading days. Returns 0.0 if there's too little
+    data to say anything (never -inf/NaN, so it can be safely compared)."""
+    if not mtm_equity_curve:
+        return 0.0
+    daily: Dict[str, float] = {}
+    for ts, equity in mtm_equity_curve:
+        if not ts:
+            continue
+        daily[str(ts)[:10]] = equity  # curve is chronological -> last write per date wins
+    values = list(daily.values())
+    if len(values) < 3:
+        return 0.0
+    values_arr = np.array(values, dtype=float)
+    returns = np.diff(values_arr) / np.maximum(values_arr[:-1], 1e-9)
+    std = returns.std(ddof=1)
+    if std == 0 or not math.isfinite(std):
+        return 0.0
+    return float(np.mean(returns) / std * math.sqrt(periods_per_year))
+
+
 class AcceptanceGates:
     """Hard gates a candidate clears before it is even ranked — closes the
     old ProductionOptimizer defect where final_cash (which contains
     starting capital) dominated the score regardless of strategy quality.
     A candidate that fails any of these gets score = -inf and can never
     win, no matter how the softer score formula below would have rated it.
+
+    The constructor defaults are smoke-test values — deliberately loose so
+    a mechanically-correct but not-yet-tuned candidate can still clear them
+    and prove the pipeline works (Stage F.1-F.3). Use production_defaults()
+    for selecting or freezing an actual candidate off the full calibration.
     """
 
     def __init__(
@@ -108,14 +169,57 @@ class AcceptanceGates:
         max_drawdown_fraction: float = 0.20,
         min_symbols_traded: int = 1,
         max_single_symbol_pnl_share: float = 0.80,
+        require_positive_net_pnl: bool = False,
+        require_positive_net_expectancy: bool = False,
+        min_sharpe: Optional[float] = None,
+        max_safety_violations: int = 0,
+        min_regime_coverage: Optional[float] = None,
+        max_validation_degradation_fraction: Optional[float] = None,
     ):
         self.min_trades = min_trades
         self.min_profit_factor = min_profit_factor
         self.max_drawdown_fraction = max_drawdown_fraction
         self.min_symbols_traded = min_symbols_traded
         self.max_single_symbol_pnl_share = max_single_symbol_pnl_share
+        self.require_positive_net_pnl = require_positive_net_pnl
+        self.require_positive_net_expectancy = require_positive_net_expectancy
+        self.min_sharpe = min_sharpe
+        self.max_safety_violations = max_safety_violations
+        # Both None by default: checked only when the caller actually
+        # supplies the corresponding data (regime_coverage in the report,
+        # or a validation_report to evaluate()) — the underlying regime-
+        # classification and train/validation-sealing infrastructure isn't
+        # built yet (Stage E), so these gates exist and work today but have
+        # nothing to check against until that infrastructure supplies it.
+        self.min_regime_coverage = min_regime_coverage
+        self.max_validation_degradation_fraction = max_validation_degradation_fraction
 
-    def evaluate(self, report: Dict[str, Any]) -> AcceptanceGateResult:
+    @staticmethod
+    def smoke_test_defaults() -> "AcceptanceGates":
+        """The loose values above, named explicitly so a caller can ask for
+        them on purpose rather than relying on the constructor defaults
+        silently being the permissive ones."""
+        return AcceptanceGates()
+
+    @staticmethod
+    def production_defaults() -> "AcceptanceGates":
+        """The recommended acceptance bar for selecting or freezing a
+        candidate off the full three-year, 48-symbol calibration —
+        materially stricter than smoke_test_defaults(). Do not run the long
+        calibration, or accept a winner, against the smoke-test values."""
+        return AcceptanceGates(
+            min_trades=300,
+            min_profit_factor=1.20,
+            max_drawdown_fraction=0.15,
+            min_symbols_traded=27,
+            max_single_symbol_pnl_share=0.20,
+            require_positive_net_pnl=True,
+            require_positive_net_expectancy=True,
+            min_sharpe=0.75,
+            max_safety_violations=0,
+        )
+
+    def evaluate(self, report: Dict[str, Any], validation_report: Optional[Dict[str, Any]] = None) -> AcceptanceGateResult:
         reasons: List[str] = []
         trades = report.get("trades", [])
 
@@ -126,21 +230,19 @@ class AcceptanceGates:
         if symbols_traded < self.min_symbols_traded:
             reasons.append(f"only {symbols_traded} symbol(s) traded, need >= {self.min_symbols_traded}")
 
-        gains = sum(t["pnl"] for t in trades if t["pnl"] > 0)
-        losses = -sum(t["pnl"] for t in trades if t["pnl"] < 0)
+        gains = sum(_trade_pnl(t) for t in trades if _trade_pnl(t) > 0)
+        losses = -sum(_trade_pnl(t) for t in trades if _trade_pnl(t) < 0)
         profit_factor = gains / losses if losses > 0 else (math.inf if gains > 0 else 0.0)
         if profit_factor < self.min_profit_factor:
             reasons.append(f"profit factor {profit_factor:.2f} below {self.min_profit_factor}")
 
-        starting = report.get("ending_equity", 0.0) - report.get("net_pnl", 0.0)
-        cum = starting
-        peak = starting
-        max_dd = 0.0
-        for t in trades:
-            cum += t["pnl"]
-            peak = max(peak, cum)
-            if peak > 0:
-                max_dd = max(max_dd, (peak - cum) / peak)
+        # Prefer the real marked-to-market drawdown (includes unrealized
+        # intratrade loss and simultaneous open-position exposure); fall
+        # back to the trade-completion reconstruction only if the report
+        # doesn't have one (e.g. a non-portfolio orchestrator report).
+        max_dd = report.get("mtm_max_drawdown_fraction")
+        if max_dd is None:
+            max_dd = _reconstruct_drawdown_from_trades(report)
         if max_dd > self.max_drawdown_fraction:
             reasons.append(f"max drawdown {max_dd:.2%} exceeds {self.max_drawdown_fraction:.0%}")
 
@@ -148,40 +250,133 @@ class AcceptanceGates:
             per_symbol_gain: Dict[str, float] = {}
             for t in trades:
                 sym = t.get("symbol", "?")
-                per_symbol_gain[sym] = per_symbol_gain.get(sym, 0.0) + max(0.0, t["pnl"])
+                per_symbol_gain[sym] = per_symbol_gain.get(sym, 0.0) + max(0.0, _trade_pnl(t))
             total_gain = sum(per_symbol_gain.values()) or 1.0
             share = max(per_symbol_gain.values()) / total_gain
             if share > self.max_single_symbol_pnl_share:
                 reasons.append(f"{share:.0%} of gains concentrated in one symbol, exceeds {self.max_single_symbol_pnl_share:.0%}")
 
+        net_pnl = report.get("net_pnl", 0.0)
+        if self.require_positive_net_pnl and net_pnl <= 0:
+            reasons.append(f"net P&L {net_pnl:.2f} is not positive")
+
+        net_expectancy = (net_pnl / len(trades)) if trades else 0.0
+        if self.require_positive_net_expectancy and net_expectancy <= 0:
+            reasons.append(f"net expectancy {net_expectancy:.2f}/trade is not positive")
+
+        if self.min_sharpe is not None:
+            mtm_curve = report.get("mtm_equity_curve")
+            if not mtm_curve:
+                reasons.append("Sharpe ratio required but no mtm_equity_curve in report")
+            else:
+                sharpe = compute_sharpe_ratio(mtm_curve)
+                if sharpe < self.min_sharpe:
+                    reasons.append(f"Sharpe {sharpe:.2f} below {self.min_sharpe}")
+
+        safety_violations = report.get("safety_violations", 0)
+        if safety_violations > self.max_safety_violations:
+            reasons.append(f"{safety_violations} safety violation(s) exceeds max {self.max_safety_violations}")
+
+        if self.min_regime_coverage is not None:
+            coverage = report.get("regime_coverage")
+            if coverage is None:
+                reasons.append("regime coverage required but not supplied (regime classification not yet wired — Stage E)")
+            elif coverage < self.min_regime_coverage:
+                reasons.append(f"regime coverage {coverage:.0%} below {self.min_regime_coverage:.0%}")
+
+        if self.max_validation_degradation_fraction is not None:
+            if validation_report is None:
+                reasons.append("train->validation degradation check required but no validation_report supplied (train/validation sealing not yet wired — Stage E)")
+            else:
+                train_score = score_candidate(report)
+                val_score = score_candidate(validation_report)
+                if math.isfinite(train_score) and train_score > 0:
+                    degradation = (train_score - val_score) / abs(train_score)
+                    if degradation > self.max_validation_degradation_fraction:
+                        reasons.append(f"train->validation degradation {degradation:.0%} exceeds {self.max_validation_degradation_fraction:.0%}")
+
         return AcceptanceGateResult(passed=(len(reasons) == 0), reasons=reasons)
+
+    def guidance_score(self, report: Dict[str, Any], raw_score: float) -> float:
+        """A finite score the SEARCH algorithms optimize toward, distinct
+        from the hard pass/fail that decides who can actually win.
+
+        Without this, a rejected candidate scores -inf, TPE's history only
+        ever grows from finite scores, and when every phase-1 candidate is
+        rejected (which is exactly what happened on the real 48-symbol,
+        10-candidate run), TPE never gets a single observation to learn
+        from and phase 2/3 never even start — CalibrationSupervisor.run()
+        used to bail out right there. This gives every candidate, rejected
+        or not, a finite score that improves as it gets closer to clearing
+        each gate, so the optimizer has a gradient toward feasibility
+        instead of being blind across the entire infeasible region."""
+        trades = report.get("trades", [])
+        penalty = 0.0
+
+        trade_count = len(trades)
+        if trade_count < self.min_trades:
+            penalty += (self.min_trades - trade_count) / max(self.min_trades, 1)
+
+        gains = sum(_trade_pnl(t) for t in trades if _trade_pnl(t) > 0)
+        losses = -sum(_trade_pnl(t) for t in trades if _trade_pnl(t) < 0)
+        profit_factor = gains / losses if losses > 0 else (10.0 if gains > 0 else 0.0)
+        if profit_factor < self.min_profit_factor:
+            penalty += (self.min_profit_factor - profit_factor)
+
+        max_dd = report.get("mtm_max_drawdown_fraction")
+        if max_dd is None:
+            max_dd = _reconstruct_drawdown_from_trades(report)
+        if max_dd > self.max_drawdown_fraction:
+            penalty += (max_dd - self.max_drawdown_fraction) * 5.0
+
+        symbols_traded = len({t["symbol"] for t in trades if "symbol" in t}) or (1 if trades else 0)
+        if symbols_traded < self.min_symbols_traded:
+            penalty += (self.min_symbols_traded - symbols_traded) / max(self.min_symbols_traded, 1)
+
+        if self.require_positive_net_pnl and report.get("net_pnl", 0.0) <= 0:
+            penalty += 1.0
+
+        base = raw_score if math.isfinite(raw_score) else -10.0
+        return float(base - penalty * 5.0)
 
 
 def score_candidate(report: Dict[str, Any]) -> float:
     """Net, cost-adjusted incremental performance — never raw ending
-    balance. A trade-level Sharpe-like ratio (net P&L over the standard
-    deviation of individual trade P&L) plus a bounded profit-factor bonus."""
+    balance. Combines a real, annualized Sharpe ratio from the marked-to-
+    market equity curve (falling back to an explicitly-labeled trade-level
+    Sharpe-LIKE ratio when no mtm_equity_curve is available), a bounded
+    profit-factor bonus, and a max-drawdown penalty."""
     trades = report.get("trades", [])
     if len(trades) < 2:
         return float("-inf")
-    pnls = np.array([t["pnl"] for t in trades], dtype=float)
-    std = pnls.std(ddof=1) or 1.0
-    sharpe_like = report["net_pnl"] / max(std, 1e-6)
+
+    pnls = np.array([_trade_pnl(t) for t in trades], dtype=float)
+    mtm_curve = report.get("mtm_equity_curve")
+    if mtm_curve and len(mtm_curve) >= 3:
+        sharpe = compute_sharpe_ratio(mtm_curve)
+        drawdown = report.get("mtm_max_drawdown_fraction", 0.0)
+    else:
+        std = pnls.std(ddof=1) or 1.0
+        sharpe = report.get("net_pnl", 0.0) / max(std, 1e-6)  # trade-level Sharpe-LIKE, not annualized
+        drawdown = _reconstruct_drawdown_from_trades(report)
+
     gains = pnls[pnls > 0].sum()
     losses = -pnls[pnls < 0].sum()
     profit_factor = gains / losses if losses > 0 else (2.0 if gains > 0 else 0.0)
-    return float(sharpe_like + 0.25 * min(profit_factor, 5.0))
+
+    return float(sharpe + 0.25 * min(profit_factor, 5.0) - 2.0 * drawdown)
 
 
 @dataclass
 class CandidateRecord:
     phase: str
     params: Dict[str, Any]
-    score: float
+    score: float  # -inf unless the candidate cleared every hard gate; this is what "winning" means
     accepted: bool
     reject_reasons: List[str]
     metrics: Dict[str, Any]
     elapsed_seconds: float
+    guidance_score: float = float("-inf")  # always finite; what the search algorithms actually optimize
 
 
 @dataclass
@@ -226,6 +421,12 @@ class CalibrationSupervisor:
         self._start_time: Optional[float] = None
         self._candidates: List[CandidateRecord] = []
         self._stopped_reason = "completed"
+        self._consecutive_internal_errors = 0
+        # Built once, lazily, on first use — symbol_bars never changes
+        # between candidates in a calibration run, only the parameters do,
+        # so the (potentially multi-million-event, real-scale) chronological
+        # clock only needs building and sorting a single time per run().
+        self._clock = None
 
     def _budget_exhausted(self) -> bool:
         if self.run_config.wall_clock_budget_seconds is None or self._start_time is None:
@@ -260,29 +461,64 @@ class CalibrationSupervisor:
                 ))
                 return float("-inf"), metrics
 
+            if self._clock is None:
+                self._clock = Revision2PortfolioOrchestrator.build_clock(self.symbol_bars, self.warmup)
+
             t0 = time.monotonic()
             try:
                 orch = Revision2PortfolioOrchestrator(
                     self.symbols, self.registry, calibration_overrides=params,
                     starting_equity=self.starting_equity, sector_map=self.sector_map,
                 )
-                report = orch.run(self.symbol_bars, warmup=self.warmup)
-            except Exception as exc:  # a candidate must never crash the whole run
+                report = orch.run(self.symbol_bars, warmup=self.warmup, precomputed_clock=self._clock)
+            except (ValueError, KeyError, IndexError, StartupNotCertifiedError, FileNotFoundError) as exc:
+                # Expected candidate-level failures: a bad calibration
+                # payload, missing/malformed bar data, a startup
+                # certificate that didn't pass. One bad candidate must
+                # never take down the whole calibration run.
+                self._consecutive_internal_errors = 0
                 elapsed = time.monotonic() - t0
                 record = CandidateRecord(phase=phase, params=params, score=float("-inf"), accepted=False,
-                                          reject_reasons=[f"candidate raised: {exc}"], metrics={}, elapsed_seconds=elapsed)
+                                          reject_reasons=[f"candidate raised: {exc}"], metrics={}, elapsed_seconds=elapsed,
+                                          guidance_score=-50.0)
                 self._candidates.append(record)
                 self._checkpoint()
-                return float("-inf"), {"error": str(exc)}
+                return -50.0, {"error": str(exc)}
+            except Exception:
+                # NOT an expected candidate failure — AttributeError,
+                # TypeError, an internal AssertionError, etc. all mean the
+                # engine itself is broken, not that this candidate is bad.
+                # Letting hundreds of candidates silently "fail" against a
+                # broken engine for hours is worse than stopping now: after
+                # a few in a row, this run must not continue pretending to
+                # calibrate.
+                self._consecutive_internal_errors += 1
+                elapsed = time.monotonic() - t0
+                record = CandidateRecord(phase=phase, params=params, score=float("-inf"), accepted=False,
+                                          reject_reasons=["internal error (see traceback) — not counted as a bad candidate"],
+                                          metrics={}, elapsed_seconds=elapsed, guidance_score=-50.0)
+                self._candidates.append(record)
+                self._checkpoint()
+                if self._consecutive_internal_errors >= 3:
+                    raise
+                return -50.0, {"internal_error": True}
 
+            self._consecutive_internal_errors = 0
             elapsed = time.monotonic() - t0
             gate_result = self.gates.evaluate(report)
             raw_score = score_candidate(report)
             final_score = raw_score if gate_result.passed else float("-inf")
+            guidance = self.gates.guidance_score(report, raw_score)
+            trade_count = report["completed_trades"]
 
             metrics = {
                 "net_pnl": report["net_pnl"], "gross_pnl": report["gross_pnl"],
-                "completed_trades": report["completed_trades"], "raw_score": raw_score,
+                "completed_trades": trade_count, "raw_score": raw_score,
+                "net_expectancy": (report["net_pnl"] / trade_count) if trade_count else 0.0,
+                "sharpe": compute_sharpe_ratio(report.get("mtm_equity_curve") or []),
+                "max_drawdown_fraction": report.get("mtm_max_drawdown_fraction", _reconstruct_drawdown_from_trades(report)),
+                "safety_violations": report.get("safety_violations", 0),
+                "symbols_traded": len({t["symbol"] for t in report["trades"] if "symbol" in t}),
             }
             if self.run_config.deep_dive:
                 metrics["trades"] = report["trades"]
@@ -291,9 +527,14 @@ class CalibrationSupervisor:
             self._candidates.append(CandidateRecord(
                 phase=phase, params=params, score=final_score, accepted=gate_result.passed,
                 reject_reasons=gate_result.reasons, metrics=metrics, elapsed_seconds=elapsed,
+                guidance_score=guidance,
             ))
             self._checkpoint()
-            return final_score, metrics
+            # The search algorithms (RandomSearch/TPE/CMA-ES) optimize
+            # `guidance`, which is always finite — final_score (used for
+            # winner eligibility in _finalize()) stays -inf for anything
+            # that didn't clear the hard gates, exactly as before.
+            return guidance, metrics
 
         return run
 
@@ -308,11 +549,17 @@ class CalibrationSupervisor:
         phase1_tpe = tpe.run(self._objective("phase1_tpe"), cfg.phase1_trials - cfg.phase1_trials // 2, seed_trials=phase1_random)
 
         phase1_all = [c for c in self._candidates if c.phase.startswith("phase1")]
-        accepted_or_any = [c for c in phase1_all if math.isfinite(c.score)]
-        if not accepted_or_any or self._budget_exhausted():
+        # Seed phase 2 from the best candidate BY GUIDANCE SCORE, which is
+        # always finite — never require an already-*accepted* candidate to
+        # exist yet. Requiring that here was the bug that made the real
+        # 48-symbol, 10-candidate run silently skip CMA-ES and fine-tuning
+        # entirely: every phase-1 candidate was rejected, so there was
+        # nothing with a finite `score` to seed from, and the run returned
+        # immediately as if calibration were "done."
+        if not phase1_all or self._budget_exhausted():
             return self._finalize()
 
-        phase1_best_params = max(accepted_or_any, key=lambda c: c.score).params
+        phase1_best_params = max(phase1_all, key=lambda c: c.guidance_score).params
 
         cmaes = CMAES(self.space, seed=cfg.seed + 2)
         cmaes.run(self._objective("phase2_cmaes"), n_generations=cfg.phase2_generations, seed_mean=phase1_best_params)
@@ -320,10 +567,9 @@ class CalibrationSupervisor:
         if self._budget_exhausted():
             return self._finalize()
 
-        finite_so_far = [c for c in self._candidates if math.isfinite(c.score)]
-        if not finite_so_far:
+        if not self._candidates:
             return self._finalize()
-        best_so_far = max(finite_so_far, key=lambda c: c.score).params
+        best_so_far = max(self._candidates, key=lambda c: c.guidance_score).params
 
         local_fine_tune(self._objective("phase3_finetune"), self.space, best_so_far, iterations=cfg.phase3_iterations, seed=cfg.seed + 3)
 

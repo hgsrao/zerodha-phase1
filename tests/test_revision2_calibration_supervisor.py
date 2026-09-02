@@ -83,11 +83,18 @@ class TestAcceptanceGates(unittest.TestCase):
     def test_score_never_ranks_by_ending_balance(self):
         # Two reports with identical trade P&L distribution but different
         # ending_equity (i.e. different starting capital) must score
-        # identically — the old ProductionOptimizer defect this replaces.
+        # near-identically — the old ProductionOptimizer defect (score
+        # dominated by raw balance) this replaces. They're not expected to
+        # be bit-identical any more: score now includes a drawdown penalty,
+        # and the same fixed-dollar swing is a genuinely smaller fraction
+        # of a $50M book than a $100K one — that's correct, not the old
+        # defect. The two scores must still land within a hair of each
+        # other, nowhere near the many-orders-of-magnitude gap a balance-
+        # dominated score would have produced.
         trades = [{"pnl": p, "symbol": "X"} for p in [30, -10, 25, -5, 40, -15]]
         report_small = {"trades": trades, "net_pnl": sum(t["pnl"] for t in trades), "ending_equity": 100_000 + sum(t["pnl"] for t in trades)}
         report_large = {"trades": trades, "net_pnl": sum(t["pnl"] for t in trades), "ending_equity": 50_000_000 + sum(t["pnl"] for t in trades)}
-        self.assertAlmostEqual(score_candidate(report_small), score_candidate(report_large), places=6)
+        self.assertAlmostEqual(score_candidate(report_small), score_candidate(report_large), delta=0.01)
 
 
 class TestCalibrationSupervisorSmoke(unittest.TestCase):
