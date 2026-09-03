@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -442,7 +444,23 @@ class CalibrationSupervisor:
                 {**asdict(c), "params": c.params} for c in self._candidates
             ],
         }
-        Path(self.run_config.checkpoint_path).write_text(json.dumps(payload, indent=2, default=str))
+        destination = Path(self.run_config.checkpoint_path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        # A watchdog can read this file while calibration is writing it.
+        # Write and fsync a sibling temporary file, then atomically replace
+        # the checkpoint so readers never observe truncated JSON.
+        fd, temporary_name = tempfile.mkstemp(
+            prefix=f".{destination.name}.", suffix=".tmp", dir=str(destination.parent)
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2, default=str)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_name, destination)
+        finally:
+            if os.path.exists(temporary_name):
+                os.unlink(temporary_name)
 
     @staticmethod
     def load_checkpoint(path: str) -> List[CandidateRecord]:
