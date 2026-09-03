@@ -15,6 +15,7 @@ every symbol rather than duplicating them.
 
 from __future__ import annotations
 
+import itertools
 import math
 from dataclasses import dataclass
 from datetime import datetime
@@ -137,7 +138,6 @@ class Revision2PortfolioOrchestrator:
         # compute a real intratrade/mark-to-market drawdown and Sharpe
         # instead of one reconstructed only from completed-trade P&L.
         self._last_close: Dict[str, float] = {}
-        self._last_mtm_timestamp: Optional[str] = None
         self._mtm_equity_curve: List[Tuple[str, float]] = [("", starting_equity)]
 
         self.startup_certificate = self._certify_startup()
@@ -334,174 +334,180 @@ class Revision2PortfolioOrchestrator:
         clock = precomputed_clock if precomputed_clock is not None else self.build_clock(symbol_bars, warmup)
         entry_bar_index: Dict[str, int] = {}  # symbol -> bar_idx of current open trade's entry
 
-        for event in clock:
-            funnel["bars_processed"] += 1
-            symbol, bar_idx, timestamp = event.symbol, event.bar_idx, event.timestamp
-            bars = symbol_bars[symbol]
+        for timestamp, tick_events in itertools.groupby(clock, key=lambda e: e.timestamp):
+            tick_events = list(tick_events)
+            # Refresh every symbol trading at this exact timestamp before
+            # sampling mark-to-market equity for the tick. Sampling inside
+            # the per-symbol loop below (keyed off whichever symbol
+            # happened to sort first into this tick) used `_last_close`
+            # values that were still last-bar-stale for every other symbol
+            # sharing the same timestamp — real 1-minute NSE data has all
+            # 48 symbols on the same clock, so that made a whole bar's
+            # price action show up one tick late in the curve, and
+            # silently dropped it altogether for a shock landing on the
+            # run's very last bar (no later tick left to "catch up" on
+            # it). See tests/test_revision2_portfolio.py.
+            for event in tick_events:
+                self._last_close[event.symbol] = float(symbol_bars[event.symbol].iloc[event.bar_idx]["close"])
+            self._mtm_equity_curve.append((str(timestamp), self._mark_to_market_equity()))
 
-            # Mark-to-market equity tracking: real market data (this bar's
-            # close) regardless of what the gates below decide. One point
-            # per unique clock tick (not per symbol-event), using every open
-            # position's latest known close — this is the actual
-            # chronological, marked-to-market portfolio curve, not a proxy
-            # built only from completed-trade P&L.
-            self._last_close[symbol] = float(bars.iloc[bar_idx]["close"])
-            if timestamp != self._last_mtm_timestamp:
-                self._mtm_equity_curve.append((str(timestamp), self._mark_to_market_equity()))
-                self._last_mtm_timestamp = timestamp
+            for event in tick_events:
+                funnel["bars_processed"] += 1
+                symbol, bar_idx = event.symbol, event.bar_idx
+                bars = symbol_bars[symbol]
 
-            admitted, _, trace = self.data_ingestion.admit(symbol, self.config)
-            self._record(trace)
-            if not admitted:
-                continue
-            certified, _, trace = self.l2_certifier.certify(bars.iloc[max(0, bar_idx - 5):bar_idx + 1], self.config)
-            self._record(trace)
-            if not certified:
-                continue
-            in_window, _, trace = self.unified_execution.check_window(str(timestamp), self.config)
-            self._record(trace)
+                admitted, _, trace = self.data_ingestion.admit(symbol, self.config)
+                self._record(trace)
+                if not admitted:
+                    continue
+                certified, _, trace = self.l2_certifier.certify(bars.iloc[max(0, bar_idx - 5):bar_idx + 1], self.config)
+                self._record(trace)
+                if not certified:
+                    continue
+                in_window, _, trace = self.unified_execution.check_window(str(timestamp), self.config)
+                self._record(trace)
 
-            snapshot = MarketSnapshot(
-                symbol=symbol, timestamp=str(timestamp),
-                bars=bars.iloc[max(0, bar_idx - SNAPSHOT_LOOKBACK_BARS + 1):bar_idx + 1],
-            )
-            signal, trace = self.pa.evaluate(snapshot, self.config)
-            self._record(trace)
-            funnel["pa_signals"] += 1
+                snapshot = MarketSnapshot(
+                    symbol=symbol, timestamp=str(timestamp),
+                    bars=bars.iloc[max(0, bar_idx - SNAPSHOT_LOOKBACK_BARS + 1):bar_idx + 1],
+                )
+                signal, trace = self.pa.evaluate(snapshot, self.config)
+                self._record(trace)
+                funnel["pa_signals"] += 1
 
-            held = bar_idx - entry_bar_index.get(symbol, bar_idx)
-            self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held)
+                held = bar_idx - entry_bar_index.get(symbol, bar_idx)
+                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held)
 
-            if symbol in self.open_trades or not in_window:
-                continue
+                if symbol in self.open_trades or not in_window:
+                    continue
 
-            decision, trace = self.id_box.evaluate(signal, self.config)
-            self._record(trace)
-            if not decision.approved:
-                funnel["id_rejections"] += 1
-                continue
-            funnel["id_approvals"] += 1
+                decision, trace = self.id_box.evaluate(signal, self.config)
+                self._record(trace)
+                if not decision.approved:
+                    funnel["id_rejections"] += 1
+                    continue
+                funnel["id_approvals"] += 1
 
-            atr = signal.volatility * bars.iloc[bar_idx]["close"]
-            next_open = float(bars.iloc[bar_idx + 1]["open"])
-            plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
-            self._record(trace)
-            if plan is None:
-                continue
-            funnel["mpc_plans"] += 1
+                atr = signal.volatility * bars.iloc[bar_idx]["close"]
+                next_open = float(bars.iloc[bar_idx + 1]["open"])
+                plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
+                self._record(trace)
+                if plan is None:
+                    continue
+                funnel["mpc_plans"] += 1
 
-            approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(self._equity_curve, self.config)
-            self._record(trace)
-            if not approved:
-                funnel["safety_rejections"] += 1
-                continue
-            size_mult *= pid_info["entry_timing_multiplier"]
+                approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(self._equity_curve, self.config)
+                self._record(trace)
+                if not approved:
+                    funnel["safety_rejections"] += 1
+                    continue
+                size_mult *= pid_info["entry_timing_multiplier"]
 
-            # Portfolio-level caps — the actual point of this module: these
-            # cannot be evaluated per-symbol, they need the shared state.
-            if len(self.open_trades) >= max_concurrent:
-                funnel["portfolio_cap_rejections"] += 1
-                continue
-            proposed_notional = plan.entry_price * 1  # provisional; re-checked with real quantity below
-            equity_now = self._equity()
-            sector = self.sector_map.get(symbol, "Unclassified")
-            if self._sector_exposure_notional(sector) + proposed_notional > equity_now * sector_cap_fraction:
-                funnel["portfolio_cap_rejections"] += 1
-                continue
-            if self._gross_exposure_notional() + proposed_notional > equity_now * max_gross_fraction:
-                funnel["portfolio_cap_rejections"] += 1
-                continue
+                # Portfolio-level caps — the actual point of this module: these
+                # cannot be evaluated per-symbol, they need the shared state.
+                if len(self.open_trades) >= max_concurrent:
+                    funnel["portfolio_cap_rejections"] += 1
+                    continue
+                proposed_notional = plan.entry_price * 1  # provisional; re-checked with real quantity below
+                equity_now = self._equity()
+                sector = self.sector_map.get(symbol, "Unclassified")
+                if self._sector_exposure_notional(sector) + proposed_notional > equity_now * sector_cap_fraction:
+                    funnel["portfolio_cap_rejections"] += 1
+                    continue
+                if self._gross_exposure_notional() + proposed_notional > equity_now * max_gross_fraction:
+                    funnel["portfolio_cap_rejections"] += 1
+                    continue
 
-            quantity, trace = self.position_manager.size(
-                plan, equity_now, size_mult, self.config,
-                open_positions_count=len(self.open_trades),
-                symbol_positions_count=1 if symbol in self.open_trades else 0,
-            )
-            self._record(trace)
-            if quantity <= 0:
-                continue
+                quantity, trace = self.position_manager.size(
+                    plan, equity_now, size_mult, self.config,
+                    open_positions_count=len(self.open_trades),
+                    symbol_positions_count=1 if symbol in self.open_trades else 0,
+                )
+                self._record(trace)
+                if quantity <= 0:
+                    continue
 
-            # Re-check gross/sector exposure with the real notional now that
-            # quantity is known (the provisional check above used qty=1).
-            real_notional = plan.entry_price * quantity
-            if self._sector_exposure_notional(sector) + real_notional > equity_now * sector_cap_fraction:
-                funnel["portfolio_cap_rejections"] += 1
-                continue
-            if self._gross_exposure_notional() + real_notional > equity_now * max_gross_fraction:
-                funnel["portfolio_cap_rejections"] += 1
-                continue
+                # Re-check gross/sector exposure with the real notional now that
+                # quantity is known (the provisional check above used qty=1).
+                real_notional = plan.entry_price * quantity
+                if self._sector_exposure_notional(sector) + real_notional > equity_now * sector_cap_fraction:
+                    funnel["portfolio_cap_rejections"] += 1
+                    continue
+                if self._gross_exposure_notional() + real_notional > equity_now * max_gross_fraction:
+                    funnel["portfolio_cap_rejections"] += 1
+                    continue
 
-            post_ok, _, trace = self.safety_gates_target.evaluate_post_sizing(self._equity_curve, plan, quantity, self.config)
-            self._record(trace)
-            if not post_ok:
-                funnel["safety_rejections"] += 1
-                continue
-            funnel["safety_approvals"] += 1
+                post_ok, _, trace = self.safety_gates_target.evaluate_post_sizing(self._equity_curve, plan, quantity, self.config)
+                self._record(trace)
+                if not post_ok:
+                    funnel["safety_rejections"] += 1
+                    continue
+                funnel["safety_approvals"] += 1
 
-            order, trace = self.p01d.create_order(symbol, plan, quantity, self.config)
-            self._record(trace)
-            if order is None:
-                continue
+                order, trace = self.p01d.create_order(symbol, plan, quantity, self.config)
+                self._record(trace)
+                if order is None:
+                    continue
 
-            state = SystemState(
-                portfolio_value=equity_now,
-                current_dd_percent=self._current_drawdown(),
-                current_lambda=self._gross_exposure_notional() / max(equity_now, 1.0),
-                daily_realized_loss=max(0.0, max(self._equity_curve) - equity_now),
-                daily_unrealized_loss=0.0,
-                open_positions_count=len(self.open_trades),
-                open_positions=[type("P", (), {"position_notional": t["quantity"] * t["entry_price"]})() for t in self.open_trades.values()],
-                market_data_age_seconds=0, broker_connected=True, broker_offline_seconds=0,
-                kill_switch_active=not bool(self.safety_contract.values["kill_switch_enabled"]),
-                circuit_breaker_triggered=False,
-            )
-            entry_signal = EntrySignal(
-                symbol=symbol, entry_price=plan.entry_price, stop_loss_price=plan.stop_price,
-                profit_target_price=plan.target_price, confidence=decision.confidence,
-                suggested_quantity=quantity, position_notional=real_notional,
-                risk_reward_ratio=decision.risk_reward_ratio,
-            )
-            try:
-                current_time = datetime.fromisoformat(str(timestamp))
-            except Exception:
-                current_time = datetime.now()
-            gate_result = self.entry_decision_engine.evaluate(
-                state, signal=entry_signal, current_time=current_time, proposed_quantity=quantity,
-                target_price=plan.entry_price, fill_price=plan.entry_price, expected_qty=quantity,
-                actual_qty=quantity, symbol=symbol, seen_recent=False, proposed_notional=real_notional,
-            )
-            funnel["gates_evaluated"] += 1
-            if not gate_result["passed"]:
-                funnel["gates_rejected"] += 1
-                continue
-            funnel["gates_passed"] += 1
-            quantity = max(0, int(gate_result["adjusted_quantity"]))
-            if quantity <= 0:
-                continue
+                state = SystemState(
+                    portfolio_value=equity_now,
+                    current_dd_percent=self._current_drawdown(),
+                    current_lambda=self._gross_exposure_notional() / max(equity_now, 1.0),
+                    daily_realized_loss=max(0.0, max(self._equity_curve) - equity_now),
+                    daily_unrealized_loss=0.0,
+                    open_positions_count=len(self.open_trades),
+                    open_positions=[type("P", (), {"position_notional": t["quantity"] * t["entry_price"]})() for t in self.open_trades.values()],
+                    market_data_age_seconds=0, broker_connected=True, broker_offline_seconds=0,
+                    kill_switch_active=not bool(self.safety_contract.values["kill_switch_enabled"]),
+                    circuit_breaker_triggered=False,
+                )
+                entry_signal = EntrySignal(
+                    symbol=symbol, entry_price=plan.entry_price, stop_loss_price=plan.stop_price,
+                    profit_target_price=plan.target_price, confidence=decision.confidence,
+                    suggested_quantity=quantity, position_notional=real_notional,
+                    risk_reward_ratio=decision.risk_reward_ratio,
+                )
+                try:
+                    current_time = datetime.fromisoformat(str(timestamp))
+                except Exception:
+                    current_time = datetime.now()
+                gate_result = self.entry_decision_engine.evaluate(
+                    state, signal=entry_signal, current_time=current_time, proposed_quantity=quantity,
+                    target_price=plan.entry_price, fill_price=plan.entry_price, expected_qty=quantity,
+                    actual_qty=quantity, symbol=symbol, seen_recent=False, proposed_notional=real_notional,
+                )
+                funnel["gates_evaluated"] += 1
+                if not gate_result["passed"]:
+                    funnel["gates_rejected"] += 1
+                    continue
+                funnel["gates_passed"] += 1
+                quantity = max(0, int(gate_result["adjusted_quantity"]))
+                if quantity <= 0:
+                    continue
 
-            gate2 = ExecutionGate().validate_pre_submit(
-                self.safety_contract.as_dict(),
-                {"symbol": symbol, "side": order.side, "quantity": quantity, "order_type": order.order_type},
-                parameter_registry=self.registry,
-            )
-            if not gate2["passed"]:
-                funnel["safety_rejections"] += 1
-                continue
+                gate2 = ExecutionGate().validate_pre_submit(
+                    self.safety_contract.as_dict(),
+                    {"symbol": symbol, "side": order.side, "quantity": quantity, "order_type": order.order_type},
+                    parameter_registry=self.registry,
+                )
+                if not gate2["passed"]:
+                    funnel["safety_rejections"] += 1
+                    continue
 
-            fill = self.broker.place_order(
-                symbol=symbol, side=order.side, quantity=quantity, order_type=order.order_type,
-                market_price=next_open, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
-            )
-            funnel["orders_submitted"] += 1
-            if fill["passed"]:
-                funnel["fills"] += 1
-                self.open_trades[symbol] = {
-                    "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
-                    "target_price": plan.target_price, "quantity": quantity,
-                    "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
-                    "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(timestamp),
-                }
-                entry_bar_index[symbol] = bar_idx + 1
+                fill = self.broker.place_order(
+                    symbol=symbol, side=order.side, quantity=quantity, order_type=order.order_type,
+                    market_price=next_open, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+                )
+                funnel["orders_submitted"] += 1
+                if fill["passed"]:
+                    funnel["fills"] += 1
+                    self.open_trades[symbol] = {
+                        "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
+                        "target_price": plan.target_price, "quantity": quantity,
+                        "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
+                        "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(timestamp),
+                    }
+                    entry_bar_index[symbol] = bar_idx + 1
 
         # End-of-run reconciliation for every symbol still open.
         for symbol in list(self.open_trades.keys()):

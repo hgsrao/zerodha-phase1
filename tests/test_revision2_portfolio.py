@@ -100,6 +100,55 @@ class TestPortfolioOrchestrator(unittest.TestCase):
             self.assertLessEqual(sector_notional, equity * sector_cap_fraction * 1.05)  # small slack for same-bar ordering
             del open_notional_by_symbol[t["symbol"]]
 
+    def test_mtm_equity_reflects_the_correct_bar_not_one_tick_late(self):
+        # Regression test: the mark-to-market sample for a shared timestamp
+        # used to be taken before every symbol but the alphabetically-first
+        # one at that tick had its `_last_close` refreshed for the current
+        # bar, so a real move showed up in the curve one tick late (and was
+        # dropped entirely if it landed on the run's final bar). Two symbols
+        # sharing every timestamp, with a single-bar price jump in the
+        # alphabetically-LATER one, isolates exactly that ordering bug.
+        idx = pd.date_range("2024-01-02 09:15", periods=70, freq="min", tz="Asia/Kolkata")
+
+        def flat_bars(price: float, jump_at: int = None, jump_to: float = None) -> pd.DataFrame:
+            closes = [price] * len(idx)
+            if jump_at is not None:
+                closes[jump_at] = jump_to
+            return pd.DataFrame({
+                "timestamp": idx, "open": closes, "high": [c + 0.5 for c in closes],
+                "low": [c - 0.5 for c in closes], "close": closes,
+                "volume": [1000] * len(idx),
+            })
+
+        jump_bar_idx = 65  # well past warmup=60
+        bars = {"AAA": flat_bars(100.0), "BBB": flat_bars(100.0, jump_at=jump_bar_idx, jump_to=250.0)}
+
+        orch = Revision2PortfolioOrchestrator(["AAA", "BBB"], self.registry, starting_equity=1_000_000.0)
+        entry_fill = orch.broker.place_order(
+            symbol="BBB", side="BUY", quantity=100, order_type="MARKET", market_price=100.0,
+            config=orch.safety_contract.as_dict(), parameter_registry=orch.registry,
+        )
+        orch.open_trades["BBB"] = {
+            "side": "BUY", "entry_price": entry_fill["filled_price"], "stop_price": 1.0,
+            "target_price": 1_000_000.0, "quantity": 100, "minimum_hold_bars": 10_000,
+            "maximum_hold_bars": 10_000, "exit_confidence_threshold": -1.0,
+            "entry_timestamp": str(idx[0]),
+        }
+        report = orch.run({"AAA": bars["AAA"], "BBB": bars["BBB"]}, warmup=60)
+
+        jump_timestamp = str(idx[jump_bar_idx])
+        curve_by_timestamp = {ts: eq for ts, eq in report["mtm_equity_curve"]}
+        self.assertIn(jump_timestamp, curve_by_timestamp)
+        # 100 shares * (250 - actual fill price) unrealized above starting
+        # equity (a small delta covers the entry order's own broker fees).
+        expected = 1_000_000.0 + 100 * (250.0 - entry_fill["filled_price"])
+        self.assertAlmostEqual(curve_by_timestamp[jump_timestamp], expected, delta=50.0)
+        # And the tick right after the jump must NOT still show the jump
+        # arriving late -- it should already have reverted, since BBB's
+        # price is flat again by the next bar.
+        next_timestamp = str(idx[jump_bar_idx + 1])
+        self.assertLess(curve_by_timestamp[next_timestamp], curve_by_timestamp[jump_timestamp] - 1000.0)
+
 
 if __name__ == "__main__":
     unittest.main()
