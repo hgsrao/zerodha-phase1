@@ -8,8 +8,9 @@ verify the remote commit before the next phase begins.
 
 ## Phase 1 — reproducible safety foundation
 
-- [ ] Make a clean clone collect the runtime/startup tests.
-- [ ] Repair the P01D token API/test contract.
+- [x] Make a clean clone collect the runtime/startup tests without depending
+      on the uncommitted `ecs_runtime_v2.py` readiness facade.
+- [x] Repair the P01D token API/test contract.
 - [x] Remove literal thresholds from Gates 07, 10, 14, and 15.
 - [x] Add real event-time order-deduplication state.
 - [x] Split pre-submit gates from post-fill reconciliation/slippage checks.
@@ -24,6 +25,10 @@ Phase 1B verification: 32 tests and 23 subtests passed. Gates 15/16 now run
 only against the broker's actual fill, a failed post-fill check triggers an
 immediate corrective flatten, and historical order IDs/timestamps are
 deterministic when an event timestamp is supplied.
+
+Phase 1C verification: 43 tests and 23 subtests passed. The startup tests no
+longer import an uncommitted facade which claimed parameter-name acknowledgement
+was execution, and the P01D expiry test now uses the frozen dataclass API.
 
 ## Phase 2 — data and accounting
 

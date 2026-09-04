@@ -2,7 +2,6 @@ import unittest
 from typing import Optional
 
 from canonical_parameter_registry import CanonicalParameterRegistry
-from ecs_runtime_v2 import ECSRuntimeV2
 from runtime.operating_mode import OperatingMode, RuntimeConfig, StartupGate, SimulatedBrokerAdapter, PaperBrokerAdapter, KiteBrokerAdapter
 
 
@@ -457,22 +456,6 @@ class TestRuntimeStartupGate(unittest.TestCase):
         )
         self.assertFalse(bad["passed"])
         self.assertTrue(any("range" in reason.lower() or "kill switch" in reason.lower() for reason in bad["reasons"]))
-
-    def test_runtime_consumes_all_declared_target_parameters(self):
-        runtime = ECSRuntimeV2()
-        registry = runtime.registry
-        effective = {name: spec.default for name, spec in registry.params.items()}
-        report = runtime.run_cycle(effective_config=effective)
-
-        consumed_names = set()
-        for box_status in report["black_box_statuses"]:
-            for name in box_status.get("consumed_parameters", []):
-                consumed_names.add(name)
-
-        self.assertTrue(report["ok"])
-        self.assertEqual(consumed_names, set(registry.params))
-        self.assertGreaterEqual(report["surface"]["total_target_surface"], 68)
-
 
 if __name__ == "__main__":
     unittest.main()
