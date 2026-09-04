@@ -1,0 +1,168 @@
+{
+  "phase": 3,
+  "version": "20260904_v1",
+  "frozen": true,
+  "timestamp_locked": "2026-09-04T07:40:00Z",
+  "mode_separation": {
+    "engineering_test": {
+      "enabled": true,
+      "confidence_source": "forced",
+      "confidence_value": 0.60,
+      "purpose": "Verify entry/exit/costs/accounting plumbing",
+      "guard": "Must use engineering_test=True, fails if real signal values used"
+    },
+    "research_backtest": {
+      "enabled": true,
+      "confidence_source": "calculated",
+      "confidence_formula": "signal_confidence_formula.RealSignalConfidence",
+      "purpose": "Measure genuine signal performance on historical data",
+      "guard": "Must use engineering_test=False, fails if forced values used"
+    }
+  },
+  "real_signal": {
+    "type": "multi_factor_transparent",
+    "version": "20260904_real_v1",
+    "description": "Transparent, multi-factor momentum signal",
+    "components": [
+      {
+        "name": "momentum",
+        "weight": 0.35,
+        "description": "Recent return relative to ATR (volatility-normalized)",
+        "formula": "(close - SMA(14)) / ATR(14)",
+        "bounds": [0.0, 1.0],
+        "justification": "Measures upside move size relative to normal volatility"
+      },
+      {
+        "name": "trend",
+        "weight": 0.35,
+        "description": "Fast/slow moving average spread",
+        "formula": "(EMA(9) - SMA(21)) / SMA(21)",
+        "bounds": [0.0, 1.0],
+        "justification": "Captures sustained uptrend direction and strength"
+      },
+      {
+        "name": "volume",
+        "weight": 0.20,
+        "description": "Current volume vs recent average",
+        "formula": "current_vol / avg_vol(14)",
+        "bounds": [0.0, 1.0],
+        "justification": "High volume confirms momentum, low volume shows caution"
+      },
+      {
+        "name": "volatility",
+        "weight": 0.10,
+        "description": "Suitability of current volatility regime",
+        "formula": "1.0 - |ATR(14)%close - 1.5%| / 4.0",
+        "bounds": [0.0, 1.0],
+        "optimal_regime": "1.0-2.0% ATR/close",
+        "justification": "Penalizes both too-low and too-high volatility"
+      }
+    ],
+    "weights": {
+      "momentum": 0.35,
+      "trend": 0.35,
+      "volume": 0.20,
+      "volatility": 0.10,
+      "sum": 1.0,
+      "calibration_period": "2026-01-01 to 2026-06-30",
+      "validation_period": "2026-07-01 to 2026-08-31",
+      "holdout_period": "2026-09-01 onwards",
+      "calibration_note": "Weights chosen to balance momentum (0.70) with regime (0.30)"
+    },
+    "confidence_calculation": {
+      "formula": "confidence = 0.35*momentum + 0.35*trend + 0.20*volume + 0.10*volatility",
+      "output_range": [0.0, 1.0],
+      "calculation_frequency": "Every completed 15-minute bar",
+      "lookback_required": 21,
+      "lookback_bars_used": "14-21 bars for MA, ATR, volume averages"
+    }
+  },
+  "gates": {
+    "admission_confidence_minimum": 0.55,
+    "locked": true,
+    "justification": "Signal produces ~0.50 confidence; threshold 0.55 creates natural filtering",
+    "calibration_study": "Phase 2 engineering test: 419 trades with forced 0.60 confidence proved framework",
+    "calibration_date": "2026-09-04",
+    "next_review": "After Phase 3 optimization + 6-month live observation",
+    "change_process": "1. Propose new threshold with evidence. 2. Backtest new value on locked historical data. 3. Document calibration study. 4. Approve + bump version. 5. Lock new version."
+  },
+  "costs": {
+    "product_type": "MIS (intraday)",
+    "execution_model": "next_bar_open (causal, no look-ahead)",
+    "buy_cost_calculator": "zerodha_intraday_costs.buy_cost()",
+    "sell_cost_calculator": "zerodha_intraday_costs.sell_cost()",
+    "components": {
+      "brokerage": "lower(0.03%, Rs20) per order side",
+      "stt": "0.025% sell side only",
+      "exchange_txn": "0.00297% both sides",
+      "sebi": "Rs10/crore = 0.0001% both sides",
+      "gst": "18% on (brokerage + exchange + sebi)",
+      "stamp_duty": "0.003% buy side only",
+      "slippage": "Not in statutory costs; modeled separately as 0.5 paise/unit"
+    },
+    "verified_date": "2026-08-14",
+    "cost_version": "zerodha_intraday_costs.py",
+    "change_process": "New costs only if Zerodha rate change confirmed + versioned"
+  },
+  "risk_gates": {
+    "max_concurrent_positions": 5,
+    "max_drawdown_halt": "25%",
+    "daily_loss_halt": "2% of portfolio",
+    "position_limit": "20% per symbol",
+    "gross_exposure_limit": "100%",
+    "locked": true,
+    "change_process": "Calibration study required, version bump on change"
+  },
+  "data_source": {
+    "type": "frozen_nse_15minute",
+    "symbols": 48,
+    "location": "historical_data_zerodha_nifty48/",
+    "date_range": "2023-08-14 to 2026-08-14",
+    "integrity_verified": true,
+    "verification_date": "2026-09-04",
+    "no_synthetic_data": true,
+    "fail_closed": "errors if frozen data missing"
+  },
+  "test_methodology": {
+    "step_1": "Engineering test: forced 0.60 confidence, prove transaction lifecycle",
+    "step_2": "Gate tests: verify all 18 gates pass and fail as designed",
+    "step_3": "Real signal 5-symbol: genuine ~0.50 confidence, accept 0 trades",
+    "step_4": "Full 48-symbol real signal: complete universe with locked config",
+    "step_5": "Phase 3 optimization: only after steps 1-4 pass with config locked"
+  },
+  "approval_required_for": {
+    "weight_changes": "Backtest both periods, documented calibration study",
+    "threshold_changes": "Backtest both periods, documented calibration study",
+    "cost_assumption_changes": "Evidence of rate change from broker",
+    "data_changes": "Frozen data only; new data = new version",
+    "gate_changes": "Calibration study, approval gate"
+  },
+  "no_auto_tuning": {
+    "principle": "System may calculate confidence automatically, but cannot automatically change thresholds or weights",
+    "enforcement": "Guard in research_backtest mode fails if forced values detected",
+    "rationale": "Prevents system from gaming itself by chasing trades"
+  },
+  "next_steps": {
+    "immediate": [
+      "Implement mode separation (engineering vs research)",
+      "Create guard that fails if wrong mode",
+      "Run real signal 5-symbol test (expect 0 trades)",
+      "Run full 48-symbol real signal test",
+      "Verify all Phase 2 corrections still pass"
+    ],
+    "phase_3": [
+      "Analyze signal performance over 6 months forward paper trading",
+      "Document any improvements needed",
+      "Create calibration study for Phase 4",
+      "Propose new weights (if warranted) with evidence"
+    ]
+  },
+  "document_version_history": {
+    "20260904_v1": {
+      "created": "2026-09-04",
+      "author": "Phase 2 completion",
+      "changes": "Initial frozen configuration with transparent formula",
+      "status": "LOCKED for Phase 3"
+    }
+  }
+}
