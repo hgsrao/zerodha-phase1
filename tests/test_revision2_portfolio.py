@@ -149,6 +149,28 @@ class TestPortfolioOrchestrator(unittest.TestCase):
         next_timestamp = str(idx[jump_bar_idx + 1])
         self.assertLess(curve_by_timestamp[next_timestamp], curve_by_timestamp[jump_timestamp] - 1000.0)
 
+    def test_max_positions_per_symbol_is_ledger_inert_in_the_portfolio_too(self):
+        # 10x deep-dive finding: max_positions_per_symbol (registry range
+        # 1..3) passes PositionManagerBox's own unit test in isolation, but
+        # `if symbol in self.open_trades: continue` runs earlier in this
+        # orchestrator's own loop than PositionManager.size(), so the
+        # symbol_positions_count it's ever called with is always 0 — the
+        # parameter can never bind here even with a real, multi-symbol,
+        # multi-trade portfolio. See DEAD_PARAMS_UNTIL_MULTI_LOT_SUPPORT in
+        # revision2/calibration_supervisor.py for why it's excluded from
+        # the calibration search space rather than wasting search budget.
+        spec = self.registry.get("max_positions_per_symbol")
+        results = {}
+        for val in (spec.minimum, spec.default, spec.maximum):
+            orch = Revision2PortfolioOrchestrator(
+                self.symbols, self.registry, calibration_overrides={"max_positions_per_symbol": val},
+                starting_equity=1_000_000.0,
+            )
+            report = orch.run(self.bars, warmup=40)
+            results[val] = (report["completed_trades"], round(report["net_pnl"], 6))
+        self.assertGreater(results[spec.default][0], 0, "fixture must produce real trades to prove anything")
+        self.assertEqual(len(set(results.values())), 1, f"expected identical ledgers at every value, got {results}")
+
 
 if __name__ == "__main__":
     unittest.main()

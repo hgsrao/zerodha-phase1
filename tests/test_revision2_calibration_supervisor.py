@@ -56,6 +56,18 @@ class TestCalibrationControlSeparation(unittest.TestCase):
         self.assertIn("learning_rate_exploration_factor", registry.calibratable_names())
         self.assertEqual(len(registry.calibratable_names()), 45)
 
+    def test_max_positions_per_symbol_excluded_from_trading_search_space(self):
+        # It's a genuine registry parameter and passes PositionManagerBox's
+        # own unit test, but both real orchestrators forbid a second
+        # concurrent position in an already-open symbol before this
+        # parameter is ever consulted with a nonzero symbol_positions_count
+        # -- see DEAD_PARAMS_UNTIL_MULTI_LOT_SUPPORT's comment and
+        # tests/test_revision2_causal_sensitivity.py for the causal proof.
+        registry = CanonicalParameterRegistry()
+        space = trading_search_space(registry)
+        self.assertNotIn("max_positions_per_symbol", space.names)
+        self.assertIn("max_positions_per_symbol", registry.calibratable_names())
+
 
 class TestAcceptanceGates(unittest.TestCase):
     def test_too_few_trades_is_rejected(self):

@@ -87,11 +87,30 @@ class TestCausalEndToEndSensitivity(unittest.TestCase):
         # evaluates a new entry while flat, so open_positions_count and
         # symbol_positions_count are always 0 at PositionManager.size() —
         # these two parameters are proven live at the box level (with an
-        # explicit nonzero position count) in test_revision2_sensitivity.py,
-        # and will be end-to-end provable once the 48-symbol shared
-        # portfolio tracks concurrent positions for real.
+        # explicit nonzero position count) in test_revision2_sensitivity.py.
+        # max_positions_live is genuinely end-to-end live once the 48-symbol
+        # shared portfolio tracks concurrent positions across DIFFERENT
+        # symbols (Revision2PortfolioOrchestrator passes a real, varying
+        # open_positions_count). max_positions_per_symbol is NOT just
+        # waiting on that: Revision2PortfolioOrchestrator's own
+        # `if symbol in self.open_trades: continue` guard runs earlier in
+        # the same loop than PositionManager.size(), so
+        # `symbol_positions_count=1 if symbol in self.open_trades else 0`
+        # is always evaluated with that condition already False — it is
+        # permanently ledger-inert in BOTH orchestrators as currently
+        # architected, not merely unverified. See
+        # tests/test_revision2_portfolio.py::
+        # test_max_positions_per_symbol_is_ledger_inert_in_the_portfolio_too
+        # for the portfolio-level proof, and
+        # revision2/calibration_supervisor.py's
+        # DEAD_PARAMS_UNTIL_MULTI_LOT_SUPPORT for why it's excluded from the
+        # calibration search space rather than silently wasting budget on
+        # it. Enabling real multi-position-per-symbol trading (pyramiding)
+        # would need open_trades to hold a list per symbol plus reworked
+        # exit/exposure accounting — a product decision on strategy
+        # behavior, not a bug fix.
         "max_positions_live": "single-symbol run never has concurrent positions to cap",
-        "max_positions_per_symbol": "single-symbol run never has concurrent positions to cap",
+        "max_positions_per_symbol": "permanently masked by the single-position-per-symbol guard in both orchestrators, not just this fixture",
         # Optimizer/meta-learning control, not a per-bar trading parameter:
         # it governs how an optimizer explores the search space, not any
         # single backtest's decisions. Its causal effect belongs in a test

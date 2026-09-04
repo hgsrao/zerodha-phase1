@@ -55,10 +55,29 @@ CALIBRATION_CONTROL_PARAMS = {
     "learning_rate_exploration_factor", "phase1_exploration_intensity", "phase2_optimization_intensity",
 }
 
+# max_positions_per_symbol is registry range 1..3, and passes its own
+# PositionManagerBox unit test (called directly with symbol_positions_count
+# >= max_per_symbol correctly zeroes sizing). But both real orchestrators
+# forbid a second concurrent position in the same symbol before this
+# parameter is ever consulted: Revision2Orchestrator doesn't pass
+# symbol_positions_count at all (defaults to 0), and
+# Revision2PortfolioOrchestrator's `if symbol in self.open_trades: continue`
+# guard runs earlier in the same loop, so `symbol_positions_count=1 if
+# symbol in self.open_trades else 0` is always evaluated with that
+# condition already False. Verified with a causal sweep over the full
+# 1..3 range on both orchestrators: byte-identical trade counts and net_pnl
+# at every value (tests/test_revision2_causal_sensitivity.py). Enabling
+# real multi-position-per-symbol trading (pyramiding) would need open_trades
+# to hold a list per symbol plus reworked exit/exposure accounting — a
+# product decision on strategy behavior, not a search-space bookkeeping
+# fix, so it's excluded here rather than silently built in.
+DEAD_PARAMS_UNTIL_MULTI_LOT_SUPPORT = {"max_positions_per_symbol"}
+
 
 def trading_search_space(registry: CanonicalParameterRegistry) -> SearchSpace:
     space = SearchSpace.from_registry(registry)
-    keep = [n for n in space.names if n not in CALIBRATION_CONTROL_PARAMS]
+    excluded = CALIBRATION_CONTROL_PARAMS | DEAD_PARAMS_UNTIL_MULTI_LOT_SUPPORT
+    keep = [n for n in space.names if n not in excluded]
     return SearchSpace(
         names=keep,
         minimum={n: space.minimum[n] for n in keep},
