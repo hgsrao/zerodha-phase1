@@ -64,11 +64,16 @@ when both touch within one bar; a gap beyond stop/target fills at bar open.
 
 ## Phase 4 — real order lifecycle
 
-- [ ] Pass and enforce LIMIT prices.
-- [ ] Implement pending/partial/filled/rejected/cancelled lifecycle semantics.
-- [ ] Enforce acknowledgement timeout, retry count, and retry delay.
-- [ ] Make actual fill quantity and price drive post-fill gates.
-- [ ] Persist gate and order telemetry.
+- [x] Pass and enforce LIMIT prices.
+- [x] Implement pending/partial/filled/rejected/cancelled lifecycle semantics.
+- [x] Enforce acknowledgement timeout, retry count, and retry delay.
+- [x] Make actual fill quantity and price drive post-fill gates.
+- [x] Persist gate and order telemetry through optional JSONL audit sinks.
+
+Phase 4 verification: 31 tests and 23 subtests passed. P01D now carries
+limit/timeout/retry/delay/slippage fields into execution; LIMIT fills cannot
+cross their price; partial fills expose actual quantity; gate and broker state
+transitions are available in memory and can be durably appended as JSONL.
 
 ## Phase 5 — parameter causality
 

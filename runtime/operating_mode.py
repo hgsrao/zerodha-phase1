@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+import json
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 
 
 class OperatingMode(str, Enum):
@@ -67,7 +69,7 @@ class PaperBrokerAdapter(BrokerAdapter):
 
     environment = "paper"
 
-    def __init__(self, account_id: Optional[str] = None, slippage_fraction: float = 0.0005):
+    def __init__(self, account_id: Optional[str] = None, slippage_fraction: float = 0.0005, audit_path: Optional[str] = None):
         super().__init__(account_id=account_id)
         self.slippage_fraction = slippage_fraction
         self.orders: Dict[str, PaperOrder] = {}
@@ -75,6 +77,18 @@ class PaperBrokerAdapter(BrokerAdapter):
         self.realized_pnl: float = 0.0
         self.fills: List[Dict[str, Any]] = []
         self._order_sequence = 0
+        self.audit_path = Path(audit_path) if audit_path else None
+        self.audit_events: List[Dict[str, Any]] = []
+
+    def _result(self, order: PaperOrder, passed: bool, reasons: Optional[List[str]] = None, **extra) -> Dict[str, Any]:
+        result = {"passed": passed, "order_id": order.order_id, "state": order.state.value, "reasons": reasons or [], **extra}
+        event = {"type": "order_lifecycle", **asdict(order), "state": order.state.value, "passed": passed, "reasons": reasons or []}
+        self.audit_events.append(event)
+        if self.audit_path is not None:
+            self.audit_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.audit_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(event, sort_keys=True, default=str) + "\n")
+        return result
 
     def get_position(self, symbol: str) -> Dict[str, float]:
         return self.positions.get(symbol, {"quantity": 0, "avg_price": 0.0})
@@ -117,6 +131,13 @@ class PaperBrokerAdapter(BrokerAdapter):
         config: Optional[Dict[str, Any]] = None,
         parameter_registry: Optional[Any] = None,
         event_time: Optional[str] = None,
+        limit_price: Optional[float] = None,
+        timeout_seconds: Optional[float] = None,
+        max_retries: int = 0,
+        retry_delay_seconds: float = 0.0,
+        attempt: int = 1,
+        elapsed_seconds: float = 0.0,
+        actual_fill_quantity: Optional[int] = None,
     ) -> Dict[str, Any]:
         self._order_sequence += 1
         order_id = f"{self.account_id or 'PAPER'}-{self._order_sequence:09d}"
@@ -127,9 +148,22 @@ class PaperBrokerAdapter(BrokerAdapter):
             side=side,
             quantity=quantity,
             order_type=order_type,
+            limit_price=limit_price,
             submitted_at=lifecycle_time,
         )
         self.orders[order_id] = order
+
+        if timeout_seconds is not None and elapsed_seconds > timeout_seconds:
+            order.state = OrderState.CANCELLED
+            order.rejection_reason = "order acknowledgement timeout"
+            return self._result(order, False, [order.rejection_reason])
+        if attempt < 1 or attempt > max_retries + 1:
+            order.state = OrderState.REJECTED
+            order.rejection_reason = "retry count exceeded"
+            return self._result(order, False, [order.rejection_reason])
+        if attempt > 1 and elapsed_seconds < retry_delay_seconds * (attempt - 1):
+            order.rejection_reason = "retry delay has not elapsed"
+            return self._result(order, False, [order.rejection_reason])
 
         gate = ExecutionGate()
         validation = gate.validate_pre_submit(config or {}, {
@@ -141,41 +175,59 @@ class PaperBrokerAdapter(BrokerAdapter):
         if not validation["passed"]:
             order.state = OrderState.REJECTED
             order.rejection_reason = "; ".join(validation["reasons"])
-            return {"passed": False, "order_id": order_id, "state": order.state.value, "reasons": validation["reasons"]}
+            return self._result(order, False, validation["reasons"])
 
         if market_price is None or not math.isfinite(market_price) or market_price <= 0:
             order.state = OrderState.REJECTED
             order.rejection_reason = "no valid market price to fill against"
-            return {"passed": False, "order_id": order_id, "state": order.state.value, "reasons": [order.rejection_reason]}
+            return self._result(order, False, [order.rejection_reason])
+
+        normalized_type = str(order_type).upper()
+        if normalized_type not in {"MARKET", "LIMIT"}:
+            order.state = OrderState.REJECTED
+            order.rejection_reason = "unsupported order type"
+            return self._result(order, False, [order.rejection_reason])
+        if normalized_type == "LIMIT":
+            if limit_price is None or not math.isfinite(limit_price) or limit_price <= 0:
+                order.state = OrderState.REJECTED
+                order.rejection_reason = "LIMIT order requires a positive limit price"
+                return self._result(order, False, [order.rejection_reason])
+            marketable = market_price <= limit_price if side == "BUY" else market_price >= limit_price
+            if not marketable:
+                order.rejection_reason = "limit price not reached"
+                return self._result(order, False, [order.rejection_reason])
 
         slip = market_price * self.slippage_fraction
-        fill_price = round(market_price + slip if side == "BUY" else market_price - slip, 4)
+        raw_fill = market_price + slip if side == "BUY" else market_price - slip
+        if normalized_type == "LIMIT":
+            raw_fill = min(raw_fill, limit_price) if side == "BUY" else max(raw_fill, limit_price)
+        fill_price = round(raw_fill, 4)
 
-        order.filled_quantity = quantity
+        fill_quantity = quantity if actual_fill_quantity is None else int(actual_fill_quantity)
+        if fill_quantity <= 0 or fill_quantity > quantity:
+            order.state = OrderState.REJECTED
+            order.rejection_reason = "invalid actual fill quantity"
+            return self._result(order, False, [order.rejection_reason])
+        order.filled_quantity = fill_quantity
         order.filled_price = fill_price
-        order.state = OrderState.FILLED
+        order.state = OrderState.FILLED if fill_quantity == quantity else OrderState.PARTIAL
         order.filled_at = lifecycle_time
 
-        self._apply_fill_to_position(symbol, side, quantity, fill_price)
+        self._apply_fill_to_position(symbol, side, fill_quantity, fill_price)
         self.fills.append({
             "order_id": order_id,
             "symbol": symbol,
             "side": side,
-            "quantity": quantity,
+            "quantity": fill_quantity,
             "price": fill_price,
             "market_price": market_price,
             "filled_at": order.filled_at,
         })
 
-        return {
-            "passed": True,
-            "order_id": order_id,
-            "state": order.state.value,
-            "filled_quantity": quantity,
-            "filled_price": fill_price,
-            "market_price": market_price,
-            "realized_pnl": self.realized_pnl,
-        }
+        return self._result(
+            order, True, filled_quantity=fill_quantity, filled_price=fill_price,
+            market_price=market_price, realized_pnl=self.realized_pnl,
+        )
 
 
 class KiteBrokerAdapter(BrokerAdapter):

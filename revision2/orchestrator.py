@@ -541,12 +541,15 @@ class Revision2Orchestrator:
                 config=self.safety_contract.as_dict(),
                 parameter_registry=self.registry,
                 event_time=str(bars.iloc[bar_idx + 1].get("timestamp", bar_idx + 1)),
+                limit_price=order.limit_price, timeout_seconds=order.timeout_seconds,
+                max_retries=order.max_retries, retry_delay_seconds=order.retry_delay_seconds,
             )
             funnel["orders_submitted"] += 1
             if fill["passed"]:
                 funnel["fills"] += 1
                 post_fill = self.entry_decision_engine.evaluate_post_fill(
                     quantity, int(fill["filled_quantity"]), next_open, float(fill["filled_price"]),
+                    max_slippage_fraction=order.slippage_tolerance_fraction,
                 )
                 record["post_fill_gates"] = {
                     "passed": post_fill["passed"], "gate": post_fill["gate"], "reason": post_fill["reason"],

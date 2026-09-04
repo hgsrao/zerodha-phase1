@@ -9,6 +9,7 @@ from gates_framework import (
     Gate15OrderReconciliation,
     SafetyGateConfig,
     SystemState,
+    GateLogger,
 )
 
 
@@ -77,3 +78,14 @@ def test_reconciliation_and_slippage_are_post_fill_checks():
     assert engine.evaluate_post_fill(10, 10, 100.0, 100.1)["passed"]
     assert engine.evaluate_post_fill(10, 9, 100.0, 100.0)["gate"] == "Gate15OrderReconciliation"
     assert engine.evaluate_post_fill(10, 10, 100.0, 100.11)["gate"] == "Gate16Slippage"
+
+
+def test_gate_telemetry_can_be_persisted_as_jsonl(tmp_path):
+    path = tmp_path / "gates.jsonl"
+    logger = GateLogger(str(path))
+    gate = Gate07StaleData(SafetyGateConfig(max_market_data_age_seconds=1), logger)
+    gate.evaluate(SystemState(market_data_age_seconds=2))
+    assert len(logger.decisions) == 1
+    text = path.read_text(encoding="utf-8")
+    assert '"gate": "Gate07StaleData"' in text
+    assert '"passed": false' in text

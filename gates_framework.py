@@ -8,9 +8,11 @@ keeping the logic fail-closed and deterministic.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+import json
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
 
 
 @dataclass
@@ -54,14 +56,33 @@ class EntrySignal:
 
 
 class GateLogger:
+    def __init__(self, audit_path: Optional[str] = None):
+        self.decisions: List[GateDecision] = []
+        self.messages: List[Dict[str, str]] = []
+        self.audit_path = Path(audit_path) if audit_path else None
+
+    def _append(self, payload: Dict[str, Any]) -> None:
+        if self.audit_path is None:
+            return
+        self.audit_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.audit_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, sort_keys=True, default=str) + "\n")
+
     def log_decision(self, decision: GateDecision):
-        pass
+        self.decisions.append(decision)
+        self._append({
+            "type": "gate_decision", "gate": decision.gate_name,
+            "passed": decision.passed, "reason": decision.reason,
+            "details": decision.details,
+        })
 
     def log_info(self, msg: str):
-        pass
+        self.messages.append({"level": "info", "message": msg})
+        self._append({"type": "message", "level": "info", "message": msg})
 
     def log_error(self, msg: str):
-        pass
+        self.messages.append({"level": "error", "message": msg})
+        self._append({"type": "message", "level": "error", "message": msg})
 
 
 @dataclass
@@ -426,11 +447,16 @@ class EntryDecisionEngine:
             self.gates = original
 
     def evaluate_post_fill(
-        self, expected_qty: int, actual_qty: int, target_price: float, fill_price: float
+        self, expected_qty: int, actual_qty: int, target_price: float, fill_price: float,
+        max_slippage_fraction: Optional[float] = None,
     ) -> Dict[str, Any]:
+        config = self.config if max_slippage_fraction is None else replace(
+            self.config,
+            slippage_tolerance_percent=min(self.config.slippage_tolerance_percent, float(max_slippage_fraction)),
+        )
         decisions = [
-            Gate15OrderReconciliation(self.config, self.logger).evaluate(expected_qty, actual_qty),
-            Gate16Slippage(self.config, self.logger).evaluate(target_price, fill_price),
+            Gate15OrderReconciliation(config, self.logger).evaluate(expected_qty, actual_qty),
+            Gate16Slippage(config, self.logger).evaluate(target_price, fill_price),
         ]
         failed = next((d for d in decisions if not d.passed), None)
         return {

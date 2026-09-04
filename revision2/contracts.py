@@ -154,6 +154,8 @@ class ProposedOrder:
     limit_price: Optional[float]
     timeout_seconds: int
     max_retries: int
+    retry_delay_seconds: int
+    slippage_tolerance_fraction: float
 
 
 @dataclass

@@ -551,7 +551,7 @@ class P01DBox:
         offset_pct = float(req("limit_order_offset_percent", "limit price offset from plan entry", "limit_price"))
         timeout_s = int(req("order_timeout_seconds", "broker acknowledgement timeout", "timeout_seconds"))
         max_retries = int(req("max_retry_attempts", "retry attempts on timeout/reject", "max_retries"))
-        req("retry_delay_seconds", "delay between retries", "max_retries")
+        retry_delay_s = int(req("retry_delay_seconds", "delay between retries", "retry_delay_seconds"))
         slippage_tolerance = float(req("slippage_tolerance_percent", "maximum tolerated slippage before rejecting the order", "order_type"))
 
         if quantity <= 0:
@@ -572,6 +572,8 @@ class P01DBox:
             limit_price=limit_price,
             timeout_seconds=timeout_s,
             max_retries=max_retries,
+            retry_delay_seconds=retry_delay_s,
+            slippage_tolerance_fraction=slippage_tolerance / 100.0,
         )
         return order, trace
 
