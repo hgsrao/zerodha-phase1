@@ -1,0 +1,235 @@
+{
+  "test_type": "Phase 2.2 - Extended 48-Symbol Backtest",
+  "test_date": "2026-09-04T06:41:25.695282",
+  "symbols_count": 42,
+  "total_bars": 1241730,
+  "period": "2022-01-01 to 2024-12-31",
+  "initial_capital": 1000000.0,
+  "final_capital": 1000058.0477653404,
+  "total_return": 58.04776534042321,
+  "return_percent": 0.005804776534042321,
+  "total_trades": 6072,
+  "winning_trades": 2549,
+  "losing_trades": 3523,
+  "win_rate": 41.97957839262187,
+  "total_pnl": -1051.0383054742156,
+  "max_pnl": 256.24069365670493,
+  "min_pnl": -215.06072487842516,
+  "profit_factor": 0.990241986369093,
+  "max_drawdown": 0.025514101273079674,
+  "entry_attempts": 109526,
+  "entries_accepted": 6072,
+  "gate_rejection_rate": 94.45611087778244,
+  "symbol_concentration": {
+    "INFY": {
+      "trade_count": 711,
+      "total_pnl": -1557.1337415228704,
+      "avg_pnl": -2.190061521129213
+    },
+    "TCS": {
+      "trade_count": 0,
+      "total_pnl": 0.0,
+      "avg_pnl": 0
+    },
+    "RELIANCE": {
+      "trade_count": 31,
+      "total_pnl": 1111.9633419010652,
+      "avg_pnl": 35.86978522261501
+    },
+    "HDFC": {
+      "trade_count": 648,
+      "total_pnl": -690.2216472710629,
+      "avg_pnl": -1.065156863072628
+    },
+    "SBIN": {
+      "trade_count": 324,
+      "total_pnl": -44.13311126590952,
+      "avg_pnl": -0.13621330637626394
+    },
+    "ICICIBANK": {
+      "trade_count": 330,
+      "total_pnl": 220.9426190889311,
+      "avg_pnl": 0.6695230881482761
+    },
+    "LT": {
+      "trade_count": 908,
+      "total_pnl": -737.7830341627557,
+      "avg_pnl": -0.8125363812365151
+    },
+    "ITC": {
+      "trade_count": 234,
+      "total_pnl": 195.15198213338414,
+      "avg_pnl": 0.8339828296298467
+    },
+    "MARUTI": {
+      "trade_count": 298,
+      "total_pnl": 730.0692760759025,
+      "avg_pnl": 2.4498968995835653
+    },
+    "ONGC": {
+      "trade_count": 544,
+      "total_pnl": -364.28746875721976,
+      "avg_pnl": -0.669646082274301
+    },
+    "BAJAJFINSV": {
+      "trade_count": 542,
+      "total_pnl": -40.198282656431445,
+      "avg_pnl": -0.07416657316684769
+    },
+    "HINDUSTAN": {
+      "trade_count": 404,
+      "total_pnl": 75.99387269472624,
+      "avg_pnl": 0.18810364528397583
+    },
+    "ASIANPAINT": {
+      "trade_count": 225,
+      "total_pnl": 317.5349388117455,
+      "avg_pnl": 1.411266394718869
+    },
+    "DMARUTI": {
+      "trade_count": 231,
+      "total_pnl": 148.0785319271065,
+      "avg_pnl": 0.6410326057450497
+    },
+    "BHARTIARTL": {
+      "trade_count": 183,
+      "total_pnl": -245.98054294852602,
+      "avg_pnl": -1.344155972396317
+    },
+    "BRITANNIA": {
+      "trade_count": 30,
+      "total_pnl": 67.2311996001934,
+      "avg_pnl": 2.2410399866731137
+    },
+    "COALINDIA": {
+      "trade_count": 132,
+      "total_pnl": 109.23289868943846,
+      "avg_pnl": 0.8275219597684732
+    },
+    "DIVISLAB": {
+      "trade_count": 9,
+      "total_pnl": 32.68862783102213,
+      "avg_pnl": 3.632069759002459
+    },
+    "GAIL": {
+      "trade_count": 27,
+      "total_pnl": -242.4113912967615,
+      "avg_pnl": -8.978199677657834
+    },
+    "GRASIM": {
+      "trade_count": 83,
+      "total_pnl": 1.5609347313247213,
+      "avg_pnl": 0.01880644254608098
+    },
+    "HCLTECH": {
+      "trade_count": 44,
+      "total_pnl": -145.0066017435289,
+      "avg_pnl": -3.2956045850802025
+    },
+    "HEROMOTOCO": {
+      "trade_count": 26,
+      "total_pnl": -141.21871079317305,
+      "avg_pnl": -5.431488876660501
+    },
+    "HINDALCO": {
+      "trade_count": 35,
+      "total_pnl": 231.59075569974942,
+      "avg_pnl": 6.616878734278555
+    },
+    "IOPLUSN": {
+      "trade_count": 21,
+      "total_pnl": -77.53989096584394,
+      "avg_pnl": -3.6923757602782827
+    },
+    "JSWSTEEL": {
+      "trade_count": 11,
+      "total_pnl": -56.95584527330038,
+      "avg_pnl": -5.17780411575458
+    },
+    "KOTAKBANK": {
+      "trade_count": 10,
+      "total_pnl": -3.247503978551663,
+      "avg_pnl": -0.3247503978551663
+    },
+    "LUPIN": {
+      "trade_count": 9,
+      "total_pnl": -38.525829155347424,
+      "avg_pnl": -4.280647683927492
+    },
+    "M&M": {
+      "trade_count": 3,
+      "total_pnl": -1.7275879318386842,
+      "avg_pnl": -0.5758626439462281
+    },
+    "NESTLEIND": {
+      "trade_count": 0,
+      "total_pnl": 0.0,
+      "avg_pnl": 0
+    },
+    "NTPC": {
+      "trade_count": 3,
+      "total_pnl": -35.45547017860156,
+      "avg_pnl": -11.818490059533852
+    },
+    "POWERGRID": {
+      "trade_count": 4,
+      "total_pnl": 54.96356263259224,
+      "avg_pnl": 13.74089065814806
+    },
+    "SHREECEM": {
+      "trade_count": 2,
+      "total_pnl": -54.55074565925156,
+      "avg_pnl": -27.27537282962578
+    },
+    "SUNPHARMA": {
+      "trade_count": 1,
+      "total_pnl": 23.847029577647845,
+      "avg_pnl": 23.847029577647845
+    },
+    "TATAMOTORS": {
+      "trade_count": 2,
+      "total_pnl": -19.523092382461527,
+      "avg_pnl": -9.761546191230764
+    },
+    "TATAPOWER": {
+      "trade_count": 3,
+      "total_pnl": 32.24302028993645,
+      "avg_pnl": 10.747673429978818
+    },
+    "TATASTEEL": {
+      "trade_count": 1,
+      "total_pnl": 29.014256223521556,
+      "avg_pnl": 29.014256223521556
+    },
+    "TECHM": {
+      "trade_count": 0,
+      "total_pnl": 0.0,
+      "avg_pnl": 0
+    },
+    "TITAN": {
+      "trade_count": 0,
+      "total_pnl": 0.0,
+      "avg_pnl": 0
+    },
+    "TORNTPHARM": {
+      "trade_count": 1,
+      "total_pnl": 47.08930452851405,
+      "avg_pnl": 47.08930452851405
+    },
+    "UPL": {
+      "trade_count": 1,
+      "total_pnl": 32.766671853986054,
+      "avg_pnl": 32.766671853986054
+    },
+    "WIPRO": {
+      "trade_count": 1,
+      "total_pnl": -17.100631821565457,
+      "avg_pnl": -17.100631821565457
+    },
+    "YESBANK": {
+      "trade_count": 0,
+      "total_pnl": 0.0,
+      "avg_pnl": 0
+    }
+  }
+}

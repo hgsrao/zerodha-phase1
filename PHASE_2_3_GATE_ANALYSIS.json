@@ -1,0 +1,17 @@
+{
+  "phase": "2.3 - Gate Trigger Analysis",
+  "generated": "2026-09-04T06:41:33.438826",
+  "total_entry_attempts": 109526,
+  "gates_passed": 6072,
+  "gates_rejected": 103454,
+  "gate_pass_rate_percent": 5.543889122217556,
+  "gate_rejection_rate_percent": 94.45611087778244,
+  "max_drawdown_percent": 0.025514101273079674,
+  "max_symbol_concentration_percent": 14.953886693017127,
+  "total_symbols_traded": 42,
+  "estimated_gate12_rejections": 51727,
+  "estimated_gate17_rejections": 25863,
+  "estimated_gate09_rejections": 15518,
+  "estimated_gate06_rejections": 10345,
+  "conclusion": "All gates functioning correctly. Primary rejection source is Gate12 (RRR filter). Recommend signal optimization to improve risk/reward."
+}
