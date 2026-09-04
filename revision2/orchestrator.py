@@ -38,6 +38,8 @@ from revision2.contracts import (
     StartupCertificate,
     StartupNotCertifiedError,
 )
+from revision2.data_certification import certify_bars
+from revision2.transaction_costs import equity_intraday_leg
 from runtime.operating_mode import ExecutionGate, OperatingMode, PaperBrokerAdapter, RuntimeConfig, StartupGate
 
 # PA only ever looks at a bounded trailing window (its largest lookback
@@ -200,6 +202,9 @@ class Revision2Orchestrator:
                 if trade["side"] == "BUY"
                 else (trade["entry_price"] - result["filled_price"]) * trade["quantity"]
             )
+            entry_cost = equity_intraday_leg(trade["entry_price"], trade["quantity"], trade["side"]).total
+            exit_cost = equity_intraday_leg(result["filled_price"], trade["quantity"], close_side).total
+            trade_costs = entry_cost + exit_cost
             self.completed_trades.append({
                 "side": trade["side"],
                 "entry_price": trade["entry_price"],
@@ -209,6 +214,8 @@ class Revision2Orchestrator:
                 "exit_bar_idx": bar_idx,
                 "reason": reason,
                 "pnl": pnl,
+                "costs": trade_costs,
+                "net_pnl": pnl - trade_costs,
             })
             self._equity_curve.append(self._equity())
             self._open_trade = None
@@ -272,25 +279,28 @@ class Revision2Orchestrator:
         standard Indian discount-broker intraday-equity approximations —
         there is no canonical registry parameter for them yet, so this is a
         documented modeling choice, not a calibrated cost."""
-        slippage_cost = 0.0
-        brokerage = 0.0
-        exchange_charges = 0.0
-        taxes = 0.0
+        slippage_cost = brokerage = exchange_charges = stt = sebi = stamp = gst = 0.0
         for f in self.broker.fills:
             turnover = f["price"] * f["quantity"]
             market_price = f.get("market_price")
             if market_price is not None:
                 slippage_cost += abs(f["price"] - market_price) * f["quantity"]
-            brokerage += min(20.0, 0.0003 * turnover)
-            exchange_charges += 0.0000345 * turnover
-            if f["side"] == "SELL":
-                taxes += 0.00025 * turnover
+            leg = equity_intraday_leg(f["price"], f["quantity"], f["side"])
+            brokerage += leg.brokerage
+            exchange_charges += leg.exchange_transaction_charge
+            stt += leg.stt
+            sebi += leg.sebi_charge
+            stamp += leg.stamp_duty
+            gst += leg.gst
+        taxes = stt + sebi + stamp + gst
         total_cost = brokerage + exchange_charges + taxes
         return {
             "slippage_cost": round(slippage_cost, 4),
             "brokerage": round(brokerage, 4),
             "exchange_charges": round(exchange_charges, 4),
             "taxes": round(taxes, 4),
+            "stt": round(stt, 4), "sebi_charges": round(sebi, 4),
+            "stamp_duty": round(stamp, 4), "gst": round(gst, 4),
             "total_cost": round(total_cost, 4),
         }
 
@@ -300,8 +310,7 @@ class Revision2Orchestrator:
         processed bar describing what every box did with it — purely for
         observability (e.g. driving a live display); it changes no control
         flow and every field it holds was already computed above it."""
-        cols = {c.lower(): c for c in bars.columns}
-        bars = bars.rename(columns={v: k for k, v in cols.items()})
+        bars, data_certification = certify_bars(bars)
 
         funnel = {
             "bars_processed": 0,
@@ -524,6 +533,22 @@ class Revision2Orchestrator:
                     funnel["exit_orders_submitted"] += 1
                     if corrective["passed"]:
                         funnel["fills"] += 1
+                        pnl = (
+                            (corrective["filled_price"] - fill["filled_price"]) * int(fill["filled_quantity"])
+                            if order.side == "BUY" else
+                            (fill["filled_price"] - corrective["filled_price"]) * int(fill["filled_quantity"])
+                        )
+                        trade_costs = (
+                            equity_intraday_leg(fill["filled_price"], int(fill["filled_quantity"]), order.side).total
+                            + equity_intraday_leg(corrective["filled_price"], int(fill["filled_quantity"]), close_side).total
+                        )
+                        self.completed_trades.append({
+                            "side": order.side, "entry_price": fill["filled_price"],
+                            "exit_price": corrective["filled_price"], "quantity": int(fill["filled_quantity"]),
+                            "entry_bar_idx": bar_idx + 1, "exit_bar_idx": bar_idx + 1,
+                            "reason": "post_fill_safety_flatten", "pnl": pnl,
+                            "costs": trade_costs, "net_pnl": pnl - trade_costs,
+                        })
                     funnel["gates_rejected"] += 1
                     record["stage"] = "post_fill_safety_flatten"
                     _emit()
@@ -559,6 +584,8 @@ class Revision2Orchestrator:
         assert abs(gross_pnl - sum(t["pnl"] for t in self.completed_trades)) < 1e-6, "gross_pnl / trade-ledger mismatch"
         costs = self._transaction_costs()
         net_pnl = gross_pnl - costs["total_cost"]
+        ledger_net_pnl = sum(t["net_pnl"] for t in self.completed_trades)
+        assert abs(net_pnl - ledger_net_pnl) < 1e-3, "net_pnl / trade-ledger mismatch"
 
         target_names = set(self.registry.params)
         safety_names = set(self.registry.safety_params)
@@ -576,6 +603,7 @@ class Revision2Orchestrator:
             "gross_pnl": gross_pnl,
             **costs,
             "net_pnl": net_pnl,
+            "ledger_net_pnl": ledger_net_pnl,
             "ending_equity": self.starting_equity + net_pnl,
             "config_hash": self.config.config_hash,
             "safety_contract_hash": self.safety_contract.contract_hash,
@@ -587,5 +615,6 @@ class Revision2Orchestrator:
                 "safety_consumed": len(safety_consumed),
                 "safety_missing": sorted(safety_names - set(safety_consumed)),
             },
+            "data_certification": data_certification,
             "trades": self.completed_trades,
         }

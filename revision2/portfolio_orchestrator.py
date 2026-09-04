@@ -43,6 +43,8 @@ from revision2.contracts import (
     StartupCertificate,
     StartupNotCertifiedError,
 )
+from revision2.data_certification import certify_bars
+from revision2.transaction_costs import equity_intraday_leg
 from runtime.operating_mode import ExecutionGate, OperatingMode, PaperBrokerAdapter, RuntimeConfig, StartupGate
 
 # See revision2/orchestrator.py's SNAPSHOT_LOOKBACK_BARS comment: PA only
@@ -223,10 +225,7 @@ class Revision2PortfolioOrchestrator:
         instead of leaving costs as a portfolio-level-only aggregate that
         acceptance gates (profit factor, drawdown, expectancy) never see."""
         turnover = price * quantity
-        cost = min(20.0, 0.0003 * turnover) + 0.0000345 * turnover
-        if side == "SELL":
-            cost += 0.00025 * turnover
-        return cost
+        return equity_intraday_leg(price, quantity, side).total
 
     def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
         close_side = "SELL" if trade["side"] == "BUY" else "BUY"
@@ -319,9 +318,9 @@ class Revision2PortfolioOrchestrator:
         precomputed_clock: Optional[List[_ClockEvent]] = None,
     ) -> Dict[str, Any]:
         normalized: Dict[str, pd.DataFrame] = {}
+        certification: Dict[str, Dict[str, int]] = {}
         for symbol, bars in symbol_bars.items():
-            cols = {c.lower(): c for c in bars.columns}
-            normalized[symbol] = bars.rename(columns={v: k for k, v in cols.items()})
+            normalized[symbol], certification[symbol] = certify_bars(bars)
         symbol_bars = normalized
 
         for symbol, bars in symbol_bars.items():
@@ -523,6 +522,24 @@ class Revision2PortfolioOrchestrator:
                         funnel["exit_orders_submitted"] += 1
                         if corrective["passed"]:
                             funnel["fills"] += 1
+                            pnl = (
+                                (corrective["filled_price"] - fill["filled_price"]) * int(fill["filled_quantity"])
+                                if order.side == "BUY" else
+                                (fill["filled_price"] - corrective["filled_price"]) * int(fill["filled_quantity"])
+                            )
+                            trade_costs = (
+                                self._leg_cost(fill["filled_price"], int(fill["filled_quantity"]), order.side)
+                                + self._leg_cost(corrective["filled_price"], int(fill["filled_quantity"]), close_side)
+                            )
+                            fill_timestamp = str(bars.iloc[bar_idx + 1].get("timestamp", bar_idx + 1))
+                            self.completed_trades.append({
+                                "symbol": symbol, "side": order.side,
+                                "entry_price": fill["filled_price"], "exit_price": corrective["filled_price"],
+                                "quantity": int(fill["filled_quantity"]),
+                                "entry_timestamp": fill_timestamp, "exit_timestamp": fill_timestamp,
+                                "reason": "post_fill_safety_flatten", "pnl": pnl,
+                                "costs": trade_costs, "net_pnl": pnl - trade_costs,
+                            })
                         funnel["gates_rejected"] += 1
                         continue
                     self.open_trades[symbol] = {
@@ -544,6 +561,8 @@ class Revision2PortfolioOrchestrator:
 
         costs = self._transaction_costs()
         net_pnl = gross_pnl - costs["total_cost"]
+        ledger_net_pnl = sum(t["net_pnl"] for t in self.completed_trades)
+        assert abs(net_pnl - ledger_net_pnl) < 1e-3, "net_pnl / trade-ledger mismatch"
 
         target_names = set(self.registry.params)
         safety_names = set(self.registry.safety_params)
@@ -566,6 +585,7 @@ class Revision2PortfolioOrchestrator:
             "gross_pnl": gross_pnl,
             **costs,
             "net_pnl": net_pnl,
+            "ledger_net_pnl": ledger_net_pnl,
             "ending_equity": self.starting_equity + net_pnl,
             "config_hash": self.config.config_hash,
             "safety_contract_hash": self.safety_contract.contract_hash,
@@ -583,22 +603,29 @@ class Revision2PortfolioOrchestrator:
             "mtm_equity_curve": self._mtm_equity_curve,
             "mtm_max_drawdown_fraction": mtm_max_drawdown_fraction,
             "safety_violations": safety_violations,
+            "data_certification": certification,
         }
 
     def _transaction_costs(self) -> Dict[str, float]:
-        slippage_cost = brokerage = exchange_charges = taxes = 0.0
+        slippage_cost = brokerage = exchange_charges = stt = sebi = stamp = gst = 0.0
         for f in self.broker.fills:
             turnover = f["price"] * f["quantity"]
             market_price = f.get("market_price")
             if market_price is not None:
                 slippage_cost += abs(f["price"] - market_price) * f["quantity"]
-            brokerage += min(20.0, 0.0003 * turnover)
-            exchange_charges += 0.0000345 * turnover
-            if f["side"] == "SELL":
-                taxes += 0.00025 * turnover
+            leg = equity_intraday_leg(f["price"], f["quantity"], f["side"])
+            brokerage += leg.brokerage
+            exchange_charges += leg.exchange_transaction_charge
+            stt += leg.stt
+            sebi += leg.sebi_charge
+            stamp += leg.stamp_duty
+            gst += leg.gst
+        taxes = stt + sebi + stamp + gst
         total_cost = brokerage + exchange_charges + taxes
         return {
             "slippage_cost": round(slippage_cost, 4), "brokerage": round(brokerage, 4),
             "exchange_charges": round(exchange_charges, 4), "taxes": round(taxes, 4),
+            "stt": round(stt, 4), "sebi_charges": round(sebi, 4),
+            "stamp_duty": round(stamp, 4), "gst": round(gst, 4),
             "total_cost": round(total_cost, 4),
         }

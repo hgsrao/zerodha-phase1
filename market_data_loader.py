@@ -10,6 +10,8 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
+from revision2.data_certification import certify_bars
+
 
 @dataclass
 class MarketUniverseStatus:
@@ -105,8 +107,8 @@ class MarketDataLoader:
             df["timestamp"] = pd.to_datetime(df["date"], errors="coerce")
         else:
             return None
-        df = df.dropna(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
-        return df
+        certified, _ = certify_bars(df)
+        return certified
 
     def _validate_dataframe(self, df: pd.DataFrame) -> bool:
         if df is None or df.empty:
@@ -117,8 +119,11 @@ class MarketDataLoader:
         required = ["open", "high", "low", "close", "volume"]
         if not all(col in cols for col in required):
             return False
-        df = df.sort_values("timestamp").reset_index(drop=True)
-        return bool(len(df) > 0 and df["timestamp"].is_monotonic_increasing)
+        try:
+            certified, _ = certify_bars(df)
+        except ValueError:
+            return False
+        return bool(len(certified) > 0)
 
     def load_universe(self) -> Dict[str, pd.DataFrame]:
         frames: Dict[str, pd.DataFrame] = {}

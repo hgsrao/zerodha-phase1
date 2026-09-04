@@ -32,11 +32,19 @@ was execution, and the P01D expiry test now uses the frozen dataclass API.
 
 ## Phase 2 — data and accounting
 
-- [ ] Enforce timestamp presence, parsing, timezone, ordering, uniqueness, and
+- [x] Enforce timestamp presence, parsing, timezone, ordering, uniqueness, and
       conflicting-duplicate rejection.
-- [ ] Enforce complete OHLCV geometry and positive prices/nonnegative volume.
-- [ ] Centralize the complete Zerodha intraday equity charge schedule.
-- [ ] Reconcile trade-ledger net P&L, broker P&L, costs, cash, and equity.
+- [x] Enforce complete OHLCV geometry and positive prices/nonnegative volume.
+- [x] Centralize the complete Zerodha intraday equity charge schedule.
+- [x] Reconcile trade-ledger net P&L, broker P&L, costs, and reported equity.
+
+Phase 2 verification: 45 tests and 23 subtests passed across certification,
+costs, loader, pipeline, portfolio, and calibration; the focused accounting
+test then passed 6/6. The charge schedule is dated 2026-09-04 and includes
+brokerage, NSE transaction charge, intraday STT, SEBI charge, buy-side stamp
+duty, and GST. Cash-reservation accounting remains part of the later order
+lifecycle phase because the present PaperBrokerAdapter tracks positions/P&L,
+not a cash balance.
 
 ## Phase 3 — NSE session and MIS execution
 
