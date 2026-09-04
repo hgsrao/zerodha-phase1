@@ -79,6 +79,12 @@ class SafetyGateConfig:
     max_concurrent_positions: int = 5
     max_gross_exposure_fraction: float = 0.50
     max_exposure_per_symbol_fraction: float = 0.15
+    max_market_data_age_seconds: int = 30
+    drawdown_derate_threshold: float = 0.18
+    drawdown_derate_multiplier: float = 0.80
+    order_dedup_window_seconds: int = 5
+    order_timeout_seconds: int = 30
+    max_reconciliation_qty_diff: int = 0
     no_entry_cutoff_time: str = "15:20"
     force_close_time: str = "15:25"
 
@@ -143,7 +149,7 @@ class Gate06GrossExposure(BaseGate):
 
 class Gate07StaleData(BaseGate):
     def evaluate(self, state: SystemState) -> GateDecision:
-        if state.market_data_age_seconds > 30:
+        if state.market_data_age_seconds > self.config.max_market_data_age_seconds:
             return self._make_decision("Gate07StaleData", False, f"market data stale: {state.market_data_age_seconds}s")
         return self._make_decision("Gate07StaleData", True, "market data fresh")
 
@@ -167,8 +173,8 @@ class Gate09PositionQuantity(BaseGate):
 
 class Gate10DrawdownDerating(BaseGate):
     def evaluate(self, state: SystemState, size: int) -> Tuple[GateDecision, int]:
-        if state.current_dd_percent >= 0.18:
-            adjusted = int(size * self.config.lambda_derate_multiplier)
+        if state.current_dd_percent >= self.config.drawdown_derate_threshold:
+            adjusted = int(size * self.config.drawdown_derate_multiplier)
             return self._make_decision("Gate10DrawdownDerating", True, "drawdown derating in effect", {"adjusted_size": adjusted}), adjusted
         return self._make_decision("Gate10DrawdownDerating", True, "drawdown derating not required"), size
 
@@ -199,7 +205,7 @@ class Gate13OrderDuplication(BaseGate):
 
 class Gate14OrderTimeout(BaseGate):
     def evaluate(self, elapsed_seconds: float) -> GateDecision:
-        if elapsed_seconds > self.config.max_broker_offline_seconds:
+        if elapsed_seconds > self.config.order_timeout_seconds:
             return self._make_decision("Gate14OrderTimeout", False, f"order timeout exceeded: {elapsed_seconds}s")
         return self._make_decision("Gate14OrderTimeout", True, "order within timeout window")
 
@@ -207,7 +213,7 @@ class Gate14OrderTimeout(BaseGate):
 class Gate15OrderReconciliation(BaseGate):
     def evaluate(self, expected_qty: int, actual_qty: int) -> GateDecision:
         delta = abs(expected_qty - actual_qty)
-        if delta > 0:
+        if delta > self.config.max_reconciliation_qty_diff:
             return self._make_decision("Gate15OrderReconciliation", False, f"reconciliation delta {delta} exceeds tolerance")
         return self._make_decision("Gate15OrderReconciliation", True, "reconciliation matched")
 
@@ -267,6 +273,7 @@ class EntryDecisionEngine:
             Gate17MarketClose(self.config, self.logger),
             Gate18CircuitBreaker(self.config, self.logger),
         ]
+        self._recent_orders: Dict[Tuple[str, int, float], datetime] = {}
 
     def evaluate(
         self,
@@ -279,8 +286,9 @@ class EntryDecisionEngine:
         expected_qty: int = 0,
         actual_qty: int = 0,
         symbol: str = "",
-        seen_recent: bool = False,
+        seen_recent: Optional[bool] = None,
         proposed_notional: float = 0.0,
+        order_elapsed_seconds: float = 0.0,
     ) -> Dict[str, Any]:
         decision_log: List[GateDecision] = []
         adjusted_quantity = proposed_quantity
@@ -353,9 +361,20 @@ class EntryDecisionEngine:
                 else:
                     decision = gate.evaluate(signal)
             elif isinstance(gate, Gate13OrderDuplication):
-                decision = gate.evaluate(seen_recent)
+                order_key = (
+                    symbol or (signal.symbol if signal is not None else ""),
+                    int(proposed_quantity),
+                    round(float(target_price), 8),
+                )
+                duplicate = seen_recent
+                if duplicate is None:
+                    previous = self._recent_orders.get(order_key)
+                    duplicate = previous is not None and current_time is not None and (
+                        current_time - previous
+                    ).total_seconds() <= self.config.order_dedup_window_seconds
+                decision = gate.evaluate(bool(duplicate))
             elif isinstance(gate, Gate14OrderTimeout):
-                decision = gate.evaluate(0.0)
+                decision = gate.evaluate(order_elapsed_seconds)
             elif isinstance(gate, Gate15OrderReconciliation):
                 decision = gate.evaluate(expected_qty, actual_qty)
             elif isinstance(gate, Gate16Slippage):
@@ -377,6 +396,13 @@ class EntryDecisionEngine:
                     "adjusted_quantity": adjusted_quantity,
                     "decisions": decision_log,
                 }
+
+        if current_time is not None:
+            order_key = (
+                symbol or (signal.symbol if signal is not None else ""),
+                int(proposed_quantity), round(float(target_price), 8),
+            )
+            self._recent_orders[order_key] = current_time
 
         return {
             "passed": True,

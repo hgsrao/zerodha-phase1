@@ -129,6 +129,12 @@ class Revision2Orchestrator:
             max_concurrent_positions=int(v["max_concurrent_positions"]),
             max_gross_exposure_fraction=float(v["max_gross_exposure_fraction"]),
             max_exposure_per_symbol_fraction=float(v["max_exposure_per_symbol_fraction"]),
+            max_market_data_age_seconds=int(v["max_market_data_age_seconds"]),
+            drawdown_derate_threshold=float(v["drawdown_derate_threshold"]),
+            drawdown_derate_multiplier=float(v["drawdown_derate_multiplier"]),
+            order_dedup_window_seconds=int(v["order_dedup_window_seconds"]),
+            order_timeout_seconds=int(v["order_timeout_seconds_execution"]),
+            max_reconciliation_qty_diff=int(v["max_reconciliation_qty_diff"]),
             no_entry_cutoff_time=str(v["no_entry_cutoff_time"]),
             # max_broker_offline_seconds and force_close_time have no
             # canonical registry equivalent yet — kept at gates_framework's
@@ -460,7 +466,6 @@ class Revision2Orchestrator:
                 expected_qty=quantity,
                 actual_qty=quantity,
                 symbol=self.symbol,
-                seen_recent=False,
                 proposed_notional=quantity * plan.entry_price,
             )
             funnel["gates_evaluated"] += 1
