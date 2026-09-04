@@ -1,0 +1,16 @@
+{
+  "test": "5-symbol corrected backtest",
+  "symbols": [
+    "INFY",
+    "TCS",
+    "RELIANCE",
+    "SUNPHARMA",
+    "HDFCLIFE"
+  ],
+  "initial_capital": 1000000,
+  "final_equity": 1000000,
+  "total_pnl": 0,
+  "total_trades": 0,
+  "win_rate": 0.0,
+  "max_drawdown": 0.0
+}

@@ -1,0 +1,317 @@
+{
+  "timestamp": "2026-09-04T06:56:55.861358",
+  "validation_status": "VALID",
+  "total_symbols": 48,
+  "frozen_data_path": "C:\\Users\\Dishan\\Documents\\Codex\\Zerodha_live_bot_3.4_ENTRY_UNKNOWN\\historical_data_zerodha_nifty48",
+  "symbols": {
+    "ADANIENT": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "ADANIPORTS": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "APOLLOHOSP": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "ASIANPAINT": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "AXISBANK": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "BAJAJ-AUTO": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "BAJAJFINSV": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "BAJFINANCE": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "BEL": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "BHARTIARTL": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "CIPLA": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "COALINDIA": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "DRREDDY": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "EICHERMOT": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "ETERNAL": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "GRASIM": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "HCLTECH": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "HDFCBANK": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "HDFCLIFE": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "HINDALCO": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "HINDUNILVR": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "ICICIBANK": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "INDIGO": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "INFY": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "ITC": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "JIOFIN": {
+      "start": "2023-08-21T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18620
+    },
+    "JSWSTEEL": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "KOTAKBANK": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "LT": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "M&M": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "MARUTI": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "MAXHEALTH": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "NTPC": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "ONGC": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "POWERGRID": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "RELIANCE": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "SBILIFE": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "SBIN": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "SHRIRAMFIN": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "SUNPHARMA": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "TATACONSUM": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "TATASTEEL": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "TCS": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "TECHM": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "TITAN": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "TRENT": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "ULTRACEMCO": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    },
+    "WIPRO": {
+      "start": "2023-08-14T09:15:00+05:30",
+      "end": "2026-08-14T15:00:00+05:30",
+      "rows": 18720
+    }
+  },
+  "hashes": {
+    "ADANIENT": "bffca23086cea2c6780eaf2548d5e72385585698964605772ffc5cfc47f80935",
+    "ADANIPORTS": "e3ed819d8170e0767190c414f24e93f8acf95f4158492e99e6157c9b6f55b61f",
+    "APOLLOHOSP": "f9f7ce2bfccece6ae8eb25b7a4287e71cae7367f0d7dad4c0dccf5cb24008bc0",
+    "ASIANPAINT": "a5aead4f9d3bed85c22e9f143d9f9a4577cbe4a6b125d9e9d082e3c6d23df0a2",
+    "AXISBANK": "cb79e01cd824b54cc5d5c44b03e5a0f432cffabb6e94e6eea722d3ca1d22bbdc",
+    "BAJAJ-AUTO": "162e76efbc333adef2a8d05f5f52e7df6016e8797139bea6922a17a6f21a9210",
+    "BAJAJFINSV": "db2403dba0fb18f12826c3093fe2868a01fef6306d3e168f8a02f48f62fe30d4",
+    "BAJFINANCE": "83c68e09f04a0498a0c1f1f5c431b2f17cdfa653a9743407d8294371e0270633",
+    "BEL": "cab37a8ed1b8cd1b4b9abe9ad6b3c9311b4e48691ec2420b7bed94e4efbb7794",
+    "BHARTIARTL": "278ec8e5bf43567475188835838dde1647f0f8cab768e20b6304746d423f928b",
+    "CIPLA": "02ecf6c8b320192dbfbe9ad6c5f5da546e7ad158667be74e68a76b9cf92bd961",
+    "COALINDIA": "f8ba733f1f2628468216c8c0754da52f90bb7ec12b975e2b1d43668b668161c9",
+    "DRREDDY": "78ed61159657768a6164670047eeb45f702554f1844c7adf3a2826b0aa65f39d",
+    "EICHERMOT": "062747699689b4205c3161ab2d17231e6ad0f8dd3e756cf79b67daf711feb710",
+    "ETERNAL": "f0f3ede02b8c7ed0decd730a4ab798b00f8081ba539e0148c027fc0878eb60dd",
+    "GRASIM": "d1a63a84d6a274cc246849a1ad4d25c5c99d6bf8c8103ba79b329dcdf68307ae",
+    "HCLTECH": "07bee54d41c2432377d5ee7fb9e065c7f9ab53ee3c6f632da728544f55f084a2",
+    "HDFCBANK": "3da4420b0610308092f152e18d1fe4b63c78cf6d8011a4a8a53ddb839a7e2483",
+    "HDFCLIFE": "88713b7e60e7f686c4d5a7e496c0a21e9726fbd1c80aa9619a9206580a0b901d",
+    "HINDALCO": "576a7c5f5bda7b6a0f0dddcf77b4008c8432aa85de4ee244383dcc2429da5ec1",
+    "HINDUNILVR": "fa6536127004976c76a01be7e4b2d714e586fe791ca6d16a1d4e791ae66fc310",
+    "ICICIBANK": "c68ce354d79e110d7e8449ea4176cf46103ace10fafee442b89b687bb60198a0",
+    "INDIGO": "d499847d0a780b031f282961ae3c5f677980c1fe7f039a1c924e2516e9d5a128",
+    "INFY": "e088d3b0451e73854c576b294506301dbd76747fa2688a2a080d9b93e62d2951",
+    "ITC": "d228b8f9c530b2700a7e02a89c740530cc9907e2528b3e178aafe7b98af2208b",
+    "JIOFIN": "da69423e0aa3867818884c5807aecbfae0d1a283cd2f580c79f975b54f1fb6fb",
+    "JSWSTEEL": "bb5749a990c47d73fe1500a0dd8723783593b49476acb5e6b75b30ed10aee9df",
+    "KOTAKBANK": "1605c7e56a3abe576bb3d4e8f0b7cb3a564ad8ad3800fc390630c8cc56363b87",
+    "LT": "2498bfedcccc6b5644d2442b03be3bd698a78cd1f34552cd4b8dfc98a4f6444c",
+    "M&M": "3a7b88dfe0b85123398c773c6077fed370aa0e2941d08854852bb50fdce2e206",
+    "MARUTI": "bb3ed69e39fcb02c0de7933351984a47e018c3f74cb5d7e7d3c06dbee8ed5c06",
+    "MAXHEALTH": "e571e300c96de18db3bd98fb9bf257b0ef90ec30f0bb7a94b16a7c3636c0c033",
+    "NTPC": "1274467d63ea57fc8562cc32d681996f80b3f6901c8b43540caafcfb01f3383b",
+    "ONGC": "ebde1c83a25064d40d3215399552bf7414cc24fd2eb1b8b94f9ad4cc6712559b",
+    "POWERGRID": "e8ab04ad8783bfad914c7845c08d4631375a4e7014d3446772883ed48ff09056",
+    "RELIANCE": "ce4dce907012f8382b90d106f03b6ae5d074b78c9b9dada782ba3a8b32987e19",
+    "SBILIFE": "d25599012d02ede1407a1257dce6681ca6f20e5e26df8a9312c4747b39100338",
+    "SBIN": "ab41171bd96708f77007038ce85a1dda18028da5dabd371d39c87d4fee3a4ac2",
+    "SHRIRAMFIN": "4561a461297809cad59938890047ad92fa2c7ed3eb1707e7eac5b25ab08988cc",
+    "SUNPHARMA": "1da5a79d11807f1b4f707a174dfd96f9ee26b24136358adff00a8d86b5704f5c",
+    "TATACONSUM": "2fefaf5d9600ca357365c1b6153e904fddd7288ab0e1f9007ff8bb23434e36d4",
+    "TATASTEEL": "fb913fb6d78cde57992ad7a873b4fe9d98b7f1eb95f6766c8d591382999afcd7",
+    "TCS": "5771da958deaf19fb06670e0e23b4c2cdec5ca78e3e471023146a69fdf00c851",
+    "TECHM": "31f661644500ed32c558a2436ff3370387b4eec9eeb84963928024a2b9eda936",
+    "TITAN": "8316d103c00c46e772c31ea188c11032f8d2878cd1122cab6523e445ea67d476",
+    "TRENT": "531b748b2ebcc78545d281b377c018bad060a83a25f96c846b50c60f4c8e8256",
+    "ULTRACEMCO": "7b17471c6ffd5b82fbc7aab3051b1dcfdd39ea03f281fbb1d5c474b3a4f3b66f",
+    "WIPRO": "69287d0a74622fa4392e6d8eb64188ef741b4dba0ec1fa93908c80a12abf60c8"
+  },
+  "missing": [
+    "HDFC",
+    "HINDUSTAN",
+    "DMARUTI",
+    "BRITANNIA",
+    "DIVISLAB",
+    "GAIL",
+    "HEROMOTOCO",
+    "IOPLUSN",
+    "LUPIN",
+    "NESTLEIND",
+    "SHREECEM",
+    "TATAMOTORS",
+    "TATAPOWER",
+    "TORNTPHARM",
+    "UPL",
+    "YESBANK"
+  ],
+  "corrupt": []
+}
