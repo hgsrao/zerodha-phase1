@@ -77,6 +77,34 @@ class TimestampAlignedBacktest:
 
         for timestamp_idx, current_timestamp in enumerate(all_timestamps):
             try:
+                date_str = str(current_timestamp.date())
+
+                # CONFIG-FIX-002: Check for session end (daily close)
+                # When transitioning to a new date, force-close all MIS positions from previous date
+                if date_str != current_date and current_date is not None:
+                    # Force-close all remaining positions from previous trading session
+                    for symbol in list(self.portfolio.positions.keys()):
+                        try:
+                            pos = self.portfolio.positions[symbol]
+                            # Use previous bar's close for daily close
+                            if symbol in last_prices:
+                                final_price = last_prices[symbol]
+                            else:
+                                continue
+
+                            exit_value = pos.qty * final_price
+                            cost_breakdown = sell_cost(exit_value)
+                            total_costs = cost_breakdown.total
+
+                            self.portfolio.exit(
+                                symbol, final_price, total_costs,
+                                str(current_timestamp),
+                                "daily_mis_close"
+                            )
+                            self.exits += 1
+                        except:
+                            pass
+
                 # Get bars for this timestamp across all symbols
                 bars = {}
                 for symbol in symbols:
@@ -87,7 +115,6 @@ class TimestampAlignedBacktest:
                         last_prices[symbol] = matching.iloc[0]['close']
 
                 # Reset daily loss at new date
-                date_str = str(current_timestamp.date())
                 if date_str != current_date:
                     current_date = date_str
                     if date_str not in self.daily_risk_state:
@@ -158,39 +185,52 @@ class TimestampAlignedBacktest:
                         self.rejected_by_confidence += 1
                         continue
 
-                    # Get next bar's open for entry (causal)
-                    if bar_idx + 1 < len(df):
-                        next_bar = df.iloc[bar_idx + 1]
-                        entry_price = next_bar['open']
-                    else:
-                        continue  # No next bar available
+                    # FIX-004: Gates use only current-bar data, not future bars
+                    # Use current bar's open for gate evaluation (causally correct)
+                    evaluation_price = bar['open']
 
-                    entry_value = 100 * entry_price
-                    cost_breakdown = buy_cost(entry_value)
-                    total_costs = cost_breakdown.total
-
-                    # Create signal
+                    # Create signal with CURRENT bar data (not next bar)
                     signal = EntrySignal(
                         symbol=symbol,
-                        entry_price=entry_price,
-                        stop_loss_price=entry_price * 0.97,
-                        profit_target_price=entry_price * 1.03,
+                        entry_price=evaluation_price,
+                        stop_loss_price=evaluation_price * 0.97,
+                        profit_target_price=evaluation_price * 1.03,
                         confidence=confidence,
                         suggested_quantity=100,
-                        position_notional=entry_value,
+                        position_notional=100 * evaluation_price,
                         risk_reward_ratio=1.5
                     )
 
                     # Create state
                     current_equity = self.portfolio.get_equity(last_prices)
+
+                    # FIX-005: Calculate proper lambda (gross exposure / equity)
+                    total_position_value = sum(
+                        last_prices.get(s, p.entry_price) * p.qty
+                        for s, p in self.portfolio.positions.items()
+                    )
+                    current_lambda = (total_position_value / current_equity) if current_equity > 0 else 0.0
+
+                    # CONFIG-FIX-001: Populate open positions list
+                    open_positions = [
+                        {
+                            'symbol': s,
+                            'qty': p.qty,
+                            'entry_price': p.entry_price,
+                            'current_price': last_prices.get(s, p.entry_price),
+                            'position_value': last_prices.get(s, p.entry_price) * p.qty
+                        }
+                        for s, p in self.portfolio.positions.items()
+                    ]
+
                     state = SystemState(
                         portfolio_value=current_equity,
                         current_dd_percent=self._get_dd(equity_curve),
-                        current_lambda=len(self.portfolio.positions) / 5.0,
+                        current_lambda=current_lambda,
                         daily_realized_loss=self.daily_risk_state[date_str].realized_loss,
                         daily_unrealized_loss=0,
                         open_positions_count=len(self.portfolio.positions),
-                        open_positions=[],
+                        open_positions=open_positions,
                         market_data_age_seconds=0,
                         broker_connected=True,
                         broker_offline_seconds=0,
@@ -198,15 +238,28 @@ class TimestampAlignedBacktest:
                         circuit_breaker_triggered=False
                     )
 
-                    # Gate decision
-                    can_enter, size, reason = self.entry_engine.can_enter(signal, state)
+                    # Gate decision (uses current bar only)
+                    can_enter, actual_size, reason = self.entry_engine.can_enter(signal, state)
 
-                    if can_enter:
+                    # FIX-003: Reject zero-quantity orders
+                    if can_enter and actual_size > 0:
+                        # FIX-002: Calculate costs AFTER gate sizing (on actual quantity)
+                        actual_entry_value = actual_size * evaluation_price
+                        cost_breakdown = buy_cost(actual_entry_value)
+                        total_costs = cost_breakdown.total
+
+                        # Get next bar's open for actual execution (after gate approval)
+                        if bar_idx + 1 < len(df):
+                            next_bar = df.iloc[bar_idx + 1]
+                            execution_price = next_bar['open']
+                        else:
+                            continue  # No next bar available
+
                         self.portfolio.enter(
-                            symbol, size, entry_price, total_costs,
+                            symbol, actual_size, execution_price, total_costs,
                             str(next_bar['timestamp']),
-                            entry_price * 0.97,
-                            entry_price * 1.03
+                            execution_price * 0.97,
+                            execution_price * 1.03
                         )
                         self.entries += 1
                     else:
@@ -223,12 +276,14 @@ class TimestampAlignedBacktest:
                 print(f"[ERROR] At timestamp {current_timestamp}: {str(e)}")
                 continue
 
-        # Force-close all remaining positions
-        print("\nForce-closing remaining positions...")
+        # Force-close any remaining positions (handles end of sample)
+        # CONFIG-FIX-002: Should already be closed by daily MIS logic
+        print("\nClosing any remaining positions...")
+        remaining = len(self.portfolio.positions)
         for symbol in list(self.portfolio.positions.keys()):
             try:
                 pos = self.portfolio.positions[symbol]
-                final_price = data[symbol].iloc[-1]['close']
+                final_price = last_prices.get(symbol, data[symbol].iloc[-1]['close'])
                 exit_value = pos.qty * final_price
                 cost_breakdown = sell_cost(exit_value)
                 total_costs = cost_breakdown.total
@@ -240,6 +295,8 @@ class TimestampAlignedBacktest:
                 )
             except:
                 pass
+        if remaining > 0:
+            print(f"[INFO] Closed {remaining} remaining positions")
 
         # Results
         final_equity = self.portfolio.get_equity(last_prices)
@@ -296,21 +353,25 @@ class TimestampAlignedBacktest:
         }
 
     def _get_dd(self, equity_curve):
+        """Get current drawdown as fraction (0-1), not percentage (0-100)"""
         if not equity_curve:
-            return 0
+            return 0.0
         peak = max(equity_curve)
         current = equity_curve[-1]
-        return ((peak - current) / peak * 100) if peak > 0 else 0
+        # FIX-001: Return as fraction, not percentage
+        return ((peak - current) / peak) if peak > 0 else 0.0
 
     def _get_max_dd(self, equity_curve):
+        """Get maximum drawdown as fraction (0-1), not percentage (0-100)"""
         if not equity_curve:
-            return 0
+            return 0.0
         peak = equity_curve[0]
-        max_dd = 0
+        max_dd = 0.0
         for val in equity_curve:
             if val > peak:
                 peak = val
-            dd = (peak - val) / peak * 100 if peak > 0 else 0
+            # FIX-001: Return as fraction, not percentage
+            dd = (peak - val) / peak if peak > 0 else 0.0
             max_dd = max(max_dd, dd)
         return max_dd
 
