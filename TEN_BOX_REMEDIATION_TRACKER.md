@@ -48,13 +48,19 @@ not a cash balance.
 
 ## Phase 3 — NSE session and MIS execution
 
-- [ ] Separate decision timestamp and next-bar fill timestamp.
-- [ ] Reject a next-bar fill that crosses into another trading date.
-- [ ] Close MIS positions at the configured force-close event.
-- [ ] Close at the last available same-session bar if the exact close event is
+- [x] Separate decision timestamp and next-bar fill timestamp.
+- [x] Reject a next-bar fill that crosses into another trading date or reaches
+      the no-entry cutoff.
+- [x] Close MIS positions at the configured session-end event.
+- [x] Close at the last available same-session bar if the exact close event is
       missing; never liquidate retrospectively on the next date.
-- [ ] Reset daily-loss state from start-of-day equity.
-- [ ] Define opening-gap and same-bar stop/target collision rules.
+- [x] Reset daily-loss state from start-of-day equity.
+- [x] Define opening-gap and same-bar stop/target collision rules.
+
+Phase 3 verification: focused session contract 4/4 passed; broad pipeline,
+portfolio, causal-sensitivity, calibration and accounting regression completed
+with 40 tests and 76 subtests passed. Conservative policy is stop before target
+when both touch within one bar; a gap beyond stop/target fills at bar open.
 
 ## Phase 4 — real order lifecycle
 

@@ -186,7 +186,7 @@ class TestRevision2RealDataRun(unittest.TestCase):
         report = Revision2Orchestrator("SUNPHARMA").run(self.bars, warmup=60)
         self.assertGreater(report["completed_trades"], 0)
         self.assertEqual(report["completed_trades"], len(report["trades"]))
-        valid_reasons = {"stop", "target", "max_hold", "signal_exit", "forced_close_drawdown_halt", "end_of_run_reconciliation"}
+        valid_reasons = {"stop", "target", "stop_gap", "target_gap", "max_hold", "signal_exit", "mis_session_close", "forced_close_drawdown_halt", "end_of_run_reconciliation", "post_fill_safety_flatten"}
         for trade in report["trades"]:
             self.assertIn(trade["reason"], valid_reasons)
             # A protective stop or target can legitimately fire on the same

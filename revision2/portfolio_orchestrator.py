@@ -141,6 +141,8 @@ class Revision2PortfolioOrchestrator:
         # instead of one reconstructed only from completed-trade P&L.
         self._last_close: Dict[str, float] = {}
         self._mtm_equity_curve: List[Tuple[str, float]] = [("", starting_equity)]
+        self._active_trading_date = None
+        self._day_start_equity = starting_equity
 
         self.startup_certificate = self._certify_startup()
         if not self.startup_certificate.passed:
@@ -259,7 +261,7 @@ class Revision2PortfolioOrchestrator:
             self._equity_curve.append(self._equity())
             del self.open_trades[symbol]
 
-    def _maybe_exit(self, symbol: str, timestamp, bar, signal, held_bars: int) -> None:
+    def _maybe_exit(self, symbol: str, timestamp, bar, signal, held_bars: int, session_last_bar: bool = False) -> None:
         trade = self.open_trades.get(symbol)
         if trade is None:
             return
@@ -271,18 +273,30 @@ class Revision2PortfolioOrchestrator:
 
         exit_price, reason = None, None
         if trade["side"] == "BUY":
-            if bar["low"] <= trade["stop_price"]:
+            if bar["open"] <= trade["stop_price"]:
+                exit_price, reason = float(bar["open"]), "stop_gap"
+            elif bar["open"] >= trade["target_price"]:
+                exit_price, reason = float(bar["open"]), "target_gap"
+            elif bar["low"] <= trade["stop_price"]:
                 exit_price, reason = trade["stop_price"], "stop"
             elif bar["high"] >= trade["target_price"]:
                 exit_price, reason = trade["target_price"], "target"
         else:
-            if bar["high"] >= trade["stop_price"]:
+            if bar["open"] >= trade["stop_price"]:
+                exit_price, reason = float(bar["open"]), "stop_gap"
+            elif bar["open"] <= trade["target_price"]:
+                exit_price, reason = float(bar["open"]), "target_gap"
+            elif bar["high"] >= trade["stop_price"]:
                 exit_price, reason = trade["stop_price"], "stop"
             elif bar["low"] <= trade["target_price"]:
                 exit_price, reason = trade["target_price"], "target"
 
         if exit_price is not None:
             self._execute_exit(symbol, timestamp, trade, exit_price, reason)
+            return
+
+        if session_last_bar:
+            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "mis_session_close")
             return
 
         if held_bars >= trade["minimum_hold_bars"] and (
@@ -342,6 +356,10 @@ class Revision2PortfolioOrchestrator:
 
         for timestamp, tick_events in itertools.groupby(clock, key=lambda e: e.timestamp):
             tick_events = list(tick_events)
+            event_ts = pd.Timestamp(timestamp)
+            if self._active_trading_date != event_ts.date():
+                self._active_trading_date = event_ts.date()
+                self._day_start_equity = self._equity()
             # Refresh every symbol trading at this exact timestamp before
             # sampling mark-to-market equity for the tick. Sampling inside
             # the per-symbol loop below (keyed off whichever symbol
@@ -361,6 +379,9 @@ class Revision2PortfolioOrchestrator:
                 funnel["bars_processed"] += 1
                 symbol, bar_idx = event.symbol, event.bar_idx
                 bars = symbol_bars[symbol]
+                next_ts = pd.Timestamp(bars.iloc[bar_idx + 1]["timestamp"])
+                end_time = str(self.config.require("trading_hours_end"))
+                session_last_bar = next_ts.date() != event_ts.date() or event_ts.strftime("%H:%M") >= end_time
 
                 admitted, _, trace = self.data_ingestion.admit(symbol, self.config)
                 self._record(trace)
@@ -382,9 +403,12 @@ class Revision2PortfolioOrchestrator:
                 funnel["pa_signals"] += 1
 
                 held = bar_idx - entry_bar_index.get(symbol, bar_idx)
-                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held)
+                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held, session_last_bar=session_last_bar)
 
                 if symbol in self.open_trades or not in_window:
+                    continue
+                cutoff = str(self.safety_contract.values["no_entry_cutoff_time"])
+                if next_ts.date() != event_ts.date() or next_ts.strftime("%H:%M") >= cutoff:
                     continue
 
                 decision, trace = self.id_box.evaluate(signal, self.config)
@@ -459,7 +483,7 @@ class Revision2PortfolioOrchestrator:
                     portfolio_value=equity_now,
                     current_dd_percent=self._current_drawdown(),
                     current_lambda=self._gross_exposure_notional() / max(equity_now, 1.0),
-                    daily_realized_loss=max(0.0, max(self._equity_curve) - equity_now),
+                    daily_realized_loss=max(0.0, self._day_start_equity - equity_now),
                     daily_unrealized_loss=0.0,
                     open_positions_count=len(self.open_trades),
                     open_positions=[type("P", (), {"position_notional": t["quantity"] * t["entry_price"]})() for t in self.open_trades.values()],
@@ -474,7 +498,7 @@ class Revision2PortfolioOrchestrator:
                     risk_reward_ratio=decision.risk_reward_ratio,
                 )
                 try:
-                    current_time = datetime.fromisoformat(str(timestamp))
+                    current_time = datetime.fromisoformat(str(next_ts))
                 except Exception:
                     current_time = datetime.now()
                 gate_result = self.entry_decision_engine.evaluate_pre_submit(
@@ -546,7 +570,7 @@ class Revision2PortfolioOrchestrator:
                         "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
                         "target_price": plan.target_price, "quantity": quantity,
                         "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
-                        "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(timestamp),
+                        "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
                     }
                     entry_bar_index[symbol] = bar_idx + 1
 

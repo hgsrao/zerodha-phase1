@@ -90,6 +90,8 @@ class Revision2Orchestrator:
         self.completed_trades: List[Dict[str, Any]] = []
         self._open_trade: Optional[Dict[str, Any]] = None
         self._equity_curve: List[float] = [starting_equity]
+        self._active_trading_date = None
+        self._day_start_equity = starting_equity
 
         # No certificate, no run: StartupGate is invoked here, before any
         # data is touched, and a failing certificate raises immediately —
@@ -171,7 +173,7 @@ class Revision2Orchestrator:
             # cross-symbol correlation data that doesn't exist until the
             # 48-symbol scale-up. Documented gap, not a silent guess.
             current_lambda=0.0,
-            daily_realized_loss=max(0.0, peak - current),
+            daily_realized_loss=max(0.0, self._day_start_equity - current),
             daily_unrealized_loss=0.0,
             open_positions_count=0,  # entry path only runs while flat
             open_positions=[],
@@ -212,6 +214,8 @@ class Revision2Orchestrator:
                 "quantity": trade["quantity"],
                 "entry_bar_idx": trade["entry_bar_idx"],
                 "exit_bar_idx": bar_idx,
+                "entry_timestamp": trade["entry_timestamp"],
+                "exit_timestamp": event_time or str(bar_idx),
                 "reason": reason,
                 "pnl": pnl,
                 "costs": trade_costs,
@@ -220,7 +224,7 @@ class Revision2Orchestrator:
             self._equity_curve.append(self._equity())
             self._open_trade = None
 
-    def _maybe_exit(self, bar_idx: int, bars: pd.DataFrame, signal: PASignal, funnel: Dict[str, int]) -> None:
+    def _maybe_exit(self, bar_idx: int, bars: pd.DataFrame, signal: PASignal, funnel: Dict[str, int], session_last_bar: bool = False) -> None:
         trade = self._open_trade
         if trade is None:
             return
@@ -236,12 +240,20 @@ class Revision2Orchestrator:
         exit_price = None
         reason = None
         if trade["side"] == "BUY":
-            if bar["low"] <= trade["stop_price"]:
+            if bar["open"] <= trade["stop_price"]:
+                exit_price, reason = float(bar["open"]), "stop_gap"
+            elif bar["open"] >= trade["target_price"]:
+                exit_price, reason = float(bar["open"]), "target_gap"
+            elif bar["low"] <= trade["stop_price"]:
                 exit_price, reason = trade["stop_price"], "stop"
             elif bar["high"] >= trade["target_price"]:
                 exit_price, reason = trade["target_price"], "target"
         else:
-            if bar["high"] >= trade["stop_price"]:
+            if bar["open"] >= trade["stop_price"]:
+                exit_price, reason = float(bar["open"]), "stop_gap"
+            elif bar["open"] <= trade["target_price"]:
+                exit_price, reason = float(bar["open"]), "target_gap"
+            elif bar["high"] >= trade["stop_price"]:
                 exit_price, reason = trade["stop_price"], "stop"
             elif bar["low"] <= trade["target_price"]:
                 exit_price, reason = trade["target_price"], "target"
@@ -251,6 +263,10 @@ class Revision2Orchestrator:
             # by minimum_hold_bars either. A stop or a hit target is not a
             # discretionary decision.
             self._execute_exit(bar_idx, trade, exit_price, reason, funnel, str(bar.get("timestamp", bar_idx)))
+            return
+
+        if session_last_bar:
+            self._execute_exit(bar_idx, trade, float(bar["close"]), "mis_session_close", funnel, str(bar.get("timestamp", bar_idx)))
             return
 
         # Priority 4: discretionary signal exit — the only exit gated by
@@ -338,6 +354,13 @@ class Revision2Orchestrator:
         for bar_idx in range(warmup, n - 1):
             funnel["bars_processed"] += 1
             timestamp = str(bars.iloc[bar_idx]["timestamp"]) if "timestamp" in bars.columns else str(bar_idx)
+            event_ts = pd.Timestamp(bars.iloc[bar_idx]["timestamp"])
+            next_ts = pd.Timestamp(bars.iloc[bar_idx + 1]["timestamp"])
+            if self._active_trading_date != event_ts.date():
+                self._active_trading_date = event_ts.date()
+                self._day_start_equity = self._equity()
+            end_time = str(self.config.require("trading_hours_end"))
+            session_last_bar = next_ts.date() != event_ts.date() or event_ts.strftime("%H:%M") >= end_time
             record: Dict[str, Any] = {
                 "bar_idx": bar_idx, "timestamp": timestamp, "close": float(bars.iloc[bar_idx]["close"]),
                 "stage": "data_ingestion", "equity": self._equity(), "open_position": self._open_trade is not None,
@@ -384,12 +407,18 @@ class Revision2Orchestrator:
             }
 
             trades_before = len(self.completed_trades)
-            self._maybe_exit(bar_idx, bars, signal, funnel)
+            self._maybe_exit(bar_idx, bars, signal, funnel, session_last_bar=session_last_bar)
             if len(self.completed_trades) > trades_before:
                 record["exit"] = self.completed_trades[-1]
 
             if self._open_trade is not None or not in_window:
                 record["stage"] = "holding_or_out_of_window"
+                _emit()
+                continue
+
+            cutoff = str(self.safety_contract.values["no_entry_cutoff_time"])
+            if next_ts.date() != event_ts.date() or next_ts.strftime("%H:%M") >= cutoff:
+                record["stage"] = "rejected_no_same_session_fill"
                 _emit()
                 continue
 
@@ -469,7 +498,7 @@ class Revision2Orchestrator:
             gate_result = self.entry_decision_engine.evaluate_pre_submit(
                 state,
                 signal=entry_signal,
-                current_time=self._parse_timestamp(timestamp),
+                current_time=self._parse_timestamp(str(next_ts)),
                 proposed_quantity=quantity,
                 target_price=plan.entry_price,
                 fill_price=plan.entry_price,
@@ -560,6 +589,7 @@ class Revision2Orchestrator:
                     "target_price": plan.target_price,
                     "quantity": quantity,
                     "entry_bar_idx": bar_idx + 1,
+                    "entry_timestamp": str(next_ts),
                     "minimum_hold_bars": plan.minimum_hold_bars,
                     "maximum_hold_bars": plan.maximum_hold_bars,
                     "exit_confidence_threshold": decision.timing_quality,
