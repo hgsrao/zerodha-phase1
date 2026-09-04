@@ -42,6 +42,9 @@ proven divergence. Summary P&L similarity alone is not parity.
 - `first_divergence()` reports the first exact ledger mismatch, including a
   missing event on either side.
 - Contract tests pass.
+- A ten-box deep audit is saved in `TEN_BOX_DEEP_AUDIT_20260904.md`. It
+  disproves the stronger claim that every gate and parameter is active and
+  records the correction order before parity/calibration.
 
 ## Next implementation step
 
