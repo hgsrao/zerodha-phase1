@@ -7,10 +7,33 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Iterable, Mapping, Optional
 
+import pandas as pd
+
 from canonical_parameter_registry import CanonicalParameterRegistry
 
 
 EVENT_TYPES = {"signal", "gate_decision", "order", "fill", "exit", "cost", "equity"}
+
+
+def normalize_event_timestamp(value: Any) -> str:
+    """Canonical, backend-neutral timestamp string: naive, second precision,
+    local wall-clock reading (never converted to UTC).
+
+    Both backends must format event timestamps through this function before
+    they reach a BackendEvent, or first_divergence() reports spurious
+    mismatches from formatting alone (a tz-offset suffix present on one
+    side and not the other, differing sub-second precision, ...) that have
+    nothing to do with a real decision or execution difference. This is
+    precisely the class of bug that motivated it: Backtrader's PandasData
+    silently converts a tz-aware index to naive UTC internally, so the
+    in-house side (which reads the source CSV's local-time string directly)
+    and a naive Backtrader value need explicit reconciliation, not an
+    assumption that str(timestamp) already agrees between backends.
+    """
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is not None:
+        ts = ts.tz_localize(None)
+    return ts.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def canonical_parameter_snapshot(
