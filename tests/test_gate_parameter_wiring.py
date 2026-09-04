@@ -68,3 +68,12 @@ def test_entry_engine_receives_real_elapsed_time():
     )
     assert not result["passed"]
     assert result["gate"] == "Gate14OrderTimeout"
+
+
+def test_reconciliation_and_slippage_are_post_fill_checks():
+    engine = EntryDecisionEngine(SafetyGateConfig(
+        max_reconciliation_qty_diff=0, slippage_tolerance_percent=0.001,
+    ))
+    assert engine.evaluate_post_fill(10, 10, 100.0, 100.1)["passed"]
+    assert engine.evaluate_post_fill(10, 9, 100.0, 100.0)["gate"] == "Gate15OrderReconciliation"
+    assert engine.evaluate_post_fill(10, 10, 100.0, 100.11)["gate"] == "Gate16Slippage"

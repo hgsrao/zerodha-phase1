@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -75,6 +74,7 @@ class PaperBrokerAdapter(BrokerAdapter):
         self.positions: Dict[str, Dict[str, float]] = {}
         self.realized_pnl: float = 0.0
         self.fills: List[Dict[str, Any]] = []
+        self._order_sequence = 0
 
     def get_position(self, symbol: str) -> Dict[str, float]:
         return self.positions.get(symbol, {"quantity": 0, "avg_price": 0.0})
@@ -116,15 +116,18 @@ class PaperBrokerAdapter(BrokerAdapter):
         market_price: Optional[float],
         config: Optional[Dict[str, Any]] = None,
         parameter_registry: Optional[Any] = None,
+        event_time: Optional[str] = None,
     ) -> Dict[str, Any]:
-        order_id = str(uuid.uuid4())
+        self._order_sequence += 1
+        order_id = f"{self.account_id or 'PAPER'}-{self._order_sequence:09d}"
+        lifecycle_time = str(event_time) if event_time is not None else _utcnow_iso()
         order = PaperOrder(
             order_id=order_id,
             symbol=symbol,
             side=side,
             quantity=quantity,
             order_type=order_type,
-            submitted_at=_utcnow_iso(),
+            submitted_at=lifecycle_time,
         )
         self.orders[order_id] = order
 
@@ -151,7 +154,7 @@ class PaperBrokerAdapter(BrokerAdapter):
         order.filled_quantity = quantity
         order.filled_price = fill_price
         order.state = OrderState.FILLED
-        order.filled_at = _utcnow_iso()
+        order.filled_at = lifecycle_time
 
         self._apply_fill_to_position(symbol, side, quantity, fill_price)
         self.fills.append({

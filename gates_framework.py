@@ -411,3 +411,31 @@ class EntryDecisionEngine:
             "adjusted_quantity": adjusted_quantity,
             "decisions": decision_log,
         }
+
+    def evaluate_pre_submit(self, *args, **kwargs) -> Dict[str, Any]:
+        """Run decision gates that can truthfully execute before submission.
+
+        Fill reconciliation and slippage are intentionally excluded: evaluating
+        them with expected values before a broker responds is a false pass.
+        """
+        original = self.gates
+        self.gates = [g for g in original if not isinstance(g, (Gate15OrderReconciliation, Gate16Slippage))]
+        try:
+            return self.evaluate(*args, **kwargs)
+        finally:
+            self.gates = original
+
+    def evaluate_post_fill(
+        self, expected_qty: int, actual_qty: int, target_price: float, fill_price: float
+    ) -> Dict[str, Any]:
+        decisions = [
+            Gate15OrderReconciliation(self.config, self.logger).evaluate(expected_qty, actual_qty),
+            Gate16Slippage(self.config, self.logger).evaluate(target_price, fill_price),
+        ]
+        failed = next((d for d in decisions if not d.passed), None)
+        return {
+            "passed": failed is None,
+            "gate": failed.gate_name if failed else "PostFillValidation",
+            "reason": failed.reason if failed else "post-fill reconciliation and slippage passed",
+            "decisions": decisions,
+        }

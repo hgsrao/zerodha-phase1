@@ -12,13 +12,18 @@ verify the remote commit before the next phase begins.
 - [ ] Repair the P01D token API/test contract.
 - [x] Remove literal thresholds from Gates 07, 10, 14, and 15.
 - [x] Add real event-time order-deduplication state.
-- [ ] Split pre-submit gates from post-fill reconciliation/slippage checks.
-- [ ] Use injected historical event time in broker records.
+- [x] Split pre-submit gates from post-fill reconciliation/slippage checks.
+- [x] Use injected historical event time in broker records.
 
 Phase 1A verification: 26 tests and 23 subtests passed. Gate 07 now uses
 `max_market_data_age_seconds`; Gate 10 uses its own derating threshold and
 multiplier; Gate 14 uses the execution timeout; Gate 15 uses reconciliation
 tolerance; Gate 13 derives duplicates from prior accepted order events.
+
+Phase 1B verification: 32 tests and 23 subtests passed. Gates 15/16 now run
+only against the broker's actual fill, a failed post-fill check triggers an
+immediate corrective flatten, and historical order IDs/timestamps are
+deterministic when an event timestamp is supplied.
 
 ## Phase 2 — data and accounting
 

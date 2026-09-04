@@ -180,7 +180,7 @@ class Revision2Orchestrator:
             circuit_breaker_triggered=False,
         )
 
-    def _execute_exit(self, bar_idx: int, trade: Dict[str, Any], exit_price: float, reason: str, funnel: Dict[str, int]) -> None:
+    def _execute_exit(self, bar_idx: int, trade: Dict[str, Any], exit_price: float, reason: str, funnel: Dict[str, int], event_time: Optional[str] = None) -> None:
         close_side = "SELL" if trade["side"] == "BUY" else "BUY"
         result = self.broker.place_order(
             symbol=self.symbol,
@@ -190,6 +190,7 @@ class Revision2Orchestrator:
             market_price=exit_price,
             config=self.safety_contract.as_dict(),
             parameter_registry=self.registry,
+            event_time=event_time,
         )
         funnel["exit_orders_submitted"] += 1
         if result["passed"]:
@@ -222,7 +223,7 @@ class Revision2Orchestrator:
         # Priority 1: forced close — never suppressed by minimum_hold_bars.
         halt_dd = float(self.config.require("drawdown_halt_threshold"))
         if self._current_drawdown() >= halt_dd:
-            self._execute_exit(bar_idx, trade, float(bar["close"]), "forced_close_drawdown_halt", funnel)
+            self._execute_exit(bar_idx, trade, float(bar["close"]), "forced_close_drawdown_halt", funnel, str(bar.get("timestamp", bar_idx)))
             return
 
         exit_price = None
@@ -242,7 +243,7 @@ class Revision2Orchestrator:
             # Priorities 2-3: protective stop and target — never suppressed
             # by minimum_hold_bars either. A stop or a hit target is not a
             # discretionary decision.
-            self._execute_exit(bar_idx, trade, exit_price, reason, funnel)
+            self._execute_exit(bar_idx, trade, exit_price, reason, funnel, str(bar.get("timestamp", bar_idx)))
             return
 
         # Priority 4: discretionary signal exit — the only exit gated by
@@ -256,13 +257,13 @@ class Revision2Orchestrator:
         if held >= trade["minimum_hold_bars"] and (
             signal.exit_confidence < trade["exit_confidence_threshold"] or signal.quality_band == "red"
         ):
-            self._execute_exit(bar_idx, trade, float(bar["close"]), "signal_exit", funnel)
+            self._execute_exit(bar_idx, trade, float(bar["close"]), "signal_exit", funnel, str(bar.get("timestamp", bar_idx)))
             return
 
         # Priority 5: maximum hold — forced regardless of minimum_hold_bars
         # (structurally always >= it anyway, by the registry's own ranges).
         if held >= trade["maximum_hold_bars"]:
-            self._execute_exit(bar_idx, trade, float(bar["close"]), "max_hold", funnel)
+            self._execute_exit(bar_idx, trade, float(bar["close"]), "max_hold", funnel, str(bar.get("timestamp", bar_idx)))
 
     def _transaction_costs(self) -> Dict[str, float]:
         """Slippage is already embedded in gross_pnl via the fill price
@@ -456,7 +457,7 @@ class Revision2Orchestrator:
                 position_notional=quantity * plan.entry_price,
                 risk_reward_ratio=decision.risk_reward_ratio,
             )
-            gate_result = self.entry_decision_engine.evaluate(
+            gate_result = self.entry_decision_engine.evaluate_pre_submit(
                 state,
                 signal=entry_signal,
                 current_time=self._parse_timestamp(timestamp),
@@ -501,10 +502,32 @@ class Revision2Orchestrator:
                 market_price=next_open,
                 config=self.safety_contract.as_dict(),
                 parameter_registry=self.registry,
+                event_time=str(bars.iloc[bar_idx + 1].get("timestamp", bar_idx + 1)),
             )
             funnel["orders_submitted"] += 1
             if fill["passed"]:
                 funnel["fills"] += 1
+                post_fill = self.entry_decision_engine.evaluate_post_fill(
+                    quantity, int(fill["filled_quantity"]), next_open, float(fill["filled_price"]),
+                )
+                record["post_fill_gates"] = {
+                    "passed": post_fill["passed"], "gate": post_fill["gate"], "reason": post_fill["reason"],
+                }
+                if not post_fill["passed"]:
+                    close_side = "SELL" if order.side == "BUY" else "BUY"
+                    corrective = self.broker.place_order(
+                        symbol=order.symbol, side=close_side, quantity=int(fill["filled_quantity"]),
+                        order_type="MARKET", market_price=next_open,
+                        config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+                        event_time=str(bars.iloc[bar_idx + 1].get("timestamp", bar_idx + 1)),
+                    )
+                    funnel["exit_orders_submitted"] += 1
+                    if corrective["passed"]:
+                        funnel["fills"] += 1
+                    funnel["gates_rejected"] += 1
+                    record["stage"] = "post_fill_safety_flatten"
+                    _emit()
+                    continue
                 self._open_trade = {
                     "side": plan.side,
                     "entry_price": fill["filled_price"],
@@ -526,7 +549,7 @@ class Revision2Orchestrator:
         open_position_reconciled = False
         if self._open_trade is not None:
             final_close = float(bars.iloc[n - 1]["close"])
-            self._execute_exit(n - 1, self._open_trade, final_close, "end_of_run_reconciliation", funnel)
+            self._execute_exit(n - 1, self._open_trade, final_close, "end_of_run_reconciliation", funnel, str(bars.iloc[n - 1].get("timestamp", n - 1)))
             open_position_reconciled = True
 
         # broker.realized_pnl is the single source of truth (accumulated

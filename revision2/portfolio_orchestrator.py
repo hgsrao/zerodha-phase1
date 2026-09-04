@@ -233,6 +233,7 @@ class Revision2PortfolioOrchestrator:
         result = self.broker.place_order(
             symbol=symbol, side=close_side, quantity=trade["quantity"], order_type="MARKET",
             market_price=exit_price, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+            event_time=str(timestamp),
         )
         if result["passed"]:
             pnl = (
@@ -477,7 +478,7 @@ class Revision2PortfolioOrchestrator:
                     current_time = datetime.fromisoformat(str(timestamp))
                 except Exception:
                     current_time = datetime.now()
-                gate_result = self.entry_decision_engine.evaluate(
+                gate_result = self.entry_decision_engine.evaluate_pre_submit(
                     state, signal=entry_signal, current_time=current_time, proposed_quantity=quantity,
                     target_price=plan.entry_price, fill_price=plan.entry_price, expected_qty=quantity,
                     actual_qty=quantity, symbol=symbol, proposed_notional=real_notional,
@@ -503,10 +504,27 @@ class Revision2PortfolioOrchestrator:
                 fill = self.broker.place_order(
                     symbol=symbol, side=order.side, quantity=quantity, order_type=order.order_type,
                     market_price=next_open, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+                    event_time=str(bars.iloc[bar_idx + 1].get("timestamp", bar_idx + 1)),
                 )
                 funnel["orders_submitted"] += 1
                 if fill["passed"]:
                     funnel["fills"] += 1
+                    post_fill = self.entry_decision_engine.evaluate_post_fill(
+                        quantity, int(fill["filled_quantity"]), next_open, float(fill["filled_price"]),
+                    )
+                    if not post_fill["passed"]:
+                        close_side = "SELL" if order.side == "BUY" else "BUY"
+                        corrective = self.broker.place_order(
+                            symbol=symbol, side=close_side, quantity=int(fill["filled_quantity"]),
+                            order_type="MARKET", market_price=next_open,
+                            config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+                            event_time=str(bars.iloc[bar_idx + 1].get("timestamp", bar_idx + 1)),
+                        )
+                        funnel["exit_orders_submitted"] += 1
+                        if corrective["passed"]:
+                            funnel["fills"] += 1
+                        funnel["gates_rejected"] += 1
+                        continue
                     self.open_trades[symbol] = {
                         "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
                         "target_price": plan.target_price, "quantity": quantity,
