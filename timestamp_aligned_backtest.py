@@ -42,7 +42,7 @@ class TimestampAlignedBacktest:
         self.rejected_by_gate = 0
         self.rejected_by_confidence = 0
 
-    def run(self, symbols: List[str], start_date="2023-08-14", end_date="2026-08-14"):
+    def run(self, symbols: List[str], start_date="2023-08-14", end_date="2026-08-15"):
         """Run timestamp-aligned backtest with real signal"""
 
         print(f"\n{'='*90}")
@@ -55,11 +55,19 @@ class TimestampAlignedBacktest:
         data = self.loader.load_multiple(symbols)
         print(f"[OK] Loaded {len(data)} symbols\n")
 
-        # Filter to date range
+        # Filter to date range and deduplicate timestamps
         for symbol in data:
             df = data[symbol]
             df['timestamp'] = pd.to_datetime(df['timestamp'])
             df = df[(df['timestamp'] >= start_date) & (df['timestamp'] <= end_date)]
+
+            # PHASE A FIX 2: Remove duplicate timestamps (keep first occurrence)
+            duplicates_before = len(df)
+            df = df.drop_duplicates(subset=['timestamp'], keep='first')
+            duplicates_after = len(df)
+            if duplicates_before > duplicates_after:
+                print(f"[INFO] {symbol}: Removed {duplicates_before - duplicates_after} duplicate timestamps")
+
             data[symbol] = df.reset_index(drop=True)
 
         # Create unified timestamp index (all unique timestamps across all symbols)
@@ -70,23 +78,60 @@ class TimestampAlignedBacktest:
         all_timestamps = sorted(list(all_timestamps))
         print(f"Total unique timestamps: {len(all_timestamps)}\n")
 
+        # PHASE B: Identify market close time (15:30 IST / 10:00 UTC)
+        # Market close is typically at 15:30 IST
+        market_close_hour = 15
+        market_close_minute = 30
+
         # Bar-by-bar iteration using timestamps (not row numbers)
         last_prices = {s: data[s].iloc[0]['close'] for s in symbols if len(data[s]) > 0}
         equity_curve = [self.initial_capital]
         current_date = None
+        last_close_timestamp = None
 
         for timestamp_idx, current_timestamp in enumerate(all_timestamps):
             try:
                 date_str = str(current_timestamp.date())
 
-                # CONFIG-FIX-002: Check for session end (daily close)
-                # When transitioning to a new date, force-close all MIS positions from previous date
-                if date_str != current_date and current_date is not None:
-                    # Force-close all remaining positions from previous trading session
+                # PHASE B FIX 1: Session-aware exit (check if this is market close bar)
+                # Market closes at 15:30, so check if we've reached or passed that time
+                is_market_close = (
+                    current_timestamp.hour == market_close_hour and
+                    current_timestamp.minute >= market_close_minute
+                )
+
+                # If we're still in same day but approaching/at close, close positions at correct time
+                if is_market_close and date_str == current_date and last_close_timestamp != date_str:
+                    # Force-close all MIS positions at market close (using current bar close)
                     for symbol in list(self.portfolio.positions.keys()):
                         try:
                             pos = self.portfolio.positions[symbol]
-                            # Use previous bar's close for daily close
+                            # Use current bar's close (actual market close price)
+                            if symbol in last_prices:
+                                close_price = last_prices[symbol]
+                            else:
+                                continue
+
+                            exit_value = pos.qty * close_price
+                            cost_breakdown = sell_cost(exit_value)
+                            total_costs = cost_breakdown.total
+
+                            self.portfolio.exit(
+                                symbol, close_price, total_costs,
+                                str(current_timestamp),  # Use actual market close timestamp
+                                "daily_mis_close"
+                            )
+                            self.exits += 1
+                        except:
+                            pass
+                    last_close_timestamp = date_str
+
+                # Also handle date transition (backup for missing close bar)
+                if date_str != current_date and current_date is not None:
+                    # Force-close any remaining positions that weren't closed at market close
+                    for symbol in list(self.portfolio.positions.keys()):
+                        try:
+                            pos = self.portfolio.positions[symbol]
                             if symbol in last_prices:
                                 final_price = last_prices[symbol]
                             else:
@@ -99,7 +144,7 @@ class TimestampAlignedBacktest:
                             self.portfolio.exit(
                                 symbol, final_price, total_costs,
                                 str(current_timestamp),
-                                "daily_mis_close"
+                                "session_end_close"
                             )
                             self.exits += 1
                         except:
@@ -176,7 +221,7 @@ class TimestampAlignedBacktest:
                     if bar_idx == 0:
                         continue  # Need previous bar for signal
 
-                    # Calculate real confidence
+                    # Calculate real confidence (using deduped data)
                     lookback_df = df.iloc[max(0, bar_idx-20):bar_idx+1]
                     confidence = self.signal.calculate(lookback_df)
 
@@ -185,11 +230,10 @@ class TimestampAlignedBacktest:
                         self.rejected_by_confidence += 1
                         continue
 
-                    # FIX-004: Gates use only current-bar data, not future bars
-                    # Use current bar's open for gate evaluation (causally correct)
+                    # Gates use only current-bar data (causally correct)
                     evaluation_price = bar['open']
 
-                    # Create signal with CURRENT bar data (not next bar)
+                    # Create signal with CURRENT bar data
                     signal = EntrySignal(
                         symbol=symbol,
                         entry_price=evaluation_price,
@@ -204,21 +248,22 @@ class TimestampAlignedBacktest:
                     # Create state
                     current_equity = self.portfolio.get_equity(last_prices)
 
-                    # FIX-005: Calculate proper lambda (gross exposure / equity)
+                    # Calculate proper lambda (gross exposure / equity)
                     total_position_value = sum(
                         last_prices.get(s, p.entry_price) * p.qty
                         for s, p in self.portfolio.positions.items()
                     )
                     current_lambda = (total_position_value / current_equity) if current_equity > 0 else 0.0
 
-                    # CONFIG-FIX-001: Populate open positions list
+                    # PHASE B FIX 2: Populate open positions list with correct fields
                     open_positions = [
                         {
                             'symbol': s,
                             'qty': p.qty,
                             'entry_price': p.entry_price,
                             'current_price': last_prices.get(s, p.entry_price),
-                            'position_value': last_prices.get(s, p.entry_price) * p.qty
+                            'position_value': last_prices.get(s, p.entry_price) * p.qty,
+                            'notional': last_prices.get(s, p.entry_price) * p.qty  # Add notional field for gates
                         }
                         for s, p in self.portfolio.positions.items()
                     ]
@@ -241,25 +286,26 @@ class TimestampAlignedBacktest:
                     # Gate decision (uses current bar only)
                     can_enter, actual_size, reason = self.entry_engine.can_enter(signal, state)
 
-                    # FIX-003: Reject zero-quantity orders
+                    # Reject zero-quantity orders
                     if can_enter and actual_size > 0:
-                        # FIX-002: Calculate costs AFTER gate sizing (on actual quantity)
-                        actual_entry_value = actual_size * evaluation_price
-                        cost_breakdown = buy_cost(actual_entry_value)
-                        total_costs = cost_breakdown.total
-
-                        # Get next bar's open for actual execution (after gate approval)
+                        # Get next bar's open (actual fill price)
                         if bar_idx + 1 < len(df):
                             next_bar = df.iloc[bar_idx + 1]
-                            execution_price = next_bar['open']
+                            actual_fill_price = next_bar['open']
                         else:
                             continue  # No next bar available
 
+                        # PHASE B FIX 3: Calculate costs on ACTUAL fill price and quantity
+                        actual_fill_value = actual_size * actual_fill_price
+                        cost_breakdown = buy_cost(actual_fill_value)
+                        total_costs = cost_breakdown.total
+
+                        # Enter position at actual fill price with correct costs
                         self.portfolio.enter(
-                            symbol, actual_size, execution_price, total_costs,
+                            symbol, actual_size, actual_fill_price, total_costs,
                             str(next_bar['timestamp']),
-                            execution_price * 0.97,
-                            execution_price * 1.03
+                            actual_fill_price * 0.97,
+                            actual_fill_price * 1.03
                         )
                         self.entries += 1
                     else:
@@ -303,6 +349,24 @@ class TimestampAlignedBacktest:
         total_pnl = final_equity - self.initial_capital
         total_trades = len(self.portfolio.closed_trades)
         win_rate = sum(1 for t in self.portfolio.closed_trades if t['realized_pnl'] > 0) / max(total_trades, 1)
+
+        # PHASE C FIX 4: Reconciliation check
+        ledger_pnl = sum(t['realized_pnl'] for t in self.portfolio.closed_trades)
+
+        # Check if ledger matches reported P&L
+        pnl_difference = abs(total_pnl - ledger_pnl)
+
+        print(f"\n{'='*90}")
+        print("LEDGER RECONCILIATION CHECK")
+        print(f"{'='*90}")
+        print(f"Reported P&L (equity change): Rs{total_pnl:>15,.2f}")
+        print(f"Ledger P&L (sum of trades):   Rs{ledger_pnl:>15,.2f}")
+        print(f"Ledger vs Reported delta:     Rs{pnl_difference:>15,.2f}")
+        if pnl_difference > 1:
+            print(f"[WARN] Accounting gap: Rs{pnl_difference:,.2f}")
+        else:
+            print(f"[OK] Perfect reconciliation - ledger matches reported P&L")
+        print(f"{'='*90}\n")
 
         print(f"\n{'='*90}")
         print("TIMESTAMP-ALIGNED BACKTEST RESULTS")

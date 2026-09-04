@@ -11,6 +11,7 @@ class Position:
     entry_time: str
     stop_loss: float
     profit_target: float
+    entry_costs: float = 0.0  # PHASE C FIX: Track entry costs for reconciliation
 
 class PortfolioManager:
     def __init__(self, initial_capital):
@@ -29,7 +30,8 @@ class PortfolioManager:
         self.cash -= total_cost
         self.positions[symbol] = Position(
             symbol=symbol, qty=qty, entry_price=entry_price,
-            entry_time=entry_time, stop_loss=stop_loss, profit_target=profit_target
+            entry_time=entry_time, stop_loss=stop_loss, profit_target=profit_target,
+            entry_costs=costs  # PHASE C FIX: Store entry costs for realized_pnl calculation
         )
 
     def exit(self, symbol, exit_price, costs, exit_time, exit_reason):
@@ -39,7 +41,10 @@ class PortfolioManager:
 
         pos = self.positions[symbol]
         proceeds = pos.qty * exit_price - costs
-        realized_pnl = proceeds - (pos.qty * pos.entry_price)
+
+        # PHASE C FIX: Include BOTH entry and exit costs in realized_pnl
+        # realized_pnl = proceeds - cost of acquiring shares - entry_costs
+        realized_pnl = proceeds - (pos.qty * pos.entry_price) - pos.entry_costs
 
         self.cash += proceeds
         self.closed_trades.append({
@@ -51,7 +56,8 @@ class PortfolioManager:
             'exit_time': exit_time,
             'exit_reason': exit_reason,
             'realized_pnl': realized_pnl,
-            'costs': costs
+            'entry_costs': pos.entry_costs,
+            'exit_costs': costs
         })
 
         del self.positions[symbol]
