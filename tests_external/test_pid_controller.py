@@ -105,6 +105,53 @@ def test_entry_pid_no_longer_permanently_saturates_on_the_real_infy_pattern():
     )
 
 
+def test_exit_pid_also_stops_saturating_once_it_shares_the_adaptive_baseline():
+    # The exit PID's target used to be decision.timing_quality (effectively
+    # fixed at exit_confidence_threshold) -- not mathematically guaranteed
+    # one-signed the way entry's was, but empirically worse in practice: a
+    # real 6-month INFY run (after fixing entry alone) showed the exit PID
+    # pinned at its clamp on 14.6% of calls (68/467) vs only 5.4% (25/467)
+    # for the already-fixed entry PID. Moving exit onto the same rolling
+    # confidence baseline as entry should show the same kind of relief.
+    box = SimplePIDModelPredictiveControlBox()
+    config = _config()
+    clamp = config.require("pid_integral_max_clamp")
+    confidences = [0.513, 0.571, 0.52, 0.56, 0.55, 0.54, 0.57, 0.53, 0.55, 0.56] * 3
+
+    adjustments = []
+    for confidence in confidences:
+        signal = PASignal(symbol="INFY_LIKE_EXIT", timestamp="2024-01-01 09:20", direction=1, confidence=confidence,
+                           momentum=0.5, volatility=0.01, vwap_deviation=0.1, volume_confirmation=0.2)
+        decision = IDDecision(approved=True, reason="approved", confidence=confidence, risk_reward_ratio=2.0, timing_quality=0.6)
+        plan, pid_info, _ = box.build_plan(signal, decision, 1000.0, 8.0, config)
+        adjustments.append(pid_info["exit_adjustment"])
+
+    later_calls = adjustments[-10:]
+    assert any(abs(a) < clamp - 1e-6 for a in later_calls), (
+        f"exit PID is still permanently pinned at its clamp: {later_calls}"
+    )
+    assert len(set(round(a, 6) for a in later_calls)) > 1, (
+        f"exit PID output is flat, not genuine proportional control: {later_calls}"
+    )
+
+
+def test_entry_and_exit_pids_share_one_confidence_baseline_not_two():
+    # _confidence_baseline must be called exactly once per build_plan() call
+    # and its result reused for both PIDs -- calling it twice would double
+    # count the same bar in the rolling window and desync the two PIDs'
+    # setpoints even though they observe the identical confidence series.
+    box = SimplePIDModelPredictiveControlBox()
+    signal = PASignal(symbol="SHARED_BASELINE", timestamp="2024-01-01 09:20", direction=1, confidence=0.6,
+                       momentum=0.5, volatility=0.01, vwap_deviation=0.1, volume_confirmation=0.2)
+    decision = IDDecision(approved=True, reason="approved", confidence=0.6, risk_reward_ratio=2.0, timing_quality=0.6)
+    box.build_plan(signal, decision, 1000.0, 8.0, _config())
+    assert len(box._confidence_history["SHARED_BASELINE"]) == 1, (
+        "one build_plan() call must append exactly one confidence reading, "
+        f"got {len(box._confidence_history['SHARED_BASELINE'])}"
+    )
+    assert box._entry_pids["SHARED_BASELINE"].setpoint == box._exit_pids["SHARED_BASELINE"].setpoint
+
+
 def test_fresh_symbol_starts_neutral_instead_of_pre_biased_toward_a_rail():
     # With no confidence history yet, the rolling baseline defaults to the
     # very first reading itself, so error (and therefore the adjustment) on
