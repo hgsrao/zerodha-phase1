@@ -59,7 +59,6 @@ class SimplePIDModelPredictiveControlBox:
         profit_mult = float(req("profit_target_atr_mult", "ATR multiplier for the profit target", "target_price"))
         stop_mult = float(req("stop_loss_atr_mult", "ATR multiplier for the stop", "stop_price"))
         margin_buffer = float(req("profit_target_margin_buffer", "extra buffer added to the target", "target_price"))
-        min_abs_profit = float(req("minimum_absolute_profit_rupees", "minimum rupee profit required to accept the plan", "target_price"))
         min_rr = float(req("min_risk_reward_ratio", "minimum reward:risk enforced on the target distance", "target_price"))
         min_hold = int(req("min_hold_bars", "minimum bars to hold before exit is allowed", "minimum_hold_bars"))
         max_hold = int(req("max_hold_bars", "maximum bars to hold before forced exit", "maximum_hold_bars"))
@@ -106,10 +105,10 @@ class SimplePIDModelPredictiveControlBox:
             stop_price = effective_entry + stop_distance
             target_price = effective_entry - target_distance
 
-        projected_profit = abs(target_price - effective_entry)
-        if projected_profit < min_abs_profit / 10.0:
-            return None, {"reason": "below minimum absolute profit floor"}, trace
-
+        # No profit-floor check here -- moved post-sizing, into
+        # SafetyGatesTargetBox.evaluate_post_sizing(), which knows the real
+        # quantity and can compare against the real round-trip cost. See
+        # that method and minimum_profit_margin_over_cost's registry entry.
         plan = TradePlan(
             side=side, entry_price=float(effective_entry), stop_price=float(stop_price),
             target_price=float(target_price), minimum_hold_bars=min_hold, maximum_hold_bars=max_hold,

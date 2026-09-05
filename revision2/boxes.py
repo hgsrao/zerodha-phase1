@@ -329,7 +329,6 @@ class ModelPredictiveControlBox:
         profit_mult = float(req("profit_target_atr_mult", "ATR multiplier for the profit target", "target_price"))
         stop_mult = float(req("stop_loss_atr_mult", "ATR multiplier for the stop", "stop_price"))
         margin_buffer = float(req("profit_target_margin_buffer", "extra buffer added to the target", "target_price"))
-        min_abs_profit = float(req("minimum_absolute_profit_rupees", "minimum rupee profit required to accept the plan", "target_price"))
         min_rr = float(req("min_risk_reward_ratio", "minimum reward:risk enforced on the target distance", "target_price"))
         min_hold = int(req("min_hold_bars", "minimum bars to hold before exit is allowed", "minimum_hold_bars"))
         max_hold = int(req("max_hold_bars", "maximum bars to hold before forced exit", "maximum_hold_bars"))
@@ -395,14 +394,16 @@ class ModelPredictiveControlBox:
             stop_price = effective_entry + stop_distance
             target_price = effective_entry - target_distance
 
-        # Compared per-share since MPC doesn't yet know the trade's
-        # quantity (PositionManager decides that downstream); dividing by an
-        # assumed reference lot keeps the comparison in a plausible range
-        # instead of being swamped by entry_price.
-        projected_profit = abs(target_price - effective_entry)
-        if projected_profit < min_abs_profit / 10.0:
-            return None, {"reason": "below minimum absolute profit floor"}, trace
-
+        # No profit-floor check here: MPC doesn't know the trade's quantity
+        # yet (PositionManager decides that downstream), and real round-trip
+        # cost scales with price x quantity -- a per-share proxy checked at
+        # this point can't represent whether the trade is actually worth its
+        # real cost. That check now runs post-sizing, in
+        # SafetyGatesTargetBox.evaluate_post_sizing(), against the real cost
+        # for the real quantity. See minimum_profit_margin_over_cost's
+        # registry entry and that method's own comment for the full
+        # rationale (this replaced the former minimum_absolute_profit_rupees
+        # per-share pre-sizing check).
         plan = TradePlan(
             side=side,
             entry_price=float(effective_entry),
@@ -461,6 +462,19 @@ class SafetyGatesTargetBox:
 
         return True, "approved", size_multiplier, trace
 
+    @staticmethod
+    def _leg_cost(price: float, quantity: int, side: str) -> float:
+        """Identical formula to orchestrator.py's _transaction_costs() /
+        portfolio_orchestrator.py's _leg_cost() / revision2_external's own
+        copy -- kept identical deliberately so the profit-margin check below
+        compares against the SAME cost the trade will actually be charged,
+        not an independently-drifting estimate."""
+        turnover = price * quantity
+        cost = min(20.0, 0.0003 * turnover) + 0.0000345 * turnover
+        if side == "SELL":
+            cost += 0.00025 * turnover
+        return cost
+
     def evaluate_post_sizing(
         self, equity_curve: List[float], plan: TradePlan, quantity: int, config: EffectiveConfig
     ) -> Tuple[bool, str, List[ParameterUse]]:
@@ -473,6 +487,7 @@ class SafetyGatesTargetBox:
 
         max_loss_trade = float(req("max_loss_per_trade_rupees", "per-trade rupee loss cap (post-sizing)", "approved"))
         max_loss_day = float(req("max_loss_per_day_rupees", "daily rupee loss cap", "approved"))
+        min_margin = float(req("minimum_profit_margin_over_cost", "required fraction by which projected profit must exceed real round-trip cost", "approved"))
 
         peak = max(equity_curve) if equity_curve else 0.0
         current = equity_curve[-1] if equity_curve else 0.0
@@ -484,6 +499,33 @@ class SafetyGatesTargetBox:
         daily_loss_so_far = max(0.0, peak - current)
         if daily_loss_so_far > max_loss_day:
             return False, f"cumulative loss Rs.{daily_loss_so_far:.2f} exceeds daily cap Rs.{max_loss_day:.2f}", trace
+
+        # The real profit-floor check, moved here from MPC because this is
+        # the first point where BOTH the real quantity (from PositionManager)
+        # AND the real per-trade round-trip cost can be computed together.
+        # Replaces the former minimum_absolute_profit_rupees: that was a
+        # fixed per-SHARE rupee constant checked before quantity existed --
+        # structurally unable to represent "is this trade worth its real
+        # cost" for any single value, since real cost scales with
+        # price x quantity and varies enormously by symbol (verified
+        # directly: the same fixed floor cleared ~93% of the time for a
+        # Rs 14,000 stock and 0% of the time for a Rs 1,100 one, purely from
+        # price scale, nothing to do with either trade's actual economics).
+        # exit-leg cost uses plan.target_price as the assumed exit price --
+        # the same "if this trade hits its target" assumption projected_profit
+        # itself already makes.
+        close_side = "SELL" if plan.side == "BUY" else "BUY"
+        entry_cost = self._leg_cost(plan.entry_price, quantity, plan.side)
+        exit_cost = self._leg_cost(plan.target_price, quantity, close_side)
+        real_round_trip_cost = entry_cost + exit_cost
+        projected_total_profit = abs(plan.target_price - plan.entry_price) * quantity
+        required_profit = real_round_trip_cost * (1.0 + min_margin)
+        if projected_total_profit < required_profit:
+            return False, (
+                f"projected profit Rs.{projected_total_profit:.2f} does not exceed real round-trip cost "
+                f"Rs.{real_round_trip_cost:.2f} by the required {min_margin:.0%} margin "
+                f"(needs Rs.{required_profit:.2f})"
+            ), trace
 
         return True, "approved", trace
 

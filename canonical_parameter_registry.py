@@ -26,7 +26,14 @@ class ParameterSpec:
 
 class CanonicalParameterRegistry:
     CONTRACT_ID = "ECS_REVISION_2_PARAMETER_SURFACE_V1"
-    FROZEN_IDENTITY_SHA256 = "ed1a74fa0f3edf8a89e471e6db40f992148862b240b77fdcdab7984578e35c70"
+    # Updated deliberately: minimum_absolute_profit_rupees (a fixed
+    # per-share rupee constant, checked before quantity existed) was
+    # replaced with minimum_profit_margin_over_cost (a scale-invariant
+    # cost-margin fraction, checked post-sizing against the real round-trip
+    # cost). Parameter count is unchanged (68 target / 20 safety); only this
+    # one entry's name/type/semantics changed, which is exactly what this
+    # hash exists to make visible rather than silently drift.
+    FROZEN_IDENTITY_SHA256 = "5b2a7e58d13456a026e0b507fc6fb1b56fb66470401f3db4f5ab77ccd8319f7c"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -98,7 +105,15 @@ class CanonicalParameterRegistry:
             ParameterSpec("entry_signal_smoothing_window", "PA", "int", 3, 1, 8, True, "Entry smoothing window"),
             ParameterSpec("exit_signal_smoothing_window", "PA", "int", 2, 1, 4, True, "Exit smoothing window"),
             ParameterSpec("slippage_cost_multiplier", "MPC", "float", 1.00, 0.8, 1.5, True, "Cost multiplier"),
-            ParameterSpec("minimum_absolute_profit_rupees", "MPC", "float", 50.0, 0.0, 200.0, True, "Min profit floor"),
+            # Replaced minimum_absolute_profit_rupees (a fixed per-share rupee
+            # proxy checked before quantity existed -- structurally unable to
+            # represent whether a trade was actually worth its real cost,
+            # since real round-trip cost scales with price x quantity, not a
+            # fixed constant). Checked post-sizing now (SafetyGatesTargetBox.
+            # evaluate_post_sizing), against the real round-trip cost for the
+            # actual quantity -- see that method for the full rationale.
+            ParameterSpec("minimum_profit_margin_over_cost", "SafetyGates", "float", 0.5, 0.0, 2.0, True,
+                          "Required fraction by which projected total trade profit must exceed real round-trip cost"),
             ParameterSpec("momentum_calculation_period", "PA", "int", 20, 10, 30, True, "Momentum period"),
             ParameterSpec("vwap_calculation_period", "PA", "int", 20, 10, 30, True, "VWAP period"),
             ParameterSpec("signal_persistence_requirement", "PA", "float", 1.50, 1.0, 2.5, True, "Persistence requirement"),

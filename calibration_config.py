@@ -117,7 +117,7 @@ class Revision2ParameterManifest:
             "entry_signal_smoothing_window",
             "exit_signal_smoothing_window",
             "slippage_cost_multiplier",
-            "minimum_absolute_profit_rupees",
+            "minimum_profit_margin_over_cost",
             "momentum_calculation_period",
             "vwap_calculation_period",
             "signal_persistence_requirement",

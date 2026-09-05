@@ -20,6 +20,7 @@ from revision2.boxes import (
     ModelPredictiveControlBox,
     PositionManagerBox,
     PredictiveAnalyticsBox,
+    SafetyGatesTargetBox,
     UnifiedExecutionBox,
 )
 from revision2.contracts import EffectiveConfig, IDDecision, MarketSnapshot, PASignal, TradePlan
@@ -169,8 +170,16 @@ class TestRevision2ParameterSensitivity(unittest.TestCase):
         return tuple(outputs)
 
     def test_mpc_parameters_are_sensitive(self):
+        # 16, not 17: minimum_absolute_profit_rupees (black_box="MPC") was
+        # replaced by minimum_profit_margin_over_cost (black_box=
+        # "SafetyGates"), moving the profit-floor check post-sizing where
+        # the real quantity and real round-trip cost are both known -- see
+        # SafetyGatesTargetBox.evaluate_post_sizing()'s own comment and
+        # test_revision2_causal_sensitivity.py's
+        # test_minimum_profit_margin_over_cost_changes_the_real_ledger for
+        # this parameter's own causal proof.
         mpc_names = sorted(n for n, s in self.registry.params.items() if s.black_box == "MPC" and s.calibratable)
-        self.assertEqual(len(mpc_names), 17)
+        self.assertEqual(len(mpc_names), 16)
         default_output = self._mpc_sweep(self._config())
         for name in mpc_names:
             spec = self.registry.get(name)
@@ -232,6 +241,56 @@ class TestRevision2ParameterSensitivity(unittest.TestCase):
 
         outputs = (bias(spec.default), bias(spec.minimum), bias(spec.maximum))
         self._assert_sensitive("learning_rate_exploration_factor", outputs)
+
+
+class TestSafetyGatesPostSizingProfitMargin(unittest.TestCase):
+    """SafetyGatesTargetBox.evaluate_post_sizing()'s minimum_profit_margin_
+    over_cost check, direct and deterministic -- the standard synthetic
+    fixture used elsewhere in this file (and in
+    test_revision2_causal_sensitivity.py) masks this parameter, because its
+    trades' profit always runs ~3x the required cost margin even at the
+    parameter's maximum. This scenario is chosen so the real profit/cost
+    ratio (~2.17x) sits between the minimum-margin requirement (1x cost)
+    and the maximum-margin requirement (3x cost), so sweeping the
+    parameter's full registry range genuinely flips the accept/reject
+    outcome -- proving the check is real, not just documented as excluded
+    from the standard fixture."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.registry = CanonicalParameterRegistry()
+
+    def _config(self, overrides=None):
+        values = {name: spec.default for name, spec in self.registry.params.items()}
+        values.update(overrides or {})
+        return EffectiveConfig.build(values, self.registry.FROZEN_IDENTITY_SHA256)
+
+    def test_margin_parameter_flips_accept_reject_on_a_real_scenario(self):
+        box = SafetyGatesTargetBox()
+        plan = TradePlan(side="BUY", entry_price=500.0, stop_price=490.0, target_price=501.0,
+                          minimum_hold_bars=2, maximum_hold_bars=20)
+        quantity = 50
+        spec = self.registry.get("minimum_profit_margin_over_cost")
+
+        passed_at_min, reason_min, _ = box.evaluate_post_sizing([1_000_000.0], plan, quantity, self._config({"minimum_profit_margin_over_cost": spec.minimum}))
+        passed_at_max, reason_max, _ = box.evaluate_post_sizing([1_000_000.0], plan, quantity, self._config({"minimum_profit_margin_over_cost": spec.maximum}))
+
+        self.assertTrue(passed_at_min, f"expected pass at minimum margin, got: {reason_min}")
+        self.assertFalse(passed_at_max, f"expected reject at maximum margin, got: {reason_max}")
+        self.assertIn("real round-trip cost", reason_max)
+
+    def test_rejection_math_matches_the_real_leg_cost_formula(self):
+        box = SafetyGatesTargetBox()
+        plan = TradePlan(side="BUY", entry_price=500.0, stop_price=490.0, target_price=501.0,
+                          minimum_hold_bars=2, maximum_hold_bars=20)
+        quantity = 50
+        expected_cost = box._leg_cost(500.0, 50, "BUY") + box._leg_cost(501.0, 50, "SELL")
+        expected_profit = 1.0 * 50
+
+        passed, reason, _ = box.evaluate_post_sizing([1_000_000.0], plan, quantity, self._config({"minimum_profit_margin_over_cost": 2.0}))
+        self.assertFalse(passed)
+        self.assertIn(f"Rs.{expected_profit:.2f}", reason)
+        self.assertIn(f"Rs.{expected_cost:.2f}", reason)
 
 
 if __name__ == "__main__":

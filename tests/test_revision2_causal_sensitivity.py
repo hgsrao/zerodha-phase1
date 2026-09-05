@@ -135,6 +135,19 @@ class TestCausalEndToEndSensitivity(unittest.TestCase):
         # fixture this suite doesn't yet have to prove end-to-end.
         "max_hold_bars": "no trade in this fixture is held long enough for it to bind",
         "red_threshold": "no trade in this fixture reaches the red-quality-band exit path",
+        # Verified directly: sampled this fixture's real
+        # SafetyGatesTargetBox.evaluate_post_sizing() calls at
+        # minimum_profit_margin_over_cost=2.0 (its maximum) -- projected
+        # profit (~Rs 32) still ran ~3x the required threshold (~Rs 10),
+        # so every real trade here clears the margin requirement at every
+        # value in its calibratable range. Same masking pattern as
+        # capital_per_trade_fraction above: a property of this fixture's
+        # ATR/price scale, not evidence the parameter is dead -- it
+        # genuinely gates trades on real, higher-cost-relative-to-profit
+        # data (see the INFY/MARUTI 3-year external-engine runs, where an
+        # earlier, differently-shaped version of this same check rejected
+        # 100% of INFY's candidate trades and 0% of MARUTI's).
+        "minimum_profit_margin_over_cost": "projected profit is ~3x the required cost margin even at the maximum (2.0) on this fixture",
     }
 
     def test_every_calibratable_parameter_changes_the_real_trade_ledger(self):
