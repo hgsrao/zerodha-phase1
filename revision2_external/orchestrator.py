@@ -277,7 +277,17 @@ class Revision2ExternalEngineOrchestrator:
         }
         max_concurrent = int(self.safety_contract.values["max_concurrent_positions"])
         max_gross_fraction = float(self.safety_contract.values["max_gross_exposure_fraction"])
-        sector_cap_fraction = float(self.registry.get("max_sector_exposure_fraction").default)
+        # Was self.registry.get(...).default -- silently ignored calibration
+        # overrides (always read the registry's frozen default, never the
+        # candidate's actual value) and, since it bypassed self.config,
+        # never registered as consumed either, which is why this parameter
+        # was incorrectly in test_orchestrator_end_to_end.py's
+        # expected_missing set under a "replaced by PyPortfolioOpt weights"
+        # rationale that isn't true -- it's read and it enforces a real
+        # sector cap, just never the calibrated one. Found during external
+        # review, verified directly against this line before fixing.
+        sector_cap_fraction = float(self.config.require("max_sector_exposure_fraction"))
+        self.consumed_parameters.add("max_sector_exposure_fraction")
 
         # Calibration driving many candidates against the SAME symbol_bars
         # can build this once and pass it via precomputed_clock= -- mirrors

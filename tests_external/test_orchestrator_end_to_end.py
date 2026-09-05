@@ -37,13 +37,21 @@ def test_full_engine_runs_on_real_data_and_produces_real_trades():
     assert report["mpc_plans"] > 0
 
     coverage = report["parameter_coverage"]
-    # The 6 documented, intentional exclusions -- see orchestrator.py and
-    # position_sizing_pyportfolioopt.py's own module docstrings for why
-    # each one is genuinely not consumed by this engine.
+    # 5, not 6 -- see orchestrator.py and position_sizing_pyportfolioopt.py's
+    # own module docstrings for why each is genuinely not consumed by this
+    # engine. max_sector_exposure_fraction used to be here too under a
+    # "replaced by PyPortfolioOpt weights" rationale that turned out to be
+    # false: an external review found it was actually being read (and a
+    # real sector cap enforced with it) via self.registry.get(...).default,
+    # bypassing self.config -- always the frozen default, never a
+    # calibration override, and invisible to consumption tracking as a
+    # side effect of that bypass. Fixed to read self.config.require(...)
+    # like every other consumed parameter; it now shows up as consumed,
+    # correctly, because it always was.
     expected_missing = {
         "data_validation_mode",  # Pandera certification has no strict/lenient mode toggle
         "learning_rate_exploration_factor", "phase1_exploration_intensity", "phase2_optimization_intensity",
-        "max_sector_exposure_fraction", "max_symbol_concentration",  # replaced by PyPortfolioOpt weights
+        "max_symbol_concentration",  # replaced by PyPortfolioOpt weights
     }
     assert set(coverage["target_missing"]) == expected_missing, (
         f"unexpected parameter coverage gap: {set(coverage['target_missing']) - expected_missing}"

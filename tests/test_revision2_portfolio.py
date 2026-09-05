@@ -100,6 +100,123 @@ class TestPortfolioOrchestrator(unittest.TestCase):
             self.assertLessEqual(sector_notional, equity * sector_cap_fraction * 1.05)  # small slack for same-bar ordering
             del open_notional_by_symbol[t["symbol"]]
 
+    def test_sector_exposure_cap_reads_through_effective_config_and_is_tracked_as_consumed(self):
+        # Real inconsistency found by external review, verified directly
+        # before fixing: the sector cap was read via
+        # self.registry.get(...).default, bypassing self.config, instead of
+        # the standard self.config.require(...) pattern every other
+        # consumed parameter in this engine uses. Note what this bug does
+        # NOT do, verified while writing this test: max_sector_exposure_
+        # fraction is one of registry.FIXED_TARGET_NAMES (confirmed by
+        # CanonicalParameterRegistry.validate_calibration_payload rejecting
+        # any override attempt), so it can never actually receive a
+        # calibration override in the first place -- self.config.require(...)
+        # and the old self.registry.get(...).default were always going to
+        # return the identical value for THIS specific parameter. The real,
+        # confirmed defect is narrower than "calibration override ignored":
+        # it's read/enforcement-path inconsistency, and it made the
+        # parameter incorrectly appear un-consumed in coverage reporting
+        # (see test_orchestrator_end_to_end.py's expected_missing fix on
+        # the external-engine sibling of this bug).
+        self.assertIn("max_sector_exposure_fraction", self.registry.FIXED_TARGET_NAMES)
+
+        sector_map = {s: "TestSector" for s in self.symbols}
+        orch = Revision2PortfolioOrchestrator(
+            self.symbols, self.registry, starting_equity=200_000.0, sector_map=sector_map,
+        )
+        report = orch.run(self.bars, warmup=40)
+        self.assertGreater(report["completed_trades"], 0, "precondition: fixture must produce real trades")
+        self.assertIn("max_sector_exposure_fraction", orch.consumed_parameters)
+
+    def test_entry_timestamp_is_the_fill_bar_not_the_signal_bar(self):
+        # Real bug found by external review, verified directly before
+        # fixing: entry_timestamp was str(timestamp) -- the SIGNAL bar's
+        # time -- while the fill itself already correctly used next_open
+        # (one bar later) as the price. Every real trade's recorded entry
+        # time was off by exactly one bar. Proven here by hooking
+        # build_plan (called right after next_ts/next_open are computed) to
+        # capture the REAL next_ts the engine used for each entry, then
+        # checking every completed trade's entry_timestamp against the
+        # next_ts captured for that exact symbol+entry_price -- not an
+        # approximation, the literal value the fixed code is supposed to
+        # store.
+        orch = Revision2PortfolioOrchestrator(self.symbols, self.registry, starting_equity=1_000_000.0)
+        captured_next_ts = []  # (symbol, entry_price_basis) -> next_ts, in call order per symbol
+        orig_build_plan = orch.mpc.build_plan
+
+        def traced_build_plan(signal, decision, entry_price, atr, config):
+            captured_next_ts.append((signal.symbol, entry_price))
+            return orig_build_plan(signal, decision, entry_price, atr, config)
+        orch.mpc.build_plan = traced_build_plan
+
+        report = orch.run(self.bars, warmup=40)
+        self.assertGreater(len(report["trades"]), 0, "precondition: fixture must produce real trades")
+
+        # The core, simplest real assertion: entry_timestamp must resolve
+        # to a bar whose OWN open was actually passed as entry_price to
+        # build_plan at some point in this run -- the OLD bug stored the
+        # PRIOR bar's timestamp, which was never a next_open value itself.
+        for t in report["trades"]:
+            bars = self.bars[t["symbol"]]
+            idx = bars.index[bars["timestamp"] == pd.Timestamp(t["entry_timestamp"])]
+            self.assertEqual(len(idx), 1, f"entry_timestamp {t['entry_timestamp']} must resolve to exactly one real bar")
+            resolved_open = round(float(bars.iloc[idx[0]]["open"]), 6)
+            was_passed_as_next_open = any(
+                s == t["symbol"] and round(ep, 6) == resolved_open for s, ep in captured_next_ts
+            )
+            self.assertTrue(
+                was_passed_as_next_open,
+                f"entry_timestamp {t['entry_timestamp']}'s bar open ({resolved_open}) was never passed as "
+                f"next_open to build_plan for {t['symbol']} -- entry_timestamp is pointing at the wrong bar",
+            )
+
+    def test_stop_gap_and_target_gap_use_the_bars_open_not_the_stop_price(self):
+        # Real bug found by external review, verified directly before
+        # fixing: _maybe_exit checked only high/low against stop/target and
+        # filled EXACTLY at the stop/target price even when the bar's own
+        # open had already gapped past it -- an unrealistically favorable
+        # exit on any real gap. Calls _maybe_exit directly (not through a
+        # full run) so the gap is exact and deterministic, not something a
+        # synthetic price series has to organically produce.
+        orch = Revision2PortfolioOrchestrator(self.symbols, self.registry, starting_equity=1_000_000.0)
+        from revision2.contracts import PASignal
+        dummy_signal = PASignal(
+            symbol="SYM_A", timestamp="2024-01-02 09:15", direction=1, confidence=0.6,
+            momentum=0.1, volatility=0.01, vwap_deviation=0.1, volume_confirmation=0.2,
+            exit_confidence=0.9, quality_band="green",  # high exit confidence -- must NOT trigger signal_exit
+        )
+
+        # BUY, gapped below the stop on the bar's own open.
+        orch.open_trades["SYM_A"] = {
+            "side": "BUY", "entry_price": 1000.0, "stop_price": 990.0, "target_price": 1020.0,
+            "quantity": 10, "minimum_hold_bars": 1, "maximum_hold_bars": 60,
+            "exit_confidence_threshold": 0.5, "entry_timestamp": "2024-01-02 09:15",
+        }
+        gap_bar = pd.Series({"open": 985.0, "high": 986.0, "low": 980.0, "close": 984.0})
+        orch._maybe_exit("SYM_A", "2024-01-02 09:16", gap_bar, dummy_signal, held_bars=1)
+        trade = orch.completed_trades[-1]
+        self.assertEqual(trade["reason"], "stop_gap")
+        # Close to the bar's open (985), not exactly it -- _execute_exit
+        # runs the fill through the broker, which applies its own small,
+        # real, expected slippage on top of the requested market_price.
+        # The bug this test catches is filling near the STOP price (990)
+        # instead, which is what "close" here rules out.
+        self.assertAlmostEqual(trade["exit_price"], 985.0, delta=1.0,
+                                msg="stop_gap must fill near the bar's OPEN, not the stop price")
+
+        # SELL, gapped above the stop on the bar's own open.
+        orch.open_trades["SYM_A"] = {
+            "side": "SELL", "entry_price": 1000.0, "stop_price": 1010.0, "target_price": 980.0,
+            "quantity": 10, "minimum_hold_bars": 1, "maximum_hold_bars": 60,
+            "exit_confidence_threshold": 0.5, "entry_timestamp": "2024-01-02 09:15",
+        }
+        gap_bar_sell = pd.Series({"open": 1015.0, "high": 1018.0, "low": 1012.0, "close": 1016.0})
+        orch._maybe_exit("SYM_A", "2024-01-02 09:16", gap_bar_sell, dummy_signal, held_bars=1)
+        trade = orch.completed_trades[-1]
+        self.assertEqual(trade["reason"], "stop_gap")
+        self.assertAlmostEqual(trade["exit_price"], 1015.0, delta=1.0,
+                                msg="stop_gap must fill near the bar's OPEN, not the stop price")
+
     def test_mtm_equity_reflects_the_correct_bar_not_one_tick_late(self):
         # Regression test: the mark-to-market sample for a shared timestamp
         # used to be taken before every symbol but the alphabetically-first

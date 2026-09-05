@@ -263,14 +263,28 @@ class Revision2PortfolioOrchestrator:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "forced_close_drawdown_halt")
             return
 
+        # Gap-aware, matching revision2_external/orchestrator.py's
+        # _maybe_exit: check the bar's OPEN against stop/target before
+        # falling back to intrabar high/low. Found during external review --
+        # this engine previously checked only high/low and filled exactly
+        # at the stop/target price even when the bar's own open had already
+        # gapped past it, an unrealistically favorable exit on any real gap.
         exit_price, reason = None, None
         if trade["side"] == "BUY":
-            if bar["low"] <= trade["stop_price"]:
+            if bar["open"] <= trade["stop_price"]:
+                exit_price, reason = float(bar["open"]), "stop_gap"
+            elif bar["open"] >= trade["target_price"]:
+                exit_price, reason = float(bar["open"]), "target_gap"
+            elif bar["low"] <= trade["stop_price"]:
                 exit_price, reason = trade["stop_price"], "stop"
             elif bar["high"] >= trade["target_price"]:
                 exit_price, reason = trade["target_price"], "target"
         else:
-            if bar["high"] >= trade["stop_price"]:
+            if bar["open"] >= trade["stop_price"]:
+                exit_price, reason = float(bar["open"]), "stop_gap"
+            elif bar["open"] <= trade["target_price"]:
+                exit_price, reason = float(bar["open"]), "target_gap"
+            elif bar["high"] >= trade["stop_price"]:
                 exit_price, reason = trade["stop_price"], "stop"
             elif bar["low"] <= trade["target_price"]:
                 exit_price, reason = trade["target_price"], "target"
@@ -329,7 +343,13 @@ class Revision2PortfolioOrchestrator:
         }
         max_concurrent = int(self.safety_contract.values["max_concurrent_positions"])
         max_gross_fraction = float(self.safety_contract.values["max_gross_exposure_fraction"])
-        sector_cap_fraction = float(self.registry.get("max_sector_exposure_fraction").default)
+        # Was self.registry.get(...).default -- silently ignored calibration
+        # overrides (always read the registry's frozen default, never the
+        # candidate's actual value). Found during external review, verified
+        # directly against this line before fixing; the external engine had
+        # the identical bug, fixed the same way.
+        sector_cap_fraction = float(self.config.require("max_sector_exposure_fraction"))
+        self.consumed_parameters.add("max_sector_exposure_fraction")
 
         clock = precomputed_clock if precomputed_clock is not None else self.build_clock(symbol_bars, warmup)
         entry_bar_index: Dict[str, int] = {}  # symbol -> bar_idx of current open trade's entry
@@ -389,6 +409,7 @@ class Revision2PortfolioOrchestrator:
                 funnel["id_approvals"] += 1
 
                 atr = signal.volatility * bars.iloc[bar_idx]["close"]
+                next_ts = pd.Timestamp(bars.iloc[bar_idx + 1]["timestamp"])
                 next_open = float(bars.iloc[bar_idx + 1]["open"])
                 plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
                 self._record(trace)
@@ -505,7 +526,14 @@ class Revision2PortfolioOrchestrator:
                         "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
                         "target_price": plan.target_price, "quantity": quantity,
                         "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
-                        "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(timestamp),
+                        # Was str(timestamp) -- the SIGNAL bar's time, not
+                        # when the fill actually happened (next_open, one
+                        # bar later). Found during external review, verified
+                        # directly (this engine's own next_open already used
+                        # bar_idx+1 for the fill PRICE; the timestamp just
+                        # never followed it). The external engine's sibling
+                        # orchestrator already stores next_ts correctly.
+                        "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
                     }
                     entry_bar_index[symbol] = bar_idx + 1
 
