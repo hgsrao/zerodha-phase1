@@ -15,7 +15,26 @@ deliberate next step, not done here.
 --time-only runs just ONE fixed-parameter evaluation and exits, to get a
 real, direct per-candidate timing measurement on this exact data before
 committing to the full ~85-candidate search.
+
+Real, observed non-determinism, not a hypothetical: two otherwise-identical
+full 47-symbol runs produced different trade counts (81 vs 86) and net_pnl.
+Isolated checks ruled out symbol ordering (no set-based symbol iteration
+found), PyPortfolioOpt's solver on a single window (identical across two
+separate process invocations), and small-scale runs (3 symbols, 1500 bars,
+byte-identical twice) -- the divergence only appears at full 47-symbol,
+long-running scale, consistent with BLAS/LAPACK multi-threading giving
+different floating-point summation order on larger matrix operations
+(PyPortfolioOpt's covariance/QP solve over 47 assets vs 3). Not fully
+root-caused to one line, but this is the standard, low-cost mitigation for
+exactly this symptom -- pinned before any numpy-dependent import.
 """
+import os
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
+
 import argparse
 import json
 import sys

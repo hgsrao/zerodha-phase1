@@ -17,7 +17,22 @@ a single full 48-symbol/3-year run before it is trusted.
 
 --time-only runs just ONE fixed-parameter evaluation and exits, for a real
 per-candidate timing measurement before committing to the full search.
+
+Pins BLAS/LAPACK threading for consistency with the external-engine
+sibling script -- see its module docstring for the real, observed
+non-determinism (81 vs 86 trades across two otherwise-identical full
+47-symbol external-engine runs) this mitigates. The in-house engine's own
+two post-fix/pre-fix runs showed identical trade counts (953 both times),
+so this hasn't been observed here, but pinning it costs nothing and keeps
+both engines' calibration runs on the same footing.
 """
+import os
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
+
 import argparse
 import json
 import sys
