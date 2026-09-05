@@ -473,6 +473,7 @@ class SafetyGatesTargetBox:
 
         max_loss_trade = float(req("max_loss_per_trade_rupees", "per-trade rupee loss cap (post-sizing)", "approved"))
         max_loss_day = float(req("max_loss_per_day_rupees", "daily rupee loss cap", "approved"))
+        min_absolute_profit = float(req("minimum_absolute_profit_rupees", "minimum target profit in rupees after sizing", "approved"))
 
         peak = max(equity_curve) if equity_curve else 0.0
         current = equity_curve[-1] if equity_curve else 0.0
@@ -480,6 +481,10 @@ class SafetyGatesTargetBox:
         worst_case_trade_loss_rupees = abs(plan.entry_price - plan.stop_price) * quantity
         if worst_case_trade_loss_rupees > max_loss_trade:
             return False, f"worst-case trade loss Rs.{worst_case_trade_loss_rupees:.2f} exceeds per-trade cap Rs.{max_loss_trade:.2f}", trace
+
+        target_profit_rupees = abs(plan.target_price - plan.entry_price) * quantity
+        if target_profit_rupees < min_absolute_profit:
+            return False, f"target profit Rs.{target_profit_rupees:.2f} below minimum Rs.{min_absolute_profit:.2f}", trace
 
         daily_loss_so_far = max(0.0, peak - current)
         if daily_loss_so_far > max_loss_day:

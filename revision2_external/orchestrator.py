@@ -40,6 +40,7 @@ from revision2.boxes import DataIngestionBox, P01DBox, SafetyGatesTargetBox
 from revision2.contracts import EffectiveConfig, MarketSnapshot, SafetyContract, StartupCertificate, StartupNotCertifiedError
 from revision2.portfolio_orchestrator import SECTOR_MAP, _ClockEvent
 from revision2_external.data_certification_pandera import certify_bars
+from revision2_external.continuous_exit_controller import ContinuousExitController
 from revision2_external.indicators_talib import TALibPredictiveAnalyticsBox
 from revision2_external.pid_controller import SimplePIDModelPredictiveControlBox
 from revision2_external.position_sizing_pyportfolioopt import PyPortfolioOptPositionManagerBox, compute_portfolio_weights
@@ -199,7 +200,7 @@ class Revision2ExternalEngineOrchestrator:
             self._equity_curve.append(self._equity())
             del self.open_trades[symbol]
 
-    def _maybe_exit(self, symbol: str, timestamp, bar, held_bars: int, session_last_bar: bool) -> None:
+    def _maybe_exit(self, symbol: str, timestamp, bar, signal, held_bars: int, session_last_bar: bool) -> None:
         trade = self.open_trades.get(symbol)
         if trade is None:
             return
@@ -234,8 +235,25 @@ class Revision2ExternalEngineOrchestrator:
         if session_last_bar:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "mis_session_close")
             return
-        if held_bars >= trade["minimum_hold_bars"]:
-            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "max_hold_or_signal")
+
+        # Box 6 closes the feedback loop only after the current bar's
+        # protective price checks.  The ratcheted stop it computes applies
+        # to the NEXT bar; it must never use a bar's closing signal to
+        # retroactively claim a better same-bar stop.
+        exit_state = trade["exit_controller_state"]
+        trade["exit_controller"].update(exit_state, signal.exit_confidence, float(bar["close"]))
+        trade["stop_price"] = exit_state.current_stop_price
+        trade["target_price"] = exit_state.current_target_price
+
+        if held_bars >= trade["minimum_hold_bars"] and (
+            trade["exit_controller"].should_exit_on_saturation(exit_state)
+            or signal.exit_confidence < trade["exit_confidence_threshold"]
+            or signal.quality_band == "red"
+        ):
+            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "signal_or_pid_exit")
+            return
+        if held_bars >= trade["maximum_hold_bars"]:
+            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "max_hold")
 
     @staticmethod
     def build_clock(symbol_bars: Dict[str, pd.DataFrame], warmup: int) -> List[_ClockEvent]:
@@ -348,7 +366,7 @@ class Revision2ExternalEngineOrchestrator:
                 funnel["pa_signals"] += 1
 
                 held = bar_idx - entry_bar_index.get(symbol, bar_idx)
-                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], held, session_last_bar)
+                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held, session_last_bar)
 
                 if symbol in self.open_trades or not in_window:
                     continue
@@ -473,11 +491,22 @@ class Revision2ExternalEngineOrchestrator:
                 funnel["orders_submitted"] += 1
                 if fill["passed"]:
                     funnel["fills"] += 1
+                    exit_controller = ContinuousExitController(
+                        kp=float(self.config.require("pid_kp_exit")),
+                        ki=float(self.config.require("pid_ki_exit")),
+                        kd=float(self.config.require("pid_kd_exit")),
+                        target=decision.timing_quality,
+                        clamp=float(self.config.require("pid_integral_max_clamp")),
+                    )
+                    exit_state = exit_controller.open_position(
+                        plan.side, fill["filled_price"], plan.stop_price, plan.target_price,
+                    )
                     self.open_trades[symbol] = {
                         "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
                         "target_price": plan.target_price, "quantity": quantity,
                         "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
                         "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
+                        "exit_controller": exit_controller, "exit_controller_state": exit_state,
                     }
                     entry_bar_index[symbol] = bar_idx + 1
 
