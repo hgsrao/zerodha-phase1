@@ -17,9 +17,12 @@ forward:
     idea CalibrationSupervisor's phase 3 formalizes for real, but only
     tunes 6 legacy parameters and is not connected to Revision 2 at all.
 
-Every candidate here is evaluated through Revision2PortfolioOrchestrator —
-the real 10-box pipeline, the real 18-gate EntryDecisionEngine, the real
-PaperBrokerAdapter, across a real shared, chronological, multi-symbol
+Every candidate here is evaluated through a real orchestrator (defaults to
+Revision2PortfolioOrchestrator, the in-house engine; pass
+orchestrator_class=Revision2ExternalEngineOrchestrator to calibrate the
+external-library engine instead, same search algorithms and gates either
+way) — the real 10-box pipeline, the real 18-gate EntryDecisionEngine, the
+real PaperBrokerAdapter, across a real shared, chronological, multi-symbol
 portfolio. There is no scoring shortcut anywhere in this module.
 """
 
@@ -412,10 +415,23 @@ class CalibrationResult:
 class CalibrationSupervisor:
     """The one authoritative Revision 2 calibration path.
 
-    `orchestrator_kwargs` is forwarded to Revision2PortfolioOrchestrator on
-    every candidate construction (symbols, starting_equity, sector_map);
+    `orchestrator_kwargs` is forwarded to the orchestrator class on every
+    candidate construction (symbols, starting_equity, sector_map);
     `symbol_bars` is the (already train/validation-sliced, by the caller)
     bar data every candidate is backtested against.
+
+    `orchestrator_class` defaults to Revision2PortfolioOrchestrator (the
+    in-house engine, this module's original and only target) but accepts
+    any class with the same constructor signature
+    (symbols, registry, calibration_overrides, starting_equity, sector_map)
+    and the same `run(symbol_bars, warmup, precomputed_clock=None)` /
+    `build_clock(symbol_bars, warmup)` interface --
+    revision2_external.orchestrator.Revision2ExternalEngineOrchestrator is
+    the other real implementation of that interface in this codebase, so
+    the SAME search algorithms (RandomSearch/TPE/CMA-ES), the same
+    AcceptanceGates, and the same scoring formula calibrate either engine
+    without duplicating any of that logic -- only which orchestrator gets
+    driven changes.
     """
 
     def __init__(
@@ -428,6 +444,7 @@ class CalibrationSupervisor:
         warmup: int = 40,
         starting_equity: float = 1_000_000.0,
         sector_map: Optional[Dict[str, str]] = None,
+        orchestrator_class: type = Revision2PortfolioOrchestrator,
     ):
         self.registry = registry
         self.symbols = symbols
@@ -437,6 +454,7 @@ class CalibrationSupervisor:
         self.warmup = warmup
         self.starting_equity = starting_equity
         self.sector_map = sector_map
+        self.orchestrator_class = orchestrator_class
         self.space = trading_search_space(registry)
 
         self._start_time: Optional[float] = None
@@ -499,11 +517,11 @@ class CalibrationSupervisor:
                 return float("-inf"), metrics
 
             if self._clock is None:
-                self._clock = Revision2PortfolioOrchestrator.build_clock(self.symbol_bars, self.warmup)
+                self._clock = self.orchestrator_class.build_clock(self.symbol_bars, self.warmup)
 
             t0 = time.monotonic()
             try:
-                orch = Revision2PortfolioOrchestrator(
+                orch = self.orchestrator_class(
                     self.symbols, self.registry, calibration_overrides=params,
                     starting_equity=self.starting_equity, sector_map=self.sector_map,
                 )

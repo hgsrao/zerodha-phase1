@@ -247,7 +247,10 @@ class Revision2ExternalEngineOrchestrator:
         events.sort(key=lambda e: (e.timestamp, e.symbol))
         return events
 
-    def run(self, symbol_bars: Dict[str, pd.DataFrame], warmup: int = 60) -> Dict[str, Any]:
+    def run(
+        self, symbol_bars: Dict[str, pd.DataFrame], warmup: int = 60,
+        precomputed_clock: Optional[List[_ClockEvent]] = None,
+    ) -> Dict[str, Any]:
         # Box 3: Pandera certification, once per symbol, before the loop --
         # bars don't change during a backtest, so re-validating them every
         # iteration (the per-bar design the in-house box uses) is pure
@@ -276,7 +279,11 @@ class Revision2ExternalEngineOrchestrator:
         max_gross_fraction = float(self.safety_contract.values["max_gross_exposure_fraction"])
         sector_cap_fraction = float(self.registry.get("max_sector_exposure_fraction").default)
 
-        clock = self.build_clock(symbol_bars, warmup)
+        # Calibration driving many candidates against the SAME symbol_bars
+        # can build this once and pass it via precomputed_clock= -- mirrors
+        # revision2/portfolio_orchestrator.py's identical optimization, so
+        # the two engines' calibration supervisors can share one code path.
+        clock = precomputed_clock if precomputed_clock is not None else self.build_clock(symbol_bars, warmup)
         entry_bar_index: Dict[str, int] = {}
         ticks_since_reweight = 0
 

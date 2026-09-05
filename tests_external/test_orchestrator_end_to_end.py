@@ -50,6 +50,30 @@ def test_full_engine_runs_on_real_data_and_produces_real_trades():
     )
 
 
+def test_precomputed_clock_produces_identical_results_to_building_it_internally():
+    # Calibration drives many candidates against the SAME symbol_bars, only
+    # the parameters change -- so the (potentially multi-million-event)
+    # clock can be built once and reused, mirroring
+    # revision2/portfolio_orchestrator.py's identical optimization. Must be
+    # byte-identical, not just "close", or reusing the clock would be
+    # silently changing what calibration actually measures.
+    symbols = ["ADANIENT", "INFY", "TCS"]
+    bars = _real_bars(symbols)
+    registry = CanonicalParameterRegistry()
+
+    orch_internal = Revision2ExternalEngineOrchestrator(symbols, registry, starting_equity=1_000_000.0)
+    report_internal = orch_internal.run(bars, warmup=60)
+
+    orch_precomputed = Revision2ExternalEngineOrchestrator(symbols, registry, starting_equity=1_000_000.0)
+    clock = Revision2ExternalEngineOrchestrator.build_clock(bars, 60)
+    report_precomputed = orch_precomputed.run(bars, warmup=60, precomputed_clock=clock)
+
+    assert report_internal["completed_trades"] == report_precomputed["completed_trades"]
+    assert report_internal["completed_trades"] > 0, "precondition: this fixture must produce real trades"
+    assert report_internal["net_pnl"] == report_precomputed["net_pnl"]
+    assert report_internal["trades"] == report_precomputed["trades"]
+
+
 def test_startup_certification_rejects_an_invalid_override():
     registry = CanonicalParameterRegistry()
     import pytest
