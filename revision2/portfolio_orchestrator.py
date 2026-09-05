@@ -222,7 +222,7 @@ class Revision2PortfolioOrchestrator:
             cost += 0.00025 * turnover
         return cost
 
-    def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
+    def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str, exit_bar_idx: Optional[int] = None) -> None:
         close_side = "SELL" if trade["side"] == "BUY" else "BUY"
         result = self.broker.place_order(
             symbol=symbol, side=close_side, quantity=trade["quantity"], order_type="MARKET",
@@ -240,6 +240,11 @@ class Revision2PortfolioOrchestrator:
                 "symbol": symbol, "side": trade["side"], "entry_price": trade["entry_price"],
                 "exit_price": result["filled_price"], "quantity": trade["quantity"],
                 "entry_timestamp": trade["entry_timestamp"], "exit_timestamp": str(timestamp),
+                "entry_bar_idx": trade.get("entry_bar_idx"), "exit_bar_idx": exit_bar_idx,
+                "holding_bars": (
+                    max(0, exit_bar_idx - trade["entry_bar_idx"])
+                    if exit_bar_idx is not None and trade.get("entry_bar_idx") is not None else None
+                ),
                 "reason": reason, "pnl": pnl,
                 # Net of this trade's own allocated brokerage/exchange/tax
                 # (not slippage — that's already inside `pnl` via the fill
@@ -253,40 +258,48 @@ class Revision2PortfolioOrchestrator:
             self._equity_curve.append(self._equity())
             del self.open_trades[symbol]
 
-    def _maybe_exit(self, symbol: str, timestamp, bar, signal, held_bars: int) -> None:
+    def _maybe_exit(self, symbol: str, timestamp, bar, signal, held_bars: int, bar_idx: int) -> None:
         trade = self.open_trades.get(symbol)
         if trade is None:
             return
 
         halt_dd = float(self.config.require("drawdown_halt_threshold"))
         if self._current_drawdown() >= halt_dd:
-            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "forced_close_drawdown_halt")
+            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "forced_close_drawdown_halt", bar_idx)
             return
 
         exit_price, reason = None, None
         if trade["side"] == "BUY":
-            if bar["low"] <= trade["stop_price"]:
+            if bar["open"] <= trade["stop_price"]:
+                exit_price, reason = float(bar["open"]), "stop_gap"
+            elif bar["open"] >= trade["target_price"]:
+                exit_price, reason = float(bar["open"]), "target_gap"
+            elif bar["low"] <= trade["stop_price"]:
                 exit_price, reason = trade["stop_price"], "stop"
             elif bar["high"] >= trade["target_price"]:
                 exit_price, reason = trade["target_price"], "target"
         else:
-            if bar["high"] >= trade["stop_price"]:
+            if bar["open"] >= trade["stop_price"]:
+                exit_price, reason = float(bar["open"]), "stop_gap"
+            elif bar["open"] <= trade["target_price"]:
+                exit_price, reason = float(bar["open"]), "target_gap"
+            elif bar["high"] >= trade["stop_price"]:
                 exit_price, reason = trade["stop_price"], "stop"
             elif bar["low"] <= trade["target_price"]:
                 exit_price, reason = trade["target_price"], "target"
 
         if exit_price is not None:
-            self._execute_exit(symbol, timestamp, trade, exit_price, reason)
+            self._execute_exit(symbol, timestamp, trade, exit_price, reason, bar_idx)
             return
 
         if held_bars >= trade["minimum_hold_bars"] and (
             signal.exit_confidence < trade["exit_confidence_threshold"] or signal.quality_band == "red"
         ):
-            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "signal_exit")
+            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "signal_exit", bar_idx)
             return
 
         if held_bars >= trade["maximum_hold_bars"]:
-            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "max_hold")
+            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "max_hold", bar_idx)
 
     # ---- chronological clock -------------------------------------------
     @staticmethod
@@ -329,7 +342,7 @@ class Revision2PortfolioOrchestrator:
         }
         max_concurrent = int(self.safety_contract.values["max_concurrent_positions"])
         max_gross_fraction = float(self.safety_contract.values["max_gross_exposure_fraction"])
-        sector_cap_fraction = float(self.registry.get("max_sector_exposure_fraction").default)
+        sector_cap_fraction = float(self.config.require("max_sector_exposure_fraction"))
 
         clock = precomputed_clock if precomputed_clock is not None else self.build_clock(symbol_bars, warmup)
         entry_bar_index: Dict[str, int] = {}  # symbol -> bar_idx of current open trade's entry
@@ -376,7 +389,7 @@ class Revision2PortfolioOrchestrator:
                 funnel["pa_signals"] += 1
 
                 held = bar_idx - entry_bar_index.get(symbol, bar_idx)
-                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held)
+                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held, bar_idx)
 
                 if symbol in self.open_trades or not in_window:
                     continue
@@ -505,7 +518,12 @@ class Revision2PortfolioOrchestrator:
                         "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
                         "target_price": plan.target_price, "quantity": quantity,
                         "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
-                        "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(timestamp),
+                        "exit_confidence_threshold": decision.timing_quality,
+                        # The decision is made on t, but the fill is priced at
+                        # t+1 open; the ledger must label the actual fill bar.
+                        "signal_timestamp": str(timestamp),
+                        "entry_timestamp": str(bars.iloc[bar_idx + 1]["timestamp"]),
+                        "entry_bar_idx": bar_idx + 1,
                     }
                     entry_bar_index[symbol] = bar_idx + 1
 
@@ -513,7 +531,7 @@ class Revision2PortfolioOrchestrator:
         for symbol in list(self.open_trades.keys()):
             bars = symbol_bars[symbol]
             final_close = float(bars.iloc[len(bars) - 1]["close"])
-            self._execute_exit(symbol, bars.iloc[len(bars) - 1].get("timestamp", ""), self.open_trades[symbol], final_close, "end_of_run_reconciliation")
+            self._execute_exit(symbol, bars.iloc[len(bars) - 1].get("timestamp", ""), self.open_trades[symbol], final_close, "end_of_run_reconciliation", len(bars) - 1)
 
         gross_pnl = self.broker.realized_pnl
         assert abs(gross_pnl - sum(t["pnl"] for t in self.completed_trades)) < 1e-6
