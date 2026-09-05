@@ -142,16 +142,25 @@ class TestRevision2ParameterSensitivity(unittest.TestCase):
         outputs = []
         scenarios = [
             (1, 0.6, 1000.0, 8.0), (-1, 0.65, 1500.0, 12.0), (1, 0.55, 800.0, 5.0),
-            (1, 0.505, 1200.0, 6.0),  # confidence near the entry-PID target (0.5): errors
-                                      # accumulate slowly enough that window size (not just
-                                      # the clamp) still determines the integral after many calls
+            (1, 0.505, 1200.0, 6.0),  # confidence near the OLD entry-PID target (0.5),
+                                      # kept as-is even though the target itself is no
+                                      # longer fixed -- still a useful near-baseline case
         ]
-        # Repeated enough times that a small pid_integral_window_bars (min 5)
-        # actually starts dropping older errors that a large one (max 30)
-        # would still be holding — otherwise a handful of calls can't tell
-        # the two window sizes apart.
-        for _ in range(12):
+        # Confidence now varies repeat to repeat within each scenario (not
+        # held constant across all 12): the entry/exit PID setpoint is a
+        # rolling mean of the symbol's own recent confidence (see
+        # ModelPredictiveControlBox._confidence_baseline), so a constant
+        # confidence would let that baseline converge to it and every PID
+        # gain -- and the window/clamp/smoothing parameters below -- collapse
+        # to the same zero-error, zero-adjustment output regardless of
+        # value, proving nothing about any of them. A small oscillation
+        # keeps a real, nonzero, evolving error flowing every repeat, which
+        # is exactly what lets window size (not just the clamp) keep
+        # mattering after many calls -- the original intent of this sweep.
+        oscillation = [0.0, 0.02, -0.015, 0.01, -0.02, 0.015, 0.0, -0.01, 0.02, -0.015, 0.01, -0.02]
+        for repeat_idx in range(12):
             for scenario_idx, (direction, confidence, entry_price, atr) in enumerate(scenarios):
+                confidence = confidence + oscillation[repeat_idx]
                 # A distinct symbol per scenario keeps each one's PID state
                 # isolated — otherwise interleaving all four scenarios into
                 # one shared PID mixes their errors and saturates the

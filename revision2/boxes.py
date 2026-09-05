@@ -304,12 +304,50 @@ class ModelPredictiveControlBox:
     def __init__(self):
         self._entry_pids: Dict[str, BoundedPID] = {}
         self._exit_pids: Dict[str, BoundedPID] = {}
+        # Rolling per-symbol confidence history backing BOTH PIDs' adaptive
+        # setpoint -- see _confidence_baseline below for why this exists.
+        self._confidence_history: Dict[str, deque] = {}
 
     def _get_pid(self, store: Dict[str, BoundedPID], symbol: str, kp: float, ki: float, kd: float,
                  target: float, window: int, clamp: float, smoothing: int) -> BoundedPID:
         if symbol not in store:
             store[symbol] = BoundedPID(kp, ki, kd, target, window, clamp, smoothing)
         return store[symbol]
+
+    def _confidence_baseline(self, symbol: str, current_confidence: float, window: int) -> float:
+        """Both PIDs' setpoint: a rolling mean of this symbol's own recent
+        decision.confidence, computed from bars BEFORE this one (the current
+        reading is folded into the history only after the baseline is read).
+        Called exactly once per build_plan() call -- both PIDs share the one
+        history, since they observe the identical confidence series; a
+        second call would double-count the same bar.
+
+        Ported from revision2_external/pid_controller.py's identical fix
+        (same class of bug, same box, different PID library). Both PIDs
+        used to compare against a fixed absolute constant: entry against
+        0.5 -- identical to entry_confidence_threshold's own default, which
+        IntelligentDiscrimination already uses to filter out every signal
+        this PID would ever see, making error = target - confidence
+        mathematically <= 0 on every call regardless of Kp/Ki/Kd -- and exit
+        against decision.timing_quality (effectively fixed at
+        exit_confidence_threshold). BoundedPID's windowed-sum anti-windup
+        doesn't rescue this: a window of N errors that are all the same
+        sign still sums to a same-signed total that gets clamped, same as
+        simple-pid's unbounded-then-clamped design would. Verified on the
+        real external-engine sibling of this box: after fixing only the
+        entry side, a real 6-month INFY run still showed the exit PID
+        pinned at its clamp on 14.6% of calls vs 5.4% for the already-fixed
+        entry PID; sharing one rolling confidence baseline for both dropped
+        exit's saturation to 0.45%. A trailing mean of the symbol's own
+        confidence has no fixed-target guarantee of one-signed error:
+        deviations from a recent average are positive about as often as
+        negative for any real, noisy series, so both controllers can
+        actually move off their rail instead of riding it permanently.
+        """
+        history = self._confidence_history.setdefault(symbol, deque(maxlen=window))
+        baseline = (sum(history) / len(history)) if history else current_confidence
+        history.append(current_confidence)
+        return baseline
 
     def build_plan(
         self,
@@ -363,9 +401,15 @@ class ModelPredictiveControlBox:
         # for the gap where these 9 PID parameters were computed but never
         # actually reached the trade ledger: entry_timing_multiplier below
         # is read by the orchestrator and multiplied into position sizing.
+        # Computed ONCE per call and shared by both PIDs -- see
+        # _confidence_baseline's docstring for why neither PID keeps a fixed
+        # absolute target any more.
+        confidence_baseline = self._confidence_baseline(signal.symbol, decision.confidence, integral_window)
+
         entry_pid = self._get_pid(self._entry_pids, signal.symbol, kp_entry, ki_entry, kd_entry,
-                                   target=0.5, window=integral_window, clamp=integral_clamp,
+                                   target=confidence_baseline, window=integral_window, clamp=integral_clamp,
                                    smoothing=derivative_smoothing)
+        entry_pid.target = confidence_baseline  # keep in sync on every call, not just at first construction
         entry_pid_result = entry_pid.update(decision.confidence)
         entry_timing_multiplier = _np_clip(1.0 - abs(entry_pid_result["adjustment"]), 0.3, 1.0)
         # Also nudge the fill price itself by the raw (unclipped) adjustment:
@@ -380,8 +424,9 @@ class ModelPredictiveControlBox:
         # gains affect which price the trade actually exits at, not just a
         # diagnostic number.
         exit_pid = self._get_pid(self._exit_pids, signal.symbol, kp_exit, ki_exit, kd_exit,
-                                  target=decision.timing_quality, window=integral_window, clamp=integral_clamp,
+                                  target=confidence_baseline, window=integral_window, clamp=integral_clamp,
                                   smoothing=derivative_smoothing)
+        exit_pid.target = confidence_baseline  # keep in sync on every call, not just at first construction
         exit_pid_result = exit_pid.update(decision.confidence)
         exit_tightness = _np_clip(1.0 - abs(exit_pid_result["adjustment"]), 0.5, 1.0)
         stop_distance *= exit_tightness
