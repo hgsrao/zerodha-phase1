@@ -126,6 +126,10 @@ class Revision2PortfolioOrchestrator:
         self.consumed_parameters: set = set()
         self.completed_trades: List[Dict[str, Any]] = []
         self.open_trades: Dict[str, Dict[str, Any]] = {}
+        # A signal at bar t can only create an order for the next event.
+        # Keeping it separate from open_trades prevents future fills from
+        # mutating portfolio state before their timestamp is reached.
+        self.pending_entries: Dict[str, Dict[str, Any]] = {}
         self._equity_curve: List[float] = [starting_equity]  # realized-only, at trade completion; used by SafetyGatesTargetBox
 
         # Real chronological, marked-to-market portfolio equity — includes
@@ -338,7 +342,8 @@ class Revision2PortfolioOrchestrator:
             "mpc_plans": 0, "safety_approvals": 0, "safety_rejections": 0,
             "gates_evaluated": 0, "gates_passed": 0, "gates_rejected": 0,
             "orders_submitted": 0, "exit_orders_submitted": 0, "fills": 0,
-            "portfolio_cap_rejections": 0,
+            "portfolio_cap_rejections": 0, "orders_queued": 0,
+            "pending_orders_cancelled": 0,
         }
         max_concurrent = int(self.safety_contract.values["max_concurrent_positions"])
         max_gross_fraction = float(self.safety_contract.values["max_gross_exposure_fraction"])
@@ -349,6 +354,35 @@ class Revision2PortfolioOrchestrator:
 
         for timestamp, tick_events in itertools.groupby(clock, key=lambda e: e.timestamp):
             tick_events = list(tick_events)
+            # Fill only orders whose scheduled bar has now arrived.  This is
+            # intentionally before any signal handling for this timestamp.
+            for event in tick_events:
+                pending = self.pending_entries.get(event.symbol)
+                if pending is None or pending["fill_bar_idx"] != event.bar_idx:
+                    continue
+                bars = symbol_bars[event.symbol]
+                fill = self.broker.place_order(
+                    symbol=event.symbol, side=pending["order"].side,
+                    quantity=pending["quantity"], order_type=pending["order"].order_type,
+                    market_price=float(bars.iloc[event.bar_idx]["open"]),
+                    config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+                )
+                funnel["orders_submitted"] += 1
+                del self.pending_entries[event.symbol]
+                if fill["passed"]:
+                    funnel["fills"] += 1
+                    plan = pending["plan"]
+                    self.open_trades[event.symbol] = {
+                        "side": plan.side, "entry_price": fill["filled_price"],
+                        "stop_price": plan.stop_price, "target_price": plan.target_price,
+                        "quantity": pending["quantity"],
+                        "minimum_hold_bars": plan.minimum_hold_bars,
+                        "maximum_hold_bars": plan.maximum_hold_bars,
+                        "exit_confidence_threshold": pending["decision"].timing_quality,
+                        "signal_timestamp": pending["signal_timestamp"],
+                        "entry_timestamp": str(timestamp), "entry_bar_idx": event.bar_idx,
+                    }
+                    entry_bar_index[event.symbol] = event.bar_idx
             # Refresh every symbol trading at this exact timestamp before
             # sampling mark-to-market equity for the tick. Sampling inside
             # the per-symbol loop below (keyed off whichever symbol
@@ -391,7 +425,7 @@ class Revision2PortfolioOrchestrator:
                 held = bar_idx - entry_bar_index.get(symbol, bar_idx)
                 self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held, bar_idx)
 
-                if symbol in self.open_trades or not in_window:
+                if symbol in self.open_trades or symbol in self.pending_entries or not in_window:
                     continue
 
                 decision, trace = self.id_box.evaluate(signal, self.config)
@@ -402,8 +436,10 @@ class Revision2PortfolioOrchestrator:
                 funnel["id_approvals"] += 1
 
                 atr = signal.volatility * bars.iloc[bar_idx]["close"]
-                next_open = float(bars.iloc[bar_idx + 1]["open"])
-                plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
+                # The next open is unknown at t.  Construct the order using
+                # the completed bar's close as its risk reference; actual
+                # execution happens only at the next event's open above.
+                plan, pid_info, trace = self.mpc.build_plan(signal, decision, float(bars.iloc[bar_idx]["close"]), atr, self.config)
                 self._record(trace)
                 if plan is None:
                     continue
@@ -418,7 +454,7 @@ class Revision2PortfolioOrchestrator:
 
                 # Portfolio-level caps — the actual point of this module: these
                 # cannot be evaluated per-symbol, they need the shared state.
-                if len(self.open_trades) >= max_concurrent:
+                if len(self.open_trades) + len(self.pending_entries) >= max_concurrent:
                     funnel["portfolio_cap_rejections"] += 1
                     continue
                 proposed_notional = plan.entry_price * 1  # provisional; re-checked with real quantity below
@@ -433,7 +469,7 @@ class Revision2PortfolioOrchestrator:
 
                 quantity, trace = self.position_manager.size(
                     plan, equity_now, size_mult, self.config,
-                    open_positions_count=len(self.open_trades),
+                    open_positions_count=len(self.open_trades) + len(self.pending_entries),
                     symbol_positions_count=1 if symbol in self.open_trades else 0,
                 )
                 self._record(trace)
@@ -468,7 +504,7 @@ class Revision2PortfolioOrchestrator:
                     current_lambda=self._gross_exposure_notional() / max(equity_now, 1.0),
                     daily_realized_loss=max(0.0, max(self._equity_curve) - equity_now),
                     daily_unrealized_loss=0.0,
-                    open_positions_count=len(self.open_trades),
+                    open_positions_count=len(self.open_trades) + len(self.pending_entries),
                     open_positions=[type("P", (), {"position_notional": t["quantity"] * t["entry_price"]})() for t in self.open_trades.values()],
                     market_data_age_seconds=0, broker_connected=True, broker_offline_seconds=0,
                     kill_switch_active=not bool(self.safety_contract.values["kill_switch_enabled"]),
@@ -507,25 +543,18 @@ class Revision2PortfolioOrchestrator:
                     funnel["safety_rejections"] += 1
                     continue
 
-                fill = self.broker.place_order(
-                    symbol=symbol, side=order.side, quantity=quantity, order_type=order.order_type,
-                    market_price=next_open, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
-                )
-                funnel["orders_submitted"] += 1
-                if fill["passed"]:
-                    funnel["fills"] += 1
-                    self.open_trades[symbol] = {
-                        "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
-                        "target_price": plan.target_price, "quantity": quantity,
-                        "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
-                        "exit_confidence_threshold": decision.timing_quality,
-                        # The decision is made on t, but the fill is priced at
-                        # t+1 open; the ledger must label the actual fill bar.
-                        "signal_timestamp": str(timestamp),
-                        "entry_timestamp": str(bars.iloc[bar_idx + 1]["timestamp"]),
-                        "entry_bar_idx": bar_idx + 1,
-                    }
-                    entry_bar_index[symbol] = bar_idx + 1
+                self.pending_entries[symbol] = {
+                    "order": order, "plan": plan, "quantity": quantity,
+                    "decision": decision, "signal_timestamp": str(timestamp),
+                    "fill_bar_idx": bar_idx + 1,
+                }
+                funnel["orders_queued"] += 1
+
+        # The clock intentionally has no event after the final complete bar;
+        # a queued order without its scheduled event must be cancelled rather
+        # than fabricated as a future fill.
+        funnel["pending_orders_cancelled"] = len(self.pending_entries)
+        self.pending_entries.clear()
 
         # End-of-run reconciliation for every symbol still open.
         for symbol in list(self.open_trades.keys()):
