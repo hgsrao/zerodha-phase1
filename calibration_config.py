@@ -138,6 +138,7 @@ class Revision2ParameterManifest:
             "min_capital_buffer_fraction",
             "capital_allocation_mode",
             "trailing_stop_atr_mult",
+            "saturation_exit_bars",
             "drawdown_normal_threshold",
             "drawdown_derated_threshold",
             "drawdown_halt_threshold",

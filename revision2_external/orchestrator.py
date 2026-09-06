@@ -144,10 +144,11 @@ class Revision2ExternalEngineOrchestrator:
             kd=float(self.config.require("pid_kd_exit")), clamp=float(self.config.require("pid_integral_max_clamp")),
             atr_droop_mult=float(self.config.require("trailing_stop_atr_mult")),
             baseline_window=int(self.config.require("pid_integral_window_bars")),
+            saturation_exit_bars=int(self.config.require("saturation_exit_bars")),
         )
         self.consumed_parameters.update({
             "pid_kp_exit", "pid_ki_exit", "pid_kd_exit", "pid_integral_max_clamp",
-            "pid_integral_window_bars", "trailing_stop_atr_mult",
+            "pid_integral_window_bars", "trailing_stop_atr_mult", "saturation_exit_bars",
         })
         self._exit_controller_states: Dict[str, ExitControllerState] = {}
 

@@ -26,7 +26,7 @@ class ParameterSpec:
 
 class CanonicalParameterRegistry:
     CONTRACT_ID = "ECS_REVISION_2_PARAMETER_SURFACE_V1"
-    # Updated deliberately, twice now:
+    # Updated deliberately, three times now:
     # 1. minimum_absolute_profit_rupees (a fixed per-share rupee constant,
     #    checked before quantity existed) was replaced with
     #    minimum_profit_margin_over_cost (a scale-invariant cost-margin
@@ -46,10 +46,17 @@ class CanonicalParameterRegistry:
     #    median ATR -- a 1x-ATR-wide continuous stop barely survives ONE
     #    bar, let alone a multi-bar hold). This is a genuinely new,
     #    independently-calibratable control, not a rename.
-    # Parameter count is unchanged (68 target / 20 safety) both times; only
-    # the entries changed, which is exactly what this hash exists to make
-    # visible rather than silently drift.
-    FROZEN_IDENTITY_SHA256 = "be2a297337e86d3f31134f55cf7efbafc8bc0596b3b7c191c6a1fc88a65d1f0d"
+    # 3. saturation_exit_bars was added (not swapped) to expose the
+    #    ContinuousExitController's PID saturation-exit streak threshold
+    #    (default 5) to the automated optimizer. This lets the calibration
+    #    engine tune the joint space of (trailing_stop_atr_mult ×
+    #    saturation_exit_bars) to find the combination that actually lets
+    #    saturation_exit fire on real data, rather than being perpetually
+    #    starved by a stop that closes trades in 1-2 bars. This is a
+    #    deliberate expansion, net +1 calibratable (68→69 total).
+    # Parameter count changed twice: first 68/20 (both), then 69/20 with
+    # saturation_exit_bars. These changes are exactly what this hash tracks.
+    FROZEN_IDENTITY_SHA256 = "963b6cb434e892b0ffb4ed608e66e8f9793bc7c46bfae895505605e023a2ff26"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -161,6 +168,8 @@ class CanonicalParameterRegistry:
             ParameterSpec("pid_kd_exit", "MPC", "float", 0.06, 0.01, 0.15, True, "Exit KD"),
             ParameterSpec("pid_integral_window_bars", "MPC", "int", 10, 5, 30, True, "Integral window"),
             ParameterSpec("pid_integral_max_clamp", "MPC", "float", 0.10, 0.02, 0.25, True, "Integral clamp"),
+            ParameterSpec("saturation_exit_bars", "MPC", "int", 5, 2, 10, True,
+                           "Consecutive bars at saturation extreme before exit (both PA and studies tracks independently)"),
             ParameterSpec("pid_derivative_smoothing", "MPC", "int", 3, 1, 10, True, "Derivative smoothing"),
             ParameterSpec("order_type", "P01D", "str", "MARKET", 0, 0, True, "Execution order type"),
             ParameterSpec("limit_order_offset_percent", "P01D", "float", 0.02, 0.00, 0.05, True, "Limit offset"),
@@ -242,8 +251,10 @@ class CanonicalParameterRegistry:
 
     def validate_contract(self) -> None:
         expected = Revision2ParameterManifest.all_68()
-        if len(expected) != 68 or len(set(expected)) != 68:
-            raise ValueError("Revision 2 target names must contain 68 unique values")
+        # NOTE: Adding saturation_exit_bars (2025) expands from 68 → 69 total.
+        # base_33() + revision2_35() now = 33 + 36 = 69 (was 68 before saturation_exit_bars).
+        if len(expected) != 69 or len(set(expected)) != 69:
+            raise ValueError("Revision 2 target names must contain 69 unique values")
         if set(expected) != set(self.params):
             raise ValueError("registry does not exactly match the Revision 2 manifest")
         if len(self.safety_params) != 20:
@@ -258,8 +269,10 @@ class CanonicalParameterRegistry:
         # for fixed, or calibratable for calibratable) would have kept this
         # at 45; this one is a deliberate net expansion of the real,
         # tunable surface, not a bug.
-        if len(calibratable) != 46:
-            raise ValueError(f"optimizer surface must contain exactly 46 values; got {len(calibratable)}")
+        # Further expanded by saturation_exit_bars (2025) from 46 → 47, another
+        # genuine calibratable addition to Box 6's exit control surface.
+        if len(calibratable) != 47:
+            raise ValueError(f"optimizer surface must contain exactly 47 values; got {len(calibratable)}")
         if set(self.APPROVED_CALIBRATABLE) != calibratable:
             missing = sorted(set(self.APPROVED_CALIBRATABLE) - calibratable)
             extra = sorted(calibratable - set(self.APPROVED_CALIBRATABLE))
