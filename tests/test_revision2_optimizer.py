@@ -31,11 +31,11 @@ def _quadratic_objective(space, target_unit):
 
 
 class TestSearchSpace(unittest.TestCase):
-    def test_space_covers_the_44_numeric_calibratable_parameters(self):
+    def test_space_covers_the_45_numeric_calibratable_parameters(self):
         registry = CanonicalParameterRegistry()
         space = SearchSpace.from_registry(registry)
-        # 45 calibratable minus the one string-typed one (capital_allocation_mode).
-        self.assertEqual(len(space.names), 44)
+        # 46 calibratable minus the one string-typed one (capital_allocation_mode).
+        self.assertEqual(len(space.names), 45)
         self.assertNotIn("capital_allocation_mode", space.names)
         for name in space.names:
             self.assertIn(name, registry.calibratable_names())

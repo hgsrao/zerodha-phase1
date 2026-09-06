@@ -600,7 +600,13 @@ class PositionManagerBox:
         symbol_cap = float(req("max_symbol_concentration", "cap on single-symbol concentration", "quantity"))
         lot_map = req("lot_size_by_symbol", "per-symbol lot size", "quantity")
         allocation_mode = req("capital_allocation_mode", "capital allocation policy: equal vs aggressive", "quantity")
-        req("rebalance_frequency_minutes", "rebalance cadence (portfolio-level, not a per-trade sizing input)", "quantity")
+        # rebalance_frequency_minutes used to be req()'d here for coverage-
+        # tracking only (its own comment already said "not a per-trade
+        # sizing input" -- never affected this method's real output).
+        # Removed from the registry entirely this session, replaced by
+        # trailing_stop_atr_mult (see canonical_parameter_registry.py's
+        # FROZEN_IDENTITY_SHA256 comment) -- this call is removed to match,
+        # not left dangling on a parameter that no longer exists.
 
         if open_positions_count >= max_live or symbol_positions_count >= max_per_symbol:
             return 0, trace

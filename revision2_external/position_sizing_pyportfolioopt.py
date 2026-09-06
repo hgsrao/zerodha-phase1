@@ -85,7 +85,13 @@ class PyPortfolioOptPositionManagerBox:
         max_per_symbol = int(req("max_positions_per_symbol", "cap on positions in a single symbol", "quantity"))
         lot_map = req("lot_size_by_symbol", "per-symbol lot size", "quantity")
         allocation_mode = req("capital_allocation_mode", "capital allocation policy: equal vs aggressive", "quantity")
-        req("rebalance_frequency_minutes", "rebalance cadence (portfolio-level, not a per-trade sizing input)", "quantity")
+        # rebalance_frequency_minutes used to be req()'d here for coverage-
+        # tracking only (never affected this method's real output -- the
+        # real PyPortfolioOpt refit cadence is orchestrator.py's own
+        # hardcoded PORTFOLIO_WEIGHT_REFIT_EVERY_BARS constant). Removed
+        # from the registry entirely this session, replaced by
+        # trailing_stop_atr_mult (see canonical_parameter_registry.py's
+        # FROZEN_IDENTITY_SHA256 comment) -- this call is removed to match.
         # max_sector_exposure_fraction / max_symbol_concentration are
         # deliberately NOT read here -- portfolio_weights (PyPortfolioOpt's
         # own optimized output) replaces them as the concentration ceiling.

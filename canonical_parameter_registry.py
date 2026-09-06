@@ -26,14 +26,30 @@ class ParameterSpec:
 
 class CanonicalParameterRegistry:
     CONTRACT_ID = "ECS_REVISION_2_PARAMETER_SURFACE_V1"
-    # Updated deliberately: minimum_absolute_profit_rupees (a fixed
-    # per-share rupee constant, checked before quantity existed) was
-    # replaced with minimum_profit_margin_over_cost (a scale-invariant
-    # cost-margin fraction, checked post-sizing against the real round-trip
-    # cost). Parameter count is unchanged (68 target / 20 safety); only this
-    # one entry's name/type/semantics changed, which is exactly what this
-    # hash exists to make visible rather than silently drift.
-    FROZEN_IDENTITY_SHA256 = "5b2a7e58d13456a026e0b507fc6fb1b56fb66470401f3db4f5ab77ccd8319f7c"
+    # Updated deliberately, twice now:
+    # 1. minimum_absolute_profit_rupees (a fixed per-share rupee constant,
+    #    checked before quantity existed) was replaced with
+    #    minimum_profit_margin_over_cost (a scale-invariant cost-margin
+    #    fraction, checked post-sizing against the real round-trip cost).
+    # 2. rebalance_frequency_minutes was replaced with
+    #    trailing_stop_atr_mult. rebalance_frequency_minutes was confirmed
+    #    dead in BOTH engines (read via req() for coverage tracking only --
+    #    the real PyPortfolioOpt refit cadence is a hardcoded constant,
+    #    PORTFOLIO_WEIGHT_REFIT_EVERY_BARS -- and it was already in
+    #    FIXED_TARGET_NAMES, non-calibratable, so removing it changes no
+    #    calibratable-parameter count anywhere). trailing_stop_atr_mult is
+    #    the ATR multiplier for continuous_exit_controller.py's real,
+    #    per-bar-recomputed trailing stop -- previously borrowed
+    #    stop_loss_atr_mult (tuned for a one-shot entry-time stop) for a
+    #    continuously re-measured droop, which real data showed was far
+    #    too tight (INFY's real median single-bar range is ~0.95x its own
+    #    median ATR -- a 1x-ATR-wide continuous stop barely survives ONE
+    #    bar, let alone a multi-bar hold). This is a genuinely new,
+    #    independently-calibratable control, not a rename.
+    # Parameter count is unchanged (68 target / 20 safety) both times; only
+    # the entries changed, which is exactly what this hash exists to make
+    # visible rather than silently drift.
+    FROZEN_IDENTITY_SHA256 = "be2a297337e86d3f31134f55cf7efbafc8bc0596b3b7c191c6a1fc88a65d1f0d"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -65,7 +81,6 @@ class CanonicalParameterRegistry:
         "phase1_exploration_intensity",
         "phase2_optimization_intensity",
         "portfolio_lambda_risk_limit",
-        "rebalance_frequency_minutes",
         "retry_delay_seconds",
         "slippage_tolerance_percent",
         "symbols_to_trade",
@@ -128,7 +143,8 @@ class CanonicalParameterRegistry:
             ParameterSpec("capital_per_trade_fraction", "PositionManager", "float", 0.02, 0.005, 0.10, True, "Capital per trade fraction"),
             ParameterSpec("min_capital_buffer_fraction", "PositionManager", "float", 0.10, 0.05, 0.30, True, "Cash reserve fraction"),
             ParameterSpec("capital_allocation_mode", "PositionManager", "str", "equal", 0, 0, True, "Allocation mode"),
-            ParameterSpec("rebalance_frequency_minutes", "PositionManager", "int", 60, 15, 240, True, "Rebalance cadence"),
+            ParameterSpec("trailing_stop_atr_mult", "MPC", "float", 3.0, 1.0, 8.0, True,
+                           "Continuous exit-controller ATR trail multiplier (independent of the one-shot entry stop's stop_loss_atr_mult)"),
             ParameterSpec("drawdown_normal_threshold", "SafetyGates", "float", 0.10, 0.05, 0.20, True, "Normal drawdown threshold"),
             ParameterSpec("drawdown_derated_threshold", "SafetyGates", "float", 0.18, 0.10, 0.25, True, "Derated threshold"),
             ParameterSpec("drawdown_halt_threshold", "SafetyGates", "float", 0.25, 0.15, 0.35, True, "Hard drawdown halt"),
@@ -204,6 +220,15 @@ class CanonicalParameterRegistry:
         return sorted([name for name, spec in self.params.items() if spec.calibratable])
 
     def calibratable_45(self) -> List[str]:
+        # Name kept for historical continuity (same reasoning as all_68()
+        # keeping its name) -- the real optimizer surface is now 46, not
+        # 45 (see FROZEN_IDENTITY_SHA256's comment). Callers that need the
+        # true, current count should use calibratable_names() directly,
+        # not this [:45] slice, which would silently drop whichever name
+        # sorts last. The only caller of this specific method is
+        # oos_calibration_engine.py, a discredited, unused scoring path
+        # (see revision2/calibration_supervisor.py's own module docstring)
+        # -- not part of any real calibration this project runs.
         return self.calibratable_names()[:45]
 
     def hardcoded_names(self) -> List[str]:
@@ -227,8 +252,14 @@ class CanonicalParameterRegistry:
             overlap = sorted(set(self.params) & set(self.safety_params))
             raise ValueError(f"target and safety surfaces must not overlap: {overlap}")
         calibratable = set(self.calibratable_names())
-        if len(calibratable) != 45:
-            raise ValueError(f"optimizer surface must contain exactly 45 values; got {len(calibratable)}")
+        # 46, not 45: rebalance_frequency_minutes (FIXED, non-calibratable)
+        # was replaced by trailing_stop_atr_mult (genuinely calibratable) --
+        # see FROZEN_IDENTITY_SHA256's comment. A like-for-like swap (fixed
+        # for fixed, or calibratable for calibratable) would have kept this
+        # at 45; this one is a deliberate net expansion of the real,
+        # tunable surface, not a bug.
+        if len(calibratable) != 46:
+            raise ValueError(f"optimizer surface must contain exactly 46 values; got {len(calibratable)}")
         if set(self.APPROVED_CALIBRATABLE) != calibratable:
             missing = sorted(set(self.APPROVED_CALIBRATABLE) - calibratable)
             extra = sorted(calibratable - set(self.APPROVED_CALIBRATABLE))

@@ -119,22 +119,28 @@ class Revision2ExternalEngineOrchestrator:
         # check, with maximum_hold_bars never enforced and no live PA
         # signal feeding back in after entry. Reuses the exit PID's own
         # registry gains (pid_kp_exit/pid_ki_exit/pid_kd_exit/
-        # pid_integral_max_clamp/pid_integral_window_bars) and the entry
-        # stop's own ATR multiplier (stop_loss_atr_mult) rather than
-        # introducing new calibratable parameters -- same conceptual "exit
-        # PID" and "ATR stop" the registry already describes, now applied
-        # continuously instead of once. See continuous_exit_controller.py's
-        # module docstring for why ATR (not a guessed percentage) sets the
-        # droop's real magnitude.
+        # pid_integral_max_clamp/pid_integral_window_bars). The droop
+        # magnitude is its OWN independently-calibratable parameter,
+        # trailing_stop_atr_mult -- NOT stop_loss_atr_mult (the one-shot
+        # entry stop's multiplier). Real data forced this split: a real
+        # INFY 6-month run with the droop borrowing stop_loss_atr_mult
+        # (0.75) produced a stop narrower than ordinary 1-minute noise
+        # (verified: median single-bar range is ~0.95x median ATR, so a
+        # sub-1x-ATR continuous stop barely survives one bar, let alone a
+        # multi-bar hold) -- 100% of trades exited via stop/stop_gap, zero
+        # via max_hold or saturation_exit, ever. See
+        # continuous_exit_controller.py's module docstring for the full
+        # reasoning (including why ATR, not a guessed percentage, is the
+        # real physical constant this droop should be grounded in).
         self.exit_controller = ContinuousExitController(
             kp=float(self.config.require("pid_kp_exit")), ki=float(self.config.require("pid_ki_exit")),
             kd=float(self.config.require("pid_kd_exit")), clamp=float(self.config.require("pid_integral_max_clamp")),
-            atr_droop_mult=float(self.config.require("stop_loss_atr_mult")),
+            atr_droop_mult=float(self.config.require("trailing_stop_atr_mult")),
             baseline_window=int(self.config.require("pid_integral_window_bars")),
         )
         self.consumed_parameters.update({
             "pid_kp_exit", "pid_ki_exit", "pid_kd_exit", "pid_integral_max_clamp",
-            "pid_integral_window_bars", "stop_loss_atr_mult",
+            "pid_integral_window_bars", "trailing_stop_atr_mult",
         })
         self._exit_controller_states: Dict[str, ExitControllerState] = {}
 

@@ -51,10 +51,11 @@ class TestCalibrationControlSeparation(unittest.TestCase):
         for name in CALIBRATION_CONTROL_PARAMS:
             self.assertNotIn(name, space.names)
         # It's excluded FROM the trading search, not deleted from the
-        # registry — the canonical 45-count and frozen identity hash are
-        # untouched.
+        # registry — the canonical count and frozen identity hash are
+        # untouched by this exclusion (46, not 45, since this session's
+        # trailing_stop_atr_mult swap -- see FROZEN_IDENTITY_SHA256's comment).
         self.assertIn("learning_rate_exploration_factor", registry.calibratable_names())
-        self.assertEqual(len(registry.calibratable_names()), 45)
+        self.assertEqual(len(registry.calibratable_names()), 46)
 
     def test_max_positions_per_symbol_excluded_from_trading_search_space(self):
         # It's a genuine registry parameter and passes PositionManagerBox's

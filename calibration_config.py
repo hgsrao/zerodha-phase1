@@ -137,7 +137,7 @@ class Revision2ParameterManifest:
             "capital_per_trade_fraction",
             "min_capital_buffer_fraction",
             "capital_allocation_mode",
-            "rebalance_frequency_minutes",
+            "trailing_stop_atr_mult",
             "drawdown_normal_threshold",
             "drawdown_derated_threshold",
             "drawdown_halt_threshold",

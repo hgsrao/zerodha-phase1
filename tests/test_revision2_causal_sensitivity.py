@@ -148,11 +148,19 @@ class TestCausalEndToEndSensitivity(unittest.TestCase):
         # earlier, differently-shaped version of this same check rejected
         # 100% of INFY's candidate trades and 0% of MARUTI's).
         "minimum_profit_margin_over_cost": "projected profit is ~3x the required cost margin even at the maximum (2.0) on this fixture",
+        # Not a fixture artifact -- genuinely unconsumed by either in-house
+        # orchestrator this test file exercises. trailing_stop_atr_mult is
+        # ContinuousExitController's own ATR trail multiplier, wired into
+        # revision2_external's orchestrator only so far (see
+        # tests/test_revision2_portfolio.py and test_revision2_pipeline.py
+        # for the matching, honestly-documented "missing" parameter-
+        # coverage entries on the in-house side).
+        "trailing_stop_atr_mult": "ContinuousExitController is not wired into either in-house orchestrator yet",
     }
 
     def test_every_calibratable_parameter_changes_the_real_trade_ledger(self):
         calibratable = sorted(self.registry.calibratable_names())
-        self.assertEqual(len(calibratable), 45)
+        self.assertEqual(len(calibratable), 46)
         # String-typed parameters carry placeholder (0, 0) registry bounds,
         # so a numeric min/max sweep is meaningless for them — they get a
         # dedicated test below instead.

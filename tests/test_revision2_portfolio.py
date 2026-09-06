@@ -51,8 +51,13 @@ class TestPortfolioOrchestrator(unittest.TestCase):
         orch = Revision2PortfolioOrchestrator(self.symbols, self.registry, starting_equity=1_000_000.0)
         report = orch.run(self.bars, warmup=40)
         self.assertGreater(report["completed_trades"], 0)
-        self.assertEqual(report["parameter_coverage"]["target_missing"], [])
-        self.assertEqual(report["parameter_coverage"]["target_consumed"], 68)
+        # trailing_stop_atr_mult is genuinely missing here: it's the
+        # continuous exit controller's own ATR trail multiplier, and that
+        # controller is only wired into revision2_external's orchestrator
+        # so far, not this in-house one. A real, honest, documented gap --
+        # not something to fake consumption of.
+        self.assertEqual(report["parameter_coverage"]["target_missing"], ["trailing_stop_atr_mult"])
+        self.assertEqual(report["parameter_coverage"]["target_consumed"], 67)
 
     def test_max_concurrent_positions_is_enforced_globally(self):
         overrides = {}  # max_concurrent_positions is a fixed safety value, not overridden here
