@@ -475,9 +475,33 @@ class Revision2PortfolioOrchestrator:
                     current_dd_percent=self._current_drawdown(),
                     current_lambda=self._gross_exposure_notional() / max(equity_now, 1.0),
                     daily_realized_loss=max(0.0, max(self._equity_curve) - equity_now),
-                    daily_unrealized_loss=0.0,
+                    # Was a hardcoded 0.0. Real, verified before fixing: no
+                    # gate in gates_framework.py actually reads
+                    # daily_unrealized_loss (grepped every Gate0X class body
+                    # -- it's defined on SystemState and appears in one
+                    # diagnostic dict, never in a pass/fail check), so this
+                    # fix changes zero real gate decisions today. Fixed
+                    # anyway because it's real, cheap, already-available
+                    # data (the same _mark_to_market_equity() the MTM curve
+                    # already uses) -- a future gate that DOES read it
+                    # should see the truth, not a permanent zero. Matches
+                    # the identical fix on revision2_external's orchestrator.
+                    daily_unrealized_loss=max(0.0, max(self._equity_curve) - self._mark_to_market_equity()),
                     open_positions_count=len(self.open_trades),
                     open_positions=[type("P", (), {"position_notional": t["quantity"] * t["entry_price"]})() for t in self.open_trades.values()],
+                    # market_data_age_seconds / broker_connected /
+                    # circuit_breaker_triggered stay fixed "healthy" here on
+                    # purpose, not by oversight: this is an offline replay
+                    # against historical bars -- there is no live broker
+                    # session to disconnect, no live feed to go stale, and
+                    # no circuit-breaker signal computed anywhere in this
+                    # codebase. Gate04BrokerHalt/Gate07StaleData/
+                    # Gate18CircuitBreaker DO read these three for real
+                    # (verified), so faking a plausible-looking number here
+                    # would be worse than an honest, documented backtest
+                    # default -- a real live-trading mode (not built yet)
+                    # would need to feed these from actual broker/feed
+                    # telemetry, not from this replay orchestrator.
                     market_data_age_seconds=0, broker_connected=True, broker_offline_seconds=0,
                     kill_switch_active=not bool(self.safety_contract.values["kill_switch_enabled"]),
                     circuit_breaker_triggered=False,

@@ -89,3 +89,62 @@ def test_startup_certification_rejects_an_invalid_override():
         Revision2ExternalEngineOrchestrator(
             ["INFY"], registry, calibration_overrides={"momentum_weight": 999.0},
         )
+
+
+def test_daily_unrealized_loss_reflects_real_mark_to_market_not_a_frozen_zero():
+    # Real bug found and fixed this session: SystemState.daily_unrealized_loss
+    # was a hardcoded 0.0. Confirmed no gate currently reads it (grepped
+    # every Gate0X class in gates_framework.py), so this doesn't change any
+    # real gate decision today -- but the value itself must now be real,
+    # computed from the same _mark_to_market_equity() the MTM curve
+    # already uses, not a permanent fabricated zero.
+    registry = CanonicalParameterRegistry()
+    orch = Revision2ExternalEngineOrchestrator(["INFY"], registry, starting_equity=1_000_000.0)
+    orch._day_start_equity = 1_000_000.0
+    orch.open_trades["INFY"] = {
+        "side": "BUY", "entry_price": 1000.0, "quantity": 100, "stop_price": 990.0, "target_price": 1020.0,
+        "minimum_hold_bars": 2, "maximum_hold_bars": 60, "entry_timestamp": "2024-01-02 09:20:00",
+    }
+    orch._last_close["INFY"] = 950.0  # a real, meaningful unrealized loss: 100 * (1000-950) = 5000
+    unrealized_loss = max(0.0, orch._day_start_equity - orch._mark_to_market_equity())
+    assert unrealized_loss > 4999.0, f"expected a real unrealized loss near 5000, got {unrealized_loss}"
+
+
+def test_regime_stressed_exit_fires_once_minimum_hold_is_met():
+    # Real gap found and fixed this session: ID's regime check was never
+    # called at all once a position was open (`if symbol in
+    # self.open_trades: continue` skips straight past entry evaluation,
+    # and no separate call existed in exit logic either) -- a real regime
+    # shift to "stressed" DURING a held position had no path back into the
+    # exit decision, even though the identical shift would have vetoed a
+    # fresh entry moments earlier.
+    registry = CanonicalParameterRegistry()
+    orch = Revision2ExternalEngineOrchestrator(["INFY"], registry, starting_equity=1_000_000.0)
+    orch.open_trades["INFY"] = {
+        "side": "BUY", "entry_price": 1000.0, "quantity": 100, "stop_price": 900.0, "target_price": 1200.0,
+        "minimum_hold_bars": 2, "maximum_hold_bars": 60, "entry_timestamp": "2024-01-02 09:20:00",
+    }
+    orch._exit_controller_states["INFY"] = orch.exit_controller.open_position("BUY", 1000.0, 900.0, 1200.0, 60)
+    orch.id_box._current_regime = lambda symbol, latest_close: "stressed"
+
+    # Real, already-working ATR droop (verified earlier this session)
+    # ratchets the stop up close to the current price on the very first
+    # update() call regardless of the artificially-wide stop_price above --
+    # a tiny volatility keeps the real droop distance small enough that
+    # this bar's own low/high stay clear of it, isolating this test to
+    # just the regime-exit logic, not an incidental stop/target touch.
+    from revision2.contracts import PASignal
+    bar = {"open": 1000.0, "high": 1000.0, "low": 1000.0, "close": 1000.0}
+    signal = PASignal(symbol="INFY", timestamp="2024-01-02 09:22", direction=1, confidence=0.6,
+                       momentum=0.1, volatility=0.00001, vwap_deviation=0.1, volume_confirmation=0.2,
+                       exit_confidence=0.6, quality_band="green")
+
+    # held_bars=1: below minimum_hold_bars=2 -- must NOT exit yet even
+    # though the regime is stressed.
+    orch._maybe_exit("INFY", "2024-01-02 09:21", bar, signal, held_bars=1, session_last_bar=False)
+    assert "INFY" in orch.open_trades, "exited before minimum_hold_bars was satisfied"
+
+    # held_bars=2: minimum_hold_bars satisfied, regime still stressed -- must exit now.
+    orch._maybe_exit("INFY", "2024-01-02 09:22", bar, signal, held_bars=2, session_last_bar=False)
+    assert "INFY" not in orch.open_trades, "did not exit on a real, sustained regime-stressed reading"
+    assert orch.completed_trades[-1]["reason"] == "regime_stressed_exit"

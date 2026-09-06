@@ -296,6 +296,25 @@ class Revision2ExternalEngineOrchestrator:
         # sustained saturation, only actionable once the minimum hold is met.
         if state is not None and held_bars >= trade["minimum_hold_bars"] and self.exit_controller.should_exit_on_saturation(state):
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "saturation_exit")
+            return
+        # Box 5's real feedback path: while a position is open, ID's
+        # regime check was never called at all -- `if symbol in
+        # self.open_trades: continue` skips straight past it before entry
+        # evaluation, and there was no separate call anywhere in exit
+        # logic either. A real regime shift to "stressed" DURING a held
+        # position had no path back into the exit decision, even though
+        # the exact same shift would have vetoed a fresh entry moments
+        # earlier. _current_regime() is real and safe to call here -- it's
+        # the same method the entry path already uses, refits periodically
+        # (not every bar), and this call also fixes a second, smaller real
+        # gap: the regime model's bar history previously went blind for
+        # every bar a position was held (only fed while flat), which
+        # biased its own trailing window. Gated by minimum_hold_bars, same
+        # as saturation_exit, so a position isn't force-exited on a
+        # regime read taken moments after entry.
+        regime = self.id_box._current_regime(symbol, float(bar["close"]))
+        if regime == "stressed" and held_bars >= trade["minimum_hold_bars"]:
+            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "regime_stressed_exit")
 
     @staticmethod
     def build_clock(symbol_bars: Dict[str, pd.DataFrame], warmup: int) -> List[_ClockEvent]:
@@ -482,8 +501,32 @@ class Revision2ExternalEngineOrchestrator:
                     portfolio_value=equity_now, current_dd_percent=self._current_drawdown(),
                     current_lambda=self._gross_exposure_notional() / max(equity_now, 1.0),
                     daily_realized_loss=max(0.0, self._day_start_equity - equity_now),
-                    daily_unrealized_loss=0.0, open_positions_count=len(self.open_trades),
+                    # Was a hardcoded 0.0. Real, verified before fixing: no
+                    # gate in gates_framework.py actually reads
+                    # daily_unrealized_loss (grepped every Gate0X class body
+                    # -- it's defined on SystemState and appears in one
+                    # diagnostic dict, never in a pass/fail check), so this
+                    # fix changes zero real gate decisions today. Fixed
+                    # anyway because it's real, cheap, already-available
+                    # data (the same _mark_to_market_equity() the MTM curve
+                    # already uses) -- a future gate that DOES read it
+                    # should see the truth, not a permanent zero.
+                    daily_unrealized_loss=max(0.0, self._day_start_equity - self._mark_to_market_equity()),
+                    open_positions_count=len(self.open_trades),
                     open_positions=[type("P", (), {"position_notional": t["quantity"] * t["entry_price"]})() for t in self.open_trades.values()],
+                    # market_data_age_seconds / broker_connected /
+                    # circuit_breaker_triggered stay fixed "healthy" here on
+                    # purpose, not by oversight: this is an offline replay
+                    # against historical bars -- there is no live broker
+                    # session to disconnect, no live feed to go stale, and
+                    # no circuit-breaker signal computed anywhere in this
+                    # codebase. Gate04BrokerHalt/Gate07StaleData/
+                    # Gate18CircuitBreaker DO read these three for real
+                    # (verified), so faking a plausible-looking number here
+                    # would be worse than an honest, documented backtest
+                    # default -- a real live-trading mode (not built yet)
+                    # would need to feed these from actual broker/feed
+                    # telemetry, not from this replay orchestrator.
                     market_data_age_seconds=0, broker_connected=True, broker_offline_seconds=0,
                     kill_switch_active=not bool(self.safety_contract.values["kill_switch_enabled"]),
                     circuit_breaker_triggered=False,
