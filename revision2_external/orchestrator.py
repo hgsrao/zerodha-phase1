@@ -39,6 +39,7 @@ from gates_framework import EntryDecisionEngine, EntrySignal, SafetyGateConfig, 
 from revision2.boxes import DataIngestionBox, P01DBox, SafetyGatesTargetBox
 from revision2.contracts import EffectiveConfig, MarketSnapshot, SafetyContract, StartupCertificate, StartupNotCertifiedError
 from revision2.portfolio_orchestrator import SECTOR_MAP, _ClockEvent
+from revision2_external.composite_study_signal import CompositeStudySignal
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars
 from revision2_external.indicators_talib import TALibPredictiveAnalyticsBox
@@ -94,6 +95,12 @@ class Revision2ExternalEngineOrchestrator:
 
         self.data_ingestion = DataIngestionBox()
         self.pa = TALibPredictiveAnalyticsBox()
+        # Box 4b, the Chart-Studies Confirmation Layer -- gains/clamp/
+        # grading-horizon/hit-rate-window are real, disclosed, fixed
+        # defaults, not yet exposed as registry-calibratable parameters
+        # (same "disclosed first cut, not swept" discipline this
+        # project's own prior chart-studies work used for its thresholds).
+        self.chart_studies = CompositeStudySignal()
         self.id_box = HMMIntelligentDiscriminationBox()
         self.mpc = SimplePIDModelPredictiveControlBox()
         self.safety_gates_target = SafetyGatesTargetBox()
@@ -232,7 +239,10 @@ class Revision2ExternalEngineOrchestrator:
             del self.open_trades[symbol]
             self._exit_controller_states.pop(symbol, None)
 
-    def _maybe_exit(self, symbol: str, timestamp, bar, signal, held_bars: int, session_last_bar: bool) -> None:
+    def _maybe_exit(
+        self, symbol: str, timestamp, bar, signal, held_bars: int, session_last_bar: bool,
+        chart_studies_confidence: float,
+    ) -> None:
         trade = self.open_trades.get(symbol)
         if trade is None:
             return
@@ -244,8 +254,10 @@ class Revision2ExternalEngineOrchestrator:
         # The real feedback path: re-run the exit controller on THIS bar's
         # freshly-evaluated PA signal (exit_confidence -- the field PA
         # computes specifically for exit timing, distinct from entry
-        # confidence) before checking anything else. current_stop is a
-        # ratcheted stop that only ever tightens; the frozen
+        # confidence) AND the chart-studies composite confidence (Box 4b,
+        # computed above, never blended into `signal`) as two fully
+        # separate PID tracks, before checking anything else. current_stop
+        # is a ratcheted stop that only ever tightens; the frozen
         # trade["stop_price"] is no longer what's actually checked below.
         state = self._exit_controller_states.get(symbol)
         current_stop = trade["stop_price"]
@@ -254,7 +266,10 @@ class Revision2ExternalEngineOrchestrator:
             # frozen entry-time ATR -- matches how atr is computed
             # everywhere else in this file (signal.volatility * close).
             current_atr = float(signal.volatility) * float(bar["close"])
-            state = self.exit_controller.update(symbol, state, float(signal.exit_confidence), float(bar["close"]), current_atr)
+            state = self.exit_controller.update(
+                symbol, state, float(signal.exit_confidence), chart_studies_confidence,
+                float(bar["close"]), current_atr,
+            )
             self._exit_controller_states[symbol] = state
             current_stop = state.current_stop_price
 
@@ -293,10 +308,18 @@ class Revision2ExternalEngineOrchestrator:
         # was satisfied, labeled "max_hold_or_signal" despite checking
         # neither -- see BOX6_CONTROL_LOOP_DIAGRAM_20260906.html. Replaced
         # with the controller's own real, live-signal-driven condition:
-        # sustained saturation, only actionable once the minimum hold is met.
-        if state is not None and held_bars >= trade["minimum_hold_bars"] and self.exit_controller.should_exit_on_saturation(state):
-            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "saturation_exit")
-            return
+        # sustained saturation on EITHER independent track (PA or chart
+        # studies) is enough on its own to trigger the exit -- OR logic,
+        # not a merge -- only actionable once the minimum hold is met.
+        # saturation_exit_reason() names which track actually fired
+        # ("saturation_exit_pa" / "saturation_exit_studies"), so the trade
+        # record's own reason field now tells the two apart instead of a
+        # single opaque "saturation_exit" label.
+        if state is not None and held_bars >= trade["minimum_hold_bars"]:
+            saturation_reason = self.exit_controller.saturation_exit_reason(state)
+            if saturation_reason is not None:
+                self._execute_exit(symbol, timestamp, trade, float(bar["close"]), saturation_reason)
+                return
         # Box 5's real feedback path: while a position is open, ID's
         # regime check was never called at all -- `if symbol in
         # self.open_trades: continue` skips straight past it before entry
@@ -426,8 +449,32 @@ class Revision2ExternalEngineOrchestrator:
                 self._record(trace)
                 funnel["pa_signals"] += 1
 
+                # Box 4b, the Chart-Studies Confirmation Layer -- a SECOND,
+                # fully independent confidence reading (Ichimoku/Bollinger/
+                # Stochastic/session VWAP, PID-weighted -- see
+                # composite_study_signal.py), deliberately kept SEPARATE
+                # from PA's own confidence rather than blended into it.
+                # An earlier version of this wiring blended the two
+                # ("agree -> average, disagree -> floor to the lower",
+                # chart_studies_confirmation.py) directly into `signal`
+                # before ID/MPC ever saw it -- a real INFY 6-month backtest
+                # showed this let a weak PA signal get boosted past ID's
+                # threshold purely by an unrelated composite agreeing with
+                # it (id_approvals 455->2,949, win rate 9.3%->5.9%, net
+                # P&L -37,907.57->-81,964.77), which is structurally
+                # unsound: two independent opinions averaged together can
+                # manufacture confidence neither one earned alone. Per
+                # explicit user direction, this signal instead goes
+                # straight into the exit controller (Box 6's feedback
+                # path, below) as its own separate PID track -- never
+                # merged with PA's confidence, never touching entry
+                # (ID/MPC) at all. See continuous_exit_controller.py's
+                # module docstring for the two-track design.
+                composite_result = self.chart_studies.evaluate(symbol, snapshot.bars)
+                chart_studies_confidence = float(composite_result["confidence"])
+
                 held = bar_idx - entry_bar_index.get(symbol, bar_idx)
-                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held, session_last_bar)
+                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held, session_last_bar, chart_studies_confidence)
 
                 if symbol in self.open_trades or not in_window:
                     continue

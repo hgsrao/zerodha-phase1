@@ -140,11 +140,15 @@ def test_regime_stressed_exit_fires_once_minimum_hold_is_met():
                        exit_confidence=0.6, quality_band="green")
 
     # held_bars=1: below minimum_hold_bars=2 -- must NOT exit yet even
-    # though the regime is stressed.
-    orch._maybe_exit("INFY", "2024-01-02 09:21", bar, signal, held_bars=1, session_last_bar=False)
+    # though the regime is stressed. chart_studies_confidence held at a
+    # flat, healthy 0.6 throughout -- this test is isolated to the
+    # regime-exit path, not the (separately tested) chart-studies track.
+    orch._maybe_exit("INFY", "2024-01-02 09:21", bar, signal, held_bars=1, session_last_bar=False,
+                      chart_studies_confidence=0.6)
     assert "INFY" in orch.open_trades, "exited before minimum_hold_bars was satisfied"
 
     # held_bars=2: minimum_hold_bars satisfied, regime still stressed -- must exit now.
-    orch._maybe_exit("INFY", "2024-01-02 09:22", bar, signal, held_bars=2, session_last_bar=False)
+    orch._maybe_exit("INFY", "2024-01-02 09:22", bar, signal, held_bars=2, session_last_bar=False,
+                      chart_studies_confidence=0.6)
     assert "INFY" not in orch.open_trades, "did not exit on a real, sustained regime-stressed reading"
     assert orch.completed_trades[-1]["reason"] == "regime_stressed_exit"

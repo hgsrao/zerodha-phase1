@@ -1,0 +1,534 @@
+<title>Unit 600 Console</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap');
+
+:root{
+  --bg:#080b10;
+  --canvas:#0c1119;
+  --panel:#10161f;
+  --panel-2:#0d1420;
+  --line:#1c2733;
+  --line-soft:#141d28;
+  --text:#d7e1eb;
+  --text-dim:#8493a4;
+  --text-faint:#4c5a6b;
+  --cyan:#39c8e8;
+  --cyan-dim:#1c5666;
+  --violet:#c48cf0;
+  --violet-dim:#5a3f70;
+  --amber:#f0ab3e;
+  --good:#3ed488;
+  --warn:#f2c14e;
+  --crit:#ef5566;
+  --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --cond:'IBM Plex Sans Condensed',system-ui,sans-serif;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  padding:20px;
+  min-width:1180px;
+}
+.screen{
+  max-width:1400px;
+  margin:0 auto;
+  background:var(--canvas);
+  border:1px solid var(--line);
+  border-radius:4px;
+  overflow:hidden;
+  box-shadow:0 0 0 1px #000, 0 30px 80px -30px #000a;
+}
+
+/* ---------- header / status bar ---------- */
+.statusbar{
+  display:flex;
+  align-items:center;
+  gap:18px;
+  padding:10px 18px;
+  background:var(--panel-2);
+  border-bottom:1px solid var(--line);
+  font-family:var(--mono);
+  font-size:11.5px;
+  color:var(--text-dim);
+}
+.statusbar .brand{
+  font-family:var(--cond);
+  font-weight:600;
+  font-size:15px;
+  letter-spacing:.04em;
+  color:var(--text);
+  text-transform:uppercase;
+  margin-right:4px;
+}
+.statusbar .sep{width:1px;height:16px;background:var(--line);}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:3px 9px;border-radius:2px;
+  border:1px solid var(--line);
+  background:#0a0f16;
+  font-size:10.5px;letter-spacing:.03em;
+}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:var(--good);box-shadow:0 0 6px var(--good);}
+.chip.mode{color:var(--amber);border-color:#3a2c14;background:#1a1408;}
+.chip.mode .dot{background:var(--amber);box-shadow:0 0 6px var(--amber);}
+.statusbar .fill{flex:1;}
+.statusbar .clock{color:var(--text-faint);}
+
+/* ---------- pipeline row ---------- */
+.pipeline-wrap{
+  padding:26px 24px 10px;
+  position:relative;
+}
+.pipeline-title{
+  font-family:var(--cond);
+  text-transform:uppercase;
+  font-size:11px;
+  letter-spacing:.12em;
+  color:var(--text-faint);
+  margin:0 0 14px 2px;
+}
+.pipeline{
+  display:grid;
+  grid-template-columns:repeat(10,1fr);
+  gap:0;
+  align-items:start;
+  position:relative;
+}
+.pipe-connector{
+  position:absolute;
+  top:34px;
+  left:5%;
+  right:5%;
+  height:2px;
+  background:repeating-linear-gradient(to right, var(--line-soft) 0 6px, transparent 6px 10px);
+  z-index:0;
+}
+.box{
+  position:relative;
+  z-index:1;
+  margin:0 6px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:3px;
+  padding:9px 8px 8px;
+  min-height:112px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.box .tag{
+  font-family:var(--mono);
+  font-size:11px;
+  font-weight:600;
+  color:var(--text);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.box .tag .lamp{width:6px;height:6px;border-radius:50%;flex:none;}
+.lamp.good{background:var(--good);box-shadow:0 0 5px var(--good);}
+.lamp.grey{background:#3a4552;}
+.lamp.amber{background:var(--amber);box-shadow:0 0 5px var(--amber);}
+.lamp.cyan{background:var(--cyan);box-shadow:0 0 5px var(--cyan);}
+.lamp.violet{background:var(--violet);box-shadow:0 0 5px var(--violet);}
+.box .name{
+  font-family:var(--cond);
+  font-size:11px;
+  line-height:1.25;
+  color:var(--text-dim);
+  text-transform:uppercase;
+  letter-spacing:.02em;
+  min-height:27px;
+}
+.box .status{
+  margin-top:auto;
+  font-family:var(--mono);
+  font-size:9.5px;
+  letter-spacing:.04em;
+  padding:2px 5px;
+  border-radius:2px;
+  width:fit-content;
+  text-transform:uppercase;
+}
+.status.s-loop{color:var(--good);background:#0c2318;border:1px solid #17452c;}
+.status.s-pass{color:var(--text-faint);background:#0a0f16;border:1px solid var(--line);}
+.status.s-active{color:var(--cyan);background:#0a1e26;border:1px solid #124252;}
+.status.s-branch{color:var(--violet);background:#1a1224;border:1px solid #3a2650;}
+.status.s-gate{color:var(--amber);background:#1a1408;border:1px solid #3a2c14;}
+
+.box6-target{border-color:#1e5638;box-shadow:inset 0 0 0 1px #17452c, 0 0 22px -8px #1a8f5544;}
+
+/* branch box 4B sits below the row, joined by an elbow connector */
+.branch-slot{grid-column:5;position:relative;}
+.branch-box{
+  position:absolute;
+  top:128px;
+  left:6px;right:6px;
+  z-index:1;
+}
+.elbow{
+  position:absolute;
+  left:50%;
+  top:106px;
+  width:2px;height:38px;
+  background:var(--violet-dim);
+  z-index:0;
+}
+.elbow-arrow{
+  position:absolute; left:calc(50% - 4px); top:140px;
+  width:0;height:0; border-left:4px solid transparent; border-right:4px solid transparent;
+  border-top:6px solid var(--violet-dim);
+}
+
+/* ---------- faceplate ---------- */
+.faceplate-wrap{
+  padding:8px 24px 24px;
+}
+.faceplate{
+  border:1px solid #1e5638;
+  background:linear-gradient(180deg,#0e1712,#0b120e);
+  border-radius:4px;
+  padding:18px 20px 20px;
+  box-shadow:0 0 30px -14px #1a8f5533;
+}
+.face-head{
+  display:flex;align-items:baseline;justify-content:space-between;
+  margin-bottom:14px;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.face-head h2{
+  margin:0;
+  font-family:var(--mono);
+  font-size:15px;
+  font-weight:700;
+  color:var(--text);
+  letter-spacing:.01em;
+}
+.face-head h2 span{color:var(--good);}
+.face-head .sub{
+  font-family:var(--sans);
+  font-size:12px;
+  color:var(--text-dim);
+}
+.face-head .loopmode{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;
+  color:var(--good);border:1px solid #17452c;background:#0c2318;
+  padding:3px 8px;border-radius:2px;
+}
+
+.tracks{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+  margin-bottom:14px;
+}
+.track{
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-radius:3px;
+  padding:12px 14px 10px;
+}
+.track-a{border-top:2px solid var(--cyan);}
+.track-b{border-top:2px solid var(--violet);}
+.track-head{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:8px;
+}
+.track-head .label{
+  font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.02em;
+}
+.track-a .label{color:var(--cyan);}
+.track-b .label{color:var(--violet);}
+.track-head .src{font-family:var(--cond);font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;}
+.readouts{
+  display:grid;
+  grid-template-columns:repeat(4,auto);
+  gap:2px 16px;
+  font-family:var(--mono);
+  font-size:10.5px;
+  color:var(--text-dim);
+  margin-bottom:9px;
+}
+.readouts b{color:var(--text);font-weight:600;}
+.spark{width:100%;height:46px;display:block;}
+.streak-row{
+  display:flex;align-items:center;gap:8px;
+  margin-top:8px;
+  font-family:var(--mono);font-size:10px;color:var(--text-faint);
+}
+.streak-dots{display:flex;gap:3px;}
+.streak-dots i{width:9px;height:9px;border-radius:1px;display:block;background:var(--line);}
+.track-a .streak-dots i.lit{background:var(--cyan);box-shadow:0 0 5px var(--cyan);}
+.track-b .streak-dots i.lit{background:var(--violet);box-shadow:0 0 5px var(--violet);}
+.streak-row .thresh{color:var(--text-faint);}
+
+.combiner{
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  gap:14px;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-radius:3px;
+  padding:12px 16px;
+  margin-bottom:12px;
+}
+.combiner .col h4{
+  margin:0 0 6px;
+  font-family:var(--cond);text-transform:uppercase;letter-spacing:.08em;
+  font-size:10px;color:var(--text-faint);
+}
+.formula{
+  font-family:var(--mono);font-size:12px;color:var(--text);
+  background:#080d13;border:1px solid var(--line);border-radius:2px;
+  padding:8px 10px;line-height:1.7;
+}
+.formula .fn{color:var(--good);}
+.formula .op{color:var(--text-faint);}
+.formula .var-a{color:var(--cyan);}
+.formula .var-b{color:var(--violet);}
+.gate{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+.gate svg{display:block;}
+.gate .gl{font-family:var(--mono);font-size:9.5px;color:var(--text-faint);letter-spacing:.05em;}
+
+.regime-note{
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--mono);font-size:10.5px;color:var(--text-dim);
+  padding:9px 14px;
+  border:1px dashed var(--line);
+  border-radius:3px;
+  background:#0a0f16;
+}
+.regime-note .tagref{color:var(--amber);}
+
+/* ---------- footer / legend ---------- */
+.footer{
+  padding:16px 24px 22px;
+  border-top:1px solid var(--line);
+  background:var(--panel-2);
+  display:grid;
+  grid-template-columns:1.3fr 1fr;
+  gap:24px;
+}
+.legend h3, .verify h3{
+  margin:0 0 9px;
+  font-family:var(--cond);text-transform:uppercase;letter-spacing:.1em;
+  font-size:10.5px;color:var(--text-faint);
+}
+.legend-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px 22px;
+  font-family:var(--mono);
+  font-size:10.5px;
+  color:var(--text-dim);
+}
+.legend-item{display:flex;align-items:center;gap:8px;}
+.legend-item .swatch{width:14px;height:0;border-top:2px solid;flex:none;}
+.legend-item .lamp{width:7px;height:7px;border-radius:50%;flex:none;}
+.verify{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-dim);
+  line-height:1.65;
+  border-left:1px solid var(--line);
+  padding-left:20px;
+}
+.verify b{color:var(--text);}
+.verify .ok{color:var(--good);}
+.verify .pending{color:var(--warn);}
+</style>
+
+<div class="screen">
+
+  <div class="statusbar">
+    <span class="brand">Unit 600</span>
+    <span class="sep"></span>
+    <span>EXTERNAL-LIBRARY CALIBRATION ENGINE</span>
+    <span class="sep"></span>
+    <span class="chip mode"><i class="dot"></i>PAPER / OFFLINE REPLAY</span>
+    <span class="chip"><i class="dot"></i>10 BOXES · 46 CALIBRATABLE</span>
+    <div class="fill"></div>
+    <span class="clock">GRAPHIC 600-OVERVIEW · REV 20260906</span>
+  </div>
+
+  <div class="pipeline-wrap">
+    <p class="pipeline-title">Process Overview — Signal Path, Left to Right</p>
+    <div class="pipeline">
+      <div class="pipe-connector"></div>
+
+      <div class="box">
+        <div class="tag">LIC-601<span class="lamp grey"></span></div>
+        <div class="name">Startup Capability Lock</div>
+        <div class="status s-pass">Permissive</div>
+      </div>
+      <div class="box">
+        <div class="tag">FIC-602<span class="lamp grey"></span></div>
+        <div class="name">Data Ingestion</div>
+        <div class="status s-pass">Allow / Deny</div>
+      </div>
+      <div class="box">
+        <div class="tag">AIC-603<span class="lamp grey"></span></div>
+        <div class="name">L2 Data Certifier</div>
+        <div class="status s-pass">Pandera</div>
+      </div>
+      <div class="box">
+        <div class="tag">AIC-604<span class="lamp cyan"></span></div>
+        <div class="name">Predictive Analytics</div>
+        <div class="status s-active">PV → 606-X</div>
+      </div>
+
+      <div class="branch-slot">
+        <div class="box">
+          <div class="tag">SIC-605<span class="lamp amber"></span></div>
+          <div class="name">Regime ID (HMM)</div>
+          <div class="status s-gate">Calm / Stressed</div>
+        </div>
+        <div class="elbow"></div>
+        <div class="elbow-arrow"></div>
+        <div class="branch-box">
+          <div class="box" style="border-color:#3a2650;">
+            <div class="tag">AIC-604B<span class="lamp violet"></span></div>
+            <div class="name">Chart-Studies Composite<br/>(Ichimoku·Boll·Stoch·VWAP)</div>
+            <div class="status s-branch">PV → 606-X only</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="box box6-target">
+        <div class="tag">PIC-606<span class="lamp good"></span></div>
+        <div class="name">MPC — Entry Plan &amp; Exit Control</div>
+        <div class="status s-loop">Closed Loop</div>
+      </div>
+      <div class="box">
+        <div class="tag">ZIC-607<span class="lamp amber"></span></div>
+        <div class="name">Safety Gates (18)</div>
+        <div class="status s-gate">Trip / Permit</div>
+      </div>
+      <div class="box">
+        <div class="tag">QIC-608<span class="lamp grey"></span></div>
+        <div class="name">Position Sizing</div>
+        <div class="status s-pass">PyPortfolioOpt</div>
+      </div>
+      <div class="box">
+        <div class="tag">HIC-609<span class="lamp grey"></span></div>
+        <div class="name">Order Signing (P01D)</div>
+        <div class="status s-pass">Hand Station</div>
+      </div>
+      <div class="box">
+        <div class="tag">XIC-610<span class="lamp grey"></span></div>
+        <div class="name">Execution (Broker)</div>
+        <div class="status s-pass">Final Element</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="faceplate-wrap">
+    <div class="faceplate">
+      <div class="face-head">
+        <h2>PIC-606-X <span>· EXIT CONTROL — TWO INDEPENDENT PID TRACKS</span></h2>
+        <div class="sub">Re-evaluated every bar while a position is held · never merged, combined only at the output</div>
+        <div class="loopmode">MODE: AUTO</div>
+      </div>
+
+      <div class="tracks">
+        <div class="track track-a">
+          <div class="track-head">
+            <span class="label">TRACK A — PA CONFIDENCE</span>
+            <span class="src">Source: AIC-604 exit_confidence</span>
+          </div>
+          <div class="readouts">
+            <span>PV <b>0.02</b></span><span>SP <b>0.34</b></span><span>KP/KI/KD <b>.12/.04/.06</b></span><span>OUT <b>tightness↑</b></span>
+          </div>
+          <svg class="spark" viewBox="0 0 300 46" preserveAspectRatio="none">
+            <rect x="228" y="0" width="72" height="46" fill="#39c8e81a"/>
+            <line x1="228" y1="0" x2="228" y2="46" stroke="#1c5666" stroke-width="1" stroke-dasharray="2 3"/>
+            <polyline points="0,10 43,14 86,20 129,27 171,33 214,38 257,42 300,44" fill="none" stroke="#39c8e8" stroke-width="2"/>
+            <circle cx="300" cy="44" r="3" fill="#39c8e8"/>
+          </svg>
+          <div class="streak-row">
+            <span>SAT STREAK</span>
+            <div class="streak-dots"><i class="lit"></i><i class="lit"></i><i class="lit"></i><i></i><i></i></div>
+            <span class="thresh">3 / 5 bars below baseline extreme</span>
+          </div>
+        </div>
+
+        <div class="track track-b">
+          <div class="track-head">
+            <span class="label">TRACK B — CHART-STUDIES CONFIDENCE</span>
+            <span class="src">Source: AIC-604B composite</span>
+          </div>
+          <div class="readouts">
+            <span>PV <b>0.58</b></span><span>SP <b>0.56</b></span><span>KP/KI/KD <b>.12/.04/.06</b></span><span>OUT <b>tightness→</b></span>
+          </div>
+          <svg class="spark" viewBox="0 0 300 46" preserveAspectRatio="none">
+            <polyline points="0,20 43,17 86,21 129,16 171,19 214,15 257,18 300,17" fill="none" stroke="#c48cf0" stroke-width="2"/>
+            <circle cx="300" cy="17" r="3" fill="#c48cf0"/>
+          </svg>
+          <div class="streak-row">
+            <span>SAT STREAK</span>
+            <div class="streak-dots"><i></i><i></i><i></i><i></i><i></i></div>
+            <span class="thresh">0 / 5 — healthy, holding baseline</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="combiner">
+        <div class="col">
+          <h4>Trail Tightness (MV)</h4>
+          <div class="formula">
+            <span class="fn">stop</span> <span class="op">=</span> extreme <span class="op">−</span> side <span class="op">·</span> ATR <span class="op">·</span> droop <span class="op">·</span>
+            <span class="fn">min</span>(<span class="var-a">tight_A</span><span class="op">,</span> <span class="var-b">tight_B</span><span class="op">,</span> tight_time)
+          </div>
+        </div>
+        <div class="gate">
+          <svg width="54" height="46" viewBox="0 0 54 46">
+            <path d="M6 6 h14 a17 17 0 0 1 0 34 h-14 a26 26 0 0 0 0 -34 z" fill="none" stroke="#3ed488" stroke-width="2"/>
+            <line x1="0" y1="14" x2="6" y2="14" stroke="#39c8e8" stroke-width="2"/>
+            <line x1="0" y1="32" x2="6" y2="32" stroke="#c48cf0" stroke-width="2"/>
+            <line x1="46" y1="23" x2="54" y2="23" stroke="#3ed488" stroke-width="2"/>
+          </svg>
+          <span class="gl">OR</span>
+        </div>
+        <div class="col">
+          <h4>Saturation Exit (Trip)</h4>
+          <div class="formula">
+            <span class="fn">trip</span> <span class="op">=</span> <span class="var-a">SAT_A</span> <span class="op">OR</span> <span class="var-b">SAT_B</span>
+            <br/><span class="op" style="font-size:10.5px;">→ reason: saturation_exit_pa | saturation_exit_studies</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="regime-note">
+        <span>◇</span> Feed-forward, not a PID track: <span class="tagref">SIC-605</span> regime read of <b>stressed</b>, once <b>minimum_hold_bars</b> is met, trips <b>regime_stressed_exit</b> directly — independent of both tracks above.
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="legend">
+      <h3>Legend</h3>
+      <div class="legend-grid">
+        <div class="legend-item"><span class="swatch" style="border-color:var(--line-soft);border-top-style:dashed;"></span> Sequential pass-through, no feedback</div>
+        <div class="legend-item"><span class="lamp cyan"></span> Live signal — PA (Track A)</div>
+        <div class="legend-item"><span class="swatch" style="border-color:#17452c;"></span> Closed loop, re-evaluated every bar</div>
+        <div class="legend-item"><span class="lamp violet"></span> Live signal — Chart Studies (Track B)</div>
+        <div class="legend-item"><span class="swatch" style="border-color:#3a2650;"></span> Independent input, never merged upstream</div>
+        <div class="legend-item"><span class="lamp amber"></span> Gate / interlock (permit or trip)</div>
+      </div>
+    </div>
+    <div class="verify">
+      <h3>Verification</h3>
+      Standalone suite: <span class="ok">10/10 passed</span>, incl. each track triggering <b>saturation_exit</b> alone while the other stays healthy.<br/>
+      Full <b>tests_external/</b> regression: <span class="ok">verified green</span> after rewiring.<br/>
+      Live INFY 6-month backtest on this two-track design: <span class="pending">pending</span> — prior single-track baseline was 183 trades / −₹37,907.57 net / 9.3% win rate.
+    </div>
+  </div>
+
+</div>
