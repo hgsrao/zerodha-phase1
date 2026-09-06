@@ -89,6 +89,18 @@ def main():
             "reason": trade["reason"], "bars_held_total": seg[-1]["bars_held"],
             "max_streak_pa": max_streak_pa, "max_streak_studies": max_streak_studies,
         })
+        # Bar-by-bar detail for the real near-miss trades only -- needed to
+        # know WHICH bar the streak first reaches a given level, not just
+        # the per-trade max, before touching saturation_exit_bars: if the
+        # streak only reaches 4 on the SAME bar the trade already closes
+        # via stop/target, lowering the gate to 4 changes nothing for that
+        # trade (the price-based check runs first in _maybe_exit on a tie).
+        if max_streak_studies >= 3 or max_streak_pa >= 1:
+            print(f"\n  near-miss trade: reason={trade['reason']} bars_held_total={seg[-1]['bars_held']}")
+            print("  bar  streak_pa  streak_studies  pa_conf  studies_conf")
+            for r in seg:
+                print(f"  {r['bars_held']:>3}  {r['streak_pa']:>9}  {r['streak_studies']:>14}  "
+                      f"{r['pa_confidence']:.4f}   {r['studies_confidence']:.4f}")
 
     df = pd.DataFrame(rows)
     print(f"\nreal completed trades: {len(df)}")
