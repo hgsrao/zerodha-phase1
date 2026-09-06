@@ -112,8 +112,15 @@ class Gate02DrawdownHalt(BaseGate):
 class Gate03DailyLossHalt(BaseGate):
     def evaluate(self, state: SystemState) -> GateDecision:
         threshold = self.config.daily_loss_halt_threshold
-        if state.daily_realized_loss >= threshold:
-            return self._make_decision("Gate03DailyLossHalt", False, f"daily loss {state.daily_realized_loss} exceeds {threshold}")
+        # Total daily loss = realized (closed trades) + unrealized (open position drawdown).
+        # A trader's true daily risk is both; ignoring unrealized loss is a blind spot.
+        total_daily_loss = state.daily_realized_loss + state.daily_unrealized_loss
+        if total_daily_loss >= threshold:
+            return self._make_decision(
+                "Gate03DailyLossHalt", False,
+                f"daily loss (realized {state.daily_realized_loss} + unrealized {state.daily_unrealized_loss} "
+                f"= total {total_daily_loss}) exceeds {threshold}"
+            )
         return self._make_decision("Gate03DailyLossHalt", True, "daily loss below halt threshold")
 
 
