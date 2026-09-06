@@ -28,6 +28,12 @@ different floating-point summation order on larger matrix operations
 root-caused to one line, but this is the standard, low-cost mitigation for
 exactly this symptom -- pinned before any numpy-dependent import.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import determinism_guard  # Pin BLAS/LAPACK threading + fix Python hash randomization before numpy
+
 import os
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
@@ -37,11 +43,7 @@ os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
 
 import argparse
 import json
-import sys
 import time
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 
