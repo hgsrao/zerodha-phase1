@@ -39,6 +39,7 @@ from gates_framework import EntryDecisionEngine, EntrySignal, SafetyGateConfig, 
 from revision2.boxes import DataIngestionBox, P01DBox, SafetyGatesTargetBox
 from revision2.contracts import EffectiveConfig, MarketSnapshot, SafetyContract, StartupCertificate, StartupNotCertifiedError
 from revision2.portfolio_orchestrator import SECTOR_MAP, _ClockEvent
+from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars
 from revision2_external.indicators_talib import TALibPredictiveAnalyticsBox
 from revision2_external.pid_controller import SimplePIDModelPredictiveControlBox
@@ -111,6 +112,31 @@ class Revision2ExternalEngineOrchestrator:
         self._active_trading_date = None
         self._day_start_equity = starting_equity
         self._portfolio_weights: Dict[str, float] = {s: 1.0 / len(symbols) for s in symbols}
+
+        # Box 6's real feedback path -- see BOX6_CONTROL_LOOP_DIAGRAM_20260906.html
+        # for why this exists: without it, a position's exit is governed
+        # only by a frozen entry-time stop/target plus a bare elapsed-time
+        # check, with maximum_hold_bars never enforced and no live PA
+        # signal feeding back in after entry. Reuses the exit PID's own
+        # registry gains (pid_kp_exit/pid_ki_exit/pid_kd_exit/
+        # pid_integral_max_clamp/pid_integral_window_bars) and the entry
+        # stop's own ATR multiplier (stop_loss_atr_mult) rather than
+        # introducing new calibratable parameters -- same conceptual "exit
+        # PID" and "ATR stop" the registry already describes, now applied
+        # continuously instead of once. See continuous_exit_controller.py's
+        # module docstring for why ATR (not a guessed percentage) sets the
+        # droop's real magnitude.
+        self.exit_controller = ContinuousExitController(
+            kp=float(self.config.require("pid_kp_exit")), ki=float(self.config.require("pid_ki_exit")),
+            kd=float(self.config.require("pid_kd_exit")), clamp=float(self.config.require("pid_integral_max_clamp")),
+            atr_droop_mult=float(self.config.require("stop_loss_atr_mult")),
+            baseline_window=int(self.config.require("pid_integral_window_bars")),
+        )
+        self.consumed_parameters.update({
+            "pid_kp_exit", "pid_ki_exit", "pid_kd_exit", "pid_integral_max_clamp",
+            "pid_integral_window_bars", "stop_loss_atr_mult",
+        })
+        self._exit_controller_states: Dict[str, ExitControllerState] = {}
 
         self.startup_certificate = self._issue_startup_certificate()
 
@@ -198,8 +224,9 @@ class Revision2ExternalEngineOrchestrator:
             })
             self._equity_curve.append(self._equity())
             del self.open_trades[symbol]
+            self._exit_controller_states.pop(symbol, None)
 
-    def _maybe_exit(self, symbol: str, timestamp, bar, held_bars: int, session_last_bar: bool) -> None:
+    def _maybe_exit(self, symbol: str, timestamp, bar, signal, held_bars: int, session_last_bar: bool) -> None:
         trade = self.open_trades.get(symbol)
         if trade is None:
             return
@@ -208,23 +235,40 @@ class Revision2ExternalEngineOrchestrator:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "forced_close_drawdown_halt")
             return
 
+        # The real feedback path: re-run the exit controller on THIS bar's
+        # freshly-evaluated PA signal (exit_confidence -- the field PA
+        # computes specifically for exit timing, distinct from entry
+        # confidence) before checking anything else. current_stop is a
+        # ratcheted stop that only ever tightens; the frozen
+        # trade["stop_price"] is no longer what's actually checked below.
+        state = self._exit_controller_states.get(symbol)
+        current_stop = trade["stop_price"]
+        if state is not None:
+            # Droop input: CURRENT ATR, re-measured this bar -- not the
+            # frozen entry-time ATR -- matches how atr is computed
+            # everywhere else in this file (signal.volatility * close).
+            current_atr = float(signal.volatility) * float(bar["close"])
+            state = self.exit_controller.update(symbol, state, float(signal.exit_confidence), float(bar["close"]), current_atr)
+            self._exit_controller_states[symbol] = state
+            current_stop = state.current_stop_price
+
         exit_price, reason = None, None
         if trade["side"] == "BUY":
-            if bar["open"] <= trade["stop_price"]:
+            if bar["open"] <= current_stop:
                 exit_price, reason = float(bar["open"]), "stop_gap"
             elif bar["open"] >= trade["target_price"]:
                 exit_price, reason = float(bar["open"]), "target_gap"
-            elif bar["low"] <= trade["stop_price"]:
-                exit_price, reason = trade["stop_price"], "stop"
+            elif bar["low"] <= current_stop:
+                exit_price, reason = current_stop, "stop"
             elif bar["high"] >= trade["target_price"]:
                 exit_price, reason = trade["target_price"], "target"
         else:
-            if bar["open"] >= trade["stop_price"]:
+            if bar["open"] >= current_stop:
                 exit_price, reason = float(bar["open"]), "stop_gap"
             elif bar["open"] <= trade["target_price"]:
                 exit_price, reason = float(bar["open"]), "target_gap"
-            elif bar["high"] >= trade["stop_price"]:
-                exit_price, reason = trade["stop_price"], "stop"
+            elif bar["high"] >= current_stop:
+                exit_price, reason = current_stop, "stop"
             elif bar["low"] <= trade["target_price"]:
                 exit_price, reason = trade["target_price"], "target"
 
@@ -234,8 +278,18 @@ class Revision2ExternalEngineOrchestrator:
         if session_last_bar:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "mis_session_close")
             return
-        if held_bars >= trade["minimum_hold_bars"]:
-            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "max_hold_or_signal")
+        # maximum_hold_bars is now a REAL, independent hard ceiling -- it
+        # used to be stored on every trade and never once read anywhere.
+        if held_bars >= trade["maximum_hold_bars"]:
+            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "max_hold")
+            return
+        # The old code exited unconditionally the instant minimum_hold_bars
+        # was satisfied, labeled "max_hold_or_signal" despite checking
+        # neither -- see BOX6_CONTROL_LOOP_DIAGRAM_20260906.html. Replaced
+        # with the controller's own real, live-signal-driven condition:
+        # sustained saturation, only actionable once the minimum hold is met.
+        if state is not None and held_bars >= trade["minimum_hold_bars"] and self.exit_controller.should_exit_on_saturation(state):
+            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "saturation_exit")
 
     @staticmethod
     def build_clock(symbol_bars: Dict[str, pd.DataFrame], warmup: int) -> List[_ClockEvent]:
@@ -348,7 +402,7 @@ class Revision2ExternalEngineOrchestrator:
                 funnel["pa_signals"] += 1
 
                 held = bar_idx - entry_bar_index.get(symbol, bar_idx)
-                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], held, session_last_bar)
+                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held, session_last_bar)
 
                 if symbol in self.open_trades or not in_window:
                     continue
@@ -480,6 +534,9 @@ class Revision2ExternalEngineOrchestrator:
                         "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
                     }
                     entry_bar_index[symbol] = bar_idx + 1
+                    self._exit_controller_states[symbol] = self.exit_controller.open_position(
+                        plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
+                    )
 
         for symbol in list(self.open_trades.keys()):
             bars = symbol_bars[symbol]
