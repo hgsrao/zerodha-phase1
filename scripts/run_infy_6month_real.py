@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import determinism_guard  # noqa: F401 -- must import before pandas/numpy; see its module docstring
 import pandas as pd
 
 from canonical_parameter_registry import CanonicalParameterRegistry
