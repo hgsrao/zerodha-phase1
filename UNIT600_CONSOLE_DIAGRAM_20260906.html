@@ -448,15 +448,13 @@ body{
             <span>PV <b>0.02</b></span><span>SP <b>0.34</b></span><span>KP/KI/KD <b>.12/.04/.06</b></span><span>OUT <b>tightness↑</b></span>
           </div>
           <svg class="spark" viewBox="0 0 300 46" preserveAspectRatio="none">
-            <rect x="228" y="0" width="72" height="46" fill="#39c8e81a"/>
-            <line x1="228" y1="0" x2="228" y2="46" stroke="#1c5666" stroke-width="1" stroke-dasharray="2 3"/>
-            <polyline points="0,10 43,14 86,20 129,27 171,33 214,38 257,42 300,44" fill="none" stroke="#39c8e8" stroke-width="2"/>
-            <circle cx="300" cy="44" r="3" fill="#39c8e8"/>
+            <polyline points="0,20 43,18 86,21 129,17 171,19 214,16 257,18 300,17" fill="none" stroke="#39c8e8" stroke-width="2"/>
+            <circle cx="300" cy="17" r="3" fill="#39c8e8"/>
           </svg>
           <div class="streak-row">
             <span>SAT STREAK</span>
-            <div class="streak-dots"><i class="lit"></i><i class="lit"></i><i class="lit"></i><i></i><i></i></div>
-            <span class="thresh">3 / 5 bars below baseline extreme</span>
+            <div class="streak-dots"><i></i><i></i><i></i><i></i></div>
+            <span class="thresh">0 / 4 — healthy, holding baseline</span>
           </div>
         </div>
 
@@ -466,16 +464,18 @@ body{
             <span class="src">Source: AIC-604B composite</span>
           </div>
           <div class="readouts">
-            <span>PV <b>0.58</b></span><span>SP <b>0.56</b></span><span>KP/KI/KD <b>.12/.04/.06</b></span><span>OUT <b>tightness→</b></span>
+            <span>PV <b>0.00</b></span><span>SP <b>0.28</b></span><span>KP/KI/KD <b>.12/.04/.06</b></span><span>OUT <b>tightness↑</b></span>
           </div>
           <svg class="spark" viewBox="0 0 300 46" preserveAspectRatio="none">
-            <polyline points="0,20 43,17 86,21 129,16 171,19 214,15 257,18 300,17" fill="none" stroke="#c48cf0" stroke-width="2"/>
-            <circle cx="300" cy="17" r="3" fill="#c48cf0"/>
+            <rect x="171" y="0" width="129" height="46" fill="#c48cf01a"/>
+            <line x1="171" y1="0" x2="171" y2="46" stroke="#5a3f70" stroke-width="1" stroke-dasharray="2 3"/>
+            <polyline points="0,8 43,10 86,30 129,44 171,44 214,44 257,44 300,44" fill="none" stroke="#c48cf0" stroke-width="2"/>
+            <circle cx="300" cy="44" r="3" fill="#c48cf0"/>
           </svg>
           <div class="streak-row">
             <span>SAT STREAK</span>
-            <div class="streak-dots"><i></i><i></i><i></i><i></i><i></i></div>
-            <span class="thresh">0 / 5 — healthy, holding baseline</span>
+            <div class="streak-dots"><i class="lit"></i><i class="lit"></i><i class="lit"></i><i></i></div>
+            <span class="thresh">3 / 4 bars at zero — real trade, one bar from saturation_exit_studies</span>
           </div>
         </div>
       </div>
@@ -528,7 +528,10 @@ body{
       <h3>Verification</h3>
       Standalone suite: <span class="ok">10/10 passed</span>, incl. each track triggering <b>saturation_exit</b> alone while the other stays healthy.<br/>
       Full <b>tests_external/</b> regression: <span class="ok">verified green</span> after rewiring.<br/>
-      Live INFY 6-month backtest, two-track vs. prior single-track baseline: 181 vs. 183 trades, −₹37,203.13 vs. −₹37,907.57 net, 9.94% vs. 9.3% win rate — a small, real improvement, still net-negative overall. Exit reasons this run: stop 142 / target 20 / stop_gap 19 — <span class="pending">saturation_exit_pa, saturation_exit_studies, and regime_stressed_exit fired zero times</span>, so this window's change traces to the tightness combiner, not the saturation trip itself.
+Real bug found and fixed after publishing the number above: <span class="ok">regime_id_box.py seeded its HMM with hash(symbol)</span> -- Python's randomized string hash, different every process run -- not a stable seed. Fixed with zlib.crc32; verified with two independent runs producing bit-for-bit identical results. Every earlier external-engine number in this diagram (including the 181/183-trade comparison above) predates this fix and is not guaranteed reproducible.<br/>
+      Reproducible baseline post-fix: 187 trades, −₹39,093.23 net, 9.09% win rate, saturation exits: 0.<br/>
+      Bar-by-bar tracing (scripts/diagnose_saturation_streaks_real_infy.py) found real trades reaching a 4-bar studies-track streak, one bar short of the gate — lowered <b>saturation_exit_bars</b> 5→4 on that real, observed near-miss, not a searched value.<br/>
+      Result: 189 trades, −₹38,940.57 net, 8.99% win rate. <span class="ok">saturation_exit_studies fired 3 times</span> — confirmed genuine (all 4 studies voting unanimously bearish, not a fallback artifact). regime_stressed_exit and saturation_exit_pa: 0 this window.
     </div>
   </div>
 

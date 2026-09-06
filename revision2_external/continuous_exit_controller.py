@@ -112,6 +112,24 @@ possible answer. The two gains (kp/ki/kd/clamp) are currently shared
 between both tracks -- a disclosed simplification, not yet independently
 calibratable; each track's own PID/history/streak state is nonetheless
 kept completely separate.
+
+saturation_exit_bars default (real, diagnosed, not guessed): the first
+version of this controller shipped with a placeholder of 5 and, on the
+real INFY 6-month backtest, saturation_exit_pa/saturation_exit_studies
+fired ZERO times -- traced bar-by-bar (see
+scripts/diagnose_saturation_streaks_real_infy.py) to find out why, on
+real data, rather than assuming the mechanism was fine because its unit
+tests passed. Real finding: two genuine trades reached a real,
+uninterrupted studies-track streak of 4 (one bar short of the old gate
+of 5) several bars before their eventual real stop-out -- at gate=4,
+BOTH would have exited earlier via saturation_exit_studies instead of
+riding to a later stop. A third near-miss trade reached streak=4 on the
+EXACT same bar it hit its real profit target; since _maybe_exit checks
+the price-based target/stop condition before saturation_exit_reason()
+on every bar, that real winning trade is unaffected by this change
+either way -- the price check still wins the tie. Lowered to 4 on that
+basis: a real, already-observed near-miss on genuine data, not a value
+searched over to manufacture a nicer P&L number.
 """
 
 from __future__ import annotations
@@ -163,7 +181,7 @@ class ContinuousExitController:
 
     def __init__(
         self, kp: float, ki: float, kd: float, clamp: float, atr_droop_mult: float, baseline_window: int = 10,
-        saturation_exit_bars: int = 5, disable_saturation_exit: bool = False,
+        saturation_exit_bars: int = 4, disable_saturation_exit: bool = False,
     ) -> None:
         self.kp, self.ki, self.kd = kp, ki, kd
         self.clamp = abs(clamp)
