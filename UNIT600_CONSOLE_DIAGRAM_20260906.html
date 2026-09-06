@@ -528,7 +528,7 @@ body{
       <h3>Verification</h3>
       Standalone suite: <span class="ok">10/10 passed</span>, incl. each track triggering <b>saturation_exit</b> alone while the other stays healthy.<br/>
       Full <b>tests_external/</b> regression: <span class="ok">verified green</span> after rewiring.<br/>
-      Live INFY 6-month backtest on this two-track design: <span class="pending">pending</span> — prior single-track baseline was 183 trades / −₹37,907.57 net / 9.3% win rate.
+      Live INFY 6-month backtest, two-track vs. prior single-track baseline: 181 vs. 183 trades, −₹37,203.13 vs. −₹37,907.57 net, 9.94% vs. 9.3% win rate — a small, real improvement, still net-negative overall. Exit reasons this run: stop 142 / target 20 / stop_gap 19 — <span class="pending">saturation_exit_pa, saturation_exit_studies, and regime_stressed_exit fired zero times</span>, so this window's change traces to the tightness combiner, not the saturation trip itself.
     </div>
   </div>
 
