@@ -30,7 +30,7 @@ from canonical_parameter_registry import CanonicalParameterRegistry
 from market_data_loader import MarketDataLoader
 from revision2.calibration_supervisor import AcceptanceGates, CalibrationRunConfig, CalibrationSupervisor
 from revision2.dataset_manifest import DatasetManifest
-from revision2.orchestrator import Revision2Orchestrator  # In-house orchestrator (NOT external)
+from revision2.portfolio_orchestrator import Revision2PortfolioOrchestrator  # In-house multi-symbol orchestrator
 
 OUTPUT_DIR = Path(__file__).resolve().parents[1] / "output_inhouse_engine"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -86,7 +86,7 @@ def main():
     if args.time_only:
         print("\nRunning single fixed-parameter evaluation...", flush=True)
         t0 = time.time()
-        orch = Revision2Orchestrator(symbols, registry, starting_equity=1_000_000.0)
+        orch = Revision2PortfolioOrchestrator(symbols, registry, starting_equity=1_000_000.0)
         report = orch.run(symbol_bars, warmup=60)
         elapsed = time.time() - t0
         print(json.dumps({
@@ -102,7 +102,7 @@ def main():
     supervisor = CalibrationSupervisor(
         registry, symbols, symbol_bars, run_config=run_config, gates=gates,
         warmup=60, starting_equity=1_000_000.0,
-        orchestrator_class=Revision2Orchestrator,
+        orchestrator_class=Revision2PortfolioOrchestrator,
     )
 
     t0 = time.time()
@@ -111,7 +111,7 @@ def main():
 
     from collections import Counter
     summary = {
-        "engine": "Revision2Orchestrator (in-house, vanilla ID box)",
+        "engine": "Revision2PortfolioOrchestrator (in-house, vanilla ID box)",
         "dataset": "FULL_3YEAR (2023-07-03 to 2026-08-24)",
         "symbols": symbols,
         "total_bars": total_bars,
