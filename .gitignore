@@ -79,3 +79,18 @@ docs/_build/
 _local_review_reports/
 *_experimental/
 *.tmp
+# Calibration outputs and temporary files
+output/
+output_external_engine/
+calibration_*.log
+*_calibration_*.log
+*.nohup
+
+# Test files
+*_test.py
+*_acceptance_test.py
+
+# Temporary Python
+__pycache__/
+*.pyc
+.pytest_cache/
