@@ -27,6 +27,7 @@ from canonical_parameter_registry import CanonicalParameterRegistry
 from gates_framework import EntryDecisionEngine, EntrySignal, SafetyGateConfig, SystemState
 from revision2.boxes import (
     DataIngestionBox,
+    IntelligentDiscriminationBox,
     L2DataCertifierBox,
     ModelPredictiveControlBox,
     P01DBox,
@@ -35,7 +36,6 @@ from revision2.boxes import (
     SafetyGatesTargetBox,
     UnifiedExecutionBox,
 )
-from revision2.regime_id_box import HMMIntelligentDiscriminationBox
 from revision2.contracts import (
     EffectiveConfig,
     MarketSnapshot,
@@ -113,7 +113,7 @@ class Revision2PortfolioOrchestrator:
         self.data_ingestion = DataIngestionBox()
         self.l2_certifier = L2DataCertifierBox()
         self.pa = PredictiveAnalyticsBox()
-        self.id_box = HMMIntelligentDiscriminationBox()  # Upgraded to HMM-based regime detection
+        self.id_box = IntelligentDiscriminationBox()  # Vanilla volatility-regime for 1-month calibration
         self.mpc = ModelPredictiveControlBox()
         self.safety_gates_target = SafetyGatesTargetBox()
         self.position_manager = PositionManagerBox()
@@ -293,16 +293,6 @@ class Revision2PortfolioOrchestrator:
             self._execute_exit(symbol, timestamp, trade, exit_price, reason)
             return
 
-        # HMM regime-stressed exit: if market enters stressed regime after
-        # minimum hold period, exit the trade. This is feed-forward regime
-        # detection (independent of PID loops) that acts as a dynamic exit
-        # gate matching the entry-time regime veto in the ID box.
-        if held_bars >= trade["minimum_hold_bars"]:
-            regime = self.id_box._current_regime(symbol, float(bar["close"]))
-            if regime == "stressed":
-                self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "regime_stressed_exit")
-                return
-
         if held_bars >= trade["minimum_hold_bars"] and (
             signal.exit_confidence < trade["exit_confidence_threshold"] or signal.quality_band == "red"
         ):
@@ -343,7 +333,6 @@ class Revision2PortfolioOrchestrator:
 
         for symbol, bars in symbol_bars.items():
             self.pa.calibrate(symbol, bars.iloc[:warmup])
-            self.id_box.calibrate(symbol, bars.iloc[:warmup])  # HMM regime detection initialization
 
         funnel = {
             "bars_processed": 0, "pa_signals": 0, "id_approvals": 0, "id_rejections": 0,
@@ -412,7 +401,7 @@ class Revision2PortfolioOrchestrator:
                 if symbol in self.open_trades or not in_window:
                     continue
 
-                decision, trace = self.id_box.evaluate(signal, self.config, float(bars.iloc[bar_idx]["close"]))
+                decision, trace = self.id_box.evaluate(signal, self.config)
                 self._record(trace)
                 if not decision.approved:
                     funnel["id_rejections"] += 1
