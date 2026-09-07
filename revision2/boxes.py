@@ -178,6 +178,10 @@ class PredictiveAnalyticsBox:
         # ATR-based volatility, normalized against price.
         tr = np.maximum(h[1:] - l[1:], np.maximum(np.abs(h[1:] - c[:-1]), np.abs(l[1:] - c[:-1]))) if len(c) > 1 else np.array([0.0])
         atr = float(tr[-atr_period:].mean()) if len(tr) else 0.0
+        # BUGFIX: Ensure ATR has a minimum value to prevent zero stops/targets
+        # If calculated ATR is 0 or very small, use 0.5% of current price as floor
+        if atr < 0.001:
+            atr = max(0.001, close[-1] * 0.005)
         volatility = atr / close[-1] if close[-1] else 0.0
         # Relative deviation from the calibrated baseline volatility: near 0
         # when volatility is normal, swings when the regime genuinely shifts.

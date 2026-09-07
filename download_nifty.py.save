@@ -1,0 +1,54 @@
+from datetime import datetime, timedelta
+from kiteconnect import KiteConnect
+import pandas as pd
+
+# Credentials from your DailyBreakoutBot app
+API_KEY = "f5qmn3ug0i6brql3"
+API_SECRET = "f26rzpezo9ksp0fwpv8vgmkanitedgu"
+
+# Initialize KiteConnect
+kite = KiteConnect(api_key=API_KEY)
+
+# Print the login URL to get your daily request token
+print("1. Open this URL in your browser, log in, and authorize the app:")
+print(kite.login_url())
+print("-" * 60)
+
+request_token = input("2. Enter the 'request_token' from the redirect URL: ").strip()
+
+# Generate session to get the access token
+data = kite.generate_session(request_token, api_secret=API_SECRET)
+access_token = data["access_token"]
+kite.set_access_token(access_token)
+print("Session generated successfully!")
+
+# Fetch NSE instrument list to find NIFTY 50's token
+instruments = kite.instruments("NSE")
+nifty_token = None
+for inst in instruments:
+    if inst["tradingsymbol"] == "NIFTY 50" and inst["exchange"] == "NSE":
+        nifty_token = inst["instrument_token"]
+        break
+
+if not nifty_token:
+    raise ValueError("Nifty 50 instrument token not found!")
+
+print(f"Nifty 50 Instrument Token: {nifty_token}")
+
+# Define the date range for the last 3 years
+to_date = datetime.now()
+from_date = to_date - timedelta(days=365 * 3)
+
+# Fetch historical data (1-day interval)
+historical_data = kite.historical_data(
+    instrument_token=nifty_token,
+    from_date=from_date,
+    to_date=to_date,
+    interval="day"
+)
+
+# Convert to DataFrame and save to CSV
+df = pd.DataFrame(historical_data)
+df.to_csv("nifty50_3years_kite.csv", index=False)
+print("Successfully downloaded 3 years of Nifty 50 historical data and saved to 'nifty50_3years_kite.csv'.")
+print(df.head())

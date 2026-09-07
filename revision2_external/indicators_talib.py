@@ -127,6 +127,9 @@ class TALibPredictiveAnalyticsBox:
         atr_talib_period = max(atr_talib_period, 1)
         atr_series = talib.ATR(high, low, close, timeperiod=atr_talib_period)
         atr = float(atr_series[-1]) if np.isfinite(atr_series[-1]) else 0.0
+        # BUGFIX: Ensure ATR has minimum value to prevent zero volatility
+        if atr < 0.001 and close[-1] > 0:
+            atr = max(0.001, close[-1] * 0.005)
         volatility = atr / close[-1] if close[-1] else 0.0
         volatility_score = _np_clip((scale["baseline_vol"] - volatility) / scale["baseline_vol"], -1, 1)
 
