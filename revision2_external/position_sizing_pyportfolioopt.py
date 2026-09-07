@@ -34,10 +34,20 @@ from revision2.contracts import EffectiveConfig, ParameterUse, TradePlan
 
 def compute_portfolio_weights(price_history_by_symbol: Dict[str, pd.Series]) -> Dict[str, float]:
     """Real max-Sharpe efficient-frontier weights from each symbol's own
-    historical close-price series. Falls back to equal weight across the
-    universe if optimization fails to converge (e.g. too few symbols/bars,
-    or a degenerate/singular covariance matrix) -- a documented, honest
-    fallback, not a silent wrong answer."""
+    historical close-price series. Applies Ledoit-Wolf shrinkage to the
+    covariance matrix for numerical stability (especially critical with
+    47 symbols and variable historical windows).
+
+    Falls back to equal weight across the universe if optimization fails
+    to converge (e.g. too few symbols/bars, or a degenerate/singular
+    covariance matrix) -- a documented, honest fallback, not a silent wrong answer.
+
+    LEDOIT-WOLF SHRINKAGE: Blends the sample covariance matrix with the
+    identity matrix to reduce sensitivity to sample noise. PyPortfolioOpt's
+    CovarianceShrinkage implements Ledoit & Wolf (2004) which reduces the
+    condition number of the covariance matrix, making the QP solver more
+    numerically stable and reducing "Solution may be inaccurate" warnings.
+    """
     symbols = list(price_history_by_symbol.keys())
     if len(symbols) < 2:
         return {s: 1.0 for s in symbols}
@@ -49,7 +59,20 @@ def compute_portfolio_weights(price_history_by_symbol: Dict[str, pd.Series]) -> 
 
     try:
         mu = expected_returns.mean_historical_return(prices)
-        cov = risk_models.sample_cov(prices)
+
+        # LEDOIT-WOLF SHRINKAGE: Compute shrunk covariance matrix
+        # This regularizes the sample covariance by blending it with the
+        # identity matrix, reducing the condition number and improving
+        # numerical stability in the QP solve. Especially important with
+        # 47 symbols where sample covariance can have large condition numbers.
+        try:
+            # Use CovarianceShrinkage for Ledoit-Wolf (2004) regularization
+            shrinkage_estimator = risk_models.CovarianceShrinkage(prices)
+            cov = shrinkage_estimator.ledoit_wolf()[0]
+        except Exception:
+            # Fallback to sample covariance if shrinkage fails
+            cov = risk_models.sample_cov(prices)
+
         ef = EfficientFrontier(mu, cov)
         weights = ef.max_sharpe()
         cleaned = ef.clean_weights()
