@@ -105,7 +105,7 @@ class CanonicalParameterRegistry:
         entries = [
             ParameterSpec("base_dp_dt_multiplier", "PA", "float", 1.0, 0.5, 2.0, True, "Base price momentum multiplier"),
             ParameterSpec("base_dv_dt_multiplier", "PA", "float", 1.0, 0.5, 2.0, True, "Base volume momentum multiplier"),
-            ParameterSpec("entry_confidence_threshold", "PA", "float", 0.50, 0.3, 0.8, True, "Minimum signal confidence"),
+            ParameterSpec("entry_confidence_threshold", "PA", "float", 0.15, 0.02, 0.35, True, "Minimum signal confidence"),
             ParameterSpec("exit_confidence_threshold", "ID", "float", 0.60, 0.4, 0.9, True, "Minimum exit confidence"),
             ParameterSpec("min_risk_reward_ratio", "MPC", "float", 1.50, 1.0, 3.0, True, "Minimum risk/reward"),
             ParameterSpec("profit_target_margin_buffer", "MPC", "float", 0.10, 0.0, 0.5, True, "Buffer above target"),
@@ -113,7 +113,7 @@ class CanonicalParameterRegistry:
             ParameterSpec("confirmation_2bar_weight", "PA", "float", 0.25, 0.1, 0.4, True, "2-bar confirmation"),
             ParameterSpec("momentum_weight", "PA", "float", 0.25, 0.1, 0.4, True, "Momentum weight"),
             ParameterSpec("volatility_weight", "PA", "float", 0.25, 0.05, 0.4, True, "Volatility weight"),
-            ParameterSpec("green_threshold", "PA", "float", 0.75, 0.6, 0.95, True, "Green signal threshold"),
+            ParameterSpec("green_threshold", "PA", "float", 0.25, 0.10, 0.45, True, "Green signal threshold"),
             ParameterSpec("amber_threshold_lower", "PA", "float", 0.50, 0.3, 0.7, True, "Amber threshold lower bound"),
             ParameterSpec("red_threshold", "PA", "float", 0.30, 0.1, 0.5, True, "Red threshold"),
             ParameterSpec("slippage_guard_threshold", "ID", "float", 0.05, 0.01, 0.15, True, "Max slippage"),
