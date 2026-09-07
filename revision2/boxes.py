@@ -100,6 +100,14 @@ class PredictiveAnalyticsBox:
 
         self._scale[symbol] = {"dp_scale": dp_scale, "dv_scale": dv_scale, "baseline_vol": max(baseline_vol, 1e-6)}
 
+        # TELEMETRY: Detect degenerate calibration (too-small warmup window)
+        if dp_scale <= 1e-5 or dv_scale <= 1e-5 or baseline_vol <= 1e-5:
+            import sys
+            print(f"[PA_TELEMETRY] {symbol} scale factors DEGENERATE (warmup bars: {len(warmup_bars)})", file=sys.stderr)
+            print(f"  dp_scale={dp_scale:.2e} (returns.std={float(returns.std() if len(returns) else np.nan):.2e})", file=sys.stderr)
+            print(f"  dv_scale={dv_scale:.2e} (vol_pct_change.std={float(vol_pct_change.std() if len(vol_pct_change) else np.nan):.2e})", file=sys.stderr)
+            print(f"  baseline_vol={baseline_vol:.2e} (atr={baseline_atr:.2e}, close={close[-1]:.4f})", file=sys.stderr)
+
     def _scale_for(self, symbol: str) -> Dict[str, float]:
         return self._scale.get(symbol, {"dp_scale": 1e-3, "dv_scale": 1.0, "baseline_vol": 1e-3})
 
