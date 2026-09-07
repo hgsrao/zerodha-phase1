@@ -599,30 +599,34 @@ class Revision2ExternalEngineOrchestrator:
                     target_price=plan.entry_price, fill_price=plan.entry_price, expected_qty=quantity,
                     actual_qty=quantity, symbol=symbol, seen_recent=False, proposed_notional=real_notional,
                 )
-                # GRID GATE INTEGRATION: Causal rejection of unfavorable market regimes
-                # FAIL-CLOSED: Grid gate must be initialized and must not silently fail
-                if not hasattr(self, 'grid_sync') or self.grid_sync is None:
-                    # Grid synchronizer not attached → REJECT ALL entries (fail-closed)
-                    funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
-                    continue  # REJECT: No grid synchronizer available
+                # GRID GATE INTEGRATION: DISABLED PENDING REAL DATA INJECTION
+                # Status: Fail-closed logic is implemented, but orchestrator never initializes:
+                # - self.grid_sync (no synchronizer attached)
+                # - self.nifty_prices (no market index data)
+                # - self.vix_prices (no volatility index data)
+                # Result: Would reject ALL entries (zero trades), which is fail-safe but not useful.
+                # Enable only when real, timestamp-aligned NIFTY/VIX data is injected.
 
-                try:
-                    grid_ok, grid_state = self.grid_sync.check_grid_synchronization(
-                        self.nifty_prices[max(0, bar_idx - 500):bar_idx + 1] if bar_idx < len(self.nifty_prices) else self.nifty_prices,
-                        float(self.vix_prices[bar_idx]) if bar_idx < len(self.vix_prices) else 20.0,
-                        trade_direction=signal.direction if hasattr(signal, 'direction') else 1
-                    )
-                    if not grid_ok:
+                if False:  # DISABLED
+                    if not hasattr(self, 'grid_sync') or self.grid_sync is None:
                         funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
-                        continue  # REJECT: Grid not synchronized, skip this entry
-                except Exception as e:
-                    # Grid sync error → FAIL-CLOSED: reject all remaining entries
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.critical(f"Grid synchronization error (FAIL-CLOSED): {e}")
-                    logger.critical(f"Rejecting all remaining entries for {symbol} due to grid failure")
-                    funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
-                    continue  # REJECT: Grid sync failure → fail-closed
+                        continue
+
+                    try:
+                        grid_ok, grid_state = self.grid_sync.check_grid_synchronization(
+                            self.nifty_prices[max(0, bar_idx - 500):bar_idx + 1] if bar_idx < len(self.nifty_prices) else self.nifty_prices,
+                            float(self.vix_prices[bar_idx]) if bar_idx < len(self.vix_prices) else 20.0,
+                            trade_direction=signal.direction if hasattr(signal, 'direction') else 1
+                        )
+                        if not grid_ok:
+                            funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
+                            continue
+                    except Exception as e:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.critical(f"Grid sync error (FAIL-CLOSED): {e}")
+                        funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
+                        continue
                 funnel["gates_evaluated"] += 1
                 if not gate_result["passed"]:
                     funnel["gates_rejected"] += 1

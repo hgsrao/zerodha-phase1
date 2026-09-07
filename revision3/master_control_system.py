@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
 """
+⚠️  EXPERIMENTAL: Revision 3 Master Control System
+
+STATUS: Prototype only. NOT production-ready.
+
+Known Incomplete:
+- Grid synchronization: Method signatures present, data flow incomplete
+- PID controller: Logic stubbed, not integrated into execution path
+- Safety relay: Static preflight only, not continuous monitoring
+
+DO NOT DEPLOY without:
+1. Real stock + NIFTY data alignment (timestamp basis, not synthetic)
+2. PID integration into actual execution + stop/exit paths
+3. Continuous safety monitoring during live/replay execution
+4. Full integration test suite proving gate actually stops fills
+
+---
+
 MASTER CONTROL SYSTEM: Protection + Grid Sync + PID Controller Integration
 
 Three-Layer Architecture:
@@ -245,50 +262,26 @@ class MasterControlSystem:
         direction: int = 1,
     ) -> Tuple[bool, PIDState]:
         """
-        LAYER 1: PID-based exit decision.
+        ⚠️  LAYER 1: PID-based exit decision (INCOMPLETE)
 
-        Returns: (should_exit, pid_state)
-        - should_exit = True if PID recommends exit
-        - pid_state = detailed PID calculation state
+        TEMPORARY NO-OP: PID logic is not integrated.
+
+        Known issues:
+        - Does not track chart studies confidence
+        - ATR derivative calculated from prior PA tightness (wrong)
+        - Not integrated into actual execution path (stops, exits)
+        - Test failures hidden by broad exception handling
+
+        Returns: (False, pid_state) - always no-exit until integration complete
         """
 
         if not self.enabled_layers["pid"]:
             return False, self.pid_state
 
         try:
-            # LAYER 1: PID CONTROLLER - Calculate exit signal
-            # PID inputs: confidence decay, time held, ATR droop
-
-            # P component: Proportional to time held (position aging)
-            kp = 0.01  # Proportional gain
-            p_component = (bar_index - state.get('entry_bar', bar_index)) * kp
-
-            # I component: Integrated confidence decay
-            ki = 0.005  # Integral gain
-            confidence_error = 1.0 - pa_confidence  # Error = target - actual
-            self.pid_state.pa_tightness = confidence_error * ki
-
-            # D component: Derivative of ATR droop (volatility collapse)
-            kd = 0.02  # Derivative gain
-            current_atr_safe = max(0.001, current_atr)
-            atr_change = self.pid_state.pa_tightness - getattr(self, '_last_atr_tightness', 0)
-            self._last_atr_tightness = self.pid_state.pa_tightness
-            d_component = atr_change * kd
-
-            # Calculate combined tightness (0 to 1)
-            self.pid_state.combined_tightness = p_component + self.pid_state.pa_tightness + d_component
-            self.pid_state.combined_tightness = max(0.0, min(1.0, self.pid_state.combined_tightness))
-
-            # Exit threshold
-            exit_threshold = 0.6  # Exit when tightness exceeds 60%
-
-            # Determine exit
-            should_exit = self.pid_state.combined_tightness > exit_threshold
-
-            if should_exit:
-                logger.info(f"PID exit triggered: tightness={self.pid_state.combined_tightness:.2f} > {exit_threshold}")
-
-            return should_exit, self.pid_state
+            # TEMPORARY: Return no-exit until PID is properly integrated
+            logger.warning(f"PID called for {symbol} but not integrated; returning no-exit")
+            return False, self.pid_state
 
         except Exception as e:
             logger.error(f"PID evaluation error: {e}")
