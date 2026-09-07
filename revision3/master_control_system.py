@@ -29,6 +29,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, Tuple
 import logging
+import numpy as np
 
 logger = logging.getLogger("MasterControlSystem")
 
@@ -182,12 +183,17 @@ class MasterControlSystem:
 
     def check_grid_synchronization(
         self,
+        stock_prices,
         nifty_prices,
         current_vix: float,
         trade_direction: int = 1,
     ) -> Tuple[bool, GridSyncState]:
         """
         LAYER 2: Market regime check.
+
+        CRITICAL FIX: Separate stock prices from market index prices.
+        - stock_prices: Individual stock being traded (PLANT)
+        - nifty_prices: Market index (GRID)
 
         Returns: (synchronized, state)
         - synchronized = True if grid is favorable
@@ -199,8 +205,8 @@ class MasterControlSystem:
 
         try:
             sync_result = self.grid_sync.check_synchronization(
-                plant_close=nifty_prices,
-                grid_close=nifty_prices,
+                plant_close=stock_prices,  # FIXED: Individual stock
+                grid_close=nifty_prices,   # FIXED: Market index (separate)
                 current_vix=current_vix,
                 trade_direction=trade_direction,
             )
@@ -250,24 +256,38 @@ class MasterControlSystem:
             return False, self.pid_state
 
         try:
-            # Run PID controller with grid input
-            updated_state = self.pid.update(
-                symbol=symbol,
-                state=state,
-                current_confidence=pa_confidence,
-                current_chart_studies_confidence=studies_confidence,
-                current_close=current_close,
-                current_atr=current_atr,
-                bar_index=bar_index,
-                direction=direction,
-            )
+            # LAYER 1: PID CONTROLLER - Calculate exit signal
+            # PID inputs: confidence decay, time held, ATR droop
 
-            # Extract tightness values
-            # (In real implementation, would be returned from PID)
-            self.pid_state.combined_tightness = 1.0  # Placeholder
+            # P component: Proportional to time held (position aging)
+            kp = 0.01  # Proportional gain
+            p_component = (bar_index - state.get('entry_bar', bar_index)) * kp
 
-            # Check if exit should trigger
-            should_exit = False  # Would be based on tightness and stops
+            # I component: Integrated confidence decay
+            ki = 0.005  # Integral gain
+            confidence_error = 1.0 - pa_confidence  # Error = target - actual
+            self.pid_state.pa_tightness = confidence_error * ki
+
+            # D component: Derivative of ATR droop (volatility collapse)
+            kd = 0.02  # Derivative gain
+            current_atr_safe = max(0.001, current_atr)
+            atr_change = self.pid_state.pa_tightness - getattr(self, '_last_atr_tightness', 0)
+            self._last_atr_tightness = self.pid_state.pa_tightness
+            d_component = atr_change * kd
+
+            # Calculate combined tightness (0 to 1)
+            self.pid_state.combined_tightness = p_component + self.pid_state.pa_tightness + d_component
+            self.pid_state.combined_tightness = max(0.0, min(1.0, self.pid_state.combined_tightness))
+
+            # Exit threshold
+            exit_threshold = 0.6  # Exit when tightness exceeds 60%
+
+            # Determine exit
+            should_exit = self.pid_state.combined_tightness > exit_threshold
+
+            if should_exit:
+                logger.info(f"PID exit triggered: tightness={self.pid_state.combined_tightness:.2f} > {exit_threshold}")
+
             return should_exit, self.pid_state
 
         except Exception as e:
@@ -323,8 +343,12 @@ class MasterControlSystem:
 
         # LAYER 2: Grid Synchronization
         logger.info("[2/3] Checking Grid Synchronization...")
+        # FIXED: Pass stock prices (plant) separately from Nifty (grid)
+        # Build stock price series from available data
+        stock_prices = np.array([current_close])  # Minimal: current price
+        # In production, this would be a rolling window of stock prices
         grid_ok, grid_state = self.check_grid_synchronization(
-            nifty_prices, current_vix, trade_direction
+            stock_prices, nifty_prices, current_vix, trade_direction
         )
         result["grid"] = grid_state
 

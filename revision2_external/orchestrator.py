@@ -600,19 +600,29 @@ class Revision2ExternalEngineOrchestrator:
                     actual_qty=quantity, symbol=symbol, seen_recent=False, proposed_notional=real_notional,
                 )
                 # GRID GATE INTEGRATION: Causal rejection of unfavorable market regimes
-                # Check grid synchronization BEFORE allowing entry
-                if hasattr(self, 'grid_sync') and self.grid_sync is not None:
-                    try:
-                        grid_ok, _ = self.grid_sync.check_grid_synchronization(
-                            self.nifty_prices[max(0, bar_idx - 500):bar_idx + 1] if bar_idx < len(self.nifty_prices) else self.nifty_prices,
-                            float(self.vix_prices[bar_idx]) if bar_idx < len(self.vix_prices) else 20.0,
-                            trade_direction=signal.direction if hasattr(signal, 'direction') else 1
-                        )
-                        if not grid_ok:
-                            funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
-                            continue  # REJECT: Grid not synchronized, skip this entry
-                    except Exception:
-                        pass  # If grid check fails, proceed with normal gates
+                # FAIL-CLOSED: Grid gate must be initialized and must not silently fail
+                if not hasattr(self, 'grid_sync') or self.grid_sync is None:
+                    # Grid synchronizer not attached → REJECT ALL entries (fail-closed)
+                    funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
+                    continue  # REJECT: No grid synchronizer available
+
+                try:
+                    grid_ok, grid_state = self.grid_sync.check_grid_synchronization(
+                        self.nifty_prices[max(0, bar_idx - 500):bar_idx + 1] if bar_idx < len(self.nifty_prices) else self.nifty_prices,
+                        float(self.vix_prices[bar_idx]) if bar_idx < len(self.vix_prices) else 20.0,
+                        trade_direction=signal.direction if hasattr(signal, 'direction') else 1
+                    )
+                    if not grid_ok:
+                        funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
+                        continue  # REJECT: Grid not synchronized, skip this entry
+                except Exception as e:
+                    # Grid sync error → FAIL-CLOSED: reject all remaining entries
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.critical(f"Grid synchronization error (FAIL-CLOSED): {e}")
+                    logger.critical(f"Rejecting all remaining entries for {symbol} due to grid failure")
+                    funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
+                    continue  # REJECT: Grid sync failure → fail-closed
                 funnel["gates_evaluated"] += 1
                 if not gate_result["passed"]:
                     funnel["gates_rejected"] += 1
