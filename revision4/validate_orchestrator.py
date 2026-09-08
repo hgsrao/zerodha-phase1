@@ -7,7 +7,8 @@ import os
 import json
 import pandas as pd
 from typing import Dict, Sequence
-from revision4.contracts import EffectiveConfig, Bar
+from revision4.contracts import EffectiveConfig, Bar, ExitEvent, ExitReason
+from revision4.config_access import calculate_transaction_cost
 from revision4.dataset_seal import DatasetValidator
 from revision4.timestamp_orchestrator import TimestampOrchestrator
 from revision4.box_adapters import build_candidate_provider, build_exit_provider
@@ -108,16 +109,19 @@ def run_validation_replay(
     if not bars:
         return {"success": False, "error": f"No data for {symbol} in range"}
 
-    # Load warmup bars (60 bars strictly before the sealed month)
-    # This is required for PA calibration to avoid degenerate scales
-    print(f"\nLoading warmup bars...")
+    # Load exactly 60 warmup bars (strictly before the sealed month)
+    # PA calibration requires this exact count for canonical scales
+    print(f"\nLoading exactly 60 warmup bars...")
     warmup_start = pd.Timestamp(start_date, tz='UTC') - pd.DateOffset(days=60)
     warmup_end = pd.Timestamp(start_date, tz='UTC') - pd.DateOffset(days=1)
 
     warmup_bars_by_symbol = {}
     try:
-        warmup_data = loader.get_bars_for_month(symbol, warmup_start.strftime('%Y-%m-%d'), warmup_end.strftime('%Y-%m-%d'))
-        if len(warmup_data) >= 30:
+        all_warmup = loader.get_bars_for_month(symbol, warmup_start.strftime('%Y-%m-%d'), warmup_end.strftime('%Y-%m-%d'))
+        # Take exactly last 60 bars before sealed month (ensures pre-run calibration)
+        warmup_data = all_warmup[-60:] if len(all_warmup) >= 60 else all_warmup
+
+        if len(warmup_data) >= 60:
             # Convert to DataFrame format that PA expects
             df_data = {
                 'timestamp': [b.timestamp for b in warmup_data],
@@ -129,9 +133,9 @@ def run_validation_replay(
             }
             warmup_df = pd.DataFrame(df_data)
             warmup_bars_by_symbol[symbol] = warmup_df
-            print(f"✓ Loaded {len(warmup_data)} warmup bars for {symbol}")
+            print(f"✓ Loaded exactly 60 warmup bars for {symbol}")
         else:
-            print(f"⚠ Only {len(warmup_data)} warmup bars available (need 30+)")
+            print(f"⚠ Only {len(warmup_data)} warmup bars available (need 60)")
     except Exception as e:
         print(f"⚠ Failed to load warmup bars: {e}")
 
@@ -149,6 +153,53 @@ def run_validation_replay(
         result = orchestrator.run({symbol: bars})
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+    # EOD flattening: close all remaining open positions
+    print(f"\nApplying EOD flattening...")
+    final_bars = {symbol: bars[-1]} if bars else {}  # Last bar of month
+    if final_bars and orchestrator.ledger.positions:
+        eod_exits = []
+        for pos_symbol, position in list(orchestrator.ledger.positions.items()):
+            if pos_symbol in final_bars:
+                bar = final_bars[pos_symbol]
+                exit_price = bar.close
+
+                # Calculate exit cost (SELL for longs, BUY for shorts)
+                exit_side = "SELL" if position.direction == 1 else "BUY"
+                exit_cost = calculate_transaction_cost(exit_price, int(position.quantity), exit_side)
+
+                # Calculate P&L
+                if position.direction == 1:
+                    gross_pnl = (exit_price - position.entry_price) * position.quantity
+                else:
+                    gross_pnl = (position.entry_price - exit_price) * position.quantity
+                pnl_realized = gross_pnl - position.cost_paid - exit_cost
+                pnl_pct = (pnl_realized / (position.entry_price * position.quantity)) * 100.0 if position.entry_price else 0.0
+
+                exit_event = ExitEvent(
+                    exit_id=f"eod_{pos_symbol}",
+                    symbol=pos_symbol,
+                    timestamp_exit=bar.timestamp,
+                    bar_index_exit=result.bars_processed,
+                    entry_price=position.entry_price,
+                    exit_price=exit_price,
+                    quantity=int(position.quantity),
+                    direction=position.direction,
+                    bars_held=position.bars_held(result.bars_processed),
+                    entry_cost_paid=position.cost_paid,
+                    exit_cost_paid=exit_cost,
+                    exit_reason=ExitReason.EOD_FLATTENING,
+                    pnl_realized=pnl_realized,
+                    pnl_pct=pnl_pct,
+                )
+                ok, msg = orchestrator.ledger.close_position(exit_event, config)
+                if ok:
+                    eod_exits.append(exit_event)
+                    print(f"  ✓ Closed {pos_symbol} at EOD: ₹{pnl_realized:,.0f}")
+                else:
+                    print(f"  ✗ Failed to close {pos_symbol}: {msg}")
+        if eod_exits:
+            print(f"✓ EOD flattening complete: {len(eod_exits)} positions closed")
 
     print(f"✓ Replay complete")
     print(f"\nResults:")
