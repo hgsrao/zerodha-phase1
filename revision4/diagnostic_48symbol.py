@@ -14,6 +14,7 @@ import csv
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
+from uuid import uuid4
 from revision4.validate_orchestrator import ManifestDataLoader
 from revision4.contracts import EffectiveConfig, Bar
 from revision4.timestamp_orchestrator import TimestampOrchestrator
@@ -27,6 +28,9 @@ class DiagnosticCollector:
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
 
+        # This identifier is embedded in both generated artifacts.  A summary
+        # without raw observations from the same collection run is not auditable.
+        self.run_id = f"slippage-{datetime.now().strftime('%Y%m%dT%H%M%S')}-{uuid4().hex[:12]}"
         self.raw_observations: List[Dict] = []
         self.session_dates_seen: Dict[str, set] = {}  # {symbol: {YYYY-MM-DD, ...}}
 
@@ -49,9 +53,11 @@ class DiagnosticCollector:
         Session gap = date(decision_bar) != date(fill_bar)
         Intraday gap = date(decision_bar) == date(fill_bar)
         """
-        # Extract dates (YYYY-MM-DD)
-        decision_date = decision_timestamp.split('T')[0]
-        fill_date = fill_timestamp.split('T')[0]
+        # pandas renders timestamps with either ``T`` or a space depending on
+        # their source.  Parse both forms instead of splitting on one spelling
+        # and accidentally comparing the complete timestamps as "dates".
+        decision_date = pd.Timestamp(decision_timestamp).date().isoformat()
+        fill_date = pd.Timestamp(fill_timestamp).date().isoformat()
 
         # Session gap occurs when decision and fill are on different dates
         is_session_gap = decision_date != fill_date
@@ -59,6 +65,7 @@ class DiagnosticCollector:
         slippage_pct = abs(next_open - decision_close) / decision_close * 100
 
         obs = {
+            "run_id": self.run_id,
             "symbol": symbol,
             "bar_index": bar_index,
             "decision_timestamp": decision_timestamp,
@@ -95,6 +102,7 @@ class DiagnosticCollector:
             return
 
         summary = {
+            "run_id": self.run_id,
             "total_observations": len(self.raw_observations),
             "run_timestamp": datetime.now().isoformat(),
             "methodology": "close[t] vs open[t+1] for actual candidates only",
