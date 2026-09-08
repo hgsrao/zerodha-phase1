@@ -8,7 +8,7 @@ Every object is hashable, serializable, and carries provenance.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Tuple
 from enum import Enum
 from datetime import datetime
 
@@ -289,92 +289,102 @@ class DatasetSeal:
 @dataclass(frozen=True)
 class EffectiveConfig:
     """
-    68 CANONICAL PARAMETERS of the strategy.
+    All 89 canonical parameters (69 target + 20 safety).
+    Derived from canonical_parameter_registry.
     All parameters must be explicitly declared (no placeholders).
     Immutable, frozen at start of run.
     """
-    # ===== ENTRY SIGNAL THRESHOLDS (6 params) =====
-    pa_confidence_min: float = 0.75
-    chart_confidence_min: float = 0.60
-    trading_start_hour: int = 9
-    trading_start_minute: int = 15
-    trading_end_hour: int = 14
-    trading_end_minute: int = 0
+    amber_threshold_lower: float = 0.5
+    atr_calculation_period: int = 20
+    base_dp_dt_multiplier: float = 1.0
+    base_dv_dt_multiplier: float = 1.0
+    capital_allocation_mode: str = 'equal'
+    capital_per_trade_fraction: float = 0.02
+    confirmation_2bar_weight: float = 0.25
+    data_validation_mode: str = 'strict'
+    drawdown_derated_threshold: float = 0.18
+    drawdown_halt_threshold: float = 0.25
+    drawdown_normal_threshold: float = 0.1
+    entry_confidence_threshold: float = 0.15
+    entry_signal_smoothing_window: int = 3
+    exclude_symbols: List = field(default_factory=list)
+    exit_confidence_threshold: float = 0.6
+    exit_signal_smoothing_window: int = 2
+    green_threshold: float = 0.25
+    high_vol_regime_multiplier: float = 1.0
+    learning_rate_exploration_factor: float = 0.05
+    limit_order_offset_percent: float = 0.02
+    lot_size_by_symbol: Dict = field(default_factory=dict)
+    low_vol_regime_multiplier: float = 1.0
+    max_hold_bars: int = 60
+    max_loss_per_day_rupees: int = 50000
+    max_loss_per_trade_rupees: int = 5000
+    max_positions_live: int = 5
+    max_positions_per_symbol: int = 1
+    max_retry_attempts: int = 2
+    max_sector_exposure_fraction: float = 0.3
+    max_symbol_concentration: float = 0.05
+    medium_vol_regime_multiplier: float = 1.0
+    min_capital_buffer_fraction: float = 0.1
+    min_hold_bars: int = 2
+    min_risk_reward_ratio: float = 1.5
+    minimum_profit_margin_over_cost: float = 0.5
+    momentum_calculation_period: int = 20
+    momentum_weight: float = 0.25
+    order_timeout_seconds: int = 30
+    order_type: str = 'MARKET'
+    phase1_exploration_intensity: int = 50
+    phase2_optimization_intensity: int = 250
+    pid_derivative_smoothing: int = 3
+    pid_integral_max_clamp: float = 0.1
+    pid_integral_window_bars: int = 10
+    pid_kd_entry: float = 0.08
+    pid_kd_exit: float = 0.06
+    pid_ki_entry: float = 0.05
+    pid_ki_exit: float = 0.04
+    pid_kp_entry: float = 0.15
+    pid_kp_exit: float = 0.12
+    portfolio_lambda_risk_limit: float = 0.15
+    profit_target_atr_mult: float = 1.5
+    profit_target_margin_buffer: float = 0.1
+    red_threshold: float = 0.3
+    retry_delay_seconds: int = 5
+    saturation_exit_bars: int = 5
+    signal_persistence_requirement: float = 1.5
+    slippage_cost_multiplier: float = 1.0
+    slippage_guard_threshold: float = 0.05
+    slippage_tolerance_percent: float = 0.1
+    stop_loss_atr_mult: float = 1.2
+    symbols_to_trade: List = field(default_factory=list)
+    trading_hours_end: str = '15:30'
+    trading_hours_start: str = '09:15'
+    trailing_stop_atr_mult: float = 5.5
+    volatility_regime_multiplier: float = 1.0
+    volatility_weight: float = 0.25
+    vwap_calculation_period: int = 20
+    vwap_weight: float = 0.25
 
-    # ===== RISK MANAGEMENT (8 params) =====
-    atr_period: int = 20
-    atr_stop_multiple: float = 1.0
-    atr_target_multiple: float = 2.5
-    max_risk_per_trade: float = 500.0
-    max_position_value: float = 2083.0
-    risk_per_symbol_max: float = 2083.0
+    # Safety parameters (immutable)
+    drawdown_derate_multiplier: float = 0.8
+    drawdown_derate_threshold: float = 0.18
+    kill_switch_enabled: bool = True
+    lambda_derate_multiplier: float = 0.8
+    lambda_derate_threshold: float = 0.15
     max_concurrent_positions: int = 5
-    position_hold_bars: int = 60
-
-    # ===== PORTFOLIO CONSTRAINTS (5 params) =====
-    max_daily_loss: float = 2000.0
-    max_drawdown_pct: float = 50.0
-    max_sector_exposure: float = 30000.0
-    max_leverage: float = 2.0
-    min_cash_reserve: float = 5000.0
-
-    # ===== MPC (MODEL PREDICTIVE CONTROL) (4 params) =====
-    mpc_scaling_enabled: bool = True
-    mpc_loss_threshold: float = 2000.0
-    mpc_scaling_factor: float = 1.0
-    mpc_lookback_bars: int = 20
-
-    # ===== TRANSACTION COSTS (5 params) =====
-    entry_cost_pct: float = 0.0005
-    exit_cost_pct: float = 0.0005
-    fixed_cost_per_trade: float = 5.0
-    stt_cost_pct: float = 0.001
-    brokerage_cost_pct: float = 0.0003
-
-    # ===== ORDER MANAGEMENT (6 params) =====
-    order_expiration_bars: int = 60
-    next_bar_fill_only: bool = True
-    partial_fill_allowed: bool = False
-    order_timeout_bars: int = 60
-    order_retry_policy: str = "none"
-    slippage_pct: float = 0.001
-
-    # ===== PA BOX PARAMETERS (7 params) =====
-    pa_lookback_period: int = 20
-    pa_momentum_threshold: float = 0.01
-    pa_volume_threshold: float = 1.0
-    pa_trend_acceleration: float = 0.1
-    pa_signal_type: str = "momentum"
-    pa_confidence_decay: float = 0.95
-    pa_noise_level: float = 0.05
-
-    # ===== CHART STUDIES (6 params) =====
-    rsi_period: int = 14
-    rsi_overbought: float = 70.0
-    rsi_oversold: float = 30.0
-    macd_fast: int = 12
-    macd_slow: int = 26
-    macd_signal: int = 9
-
-    # ===== GRID SYNCHRONIZATION (5 params) =====
-    grid_sync_enabled: bool = True
-    vix_min_threshold: float = 10.0
-    vix_max_threshold: float = 30.0
-    trend_confirmation_required: bool = True
-    sector_rotation_check: bool = False
-
-    # ===== EXIT LOGIC (5 params) =====
-    exit_on_target: bool = True
-    exit_on_stop: bool = True
-    exit_on_time: bool = True
-    exit_on_eod: bool = True
-    trailing_stop_enabled: bool = False
-
-    # ===== POSITION MANAGER (4 params) =====
-    position_ranking_enabled: bool = True
-    position_ranking_metric: str = "confidence"
-    position_rebalancing_enabled: bool = False
-    position_sector_limits: bool = False
+    max_daily_loss_rupees: int = 50000
+    max_exposure_per_symbol_fraction: float = 0.15
+    max_gross_exposure_fraction: float = 0.5
+    max_market_data_age_seconds: int = 30
+    max_position_quantity: int = 100
+    max_reconciliation_qty_diff: int = 0
+    max_slippage_fraction: float = 0.001
+    min_position_quantity: int = 1
+    min_signal_confidence: float = 0.55
+    no_entry_cutoff_time: str = '15:20'
+    order_dedup_window_seconds: int = 5
+    order_timeout_seconds_execution: int = 30
+    safety_drawdown_halt_threshold: float = 0.25
+    safety_min_risk_reward_ratio: float = 1.5
 
     def require(self, param_name: str) -> Any:
         """
@@ -383,12 +393,10 @@ class EffectiveConfig:
         """
         if not hasattr(self, param_name):
             raise KeyError(f"Unknown parameter: {param_name}")
-        value = getattr(self, param_name)
-        # Audit trail would log here
-        return value
+        return getattr(self, param_name)
 
     def get_all_params(self) -> Dict[str, Any]:
-        """Return all 68 parameters as dict."""
+        """Return all 89 parameters as dict."""
         import dataclasses
         return {f.name: getattr(self, f.name) for f in dataclasses.fields(self)}
 
