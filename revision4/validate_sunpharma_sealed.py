@@ -8,6 +8,7 @@ import json
 import sys
 import hashlib
 from datetime import datetime
+from dataclasses import asdict
 from typing import Dict, List, Optional
 from collections import Counter
 
@@ -18,6 +19,7 @@ from revision4.box_adapters import build_candidate_provider, build_exit_provider
 from revision4.gates_proper import ProperGateEvaluator
 from revision4.paper_broker import PaperBroker
 from revision4.portfolio import PortfolioLedger
+from revision4.gate16_remediation import Gate16Remediator
 from revision4.config_access import calculate_transaction_cost
 import pandas as pd
 
@@ -82,12 +84,15 @@ def _compute_config_hash(config: EffectiveConfig) -> str:
         return f"error:{str(e)}"
 
 
-def _parse_rejection_reason(event_str: str) -> Optional[str]:
-    """Extract gate rejection reason from event log entry."""
+def _parse_rejection_reason(event) -> Optional[str]:
+    """Extract the responsible gate from a structured event-log tuple."""
+    if isinstance(event, tuple) and len(event) == 3 and event[1] == "GATE_REJECT":
+        detail = event[2]
+        if ":" in detail:
+            return detail.split(":", 1)[1].split(":", 1)[0]
+    event_str = str(event)
     if "GATE_REJECT" in event_str and ":" in event_str:
-        parts = event_str.split(":")
-        if len(parts) >= 3:
-            return parts[2].strip()
+        return "UNPARSEABLE_GATE_REJECTION"
     return None
 
 
@@ -139,6 +144,18 @@ def run_sunpharma_validation():
     broker = PaperBroker()
     gate_evaluator = ProperGateEvaluator(config)
 
+    print(f"\n[HASH] Computing dataset and config identity...")
+    dataset_hash = _compute_dataset_hash(manifest_path, data_dir)
+    config_hash = _compute_config_hash(config)
+    if dataset_hash.startswith("error:") or config_hash.startswith("error:"):
+        raise RuntimeError(f"cannot start sealed validation: {dataset_hash}; {config_hash}")
+    remediation_run_id = f"sunpharma-202408-{config_hash[:12]}"
+    remediation_audit_path = f"diagnostic_output/{remediation_run_id}_gate16_audit.jsonl"
+    remediator = Gate16Remediator(
+        config, dataset_hash=dataset_hash, config_hash=config_hash,
+        audit_log_path=remediation_audit_path, run_id=remediation_run_id,
+    )
+
     orchestrator = TimestampOrchestrator(
         config=config,
         candidate_provider=build_candidate_provider(config, {symbol: warmup_df}),
@@ -146,11 +163,8 @@ def run_sunpharma_validation():
         ledger=ledger,
         broker=broker,
         gate_evaluator=gate_evaluator,
+        gate16_remediator=remediator,
     )
-
-    print(f"\n[HASH] Computing dataset and config identity...")
-    dataset_hash = _compute_dataset_hash(manifest_path, data_dir)
-    config_hash = _compute_config_hash(config)
     print(f"  Dataset hash: {dataset_hash}")
     print(f"  Config hash: {config_hash}")
 
@@ -265,7 +279,7 @@ def run_sunpharma_validation():
     # Extract rejection reasons
     rejection_reasons = Counter()
     for event in gate_rejects:
-        reason = _parse_rejection_reason(str(event))
+        reason = _parse_rejection_reason(event)
         if reason:
             rejection_reasons[reason] += 1
 
@@ -328,7 +342,7 @@ def run_sunpharma_validation():
 
     # FINAL STATUS: only PASSED if reconciliation is exact AND no RuntimeError occurred
     # RuntimeError during run would have returned early, so we only check reconciliation here
-    final_status = "PASSED" if reconciliation_ok else "FAILED"
+    final_status = "REMEDIATION_REQUIRED" if remediator.violations and reconciliation_ok else ("PASSED" if reconciliation_ok else "SHUTDOWN")
 
     print(f"  Final Status: {final_status}")
 
@@ -338,6 +352,13 @@ def run_sunpharma_validation():
         "symbol": symbol,
         "period": "2024-08-01 to 2024-08-31",
         "status": final_status,
+        "gate16_remediation": {
+            "audit_log_path": remediation_audit_path,
+            "violations": [asdict(item) for item in remediator.violations],
+            "audit_chain_valid": remediator.verify_chain(),
+            "quarantine_mode": remediator.quarantine_mode,
+            "trading_halted": remediator.trading_halted,
+        },
         "dataset_hash": _compute_dataset_hash(manifest_path, data_dir),
         "config_hash": _compute_config_hash(config),
         "metrics": {

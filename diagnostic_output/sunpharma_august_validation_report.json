@@ -1,0 +1,68 @@
+{
+  "timestamp": "2026-09-08T14:30:15.905190",
+  "symbol": "SUNPHARMA",
+  "period": "2024-08-01 to 2024-08-31",
+  "status": "REMEDIATION_REQUIRED",
+  "gate16_remediation": {
+    "audit_log_path": "diagnostic_output/sunpharma-202408-34cd884062ec_gate16_audit.jsonl",
+    "violations": [
+      {
+        "violation_id": "588436da-aecb-4305-bd37-94e69bf2bc20",
+        "run_id": "sunpharma-202408-34cd884062ec",
+        "dataset_hash": "d7d391794f426204a1e3bb9a4dc6e8e872b341f6a1f61508d5f291ba60a7c7db",
+        "config_hash": "34cd884062ecc2698de293d232315bfdd00295980ca437fda64993855d674f45",
+        "timestamp_detected": "2024-08-02 03:46:00+00:00",
+        "order_id": "375_SUNPHARMA",
+        "fill_id": "95875d9f-e9be-41b0-8c95-26d7102eab8d",
+        "symbol": "SUNPHARMA",
+        "measured_slippage_pct": 0.10350436196954013,
+        "tolerance_pct": 0.1,
+        "prior_hash": "GENESIS",
+        "record_hash": "147df618fc5098cc9232e51ad53752f8307362a86cc4b87731dad14dbad47554",
+        "signature_status": "UNSIGNED"
+      }
+    ],
+    "audit_chain_valid": true,
+    "quarantine_mode": true,
+    "trading_halted": false
+  },
+  "dataset_hash": "d7d391794f426204a1e3bb9a4dc6e8e872b341f6a1f61508d5f291ba60a7c7db",
+  "config_hash": "34cd884062ecc2698de293d232315bfdd00295980ca437fda64993855d674f45",
+  "metrics": {
+    "timestamps_processed": 7875,
+    "bars_processed": 7875,
+    "orders_submitted": 11,
+    "fills": 11,
+    "exits": 11,
+    "eod_flattens": 0,
+    "gate_rejections": 8,
+    "cross_session_cancellations": 0
+  },
+  "rejection_breakdown": {
+    "Gate12StrategySignals": 8
+  },
+  "financials": {
+    "starting_equity": 100000.0,
+    "ending_equity": 99921.15332947497,
+    "realized_pnl": -78.84667052500161,
+    "entry_costs": 21.96,
+    "exit_costs": 12.58,
+    "total_costs": 34.54
+  },
+  "reconciliation": {
+    "pending_orders": 0,
+    "reserved_cash": 0.0,
+    "open_positions": 0,
+    "exact": true
+  },
+  "ledger_identity": {
+    "starting_cash": 100000.0,
+    "cash": 99921.15332947497,
+    "realized_pnl": -78.84667052500161,
+    "final_daily_pnl": 0.0
+  },
+  "daily_pnl_series": {
+    "2024-08-01": -76.38541060680237,
+    "2024-08-02": -2.4612599181992465
+  }
+}

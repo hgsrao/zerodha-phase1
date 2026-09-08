@@ -3,6 +3,7 @@ import json
 from revision4.contracts import Bar, EffectiveConfig, OrderIntent, SizedProposal, TradePlan
 from revision4.gate16_remediation import Gate16Remediator
 from revision4.timestamp_orchestrator import RankedOrderCandidate, TimestampOrchestrator
+from revision4.validate_sunpharma_sealed import _parse_rejection_reason
 
 
 def _order(timestamp, index):
@@ -25,7 +26,7 @@ class _Gate16Failure:
 def test_breach_quarantines_flattens_and_requires_manual_recovery(tmp_path):
     config = EffectiveConfig()
     audit = tmp_path / "violations.jsonl"
-    remediator = Gate16Remediator(config, str(audit), run_id="test-run")
+    remediator = Gate16Remediator(config, dataset_hash="dataset-test", config_hash="config-test", audit_log_path=str(audit), run_id="test-run")
     first = "2024-08-02T10:00:00+00:00"
     second = "2024-08-02T10:01:00+00:00"
     third = "2024-08-02T10:02:00+00:00"
@@ -49,4 +50,11 @@ def test_breach_quarantines_flattens_and_requires_manual_recovery(tmp_path):
     assert not remediator.approve_manual_recovery("", orchestrator.ledger)
     assert remediator.approve_manual_recovery("risk-reviewer", orchestrator.ledger)
     # The real run ledger is clean after the scheduled adverse next-bar flatten.
-    assert json.loads(audit.read_text().splitlines()[0])["run_id"] == "test-run"
+    persisted = json.loads(audit.read_text().splitlines()[0])
+    assert persisted["run_id"] == "test-run"
+    assert persisted["dataset_hash"] == "dataset-test"
+
+
+def test_structured_gate_rejection_reason_does_not_parse_the_timestamp():
+    event = ("2024-08-02 03:46:00+00:00", "GATE_REJECT", "375_SUNPHARMA:Gate12StrategySignals: confidence below threshold")
+    assert _parse_rejection_reason(event) == "Gate12StrategySignals"

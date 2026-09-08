@@ -23,6 +23,8 @@ from revision4.contracts import ExitEvent, ExitReason, FillEvent, OrderIntent, B
 class SafetyViolation:
     violation_id: str
     run_id: str
+    dataset_hash: str
+    config_hash: str
     timestamp_detected: str
     order_id: str
     fill_id: str
@@ -37,9 +39,12 @@ class SafetyViolation:
 class Gate16Remediator:
     """Append-only, hash-linked Gate 16 remediation state for one replay."""
 
-    def __init__(self, config, audit_log_path: Optional[str] = None, run_id: Optional[str] = None):
+    def __init__(self, config, *, dataset_hash: str, config_hash: str,
+                 audit_log_path: Optional[str] = None, run_id: Optional[str] = None):
         self.config = config
         self.run_id = run_id or str(uuid.uuid4())
+        self.dataset_hash = dataset_hash
+        self.config_hash = config_hash
         self.audit_log_path = Path(audit_log_path) if audit_log_path else None
         self.violations: List[SafetyViolation] = []
         self.quarantine_mode = False
@@ -55,11 +60,11 @@ class Gate16Remediator:
         intended = order.proposal.plan.entry_price
         measured = abs(fill.fill_price - intended) / intended * 100 if intended else float("inf")
         prior = self.violations[-1].record_hash if self.violations else "GENESIS"
-        payload = {"run_id": self.run_id, "timestamp": timestamp, "order_id": order.order_id,
+        payload = {"run_id": self.run_id, "dataset_hash": self.dataset_hash, "config_hash": self.config_hash, "timestamp": timestamp, "order_id": order.order_id,
                    "fill_id": fill.fill_id, "symbol": fill.symbol, "measured": measured,
                    "tolerance": tolerance, "prior": prior, "reason": reason}
         record_hash = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
-        record = SafetyViolation(str(uuid.uuid4()), self.run_id, timestamp, order.order_id, fill.fill_id,
+        record = SafetyViolation(str(uuid.uuid4()), self.run_id, self.dataset_hash, self.config_hash, timestamp, order.order_id, fill.fill_id,
                                  fill.symbol, measured, tolerance, prior, record_hash)
         self.violations.append(record)
         if self.audit_log_path:
