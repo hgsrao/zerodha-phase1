@@ -75,17 +75,17 @@ class SealedRunEvaluation:
     ) -> "SealedRunEvaluation":
         """
         Create evaluation from actual daily results.
-        FAILS if required fields are missing.
+        FAILS if required fields are missing or data does not reconcile.
 
         Args:
             daily_results: One DailyResult per trading session (REQUIRED, no defaults)
             starting_equity: Starting capital (REQUIRED)
             ending_equity: Final equity (REQUIRED)
-            total_profit_factor: (sum wins) / (sum losses) (REQUIRED, no default)
+            total_profit_factor: (sum wins) / (sum losses) (REQUIRED, must be derived from ledger)
             benchmark: Reporting benchmark (default: ₹400/day)
 
         Raises:
-            ValueError: If daily_results empty, profit_factor missing, etc.
+            ValueError: If data incomplete, doesn't reconcile, or integrity fails
         """
         if not daily_results:
             raise ValueError("daily_results cannot be empty; report is incomplete")
@@ -95,6 +95,53 @@ class SealedRunEvaluation:
 
         if total_profit_factor is None or total_profit_factor < 0:
             raise ValueError(f"total_profit_factor must be explicit (got {total_profit_factor})")
+
+        # RECONCILIATION CHECKS (fail-closed)
+
+        # 1. Daily P&L sum must equal equity change
+        daily_pnl_sum = sum(d.net_pnl for d in daily_results)
+        expected_net_pnl = ending_equity - starting_equity
+
+        if abs(daily_pnl_sum - expected_net_pnl) > 0.01:  # Allow 1 paisa rounding error
+            raise ValueError(
+                f"Daily P&L reconciliation failed: "
+                f"sum(daily_net_pnl)=₹{daily_pnl_sum:.2f} != "
+                f"ending_equity-starting_equity=₹{expected_net_pnl:.2f}"
+            )
+
+        # 2. Validate dates: unique, chronological, valid format
+        dates = [d.date for d in daily_results]
+        if len(dates) != len(set(dates)):
+            raise ValueError("Daily results have duplicate dates")
+
+        try:
+            parsed_dates = [datetime.fromisoformat(d) for d in dates]
+        except ValueError as e:
+            raise ValueError(f"Invalid date format in daily_results: {e}")
+
+        for i in range(1, len(parsed_dates)):
+            if parsed_dates[i] <= parsed_dates[i-1]:
+                raise ValueError(
+                    f"Daily results not chronologically ordered: "
+                    f"{parsed_dates[i-1]} >= {parsed_dates[i]}"
+                )
+
+        # 3. Validate trade accounting: trades == wins + losses for each day
+        for d in daily_results:
+            if d.trades != d.wins + d.losses:
+                raise ValueError(
+                    f"{d.date}: trade accounting failed: "
+                    f"trades={d.trades} but wins={d.wins} + losses={d.losses} = {d.wins + d.losses}"
+                )
+
+        # 4. Validate non-negative counts
+        for d in daily_results:
+            if d.trades < 0 or d.wins < 0 or d.losses < 0 or d.safety_violations < 0:
+                raise ValueError(
+                    f"{d.date}: negative trade count invalid: "
+                    f"trades={d.trades}, wins={d.wins}, losses={d.losses}, "
+                    f"safety_violations={d.safety_violations}"
+                )
 
         if benchmark is None:
             benchmark = BenchmarkConfig()
