@@ -102,22 +102,26 @@ class TimestampOrchestrator:
         return events
 
     def _find_next_bar_timestamp(self, symbol: str, current_timestamp: str,
-                                   sorted_timestamps: List[str], event_index: int) -> Optional[str]:
-        """Find the next bar timestamp for a symbol after current_timestamp.
+                                   sorted_timestamps: List[str], events: Dict[str, Dict[str, Bar]],
+                                   event_index: int) -> Optional[str]:
+        """Find the next bar timestamp for a specific symbol after current_timestamp.
 
+        Searches forward through timestamps to find the next one containing this symbol.
         Returns None if no future bar exists for this symbol.
         """
         if event_index + 1 >= len(sorted_timestamps):
             return None
 
-        # Look for next timestamp that has this symbol
+        # Look for next timestamp that contains this symbol
         for future_index in range(event_index + 1, len(sorted_timestamps)):
             future_ts = sorted_timestamps[future_index]
-            # bars dict for future timestamp is not available here;
-            # we build it during iteration. For now, return the next timestamp
-            # and let the gate check if symbol exists there.
-            return future_ts
+            future_bars = events.get(future_ts, {})
 
+            # Check if this symbol has a bar at this timestamp
+            if symbol in future_bars:
+                return future_ts
+
+        # No future bar found for this symbol
         return None
 
     def run(self, bars_by_symbol: Mapping[str, Sequence[Bar]]) -> TimestampReplayResult:
@@ -181,7 +185,7 @@ class TimestampOrchestrator:
                 if self.gate_evaluator is not None:
                     ok, reason = self.gate_evaluator.evaluate_post_fill(order, fill)
                     if not ok:
-                        print(f"WARN: post-fill gate rejected {order_id}: {reason}")
+                        raise RuntimeError(f"post-fill gate rejected {order_id}: {reason}")
                     ok, reason = self.gate_evaluator.evaluate_post_reconciliation(
                         order, fill, int(order.quantity), int(fill.quantity_filled),
                         fill.cost_paid, fill.cost_paid,
@@ -204,7 +208,7 @@ class TimestampOrchestrator:
 
                     # Find next eligible bar for this symbol (for cross-session check)
                     next_bar_timestamp = self._find_next_bar_timestamp(
-                        order.symbol, timestamp, sorted_timestamps, event_index
+                        order.symbol, timestamp, sorted_timestamps, events, event_index
                     )
 
                     ok, reason = self.gate_evaluator.evaluate_pre_submission(
@@ -232,7 +236,7 @@ class TimestampOrchestrator:
 
             ok, reason = self.ledger.reconcile(bars)
             if not ok:
-                print(f"WARN: ledger invariant failed at {timestamp}: {reason}")
+                raise RuntimeError(f"ledger invariant failed at {timestamp}: {reason}")
 
         return TimestampReplayResult(
             timestamps_processed=len(events),

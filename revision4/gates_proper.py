@@ -116,18 +116,6 @@ class ProperGateEvaluator:
         Returns:
             (approved: bool, rejection_reason: str or None)
         """
-        # EARLY CHECK: Cross-Session Order Rejection (Pre-submission Queue Expiry)
-        # If no same-session fill opportunity exists, reject the order.
-        # The orchestrator passes next_bar_timestamp for this symbol.
-        # If next_bar_timestamp's date differs from decision_date, no same-session fill is possible.
-        if next_bar_timestamp is not None:
-            import pandas as pd
-            decision_date = pd.Timestamp(bar_timestamp).date().isoformat()
-            next_bar_date = pd.Timestamp(next_bar_timestamp).date().isoformat()
-
-            if decision_date != next_bar_date:
-                return False, "Cross-session order not queued: no same-session fill opportunity"
-
         plan = order_intent.proposal.plan
         current_equity = snapshot.marked_equity
 
@@ -174,6 +162,25 @@ class ProperGateEvaluator:
 
             if not decision.passed:
                 return False, f"{decision.gate_name}: {decision.reason}"
+
+        # CROSS-SESSION ORDER CHECK (after kill switch and other gates)
+        # The orchestrator passes next_bar_timestamp for this specific symbol.
+        # If next_bar_timestamp is None, no future bar exists for this symbol.
+        # If next_bar_timestamp's date differs from decision_date, fill would be cross-session.
+        if next_bar_timestamp is None:
+            # No eligible fill bar for this symbol exists
+            return False, "Order rejected: NO_ELIGIBLE_FILL_BAR for this symbol"
+
+        import pandas as pd
+        decision_date = pd.Timestamp(bar_timestamp).date().isoformat()
+        next_bar_date = pd.Timestamp(next_bar_timestamp).date().isoformat()
+
+        if decision_date != next_bar_date:
+            # Cross-session: next bar is on different date
+            authorized = self.config.require("authorized_cross_session")
+            if not authorized:
+                return False, "Order rejected: CROSS_SESSION_PROHIBITED_BY_POLICY"
+            # If authorized_cross_session=True, allow cross-session orders
 
         return True, None
 
