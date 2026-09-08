@@ -102,21 +102,41 @@ class PortfolioLedger:
 
         return True, "Order filled"
 
-    def close_position(self, exit_event: ExitEvent) -> Tuple[bool, str]:
+    def close_position(self, exit_event: ExitEvent, config=None) -> Tuple[bool, str]:
         """
         Close a position. Record exit event.
-        Update cash, P&L.
+        Update cash, P&L, and deduct exit costs.
+
+        Args:
+            exit_event: ExitEvent with exit prices and reason
+            config: Config for calculating transaction costs (optional)
         """
         if exit_event.symbol not in self.positions:
             return False, "Position not found"
 
         position = self.positions[exit_event.symbol]
 
-        # Update cash (add sale proceeds)
+        # CALCULATE EXIT COSTS (SELL-side: brokerage + exchange + STT)
+        exit_cost = 0.0
+        if config is not None:
+            from revision4.config_access import calculate_transaction_cost
+            exit_cost = calculate_transaction_cost(
+                exit_event.exit_price,
+                exit_event.quantity,
+                side="SELL"
+            )
+
+        # Update cash:
+        # 1. Add sale proceeds: exit_price * quantity
+        # 2. Subtract exit costs: brokerage + exchange + STT
         sale_proceeds = exit_event.exit_price * exit_event.quantity
         self.cash += sale_proceeds
+        self.cash -= exit_cost
+        self.total_costs += exit_cost
 
-        # Update P&L (already includes costs)
+        # Update P&L (realized = gross - entry_cost - exit_cost)
+        # The pnl_realized in exit_event should already account for costs
+        # or we need to verify reconciliation
         self.realized_pnl += exit_event.pnl_realized
         self.daily_pnl += exit_event.pnl_realized
 

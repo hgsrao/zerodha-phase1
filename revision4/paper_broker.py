@@ -25,12 +25,14 @@ class PaperBroker:
         self.fill_history: List[FillEvent] = []
         self.active_orders: Dict[str, OrderIntent] = {}  # Pending + partial
 
-    def submit_order(self, order_intent: OrderIntent, config=None) -> Tuple[bool, str]:
+    def submit_order(self, order_intent: OrderIntent, config) -> Tuple[bool, str]:
         """
         Submit order for trading.
         Order created at bar t, eligible for fill at bar t+1.
 
-        Requires: config with kill_switch_enabled parameter.
+        MANDATORY: config with kill_switch_enabled parameter.
+        NO BYPASS: Config must be provided; no None fallback allowed.
+
         Returns: (success, reason_or_message)
         """
         from revision4.config_access import get_kill_switch_status
@@ -38,10 +40,13 @@ class PaperBroker:
         order_id = order_intent.order_id
 
         # CHECK 1: Kill switch (safety gate - blocks ALL orders if disabled)
-        if config is not None:
-            kill_switch_enabled = get_kill_switch_status(config)
-            if not kill_switch_enabled:
-                return False, "Kill switch disabled: order submission blocked"
+        # MANDATORY: Config is required; fail-closed if missing
+        if config is None:
+            raise ValueError("submit_order requires config (no None bypass allowed)")
+
+        kill_switch_enabled = get_kill_switch_status(config)
+        if not kill_switch_enabled:
+            return False, "Kill switch disabled: order submission blocked"
 
         # Check duplicate
         if order_id in self.order_history:
@@ -69,7 +74,8 @@ class PaperBroker:
         Attempt to fill order at bar t+1 open.
         Returns FillEvent if filled, None if can't fill yet.
 
-        Requires: config with kill_switch_enabled parameter.
+        MANDATORY: config with kill_switch_enabled parameter.
+        NO BYPASS: Config must be provided; no None fallback allowed.
         """
         from revision4.config_access import get_kill_switch_status
 
@@ -79,10 +85,13 @@ class PaperBroker:
         order = self.active_orders[order_id]
 
         # CHECK 1: Kill switch (safety gate - blocks ALL fills if disabled)
-        if config is not None:
-            kill_switch_enabled = get_kill_switch_status(config)
-            if not kill_switch_enabled:
-                return None  # Can't fill while kill switch is disabled
+        # MANDATORY: Config is required; fail-closed if missing
+        if config is None:
+            raise ValueError("try_fill_order requires config (no None bypass allowed)")
+
+        kill_switch_enabled = get_kill_switch_status(config)
+        if not kill_switch_enabled:
+            return None  # Can't fill while kill switch is disabled
 
         # Check eligibility: order created at bar t, fills at bar t+1+
         if fill_bar_index <= order.proposal.plan.bar_index:

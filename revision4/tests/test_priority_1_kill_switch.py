@@ -242,8 +242,8 @@ class TestKillSwitchBlocksFill:
             rejection_reason=None,
         )
 
-        # Submit without config check
-        broker.submit_order(order, config=None)
+        # Submit with kill switch enabled (config=None would now fail)
+        broker.submit_order(order, config)
 
         # Try to fill with kill switch disabled
         bar = Bar(
@@ -459,6 +459,158 @@ class TestBrokerOrderCleanup:
         assert "order_1" not in broker.active_orders, "Filled order_1 should be removed"
         assert "order_2" in broker.active_orders, "Pending order_2 should remain"
         assert broker.active_orders["order_2"].state == OrderState.PENDING
+
+
+class TestMandatoryConfig:
+    """Verify config is mandatory - no None bypass allowed."""
+
+    def test_submit_order_requires_config(self):
+        """submit_order must have config - no None bypass."""
+        broker = PaperBroker()
+
+        forecast = ForecastSignal(
+            timestamp="2024-08-01T09:15:00Z",
+            bar_index=1,
+            symbol="INFY",
+            signal_type=SignalType.MOMENTUM_UP,
+            pa_confidence=0.8,
+            chart_confidence=0.7,
+            rejection_reason=None,
+        )
+
+        decision = IDDecision(
+            timestamp=forecast.timestamp,
+            bar_index=forecast.bar_index,
+            symbol=forecast.symbol,
+            forecast=forecast,
+            entry_valid=True,
+            entry_reason="Test",
+            current_hour=9,
+            current_minute=15,
+            grid_sync=True,
+            grid_reason="Test",
+        )
+
+        plan = TradePlan(
+            timestamp=decision.timestamp,
+            bar_index=decision.bar_index,
+            symbol=decision.symbol,
+            direction=1,
+            entry_price=3000.0,
+            stop_price=2990.0,
+            target_price=3010.0,
+            risk_per_share=10.0,
+            position_size_base=10.0,
+        )
+
+        proposal = SizedProposal(
+            timestamp=plan.timestamp,
+            bar_index=plan.bar_index,
+            symbol=plan.symbol,
+            plan=plan,
+            mpc_scaling_factor=1.0,
+            final_quantity=10.0,
+            cost_estimate=30.0,
+        )
+
+        order = OrderIntent(
+            order_id="order_1",
+            timestamp_created=forecast.timestamp,
+            bar_index_created=forecast.bar_index,
+            symbol=forecast.symbol,
+            direction=1,
+            quantity=10.0,
+            stop_price=plan.stop_price,
+            target_price=plan.target_price,
+            proposal=proposal,
+            state=OrderState.PENDING,
+            rejection_reason=None,
+        )
+
+        # Passing None should raise ValueError (fail-closed)
+        with pytest.raises(ValueError, match="requires config"):
+            broker.submit_order(order, config=None)
+
+    def test_try_fill_order_requires_config(self):
+        """try_fill_order must have config - no None bypass."""
+        broker = PaperBroker()
+        config = EffectiveConfig()
+
+        # Create and submit an order
+        forecast = ForecastSignal(
+            timestamp="2024-08-01T09:15:00Z",
+            bar_index=1,
+            symbol="INFY",
+            signal_type=SignalType.MOMENTUM_UP,
+            pa_confidence=0.8,
+            chart_confidence=0.7,
+            rejection_reason=None,
+        )
+
+        decision = IDDecision(
+            timestamp=forecast.timestamp,
+            bar_index=forecast.bar_index,
+            symbol=forecast.symbol,
+            forecast=forecast,
+            entry_valid=True,
+            entry_reason="Test",
+            current_hour=9,
+            current_minute=15,
+            grid_sync=True,
+            grid_reason="Test",
+        )
+
+        plan = TradePlan(
+            timestamp=decision.timestamp,
+            bar_index=decision.bar_index,
+            symbol=decision.symbol,
+            direction=1,
+            entry_price=3000.0,
+            stop_price=2990.0,
+            target_price=3010.0,
+            risk_per_share=10.0,
+            position_size_base=10.0,
+        )
+
+        proposal = SizedProposal(
+            timestamp=plan.timestamp,
+            bar_index=plan.bar_index,
+            symbol=plan.symbol,
+            plan=plan,
+            mpc_scaling_factor=1.0,
+            final_quantity=10.0,
+            cost_estimate=30.0,
+        )
+
+        order = OrderIntent(
+            order_id="order_1",
+            timestamp_created=forecast.timestamp,
+            bar_index_created=forecast.bar_index,
+            symbol=forecast.symbol,
+            direction=1,
+            quantity=10.0,
+            stop_price=plan.stop_price,
+            target_price=plan.target_price,
+            proposal=proposal,
+            state=OrderState.PENDING,
+            rejection_reason=None,
+        )
+
+        broker.submit_order(order, config)
+
+        bar = Bar(
+            timestamp="2024-08-01T09:16:00Z",
+            symbol="INFY",
+            open=3010.0,
+            high=3015.0,
+            low=3005.0,
+            close=3012.0,
+            volume=1000,
+        )
+
+        # Passing None should raise ValueError (fail-closed)
+        with pytest.raises(ValueError, match="requires config"):
+            broker.try_fill_order("order_1", bar, 2, config=None)
 
 
 if __name__ == "__main__":

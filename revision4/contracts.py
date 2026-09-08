@@ -191,6 +191,7 @@ class FillEvent:
 class ExitEvent:
     """
     Position was closed. Immutable record.
+    Tracks both entry and exit costs for reconciliation.
     """
     exit_id: str
     symbol: str
@@ -202,6 +203,10 @@ class ExitEvent:
     quantity: float
     direction: int
     bars_held: int
+
+    # Cost accounting (entry from fill, exit from close)
+    entry_cost_paid: float  # Brokerage + exchange on entry
+    exit_cost_paid: float   # Brokerage + exchange + STT on exit
 
     exit_reason: ExitReason
     pnl_realized: float

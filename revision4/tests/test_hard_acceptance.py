@@ -135,7 +135,7 @@ class TestNextBarFills:
         )
 
         # Submit order
-        broker.submit_order(order)
+        broker.submit_order(order, config)
 
         # Bar 0 (creation bar): should NOT fill
         bar_0 = Bar(
@@ -328,6 +328,9 @@ class TestEODFlattening:
         ledger.positions["INFY"] = pos
 
         # Close at EOD
+        from revision4.contracts import EffectiveConfig
+        config = EffectiveConfig()
+
         exit_event = ExitEvent(
             exit_id="exit_1",
             symbol="INFY",
@@ -338,12 +341,14 @@ class TestEODFlattening:
             quantity=10.0,
             direction=1,
             bars_held=390,
+            entry_cost_paid=5.0,  # From entry
+            exit_cost_paid=0.0,   # Assume no additional exit cost for this test
             exit_reason=ExitReason.EOD_FLATTENING,
-            pnl_realized=100.0 - 5.0,  # (exit - entry) * qty - cost
+            pnl_realized=100.0 - 5.0,  # (exit - entry) * qty - entry_cost
             pnl_pct=0.33,
         )
 
-        ok, msg = ledger.close_position(exit_event)
+        ok, msg = ledger.close_position(exit_event, config)
         assert ok == True, f"Should close position: {msg}"
         assert "INFY" not in ledger.positions, "Position should be removed"
         assert ledger.realized_pnl == 95.0, "P&L should be recorded"
