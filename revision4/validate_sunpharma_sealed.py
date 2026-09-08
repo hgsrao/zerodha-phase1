@@ -194,22 +194,37 @@ def run_sunpharma_validation():
 
         for position in remaining_positions:
             if last_bar and last_bar.symbol == position.symbol:
-                # Use canonical exit cost model (direction-aware SELL)
+                # Use canonical exit cost model (direction-aware SELL/BUY)
                 exit_price = last_bar.close
                 side = "SELL" if position.direction == 1 else "BUY"  # Opposite direction to close
                 exit_cost_canonical = calculate_transaction_cost(
                     exit_price, abs(position.quantity), side
                 )
 
-                # Create valid ExitEvent using canonical costs
+                # Calculate realized P&L
+                if position.direction == 1:  # Long
+                    pnl_realized = (exit_price - position.entry_price) * position.quantity
+                else:  # Short
+                    pnl_realized = (position.entry_price - exit_price) * position.quantity
+
+                pnl_pct = (pnl_realized / (position.entry_price * position.quantity)) * 100 if position.entry_price > 0 else 0.0
+
+                # Create valid ExitEvent with all required fields
                 exit_event = ExitEvent(
-                    exit_id=f"eod_flatten_{position.order_id}",
-                    order_id=position.order_id,
-                    timestamp_exited=last_bar.timestamp,
-                    bar_index_exited=len(bars) - 1,
+                    exit_id=f"eod_flatten_{position.symbol}_{len(bars)-1}",
+                    symbol=position.symbol,
+                    timestamp_exit=last_bar.timestamp,
+                    bar_index_exit=len(bars) - 1,
+                    entry_price=position.entry_price,
                     exit_price=exit_price,
+                    quantity=position.quantity,
+                    direction=position.direction,
+                    bars_held=len(bars) - 1 - position.entry_bar_index,
+                    entry_cost_paid=position.cost_paid,
                     exit_cost_paid=exit_cost_canonical,
-                    exit_reason="EOD_FLATTEN",
+                    exit_reason=ExitReason.EOD_FLATTENING,
+                    pnl_realized=pnl_realized,
+                    pnl_pct=pnl_pct,
                 )
 
                 # Close in ledger
@@ -218,7 +233,7 @@ def run_sunpharma_validation():
                     print(f"    Warning: Failed to close {position.symbol}: {reason}")
                 else:
                     eod_flatten_exits.append(exit_event)
-                    print(f"    ✓ Closed {position.symbol} at {exit_price:.2f} (cost: {exit_cost_canonical:.2f})")
+                    print(f"    ✓ Closed {position.symbol} at {exit_price:.2f} (P&L: {pnl_realized:.2f}, cost: {exit_cost_canonical:.2f})")
     else:
         print(f"  No remaining positions to flatten")
 
