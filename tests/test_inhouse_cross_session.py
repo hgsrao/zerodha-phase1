@@ -2,8 +2,21 @@
 
 import pandas as pd
 import pytest
+import pandas as pd
 
 from inhouse_validation.cross_session_rejection import CrossSessionRejectionPolicy
+
+
+def test_pre_submission_accepts_dataframe_bars_for_same_session_next_bar():
+    policy = CrossSessionRejectionPolicy()
+    bars = {"SUNPHARMA": pd.DataFrame({"timestamp": [
+        "2024-08-02T09:15:00+05:30", "2024-08-02T09:16:00+05:30",
+    ]})}
+    allowed, reason = policy.check_pre_submission(
+        "SUNPHARMA", "2024-08-02T09:15:00+05:30", 0, bars,
+    )
+    assert allowed is True
+    assert reason is None
 
 
 def test_cross_session_same_date_allowed():

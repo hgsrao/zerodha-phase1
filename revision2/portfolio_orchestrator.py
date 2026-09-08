@@ -16,6 +16,8 @@ every symbol rather than duplicating them.
 from __future__ import annotations
 
 import itertools
+import hashlib
+import json
 import math
 from dataclasses import dataclass
 from datetime import datetime
@@ -126,6 +128,7 @@ class Revision2PortfolioOrchestrator:
         self.cross_session_policy = None  # Set by caller before run()
         self.gate16_remediator = None     # Set by caller before run()
         self.event_ledger: List[Dict[str, Any]] = []  # Authoritative event record
+        self._event_hash = "GENESIS"
         self.quarantine_mode = False
         self.trading_halted = False
         self._scheduled_flattens: Dict[str, Dict[str, Any]] = {}  # Positions to flatten next bar
@@ -193,6 +196,14 @@ class Revision2PortfolioOrchestrator:
     def _record(self, trace) -> None:
         for use in trace:
             self.consumed_parameters.add(use.parameter)
+
+    def _emit_event(self, event_type: str, timestamp: Any, **payload: Any) -> None:
+        """Append a tamper-evident runtime event used by sealed reports."""
+        material = {"event_type": event_type, "timestamp": str(timestamp),
+                    "payload": payload, "prior_hash": self._event_hash}
+        record_hash = hashlib.sha256(json.dumps(material, sort_keys=True, default=str).encode()).hexdigest()
+        self.event_ledger.append({**material, "record_hash": record_hash})
+        self._event_hash = record_hash
 
     def _equity(self) -> float:
         return self.starting_equity + self.broker.realized_pnl
@@ -351,7 +362,7 @@ class Revision2PortfolioOrchestrator:
             "gates_evaluated": 0, "gates_passed": 0, "gates_rejected": 0,
             "orders_submitted": 0, "exit_orders_submitted": 0, "fills": 0,
             "portfolio_cap_rejections": 0, "orders_queued": 0,
-            "pending_orders_cancelled": 0,
+            "pending_orders_cancelled": 0, "cross_session_rejections": 0,
         }
         max_concurrent = int(self.safety_contract.values["max_concurrent_positions"])
         max_gross_fraction = float(self.safety_contract.values["max_gross_exposure_fraction"])
@@ -365,10 +376,37 @@ class Revision2PortfolioOrchestrator:
             # Fill only orders whose scheduled bar has now arrived.  This is
             # intentionally before any signal handling for this timestamp.
             for event in tick_events:
+                # Gate16 remediation is deliberately delayed until this
+                # symbol's next eligible bar.  No current-bar close or future
+                # data is used to manufacture the exit price.
+                scheduled = self._scheduled_flattens.get(event.symbol)
+                if scheduled is not None and pd.Timestamp(timestamp) > pd.Timestamp(scheduled["after_timestamp"]):
+                    trade = self.open_trades.get(event.symbol)
+                    if trade is not None:
+                        bar_open = float(symbol_bars[event.symbol].iloc[event.bar_idx]["open"])
+                        factor = 0.999 if trade["side"] == "BUY" else 1.001
+                        exit_price = bar_open * factor
+                        self._emit_event("POSITION_FLATTENED", timestamp, symbol=event.symbol,
+                                         next_bar_open=bar_open, adverse_factor=factor,
+                                         exit_price=exit_price)
+                        self._execute_exit(event.symbol, timestamp, trade, exit_price,
+                                           "gate16_quarantine_flatten", event.bar_idx)
+                    del self._scheduled_flattens[event.symbol]
+
                 pending = self.pending_entries.get(event.symbol)
                 if pending is None or pending["fill_bar_idx"] != event.bar_idx:
                     continue
                 bars = symbol_bars[event.symbol]
+                if self.cross_session_policy is not None:
+                    allowed, reason = self.cross_session_policy.check_fill_time(
+                        pd.Timestamp(pending["signal_timestamp"]).date().isoformat(), str(timestamp),
+                    )
+                    if not allowed:
+                        del self.pending_entries[event.symbol]
+                        funnel["pending_orders_cancelled"] += 1
+                        self._emit_event("ORDER_CANCELLED", timestamp, symbol=event.symbol,
+                                         order_id=getattr(pending["order"], "order_id", None), reason=reason)
+                        continue
                 fill = self.broker.place_order(
                     symbol=event.symbol, side=pending["order"].side,
                     quantity=pending["quantity"], order_type=pending["order"].order_type,
@@ -391,6 +429,74 @@ class Revision2PortfolioOrchestrator:
                         "entry_timestamp": str(timestamp), "entry_bar_idx": event.bar_idx,
                     }
                     entry_bar_index[event.symbol] = event.bar_idx
+                    self._emit_event("FILL", timestamp, symbol=event.symbol,
+                                     order_id=fill.get("order_id"), fill_price=fill["filled_price"],
+                                     quantity=pending["quantity"])
+                    # Gate16 is necessarily post-fill.  The fill remains in
+                    # the book; a breach freezes later entries and is handled
+                    # by the remediation lifecycle rather than being undone.
+                    if self.gate16_remediator is not None:
+                        breached = self.gate16_remediator.detect_breach(
+                            timestamp=str(timestamp), symbol=event.symbol,
+                            order_id=str(fill.get("order_id", f"fill_{event.bar_idx}_{event.symbol}")),
+                            fill_id=str(fill.get("order_id", f"fill_{event.bar_idx}_{event.symbol}")),
+                            intended_entry_price=float(plan.entry_price),
+                            actual_fill_price=float(fill["filled_price"]),
+                        )
+                        if breached:
+                            self.quarantine_mode = True
+                            self.trading_halted = bool(self.gate16_remediator.trading_halted)
+                            self._emit_event("GATE16_BREACH", timestamp, symbol=event.symbol,
+                                             order_id=fill.get("order_id"), intended_entry_price=float(plan.entry_price),
+                                             actual_fill_price=float(fill["filled_price"]))
+                            self._emit_event("QUARANTINE_STARTED", timestamp)
+                            for cancel_symbol, queued in list(self.pending_entries.items()):
+                                del self.pending_entries[cancel_symbol]
+                                funnel["pending_orders_cancelled"] += 1
+                                self._emit_event("ORDER_CANCELLED", timestamp, symbol=cancel_symbol,
+                                                 order_id=getattr(queued["order"], "order_id", None),
+                                                 reason="GATE16_QUARANTINE")
+                            for flatten_symbol in self.open_trades:
+                                self._scheduled_flattens.setdefault(flatten_symbol, {
+                                    "after_timestamp": str(timestamp),
+                                })
+
+                            # Step 4: Cancel all pending orders and release reserved cash
+                            symbols_to_cancel = list(self.pending_entries.keys())
+                            for cancel_symbol in symbols_to_cancel:
+                                if cancel_symbol == event.symbol:
+                                    continue  # Don't cancel the order we just filled
+                                pending = self.pending_entries[cancel_symbol]
+                                # Estimate reserved cash (qty × entry_price)
+                                reserved_cash = pending.get("quantity", 0) * pending["plan"].entry_price
+                                # Record cancellation event
+                                self.event_ledger.append({
+                                    "event_type": "ORDER_CANCELLED",
+                                    "timestamp": str(timestamp),
+                                    "symbol": cancel_symbol,
+                                    "order_id": pending.get("order_id"),
+                                    "reason": "QUARANTINE_MODE_GATE16",
+                                    "reserved_cash_released": reserved_cash,
+                                })
+                                # Remove from pending (releases reserved cash implicitly)
+                                del self.pending_entries[cancel_symbol]
+                                funnel["pending_orders_cancelled"] += 1
+
+                            # Step 5: Schedule all open positions for adverse flatten at next eligible bar
+                            for flatten_symbol, trade in list(self.open_trades.items()):
+                                self._scheduled_flattens[flatten_symbol] = {
+                                    "entry_price": trade["entry_price"],
+                                    "entry_bar_idx": trade["entry_bar_idx"],
+                                    "side": trade["side"],
+                                    "quantity": trade["quantity"],
+                                }
+                                self.event_ledger.append({
+                                    "event_type": "FLATTEN_SCHEDULED",
+                                    "timestamp": str(timestamp),
+                                    "symbol": flatten_symbol,
+                                    "entry_price": trade["entry_price"],
+                                    "quantity": trade["quantity"],
+                                })
             # Refresh every symbol trading at this exact timestamp before
             # sampling mark-to-market equity for the tick. Sampling inside
             # the per-symbol loop below (keyed off whichever symbol
@@ -410,6 +516,42 @@ class Revision2PortfolioOrchestrator:
                 funnel["bars_processed"] += 1
                 symbol, bar_idx = event.symbol, event.bar_idx
                 bars = symbol_bars[symbol]
+
+                # Step 6: Execute any scheduled adverse flattens for this symbol
+                if self.quarantine_mode and symbol in self._scheduled_flattens:
+                    flatten_plan = self._scheduled_flattens[symbol]
+                    bar_open = float(bars.iloc[bar_idx]["open"])
+                    # Apply adverse factor: -10bps for long, +10bps for short
+                    adverse_factor = 0.999 if flatten_plan["side"] == "BUY" else 1.001
+                    exit_price = bar_open * adverse_factor
+
+                    # Record flatten event
+                    self.event_ledger.append({
+                        "event_type": "POSITION_FLATTENED",
+                        "timestamp": str(timestamp),
+                        "symbol": symbol,
+                        "exit_price": exit_price,
+                        "adverse_factor": adverse_factor,
+                        "quantity": flatten_plan["quantity"],
+                    })
+
+                    # Execute adverse flatten (same path as normal exits)
+                    self._execute_exit(
+                        symbol=symbol,
+                        timestamp=timestamp,
+                        trade={
+                            "side": flatten_plan["side"],
+                            "entry_price": flatten_plan["entry_price"],
+                            "quantity": flatten_plan["quantity"],
+                        },
+                        exit_price=exit_price,
+                        reason="quarantine_flatten",
+                        exit_bar_idx=bar_idx,
+                    )
+
+                    # Remove from scheduled flattens
+                    del self._scheduled_flattens[symbol]
+                    funnel["quarantine_flattens"] = funnel.get("quarantine_flattens", 0) + 1
 
                 admitted, _, trace = self.data_ingestion.admit(symbol, self.config)
                 self._record(trace)
@@ -433,7 +575,8 @@ class Revision2PortfolioOrchestrator:
                 held = bar_idx - entry_bar_index.get(symbol, bar_idx)
                 self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held, bar_idx)
 
-                if symbol in self.open_trades or symbol in self.pending_entries or not in_window:
+                if (self.quarantine_mode or self.trading_halted or symbol in self.open_trades
+                        or symbol in self.pending_entries or not in_window):
                     continue
 
                 decision, trace = self.id_box.evaluate(signal, self.config)
@@ -551,6 +694,23 @@ class Revision2PortfolioOrchestrator:
                     funnel["safety_rejections"] += 1
                     continue
 
+                # An intraday intent must have a same-session next eligible
+                # bar for this exact symbol.  The policy owns the date check;
+                # the orchestrator owns the real DataFrame/bar-index inputs.
+                if self.cross_session_policy is not None:
+                    allowed, reason = self.cross_session_policy.check_pre_submission(
+                        symbol=symbol, decision_timestamp=str(timestamp),
+                        current_bar_index=bar_idx, all_bars=symbol_bars,
+                    )
+                    if not allowed:
+                        funnel["cross_session_rejections"] += 1
+                        self.event_ledger.append({
+                            "event_type": "ORDER_REJECTED", "timestamp": str(timestamp),
+                            "symbol": symbol, "order_id": getattr(order, "order_id", None),
+                            "reason": reason,
+                        })
+                        continue
+
                 self.pending_entries[symbol] = {
                     "order": order, "plan": plan, "quantity": quantity,
                     "decision": decision, "signal_timestamp": str(timestamp),
@@ -561,6 +721,10 @@ class Revision2PortfolioOrchestrator:
         # The clock intentionally has no event after the final complete bar;
         # a queued order without its scheduled event must be cancelled rather
         # than fabricated as a future fill.
+        for symbol, pending in list(self.pending_entries.items()):
+            self._emit_event("ORDER_CANCELLED", "END_OF_RUN", symbol=symbol,
+                             order_id=getattr(pending["order"], "order_id", None),
+                             reason="NO_ELIGIBLE_FILL_BAR")
         funnel["pending_orders_cancelled"] = len(self.pending_entries)
         self.pending_entries.clear()
 
@@ -589,6 +753,13 @@ class Revision2PortfolioOrchestrator:
             if mtm_peak > 0:
                 mtm_max_drawdown_fraction = max(mtm_max_drawdown_fraction, (mtm_peak - v) / mtm_peak)
         safety_violations = sum(1 for t in self.completed_trades if t["reason"] == "forced_close_drawdown_halt")
+        reconciliation_exact = not self.open_trades and not self.pending_entries
+        self._emit_event("RECONCILIATION_COMPLETED", "END_OF_RUN",
+                         exact=reconciliation_exact, open_positions=len(self.open_trades),
+                         pending_orders=len(self.pending_entries), realized_pnl=self.broker.realized_pnl)
+        if not reconciliation_exact:
+            self.trading_halted = True
+            raise RuntimeError("final portfolio reconciliation failed")
 
         return {
             **funnel,
@@ -614,6 +785,8 @@ class Revision2PortfolioOrchestrator:
             "mtm_equity_curve": self._mtm_equity_curve,
             "mtm_max_drawdown_fraction": mtm_max_drawdown_fraction,
             "safety_violations": safety_violations,
+            "status": "REMEDIATION_REQUIRED" if self.quarantine_mode else "PASSED",
+            "event_ledger": self.event_ledger,
         }
 
     def _transaction_costs(self) -> Dict[str, float]:
