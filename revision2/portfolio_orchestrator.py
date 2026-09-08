@@ -503,9 +503,13 @@ class Revision2PortfolioOrchestrator:
                 # Step 6: Execute any scheduled adverse flattens for this symbol
                 if self.quarantine_mode and symbol in self._scheduled_flattens:
                     flatten_plan = self._scheduled_flattens[symbol]
+                    trade = self.open_trades.get(symbol)
+                    if trade is None:
+                        del self._scheduled_flattens[symbol]
+                        continue
                     bar_open = float(bars.iloc[bar_idx]["open"])
                     # Apply adverse factor: -10bps for long, +10bps for short
-                    adverse_factor = 0.999 if flatten_plan["side"] == "BUY" else 1.001
+                    adverse_factor = 0.999 if trade["side"] == "BUY" else 1.001
                     exit_price = bar_open * adverse_factor
 
                     # Record flatten event (hash-linked)
@@ -514,18 +518,14 @@ class Revision2PortfolioOrchestrator:
                         symbol=symbol,
                         exit_price=exit_price,
                         adverse_factor=adverse_factor,
-                        quantity=flatten_plan["quantity"],
+                        quantity=trade["quantity"],
                     )
 
                     # Execute adverse flatten (same path as normal exits)
                     self._execute_exit(
                         symbol=symbol,
                         timestamp=timestamp,
-                        trade={
-                            "side": flatten_plan["side"],
-                            "entry_price": flatten_plan["entry_price"],
-                            "quantity": flatten_plan["quantity"],
-                        },
+                        trade=trade,
                         exit_price=exit_price,
                         reason="quarantine_flatten",
                         exit_bar_idx=bar_idx,
@@ -707,7 +707,7 @@ class Revision2PortfolioOrchestrator:
                     order_id=getattr(order, "order_id", None),
                     entry_price=float(plan.entry_price),
                     quantity=quantity,
-                    side="BUY" if order.direction == 1 else "SELL",
+                    side=order.side,
                 )
 
         # The clock intentionally has no event after the final complete bar;
