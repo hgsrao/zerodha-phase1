@@ -134,7 +134,7 @@ class TestNextBarFills:
             volume=1000000,
         )
 
-        fill_event = broker.try_fill_order("order_1", bar_0, bar_index=0, config=config)
+        fill_event = broker.try_fill_order("order_1", bar_0, fill_bar_index=0, config=config)
         assert fill_event is None, "Should NOT fill at same bar"
 
         # Bar 1 (next bar): should fill at open
@@ -148,7 +148,7 @@ class TestNextBarFills:
             volume=1000000,
         )
 
-        fill_event = broker.try_fill_order("order_1", bar_1, bar_index=1, config=config)
+        fill_event = broker.try_fill_order("order_1", bar_1, fill_bar_index=1, config=config)
         assert fill_event is not None, "Should fill at bar t+1"
         assert fill_event.fill_price == 3006.0, "Should fill at open price"
 
