@@ -19,7 +19,11 @@ class RangeATRShadowMonitor:
             value = max(bar.high - bar.low, abs(bar.high - previous), abs(bar.low - previous))
             self.previous_close[symbol] = bar.close
             self.tr[symbol].append(value)
-            ratios[symbol] = None if len(self.tr[symbol]) < self.period else (bar.high - bar.low) / (sum(self.tr[symbol]) / self.period)
+            atr = sum(self.tr[symbol]) / self.period if len(self.tr[symbol]) >= self.period else None
+            # A flat/zero-priced synthetic or malformed bar stream has no
+            # meaningful Range/ATR value.  Shadow instrumentation must never
+            # become a new failure mode for the execution replay.
+            ratios[symbol] = None if atr is None or atr <= 0 else (bar.high - bar.low) / atr
         return ratios
 
     def observe_candidates(self, candidates, ratios):
