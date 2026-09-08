@@ -8,44 +8,82 @@ NOT simplified duplicates. Real boxes.
 """
 
 import numpy as np
-from typing import Optional, List
+import pandas as pd
+from typing import Optional, List, Dict
 from revision4.contracts import (
     ForecastSignal, IDDecision, TradePlan, SizedProposal, OrderIntent,
     EffectiveConfig, SignalType
 )
+from revision2.boxes import (
+    PredictiveAnalyticsBox, IntelligentDiscriminationBox,
+    ModelPredictiveControlBox, SafetyGatesTargetBox,
+    PositionManagerBox, P01DBox
+)
+from revision2.contracts import MarketSnapshot
 
 
 class PipelineAdapter:
     """
     Adapts Revision 2 boxes to typed contracts.
     Each method is a type converter: box_output → contract.
+
+    Maintains bar history for each symbol to feed MarketSnapshot to PA box.
     """
 
     def __init__(self, config: EffectiveConfig):
         self.config = config
         self.parameter_trace = []  # Log every parameter used
 
+        # Initialize Revision 2 boxes
+        self.pa_box = PredictiveAnalyticsBox()
+        self.id_box = IntelligentDiscriminationBox()
+        self.mpc_box = ModelPredictiveControlBox()
+        self.safety_box = SafetyGatesTargetBox()
+        self.position_manager = PositionManagerBox()
+        self.p01d_box = P01DBox()
+
+        # Track bar history per symbol (for MarketSnapshot)
+        self._bar_history: Dict[str, List[Dict]] = {}
+
     def _log_param(self, param_name: str, value):
         """Audit trail: every parameter fetch. Returns the value."""
         self.parameter_trace.append((param_name, value))
         return value
+
+    def calibrate_pa_box(self, symbol: str, warmup_bars: pd.DataFrame) -> None:
+        """
+        Calibrate PA box with warmup bars before live run.
+        MUST be called before generate_forecast for each symbol.
+        """
+        try:
+            self.pa_box.calibrate(symbol, warmup_bars)
+        except Exception as e:
+            print(f"Warning: PA calibration failed for {symbol}: {e}")
+
+    def add_bar_to_history(self, symbol: str, bar_data: Dict) -> None:
+        """
+        Track incoming bar for symbol.
+        Called for each bar during replay.
+        """
+        if symbol not in self._bar_history:
+            self._bar_history[symbol] = []
+        self._bar_history[symbol].append(bar_data)
 
     def generate_forecast(
         self,
         timestamp: str,
         bar_index: int,
         symbol: str,
-        closes: np.ndarray,
-        volumes: np.ndarray,
     ) -> ForecastSignal:
         """
         Run Revision 2 PA Box.
         Output: ForecastSignal with confidence scores.
-        """
-        # Placeholder: Would call actual Revision 2 PA box
-        # For now: simplified version (to be replaced)
 
-        if len(closes) < 20:
+        Precondition: calibrate_pa_box() called for this symbol,
+                     add_bar_to_history() called for all bars up to t.
+        """
+        # Check if we have bar history
+        if symbol not in self._bar_history or len(self._bar_history[symbol]) == 0:
             return ForecastSignal(
                 timestamp=timestamp,
                 bar_index=bar_index,
@@ -53,28 +91,96 @@ class PipelineAdapter:
                 signal_type=SignalType.REJECTED,
                 pa_confidence=0.0,
                 chart_confidence=0.0,
-                rejection_reason="Insufficient data",
+                rejection_reason="No bar history for symbol",
             )
 
-        # Simplified momentum (REPLACE WITH REVISION 2 PA BOX)
-        recent = closes[-20:]
-        momentum = (recent[-1] - recent[0]) / (recent[0] + 1e-6)
-        pa_conf = min(abs(momentum) * 20, 1.0)
+        # Build DataFrame from bar history (up to current bar)
+        try:
+            bars_list = self._bar_history[symbol]
+            df = pd.DataFrame(bars_list)
+            # Ensure correct data types
+            df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
+            df['close'] = pd.to_numeric(df['close'], errors='coerce')
+            df['open'] = pd.to_numeric(df['open'], errors='coerce')
+            df['high'] = pd.to_numeric(df['high'], errors='coerce')
+            df['low'] = pd.to_numeric(df['low'], errors='coerce')
+            df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
 
-        # Simplified chart (REPLACE WITH REVISION 2 CHART BOX)
-        chart_conf = 0.5
+            # Build MarketSnapshot (bars up to t)
+            snapshot = MarketSnapshot(
+                symbol=symbol,
+                timestamp=timestamp,
+                bars=df,
+                next_bar_open=None,
+            )
 
-        signal_type = SignalType.MOMENTUM_UP if momentum > 0 else SignalType.MOMENTUM_DOWN
+            # Call PA box
+            pa_signal, _ = self.pa_box.evaluate(snapshot, self.config)
 
-        return ForecastSignal(
-            timestamp=timestamp,
-            bar_index=bar_index,
-            symbol=symbol,
-            signal_type=signal_type,
-            pa_confidence=pa_conf,
-            chart_confidence=chart_conf,
-            rejection_reason=None,
-        )
+            if pa_signal is None:
+                return ForecastSignal(
+                    timestamp=timestamp,
+                    bar_index=bar_index,
+                    symbol=symbol,
+                    signal_type=SignalType.REJECTED,
+                    pa_confidence=0.0,
+                    chart_confidence=0.0,
+                    rejection_reason="PA box returned no signal",
+                )
+
+            # Map PA signal to Revision 04 ForecastSignal
+            signal_type_map = {
+                1: SignalType.MOMENTUM_UP,
+                -1: SignalType.MOMENTUM_DOWN,
+                0: SignalType.REJECTED,
+            }
+
+            chart_conf = self._estimate_chart_confidence(df)
+
+            return ForecastSignal(
+                timestamp=timestamp,
+                bar_index=bar_index,
+                symbol=symbol,
+                signal_type=signal_type_map.get(pa_signal.direction, SignalType.REJECTED),
+                pa_confidence=pa_signal.confidence,
+                chart_confidence=chart_conf,
+                rejection_reason=None if pa_signal.direction != 0 else "PA rejected",
+            )
+
+        except Exception as e:
+            return ForecastSignal(
+                timestamp=timestamp,
+                bar_index=bar_index,
+                symbol=symbol,
+                signal_type=SignalType.REJECTED,
+                pa_confidence=0.0,
+                chart_confidence=0.0,
+                rejection_reason=f"PA error: {str(e)[:50]}",
+            )
+
+    def _estimate_chart_confidence(self, df: pd.DataFrame) -> float:
+        """
+        Simplified chart studies confidence based on bar properties.
+        TODO: Call real Chart Studies box from Revision 2.
+        """
+        if len(df) == 0:
+            return 0.5
+
+        # Use last bar data
+        last_bar = df.iloc[-1]
+        open_price = float(last_bar['open'])
+        close_price = float(last_bar['close'])
+        high_price = float(last_bar['high'])
+        low_price = float(last_bar['low'])
+
+        if open_price == 0 or high_price == low_price:
+            return 0.5
+
+        # Position in range: 0 = at low, 1 = at high
+        position_in_range = (close_price - low_price) / (high_price - low_price)
+        # Confidence rises near extremes, falls near middle
+        conf = min(abs(position_in_range - 0.5) * 2.0, 1.0)
+        return conf
 
     def make_id_decision(
         self,

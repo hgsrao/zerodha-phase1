@@ -17,34 +17,67 @@ class CanonicalConfigBuilder:
 
     def __init__(self):
         self.registry = CanonicalParameterRegistry()
-        # Note: frozen identity hash may not match if registry has been updated
-        # The important fact is we're loading the REAL canonical registry, not placeholders
-        print(f"✓ Canonical registry loaded")
+        # Verify frozen identity (V2 contract re-frozen with proper governance)
+        self.registry.verify_frozen_identity()
+        print(f"✓ Canonical registry loaded and verified (ECS_REVISION_2_PARAMETER_SURFACE_V2)")
         print(f"  Total parameters: {self.registry.total_target_surface()}")
         print(f"  Calibratable: {len(self.registry.calibratable_names())}")
         print(f"  Safety (immutable): {len(self.registry.hardcoded_names())}")
 
-    def get_effective_config(self, overrides: Dict[str, Any] = None) -> Dict[str, Any]:
+    def get_calibratable_config(self, overrides: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Build EffectiveConfig as a dict with all 69 parameters.
+        Get ONLY calibratable parameters (47 of 69).
+        These MAY be overridden for calibration.
 
         Args:
-            overrides: Optional parameter overrides for calibration
+            overrides: Optional overrides for the 47 calibratable parameters
 
         Returns:
-            Dict with all parameters set to default or override value
+            Dict with calibratable params (safety params excluded)
         """
         config = {}
 
-        # Add all registry parameters
+        # Add only calibratable parameters
         for name, spec in self.registry.params.items():
-            config[name] = overrides.get(name, spec.default) if overrides else spec.default
-
-        # Add all safety parameters
-        for name, spec in self.registry.safety_params.items():
-            config[name] = overrides.get(name, spec.default) if overrides else spec.default
+            if spec.calibratable:
+                config[name] = overrides.get(name, spec.default) if overrides else spec.default
 
         return config
+
+    def get_effective_config(self, calibratable_overrides: Dict[str, Any] = None) -> 'EffectiveConfig':
+        """
+        Build frozen EffectiveConfig with all 69 parameters.
+        Safety parameters are NEVER overridden.
+
+        Args:
+            calibratable_overrides: Optional overrides for the 47 calibratable parameters only
+
+        Returns:
+            Frozen EffectiveConfig dataclass (immutable)
+        """
+        config_dict = {}
+
+        # Add calibratable parameters with optional overrides
+        for name, spec in self.registry.params.items():
+            if spec.calibratable:
+                config_dict[name] = (
+                    calibratable_overrides.get(name, spec.default)
+                    if calibratable_overrides
+                    else spec.default
+                )
+            else:
+                # Fixed (non-calibratable) parameters use defaults only
+                config_dict[name] = spec.default
+
+        # Add IMMUTABLE safety parameters (no overrides allowed)
+        for name, spec in self.registry.safety_params.items():
+            if name in config_dict:
+                raise ValueError(f"Safety param {name} conflicts with target param")
+            config_dict[name] = spec.default  # NO overrides
+
+        # Build frozen EffectiveConfig
+        from revision4.contracts import EffectiveConfig
+        return EffectiveConfig(**config_dict)
 
     def validate_config(self, config: Dict[str, Any]) -> tuple[bool, str]:
         """Validate config against registry."""
@@ -119,9 +152,25 @@ class CanonicalConfigBuilder:
 # Build on import
 _builder = CanonicalConfigBuilder()
 
-def get_canonical_config(overrides: Dict[str, Any] = None) -> Dict[str, Any]:
-    """Get a complete EffectiveConfig dict with all 69 parameters."""
-    return _builder.get_effective_config(overrides)
+def get_canonical_config(calibratable_overrides: Dict[str, Any] = None) -> 'EffectiveConfig':
+    """
+    Get a frozen EffectiveConfig with all 69 parameters.
+    Safety parameters are immutable.
+
+    Args:
+        calibratable_overrides: Overrides for the 47 calibratable params only
+
+    Returns:
+        Frozen EffectiveConfig dataclass
+    """
+    return _builder.get_effective_config(calibratable_overrides)
+
+def get_calibratable_config(overrides: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Get only the 47 calibratable parameters (as dict).
+    Use for calibration input; combine with safety params to build config.
+    """
+    return _builder.get_calibratable_config(overrides)
 
 def validate_config(config: Dict[str, Any]) -> tuple[bool, str]:
     """Validate a config dict."""
