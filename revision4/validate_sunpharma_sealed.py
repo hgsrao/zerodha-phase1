@@ -201,13 +201,16 @@ def run_sunpharma_validation():
                     exit_price, abs(position.quantity), side
                 )
 
-                # Calculate realized P&L
+                # Calculate realized P&L: gross_pnl - entry_cost - exit_cost
                 if position.direction == 1:  # Long
-                    pnl_realized = (exit_price - position.entry_price) * position.quantity
+                    gross_pnl = (exit_price - position.entry_price) * position.quantity
                 else:  # Short
-                    pnl_realized = (position.entry_price - exit_price) * position.quantity
+                    gross_pnl = (position.entry_price - exit_price) * position.quantity
 
-                pnl_pct = (pnl_realized / (position.entry_price * position.quantity)) * 100 if position.entry_price > 0 else 0.0
+                # Net P&L = gross P&L - all costs
+                net_pnl = gross_pnl - position.cost_paid - exit_cost_canonical
+
+                pnl_pct = (gross_pnl / (position.entry_price * position.quantity)) * 100 if position.entry_price > 0 else 0.0
 
                 # Create valid ExitEvent with all required fields
                 exit_event = ExitEvent(
@@ -223,7 +226,7 @@ def run_sunpharma_validation():
                     entry_cost_paid=position.cost_paid,
                     exit_cost_paid=exit_cost_canonical,
                     exit_reason=ExitReason.EOD_FLATTENING,
-                    pnl_realized=pnl_realized,
+                    pnl_realized=net_pnl,  # MUST be net P&L for ledger reconciliation
                     pnl_pct=pnl_pct,
                 )
 
