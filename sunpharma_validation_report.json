@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-09-08T21:31:04.695193",
+  "dataset": "SUNPHARMA-AUGUST-2024",
+  "bars_processed": 1000,
+  "starting_equity": 100000.0,
+  "ending_equity": 100000.0,
+  "realized_pnl": 0.0,
+  "orders_submitted": 0,
+  "orders_filled": 0,
+  "completed_trades": 0,
+  "gate16_breaches": 0,
+  "order_rejections": 0,
+  "pending_order_cancellations": 0,
+  "positions_flattened": 0,
+  "total_events": 1,
+  "open_positions_final": 0,
+  "pending_orders_final": 0,
+  "reconciliation_exact": true,
+  "status": "PASSED",
+  "event_summary": {
+    "ORDER_SUBMITTED": 0,
+    "ORDER_REJECTED": 0,
+    "FILL": 0,
+    "GATE16_BREACH": 0,
+    "QUARANTINE_STARTED": 0,
+    "ORDER_CANCELLED": 0,
+    "FLATTEN_SCHEDULED": 0,
+    "POSITION_FLATTENED": 0,
+    "RECONCILIATION_COMPLETED": 1
+  }
+}
