@@ -373,6 +373,7 @@ class EffectiveConfig:
     vwap_weight: float = 0.25
 
     # Safety parameters (immutable)
+    authorized_cross_session: bool = False  # Allow fills after session close (dangerous)
     drawdown_derate_multiplier: float = 0.8
     drawdown_derate_threshold: float = 0.18
     kill_switch_enabled: bool = True

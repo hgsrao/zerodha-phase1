@@ -114,6 +114,23 @@ class ProperGateEvaluator:
         Returns:
             (approved: bool, rejection_reason: str or None)
         """
+        # EARLY CHECK: Session Expiry (Pre-submission Queue Expiry)
+        # If no same-session fill opportunity exists, reject the order.
+        # Decision date: current bar's date
+        # Next fill date: symbol's next bar's date (if available)
+        if bars:
+            import pandas as pd
+            current_bar = bars.get(order_intent.symbol)
+            if current_bar:
+                decision_date = pd.Timestamp(bar_timestamp).date().isoformat()
+                # Check if this is near end-of-session
+                decision_time = pd.Timestamp(bar_timestamp).time()
+                trading_hours_end = pd.Timestamp(self.config.trading_hours_end).time()
+
+                # If current bar is at or after trading_hours_end, no same-session fill possible
+                if decision_time >= trading_hours_end:
+                    return False, "Session expired: no same-session fill opportunity"
+
         plan = order_intent.proposal.plan
         current_equity = snapshot.marked_equity
 

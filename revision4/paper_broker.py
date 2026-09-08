@@ -97,6 +97,19 @@ class PaperBroker:
         if fill_bar_index <= order.proposal.plan.bar_index:
             return None  # Not yet eligible
 
+        # CHECK: Cross-session fill detection (pre-fill gate)
+        # If fill date differs from decision date, reject unless explicitly authorized
+        import pandas as pd
+        decision_date = pd.Timestamp(order.timestamp_created).date().isoformat()
+        fill_date = pd.Timestamp(bar_at_fill_time.timestamp).date().isoformat()
+        is_cross_session = decision_date != fill_date
+
+        if is_cross_session:
+            authorized = config.require("authorized_cross_session") if config else False
+            if not authorized:
+                # Reject the fill: order will stay pending (expire after max_hold_bars)
+                return None
+
         # Fill at open
         fill_price = bar_at_fill_time.open
         quantity_filled = order.quantity
