@@ -461,26 +461,8 @@ class Revision2PortfolioOrchestrator:
                                     "after_timestamp": str(timestamp),
                                 })
 
-                            # Step 4: Cancel all pending orders and release reserved cash
-                            symbols_to_cancel = list(self.pending_entries.keys())
-                            for cancel_symbol in symbols_to_cancel:
-                                if cancel_symbol == event.symbol:
-                                    continue  # Don't cancel the order we just filled
-                                pending = self.pending_entries[cancel_symbol]
-                                # Estimate reserved cash (qty × entry_price)
-                                reserved_cash = pending.get("quantity", 0) * pending["plan"].entry_price
-                                # Record cancellation event
-                                self.event_ledger.append({
-                                    "event_type": "ORDER_CANCELLED",
-                                    "timestamp": str(timestamp),
-                                    "symbol": cancel_symbol,
-                                    "order_id": pending.get("order_id"),
-                                    "reason": "QUARANTINE_MODE_GATE16",
-                                    "reserved_cash_released": reserved_cash,
-                                })
-                                # Remove from pending (releases reserved cash implicitly)
-                                del self.pending_entries[cancel_symbol]
-                                funnel["pending_orders_cancelled"] += 1
+                            # Step 4 is already handled above (lines 453-458 cancel all pending)
+                            # No additional cancellation needed
 
                             # Step 5: Schedule all open positions for adverse flatten at next eligible bar
                             for flatten_symbol, trade in list(self.open_trades.items()):
@@ -490,13 +472,14 @@ class Revision2PortfolioOrchestrator:
                                     "side": trade["side"],
                                     "quantity": trade["quantity"],
                                 }
-                                self.event_ledger.append({
-                                    "event_type": "FLATTEN_SCHEDULED",
-                                    "timestamp": str(timestamp),
-                                    "symbol": flatten_symbol,
-                                    "entry_price": trade["entry_price"],
-                                    "quantity": trade["quantity"],
-                                })
+                                # Use hash-linked _emit_event for consistency
+                                self._emit_event(
+                                    "FLATTEN_SCHEDULED", timestamp,
+                                    symbol=flatten_symbol,
+                                    entry_price=float(trade["entry_price"]),
+                                    quantity=trade["quantity"],
+                                    side=trade["side"],
+                                )
             # Refresh every symbol trading at this exact timestamp before
             # sampling mark-to-market equity for the tick. Sampling inside
             # the per-symbol loop below (keyed off whichever symbol
@@ -525,15 +508,14 @@ class Revision2PortfolioOrchestrator:
                     adverse_factor = 0.999 if flatten_plan["side"] == "BUY" else 1.001
                     exit_price = bar_open * adverse_factor
 
-                    # Record flatten event
-                    self.event_ledger.append({
-                        "event_type": "POSITION_FLATTENED",
-                        "timestamp": str(timestamp),
-                        "symbol": symbol,
-                        "exit_price": exit_price,
-                        "adverse_factor": adverse_factor,
-                        "quantity": flatten_plan["quantity"],
-                    })
+                    # Record flatten event (hash-linked)
+                    self._emit_event(
+                        "POSITION_FLATTENED", timestamp,
+                        symbol=symbol,
+                        exit_price=exit_price,
+                        adverse_factor=adverse_factor,
+                        quantity=flatten_plan["quantity"],
+                    )
 
                     # Execute adverse flatten (same path as normal exits)
                     self._execute_exit(
@@ -704,11 +686,11 @@ class Revision2PortfolioOrchestrator:
                     )
                     if not allowed:
                         funnel["cross_session_rejections"] += 1
-                        self.event_ledger.append({
-                            "event_type": "ORDER_REJECTED", "timestamp": str(timestamp),
-                            "symbol": symbol, "order_id": getattr(order, "order_id", None),
-                            "reason": reason,
-                        })
+                        self._emit_event(
+                            "ORDER_REJECTED", timestamp,
+                            symbol=symbol, order_id=getattr(order, "order_id", None),
+                            reason=reason,
+                        )
                         continue
 
                 self.pending_entries[symbol] = {
@@ -717,6 +699,16 @@ class Revision2PortfolioOrchestrator:
                     "fill_bar_idx": bar_idx + 1,
                 }
                 funnel["orders_queued"] += 1
+
+                # Step 7: Emit ORDER_SUBMITTED event
+                self._emit_event(
+                    "ORDER_SUBMITTED", timestamp,
+                    symbol=symbol,
+                    order_id=getattr(order, "order_id", None),
+                    entry_price=float(plan.entry_price),
+                    quantity=quantity,
+                    side="BUY" if order.direction == 1 else "SELL",
+                )
 
         # The clock intentionally has no event after the final complete bar;
         # a queued order without its scheduled event must be cancelled rather
@@ -753,10 +745,21 @@ class Revision2PortfolioOrchestrator:
             if mtm_peak > 0:
                 mtm_max_drawdown_fraction = max(mtm_max_drawdown_fraction, (mtm_peak - v) / mtm_peak)
         safety_violations = sum(1 for t in self.completed_trades if t["reason"] == "forced_close_drawdown_halt")
-        reconciliation_exact = not self.open_trades and not self.pending_entries
+
+        # Step 8: Enforce exact reconciliation
+        # After EOD flatten, unrealized P&L must be zero
+        unrealized_pnl = self._mark_to_market_equity() - self.starting_equity - self.broker.realized_pnl
+        reconciliation_exact = (
+            not self.open_trades and
+            not self.pending_entries and
+            abs(unrealized_pnl) < 0.01  # Must be near zero after EOD flatten
+        )
+
         self._emit_event("RECONCILIATION_COMPLETED", "END_OF_RUN",
                          exact=reconciliation_exact, open_positions=len(self.open_trades),
-                         pending_orders=len(self.pending_entries), realized_pnl=self.broker.realized_pnl)
+                         pending_orders=len(self.pending_entries), realized_pnl=self.broker.realized_pnl,
+                         unrealized_pnl=unrealized_pnl, quarantine_mode=self.quarantine_mode)
+
         if not reconciliation_exact:
             self.trading_halted = True
             raise RuntimeError("final portfolio reconciliation failed")
