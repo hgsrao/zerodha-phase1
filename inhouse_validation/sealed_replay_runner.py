@@ -87,8 +87,14 @@ class SealedReplayRunner:
         """
         Execute the complete 48-symbol sealed replay.
 
+        Calls Revision2PortfolioOrchestrator.run() with chronological merged bars,
+        wires Gate16 and cross-session validation, and produces sealed report.
+
         Returns:
             SealedReplayReport with full metrics and audit trail.
+
+        Raises:
+            RuntimeError: If orchestrator.run() fails or reconciliation is incomplete.
         """
         try:
             # Load and verify all 48 files
@@ -99,7 +105,7 @@ class SealedReplayRunner:
             symbols = list(all_data.keys())
             print(f"✓ Loaded {len(symbols)} symbols")
 
-            # Initialize orchestrator
+            # Initialize orchestrator with safety components
             print("Initializing Revision2PortfolioOrchestrator...")
             self.orchestrator = Revision2PortfolioOrchestrator(
                 symbols=symbols,
@@ -108,37 +114,62 @@ class SealedReplayRunner:
                 starting_equity=self.starting_equity,
             )
 
-            # Run orchestration (simplified for this phase)
-            # Full implementation would integrate chronological timestamp merging
-            print("Starting chronological orchestration...")
-            # TODO: Wire full chronological merge + Gate16 checks + cross-session validation
+            # Wire Gate16 remediator and cross-session policy into orchestrator
+            # (These are used during run() to validate each order)
+            self.orchestrator.gate16_remediator = self.gate16_remediator
+            self.orchestrator.cross_session_policy = self.cross_session_policy
 
-            # For now, get basic metrics
+            # CRITICAL: Call orchestrator.run() with all data
+            print("Starting chronological orchestration...")
+            self.orchestrator.run(all_data)
+
+            # Extract metrics from orchestrator state
             self.bars_processed = sum(len(df) for df in all_data.values())
             self.completed_trades = self.orchestrator.completed_trades
 
-            # Calculate daily P&L
+            # Calculate daily P&L from completed trades
             for trade in self.completed_trades:
-                # Parse exit timestamp to date
                 exit_date = pd.Timestamp(trade.get('exit_timestamp', '2026-08-01')).date().isoformat()
                 net_pnl = trade.get('pnl_realized', 0.0)
                 self.daily_pnl_series[exit_date] = self.daily_pnl_series.get(exit_date, 0.0) + net_pnl
 
-            # Determine reconciliation status
+            # Calculate costs from trades
+            total_entry_costs = sum(trade.get('entry_cost', 0.0) for trade in self.completed_trades)
+            total_exit_costs = sum(trade.get('exit_cost', 0.0) for trade in self.completed_trades)
+
+            # Reconciliation checks (MUST ALL PASS)
             reconciliation_exact = (
-                len(self.orchestrator.open_trades) == 0
-                and len(self.orchestrator.pending_entries) == 0
+                len(self.orchestrator.open_trades) == 0 and
+                len(self.orchestrator.pending_entries) == 0 and
+                abs(self.orchestrator.broker.realized_pnl - sum(self.daily_pnl_series.values())) < 0.01
             )
 
+            if not reconciliation_exact:
+                raise RuntimeError(
+                    f"Reconciliation failed: "
+                    f"open_trades={len(self.orchestrator.open_trades)}, "
+                    f"pending={len(self.orchestrator.pending_entries)}, "
+                    f"pnl_mismatch={abs(self.orchestrator.broker.realized_pnl - sum(self.daily_pnl_series.values()))}"
+                )
+
+            # Verify audit chains
+            audit_chain_valid = self.gate16_remediator.verify_chain()
+            if not audit_chain_valid:
+                raise RuntimeError("Gate16 audit chain verification failed")
+
             # Determine final status
-            if self.gate16_remediator.violations:
-                final_status = "REMEDIATION_REQUIRED"
+            if len(self.completed_trades) == 0:
+                final_status = "NO_EXECUTION"  # No trades executed
+            elif self.gate16_remediator.violations and not reconciliation_exact:
+                final_status = "FAILED"  # Breach without recovery
+            elif self.gate16_remediator.violations and reconciliation_exact:
+                final_status = "REMEDIATION_REQUIRED"  # Breach + recovered
             elif reconciliation_exact:
-                final_status = "PASSED"
+                final_status = "PASSED"  # Clean run
             else:
                 final_status = "FAILED"
 
-            # Build report
+            # Build immutable report
             report = SealedReplayReport(
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 dataset_hash=self.dataset_hash,
@@ -148,18 +179,18 @@ class SealedReplayRunner:
                 orders_submitted=len(self.orchestrator.completed_trades),
                 orders_filled=len([t for t in self.completed_trades if t.get('filled')]),
                 gate16_breaches=len(self.gate16_remediator.violations),
-                rejected_orders=0,  # Will be populated by orchestrator
+                rejected_orders=len([t for t in self.completed_trades if t.get('rejection_reason')]),
                 starting_equity=self.starting_equity,
                 ending_equity=self.orchestrator._equity_curve[-1] if self.orchestrator._equity_curve else self.starting_equity,
                 realized_pnl=self.orchestrator.broker.realized_pnl,
-                entry_costs=0.0,  # TODO: aggregate from trades
-                exit_costs=0.0,   # TODO: aggregate from trades
+                entry_costs=total_entry_costs,
+                exit_costs=total_exit_costs,
                 daily_pnl_series=self.daily_pnl_series,
                 reconciliation_exact=reconciliation_exact,
                 pending_orders_final=len(self.orchestrator.pending_entries),
-                reserved_cash_final=0.0,  # TODO: track reservations
+                reserved_cash_final=0.0,  # TODO: track reservations in broker
                 open_positions_final=len(self.orchestrator.open_trades),
-                audit_chain_valid=self.gate16_remediator.verify_chain(),
+                audit_chain_valid=audit_chain_valid,
                 status=final_status,
             )
 
