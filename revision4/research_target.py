@@ -165,7 +165,10 @@ class SealedRunEvaluation:
                 exit_dt = datetime.fromisoformat(trade.exit_timestamp)
             except ValueError as e:
                 raise ValueError(f"Trade {trade.trade_id}: invalid timestamp: {e}")
-            if exit_dt <= entry_dt:
+            # Remove timezone info for comparison (both must be ISO format)
+            entry_dt_naive = entry_dt.replace(tzinfo=None)
+            exit_dt_naive = exit_dt.replace(tzinfo=None)
+            if exit_dt_naive <= entry_dt_naive:
                 raise ValueError(f"Trade {trade.trade_id}: exit must be after entry")
 
         # Verify P&L calculations
