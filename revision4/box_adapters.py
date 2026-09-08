@@ -24,6 +24,7 @@ from revision2.boxes import (
     P01DBox,
 )
 from revision2.contracts import MarketSnapshot
+from revision4.gate_integration import evaluate_pre_submission_gates
 
 
 def build_candidate_provider(
@@ -55,8 +56,9 @@ def build_candidate_provider(
         if len(warmup_df) >= 30:
             pa_box.calibrate(symbol, warmup_df)
 
-    # Maintain bar history per symbol across timestamp calls
+    # Maintain bar history and peak equity across timestamp calls
     bar_history: Dict[str, List[Bar]] = {}
+    peak_equity_tracker = {"peak": 100_000.0, "daily_realized_loss": 0.0}
 
     def candidate_provider(
         snapshot: PortfolioSnapshot,
@@ -66,7 +68,7 @@ def build_candidate_provider(
         """
         Generate ranked order candidates for this timestamp.
 
-        Sequence:
+        Complete pipeline with pre-submission gate authorization:
           1. PA box generates signals (uses warmup calibration)
           2. ID box validates entry criteria
           3. MPC box creates trade plans with stops/targets
@@ -74,12 +76,17 @@ def build_candidate_provider(
           5. PositionManager sizes positions
           6. SafetyGates post-sizing checks (profit margin)
           7. P01D creates final orders
-          8. Return ranked candidates
+          8. Pre-submission gates (1-13, 17-18) authorize
+          9. Return only authorized candidates
         """
         candidates: List[RankedOrderCandidate] = []
 
+        # Track peak equity for drawdown calculation
+        current_equity = snapshot.marked_equity
+        peak_equity_tracker["peak"] = max(peak_equity_tracker["peak"], current_equity)
+
         # Build equity curve from snapshot (required for safety gates)
-        equity_curve = [snapshot.marked_equity] if snapshot.marked_equity > 0 else [100_000.0]
+        equity_curve = [current_equity] if current_equity > 0 else [100_000.0]
 
         # Process each symbol
         for symbol, bar in bars.items():
@@ -222,6 +229,18 @@ def build_candidate_provider(
                 timestamp_created=bar.timestamp,
                 bar_index_created=event_index,
             )
+
+            # 8. PRE-SUBMISSION GATE AUTHORIZATION (Gates 1-13, 17-18)
+            approved, gate_reason = evaluate_pre_submission_gates(
+                order_intent,
+                snapshot,
+                peak_equity_tracker["peak"],
+                peak_equity_tracker["daily_realized_loss"],
+                config,
+            )
+            if not approved:
+                # Order fails pre-submission authorization
+                continue
 
             # Rank by PA confidence (higher = better)
             rank_score = pa_signal.confidence + (0.1 if pa_signal.quality_band == "green" else 0)
