@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-09-08T13:27:12.372662",
+  "symbol": "SUNPHARMA",
+  "period": "2024-08-01 to 2024-08-31",
+  "status": "PASSED",
+  "metrics": {
+    "timestamps_processed": 7875,
+    "bars_processed": 7875,
+    "orders_submitted": 109,
+    "fills": 109,
+    "exits": 109,
+    "gate_rejections": 193,
+    "cross_session_cancellations": 0
+  },
+  "financials": {
+    "starting_equity": 100000.0,
+    "ending_equity": 99454.06898052212,
+    "realized_pnl": -545.9310194778391,
+    "total_costs": 200.46657100000002,
+    "daily_pnl": 0.0
+  },
+  "reconciliation": {
+    "pending_orders": 0,
+    "reserved_cash": 0.0,
+    "open_positions": 0,
+    "exact": true
+  },
+  "event_log_sample": [
+    "('2024-08-01 03:46:00+00:00', 'GATE_REJECT', '1_SUNPHARMA:Gate12StrategySignals: confidence 0.5428246031563124 below threshold 0.55')",
+    "('2024-08-01 03:56:00+00:00', 'GATE_REJECT', '11_SUNPHARMA:Gate12StrategySignals: confidence 0.5041143185084193 below threshold 0.55')",
+    "('2024-08-01 03:57:00+00:00', 'SUBMIT', '12_SUNPHARMA')",
+    "('2024-08-01 03:58:00+00:00', 'FILL', '12_SUNPHARMA')",
+    "('2024-08-01 04:58:00+00:00', 'EXIT', '73_SUNPHARMA_exit')",
+    "('2024-08-01 04:58:00+00:00', 'SUBMIT', '73_SUNPHARMA')",
+    "('2024-08-01 04:59:00+00:00', 'FILL', '73_SUNPHARMA')",
+    "('2024-08-01 05:33:00+00:00', 'EXIT', '108_SUNPHARMA_exit')",
+    "('2024-08-01 05:33:00+00:00', 'SUBMIT', '108_SUNPHARMA')",
+    "('2024-08-01 05:34:00+00:00', 'FILL', '108_SUNPHARMA')"
+  ]
+}
