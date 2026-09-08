@@ -84,7 +84,11 @@ class CrossSessionRejectionPolicy:
         # Check if next bar is same date
         bars = all_bars[symbol]
         decision_date = pd.Timestamp(decision_timestamp).date()
-        next_bar = bars[next_bar_idx]
+        # The in-house portfolio orchestrator owns DataFrames, while early
+        # component tests used lists of Series.  Support both representations
+        # so the policy examines the actual next symbol bar rather than a
+        # DataFrame column selected by an integer key.
+        next_bar = bars.iloc[next_bar_idx] if isinstance(bars, pd.DataFrame) else bars[next_bar_idx]
         next_bar_timestamp = pd.Timestamp(next_bar['timestamp'])
         next_bar_date = next_bar_timestamp.date()
 

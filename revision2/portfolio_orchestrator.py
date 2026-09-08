@@ -122,6 +122,14 @@ class Revision2PortfolioOrchestrator:
         self.broker = PaperBrokerAdapter(account_id="PAPER-R2-PORTFOLIO")
         self.entry_decision_engine = EntryDecisionEngine(config=self._build_safety_gate_config())
 
+        # Safety control lifecycle dependencies (wired during run())
+        self.cross_session_policy = None  # Set by caller before run()
+        self.gate16_remediator = None     # Set by caller before run()
+        self.event_ledger: List[Dict[str, Any]] = []  # Authoritative event record
+        self.quarantine_mode = False
+        self.trading_halted = False
+        self._scheduled_flattens: Dict[str, Dict[str, Any]] = {}  # Positions to flatten next bar
+
         self.starting_equity = starting_equity
         self.consumed_parameters: set = set()
         self.completed_trades: List[Dict[str, Any]] = []
