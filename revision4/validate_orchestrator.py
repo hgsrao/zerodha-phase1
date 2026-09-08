@@ -8,6 +8,7 @@ import json
 import pandas as pd
 from typing import Dict, Sequence
 from revision4.contracts import EffectiveConfig, Bar
+from revision4.dataset_seal import DatasetValidator
 from revision4.timestamp_orchestrator import TimestampOrchestrator
 from revision4.box_adapters import build_candidate_provider, build_exit_provider
 from revision4.research_target import SealedRunEvaluation, BenchmarkConfig
@@ -43,8 +44,10 @@ class ManifestDataLoader:
         df = self.load_symbol_data(symbol)
 
         start = pd.Timestamp(start_date, tz='UTC')
-        end = pd.Timestamp(end_date, tz='UTC')
-        filtered = df[(df['timestamp'] >= start) & (df['timestamp'] <= end)]
+        # End dates are calendar dates.  Use an exclusive next-day boundary
+        # so the final market session is never truncated at midnight.
+        end_exclusive = pd.Timestamp(end_date, tz='UTC') + pd.DateOffset(days=1)
+        filtered = df[(df['timestamp'] >= start) & (df['timestamp'] < end_exclusive)]
 
         bars = []
         for _, row in filtered.iterrows():
@@ -87,6 +90,14 @@ def run_validation_replay(
 
     # Load data
     print(f"\nLoading manifest: {manifest_path}")
+    # Do the byte-level seal check before reading a CSV.  A replay on data
+    # that differs from its frozen manifest is invalid, even if it runs.
+    try:
+        seal = DatasetValidator(manifest_path).load_manifest(data_dir)
+    except RuntimeError as exc:
+        return {"success": False, "error": f"dataset seal failed: {exc}"}
+    if symbol not in seal.symbols:
+        return {"success": False, "error": f"{symbol} is not admitted by the frozen manifest"}
     loader = ManifestDataLoader(manifest_path, data_dir)
     print(f"✓ Manifest loaded: {loader.manifest['symbol_count']} symbols")
 
@@ -143,7 +154,9 @@ def run_validation_replay(
             "result": result,
         }
     except Exception as e:
-        return {"success": True, "eval": None, "error": str(e), "result": result}
+        # A zero-trade or unreconciled ledger is diagnostic output, not a
+        # successful validation run.
+        return {"success": False, "eval": None, "error": str(e), "result": result}
 
 
 if __name__ == "__main__":
