@@ -1,0 +1,429 @@
+{
+  "total_observations": 5935,
+  "run_timestamp": "2026-09-08T11:29:40.454576",
+  "methodology": "close[t] vs open[t+1] for actual candidates only",
+  "stratification": {
+    "session_gaps": {
+      "count": 5935,
+      "median_pct": 0.0,
+      "p95_pct": 0.055387,
+      "p99_pct": 0.121873,
+      "max_pct": 3.135368,
+      "rejections_at_0_10pct": 81,
+      "rejections_at_0_15pct": 34,
+      "rejections_at_0_20pct": 22,
+      "rejection_rate_0_10pct": "1.36%",
+      "rejection_rate_0_15pct": "0.57%",
+      "rejection_rate_0_20pct": "0.37%"
+    },
+    "intraday_gaps": {
+      "count": 0
+    }
+  },
+  "by_symbol": {
+    "SUNPHARMA": {
+      "count": 138,
+      "median_pct": 0.005807,
+      "p95_pct": 0.061255,
+      "p99_pct": 0.103504,
+      "max_pct": 0.992728,
+      "session_starts": 138,
+      "intraday": 0
+    },
+    "BAJAJFINSV": {
+      "count": 142,
+      "median_pct": 0.003058,
+      "p95_pct": 0.051589,
+      "p99_pct": 0.081344,
+      "max_pct": 0.213041,
+      "session_starts": 142,
+      "intraday": 0
+    },
+    "ETERNAL": {
+      "count": 192,
+      "median_pct": 0.011318,
+      "p95_pct": 0.061069,
+      "p99_pct": 0.38073,
+      "max_pct": 0.584499,
+      "session_starts": 192,
+      "intraday": 0
+    },
+    "INFY": {
+      "count": 127,
+      "median_pct": 0.0,
+      "p95_pct": 0.036842,
+      "p99_pct": 0.069081,
+      "max_pct": 0.115798,
+      "session_starts": 127,
+      "intraday": 0
+    },
+    "HCLTECH": {
+      "count": 153,
+      "median_pct": 0.0,
+      "p95_pct": 0.051529,
+      "p99_pct": 0.074884,
+      "max_pct": 0.082537,
+      "session_starts": 153,
+      "intraday": 0
+    },
+    "CIPLA": {
+      "count": 140,
+      "median_pct": 0.0,
+      "p95_pct": 0.047259,
+      "p99_pct": 0.414013,
+      "max_pct": 1.035599,
+      "session_starts": 140,
+      "intraday": 0
+    },
+    "TRENT": {
+      "count": 101,
+      "median_pct": 0.002604,
+      "p95_pct": 0.08745,
+      "p99_pct": 0.114694,
+      "max_pct": 0.139479,
+      "session_starts": 101,
+      "intraday": 0
+    },
+    "TITAN": {
+      "count": 148,
+      "median_pct": 0.0,
+      "p95_pct": 0.054414,
+      "p99_pct": 0.102294,
+      "max_pct": 0.141563,
+      "session_starts": 148,
+      "intraday": 0
+    },
+    "ASIANPAINT": {
+      "count": 142,
+      "median_pct": 0.001616,
+      "p95_pct": 0.051149,
+      "p99_pct": 0.074255,
+      "max_pct": 1.404785,
+      "session_starts": 142,
+      "intraday": 0
+    },
+    "ADANIPORTS": {
+      "count": 149,
+      "median_pct": 0.006792,
+      "p95_pct": 0.069307,
+      "p99_pct": 0.140546,
+      "max_pct": 0.199318,
+      "session_starts": 149,
+      "intraday": 0
+    },
+    "TCS": {
+      "count": 95,
+      "median_pct": 0.0,
+      "p95_pct": 0.029443,
+      "p99_pct": 0.045208,
+      "max_pct": 0.045208,
+      "session_starts": 95,
+      "intraday": 0
+    },
+    "SBIN": {
+      "count": 132,
+      "median_pct": 0.006122,
+      "p95_pct": 0.048891,
+      "p99_pct": 0.061992,
+      "max_pct": 0.133253,
+      "session_starts": 132,
+      "intraday": 0
+    },
+    "HDFCLIFE": {
+      "count": 148,
+      "median_pct": 0.007062,
+      "p95_pct": 0.049126,
+      "p99_pct": 0.086668,
+      "max_pct": 0.132675,
+      "session_starts": 148,
+      "intraday": 0
+    },
+    "SHRIRAMFIN": {
+      "count": 174,
+      "median_pct": 0.0,
+      "p95_pct": 0.070219,
+      "p99_pct": 0.135204,
+      "max_pct": 1.952862,
+      "session_starts": 174,
+      "intraday": 0
+    },
+    "M&M": {
+      "count": 123,
+      "median_pct": 0.001788,
+      "p95_pct": 0.042936,
+      "p99_pct": 0.079304,
+      "max_pct": 0.08047,
+      "session_starts": 123,
+      "intraday": 0
+    },
+    "DRREDDY": {
+      "count": 131,
+      "median_pct": 0.0,
+      "p95_pct": 0.050136,
+      "p99_pct": 0.068961,
+      "max_pct": 0.079122,
+      "session_starts": 131,
+      "intraday": 0
+    },
+    "MAXHEALTH": {
+      "count": 146,
+      "median_pct": 0.0,
+      "p95_pct": 0.121873,
+      "p99_pct": 0.213109,
+      "max_pct": 0.2886,
+      "session_starts": 146,
+      "intraday": 0
+    },
+    "JSWSTEEL": {
+      "count": 130,
+      "median_pct": 0.0,
+      "p95_pct": 0.054508,
+      "p99_pct": 0.084564,
+      "max_pct": 0.130307,
+      "session_starts": 130,
+      "intraday": 0
+    },
+    "NTPC": {
+      "count": 151,
+      "median_pct": 0.012217,
+      "p95_pct": 0.060694,
+      "p99_pct": 0.108959,
+      "max_pct": 0.145631,
+      "session_starts": 151,
+      "intraday": 0
+    },
+    "SBILIFE": {
+      "count": 150,
+      "median_pct": 0.0,
+      "p95_pct": 0.071597,
+      "p99_pct": 0.108099,
+      "max_pct": 0.108958,
+      "session_starts": 150,
+      "intraday": 0
+    },
+    "INDIGO": {
+      "count": 109,
+      "median_pct": 0.0,
+      "p95_pct": 0.052096,
+      "p99_pct": 0.079558,
+      "max_pct": 0.180622,
+      "session_starts": 109,
+      "intraday": 0
+    },
+    "ADANIENT": {
+      "count": 158,
+      "median_pct": 0.0,
+      "p95_pct": 0.057857,
+      "p99_pct": 0.268247,
+      "max_pct": 1.150958,
+      "session_starts": 158,
+      "intraday": 0
+    },
+    "ICICIBANK": {
+      "count": 128,
+      "median_pct": 0.004255,
+      "p95_pct": 0.034286,
+      "p99_pct": 0.055387,
+      "max_pct": 0.147536,
+      "session_starts": 128,
+      "intraday": 0
+    },
+    "BHARTIARTL": {
+      "count": 135,
+      "median_pct": 0.003478,
+      "p95_pct": 0.04809,
+      "p99_pct": 0.06937,
+      "max_pct": 0.082988,
+      "session_starts": 135,
+      "intraday": 0
+    },
+    "TATASTEEL": {
+      "count": 148,
+      "median_pct": 0.006941,
+      "p95_pct": 0.053587,
+      "p99_pct": 0.126493,
+      "max_pct": 0.133592,
+      "session_starts": 148,
+      "intraday": 0
+    },
+    "TATACONSUM": {
+      "count": 133,
+      "median_pct": 0.0,
+      "p95_pct": 0.075475,
+      "p99_pct": 0.083319,
+      "max_pct": 0.097096,
+      "session_starts": 133,
+      "intraday": 0
+    },
+    "ITC": {
+      "count": 117,
+      "median_pct": 0.012015,
+      "p95_pct": 0.037369,
+      "p99_pct": 0.062445,
+      "max_pct": 0.071908,
+      "session_starts": 117,
+      "intraday": 0
+    },
+    "ONGC": {
+      "count": 165,
+      "median_pct": 0.015918,
+      "p95_pct": 0.064495,
+      "p99_pct": 0.235057,
+      "max_pct": 3.135368,
+      "session_starts": 165,
+      "intraday": 0
+    },
+    "RELIANCE": {
+      "count": 130,
+      "median_pct": 0.0,
+      "p95_pct": 0.030582,
+      "p99_pct": 0.079072,
+      "max_pct": 0.176391,
+      "session_starts": 130,
+      "intraday": 0
+    },
+    "LT": {
+      "count": 123,
+      "median_pct": 0.002695,
+      "p95_pct": 0.044497,
+      "p99_pct": 0.128203,
+      "max_pct": 0.131867,
+      "session_starts": 123,
+      "intraday": 0
+    },
+    "HDFCBANK": {
+      "count": 117,
+      "median_pct": 0.0,
+      "p95_pct": 0.03686,
+      "p99_pct": 0.073538,
+      "max_pct": 0.183509,
+      "session_starts": 117,
+      "intraday": 0
+    },
+    "TECHM": {
+      "count": 144,
+      "median_pct": 0.0,
+      "p95_pct": 0.044646,
+      "p99_pct": 0.095812,
+      "max_pct": 0.106428,
+      "session_starts": 144,
+      "intraday": 0
+    },
+    "HINDALCO": {
+      "count": 154,
+      "median_pct": 0.007641,
+      "p95_pct": 0.064211,
+      "p99_pct": 0.387097,
+      "max_pct": 0.602168,
+      "session_starts": 154,
+      "intraday": 0
+    },
+    "BAJFINANCE": {
+      "count": 101,
+      "median_pct": 0.0,
+      "p95_pct": 0.076161,
+      "p99_pct": 0.151515,
+      "max_pct": 0.681818,
+      "session_starts": 101,
+      "intraday": 0
+    },
+    "POWERGRID": {
+      "count": 123,
+      "median_pct": 0.0,
+      "p95_pct": 0.058875,
+      "p99_pct": 0.097779,
+      "max_pct": 0.269046,
+      "session_starts": 123,
+      "intraday": 0
+    },
+    "BEL": {
+      "count": 146,
+      "median_pct": 0.016064,
+      "p95_pct": 0.065488,
+      "p99_pct": 0.136705,
+      "max_pct": 0.276243,
+      "session_starts": 146,
+      "intraday": 0
+    },
+    "GRASIM": {
+      "count": 155,
+      "median_pct": 0.0,
+      "p95_pct": 0.050622,
+      "p99_pct": 0.123447,
+      "max_pct": 0.131382,
+      "session_starts": 155,
+      "intraday": 0
+    },
+    "KOTAKBANK": {
+      "count": 126,
+      "median_pct": 0.0,
+      "p95_pct": 0.028249,
+      "p99_pct": 0.08285,
+      "max_pct": 0.113411,
+      "session_starts": 126,
+      "intraday": 0
+    },
+    "WIPRO": {
+      "count": 140,
+      "median_pct": 0.0,
+      "p95_pct": 0.059382,
+      "p99_pct": 0.063939,
+      "max_pct": 0.084674,
+      "session_starts": 140,
+      "intraday": 0
+    },
+    "HINDUNILVR": {
+      "count": 137,
+      "median_pct": 0.001818,
+      "p95_pct": 0.044059,
+      "p99_pct": 0.064958,
+      "max_pct": 0.074044,
+      "session_starts": 137,
+      "intraday": 0
+    },
+    "COALINDIA": {
+      "count": 154,
+      "median_pct": 0.010169,
+      "p95_pct": 0.072524,
+      "p99_pct": 0.205931,
+      "max_pct": 1.104428,
+      "session_starts": 154,
+      "intraday": 0
+    },
+    "JIOFIN": {
+      "count": 162,
+      "median_pct": 0.0,
+      "p95_pct": 0.061312,
+      "p99_pct": 0.125098,
+      "max_pct": 0.134771,
+      "session_starts": 162,
+      "intraday": 0
+    },
+    "AXISBANK": {
+      "count": 118,
+      "median_pct": 0.0,
+      "p95_pct": 0.034706,
+      "p99_pct": 0.044305,
+      "max_pct": 0.048001,
+      "session_starts": 118,
+      "intraday": 0
+    }
+  },
+  "tolerance_analysis": {
+    "note": "Counts of fills exceeding each threshold",
+    "thresholds": {
+      "0_10_pct": {
+        "count": 81,
+        "rate": "1.36%"
+      },
+      "0_15_pct": {
+        "count": 34,
+        "rate": "0.57%"
+      },
+      "0_20_pct": {
+        "count": 22,
+        "rate": "0.37%"
+      }
+    }
+  }
+}
