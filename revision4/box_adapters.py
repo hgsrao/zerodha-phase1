@@ -177,17 +177,40 @@ def build_candidate_provider(config: EffectiveConfig):
                 # Rank by PA confidence (higher = better)
                 rank_score = pa_signal.confidence + (0.1 if pa_signal.quality_band == "green" else 0)
 
-                from revision4.contracts import OrderIntent
+                from revision4.contracts import OrderIntent, SizedProposal, TradePlan as R4TradePlan
+
+                # Build TradePlan for SizedProposal
+                trade_plan = R4TradePlan(
+                    timestamp=bar.timestamp,
+                    bar_index=event_index,
+                    symbol=symbol,
+                    direction=pa_signal.direction,
+                    entry_price=bar.close,
+                    stop_price=plan.stop_price,
+                    target_price=plan.target_price,
+                    position_size_base=quantity,
+                    risk_per_share=abs(plan.entry_price - plan.stop_price),
+                )
+
+                # Build SizedProposal
+                proposal = SizedProposal(
+                    timestamp=bar.timestamp,
+                    bar_index=event_index,
+                    symbol=symbol,
+                    plan=trade_plan,
+                    mpc_scaling_factor=1.0,  # Already included in quantity
+                    final_quantity=quantity,
+                    cost_estimate=quantity * bar.close * 0.001,  # Rough estimate
+                )
+
                 order_intent = OrderIntent(
                     order_id=f"{event_index}_{symbol}",
                     symbol=symbol,
                     direction=pa_signal.direction,
                     quantity=quantity,
-                    entry_price=bar.close,
                     stop_price=plan.stop_price,
                     target_price=plan.target_price,
-                    minimum_hold_bars=plan.minimum_hold_bars,
-                    maximum_hold_bars=plan.maximum_hold_bars,
+                    proposal=proposal,
                     timestamp_created=bar.timestamp,
                     bar_index_created=event_index,
                 )
