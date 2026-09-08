@@ -70,6 +70,7 @@ class TimestampOrchestrator:
         ledger: Optional[PortfolioLedger] = None,
         broker: Optional[PaperBroker] = None,
         gate_evaluator=None,
+        gate16_remediator=None,
     ) -> None:
         if config is None:
             raise ValueError("TimestampOrchestrator requires canonical config")
@@ -79,6 +80,7 @@ class TimestampOrchestrator:
         self.ledger = ledger or PortfolioLedger()
         self.broker = broker or PaperBroker()
         self.gate_evaluator = gate_evaluator
+        self.gate16_remediator = gate16_remediator
         self._current_date: Optional[str] = None
 
     @staticmethod
@@ -140,6 +142,11 @@ class TimestampOrchestrator:
                 self.ledger.reset_daily()
             self._current_date = date
 
+            if self.gate16_remediator is not None:
+                remediation_exits = self.gate16_remediator.flatten_next_bars(bars, event_index, self.ledger)
+                exits.extend(remediation_exits)
+                event_log.extend((timestamp, "GATE16_FLATTEN", event.exit_id) for event in remediation_exits)
+
             # Exits observe the state from prior timestamps, before new fills
             # or candidates at this timestamp can change it.
             pre_exit_snapshot = self.ledger.snapshot(timestamp, event_index, bars)
@@ -185,7 +192,13 @@ class TimestampOrchestrator:
                 if self.gate_evaluator is not None:
                     ok, reason = self.gate_evaluator.evaluate_post_fill(order, fill)
                     if not ok:
-                        raise RuntimeError(f"post-fill gate rejected {order_id}: {reason}")
+                        if self.gate16_remediator is None:
+                            raise RuntimeError(f"post-fill gate rejected {order_id}: {reason}")
+                        violation = self.gate16_remediator.handle_breach(timestamp, order, fill, self.ledger, self.broker)
+                        event_log.append((timestamp, "GATE16_QUARANTINE", violation.violation_id))
+                        if self.gate16_remediator.trading_halted:
+                            raise RuntimeError("Gate16 second breach: trading halted")
+                        continue
                     ok, reason = self.gate_evaluator.evaluate_post_reconciliation(
                         order, fill, int(order.quantity), int(fill.quantity_filled),
                         fill.cost_paid, fill.cost_paid,
@@ -197,6 +210,8 @@ class TimestampOrchestrator:
             # This exact snapshot is shared by every candidate at timestamp t.
             snapshot = self.ledger.snapshot(timestamp, event_index, bars)
             candidates = self.candidate_provider(snapshot, bars, event_index)
+            if self.gate16_remediator is not None and not self.gate16_remediator.entry_authorization_enabled:
+                candidates = ()
             ranked = sorted(candidates, key=lambda candidate: (-candidate.rank, candidate.order.order_id))
             for candidate in ranked:
                 order = candidate.order

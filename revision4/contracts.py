@@ -32,6 +32,7 @@ class ExitReason(Enum):
     TIME_EXIT = "TIME_EXIT"       # Held 60 bars
     EOD_FLATTENING = "EOD_FLATTENING"
     LIQUIDATION = "LIQUIDATION"   # Daily loss limit
+    QUARANTINE_FLATTEN = "QUARANTINE_FLATTEN"  # Gate-16 remediation
     ERROR = "ERROR"
 
 
