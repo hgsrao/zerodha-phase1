@@ -233,6 +233,21 @@ class TestPostFillGates:
         assert approved
         assert reason is None
 
+    def test_v3_intraday_slippage_boundary(self, gate_evaluator, sample_order_intent):
+        """The approved V3 0.15% threshold is inclusive at its boundary."""
+        at_limit = FillEvent(
+            "fill-at-limit", "test_order_1", "2024-08-01T09:16:00Z", 1,
+            "SUNPHARMA", 1, 100, 500.0 * 1.0015, 1.0,
+            "2024-08-01T09:15:00Z", "2024-08-01T09:15:00Z",
+        )
+        beyond_limit = FillEvent(
+            "fill-over-limit", "test_order_1", "2024-08-01T09:16:00Z", 1,
+            "SUNPHARMA", 1, 100, 500.0 * 1.001501, 1.0,
+            "2024-08-01T09:15:00Z", "2024-08-01T09:15:00Z",
+        )
+        assert gate_evaluator.evaluate_post_fill(sample_order_intent, at_limit)[0]
+        assert not gate_evaluator.evaluate_post_fill(sample_order_intent, beyond_limit)[0]
+
 
 class TestPostReconciliationGates:
     """Test Stage 3: Post-reconciliation gate evaluation (Gate 15)."""

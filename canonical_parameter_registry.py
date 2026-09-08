@@ -25,7 +25,7 @@ class ParameterSpec:
 
 
 class CanonicalParameterRegistry:
-    CONTRACT_ID = "ECS_REVISION_2_PARAMETER_SURFACE_V2"
+    CONTRACT_ID = "ECS_REVISION_2_PARAMETER_SURFACE_V3"
     # Updated deliberately, three times now:
     # 1. minimum_absolute_profit_rupees (a fixed per-share rupee constant,
     #    checked before quantity existed) was replaced with
@@ -56,7 +56,9 @@ class CanonicalParameterRegistry:
     #    deliberate expansion, net +1 calibratable (68→69 total).
     # Parameter count changed twice: first 68/20 (both), then 69/20 with
     # saturation_exit_bars. These changes are exactly what this hash tracks.
-    FROZEN_IDENTITY_SHA256 = "7712e701c73cb8ec04baabaf77baa73d8a9ada6337792d4212ed0840d931ba19"
+    # Recomputed and verified when the approved intraday-only Gate16 default
+    # moved from 0.10% to 0.15%. Cross-session orders remain prohibited.
+    FROZEN_IDENTITY_SHA256 = "26755ba69e28a81142a424fcca1a8c1b1f51a377ef70ba46fa52a97f96f28d74"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -176,7 +178,8 @@ class CanonicalParameterRegistry:
             ParameterSpec("order_timeout_seconds", "P01D", "int", 30, 5, 120, True, "Order timeout"),
             ParameterSpec("max_retry_attempts", "P01D", "int", 2, 0, 5, True, "Retry attempts"),
             ParameterSpec("retry_delay_seconds", "P01D", "int", 5, 1, 20, True, "Retry delay"),
-            ParameterSpec("slippage_tolerance_percent", "P01D", "float", 0.10, 0.02, 0.20, True, "Slippage tolerance"),
+            ParameterSpec("slippage_tolerance_percent", "P01D", "float", 0.15, 0.02, 0.20, True,
+                           "Intraday Gate16 slippage tolerance; cross-session orders remain prohibited"),
             ParameterSpec("trading_hours_start", "UnifiedExecution", "str", "09:15", 0, 0, True, "Trading start"),
             ParameterSpec("trading_hours_end", "UnifiedExecution", "str", "15:30", 0, 0, True, "Trading end"),
             ParameterSpec("symbols_to_trade", "DataIngestion", "list", [], 0, 0, True, "Universe to trade"),

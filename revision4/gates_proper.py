@@ -62,7 +62,12 @@ class ProperGateEvaluator:
 
     def __init__(self, config: EffectiveConfig):
         self.config = config
-        self.safety_config = SafetyGateConfig()
+        # The registry stores this as a human-readable percentage (0.15);
+        # Gate16 consumes a fraction (0.0015). Cross-session fills are
+        # rejected separately before this post-fill check can occur.
+        self.safety_config = SafetyGateConfig(
+            slippage_tolerance_percent=float(config.require("slippage_tolerance_percent")) / 100.0,
+        )
 
         # Gates 1-13, 17-18 (pre-submission)
         self.pre_submission_gates = [

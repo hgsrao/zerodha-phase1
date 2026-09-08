@@ -362,7 +362,7 @@ class EffectiveConfig:
     signal_persistence_requirement: float = 1.5
     slippage_cost_multiplier: float = 1.0
     slippage_guard_threshold: float = 0.05
-    slippage_tolerance_percent: float = 0.1
+    slippage_tolerance_percent: float = 0.15
     stop_loss_atr_mult: float = 1.2
     symbols_to_trade: List = field(default_factory=list)
     trading_hours_end: str = '15:30'

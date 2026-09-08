@@ -17,9 +17,9 @@ class CanonicalConfigBuilder:
 
     def __init__(self):
         self.registry = CanonicalParameterRegistry()
-        # Verify frozen identity (V2 contract re-frozen with proper governance)
+        # Verify frozen identity (V3 includes the approved intraday Gate16 threshold).
         self.registry.verify_frozen_identity()
-        print(f"✓ Canonical registry loaded and verified (ECS_REVISION_2_PARAMETER_SURFACE_V2)")
+        print(f"✓ Canonical registry loaded and verified (ECS_REVISION_2_PARAMETER_SURFACE_V3)")
         print(f"  Total parameters: {self.registry.total_target_surface()}")
         print(f"  Calibratable: {len(self.registry.calibratable_names())}")
         print(f"  Safety (immutable): {len(self.registry.hardcoded_names())}")
