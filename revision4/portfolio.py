@@ -43,6 +43,12 @@ class PortfolioLedger:
         self.peak_equity = starting_cash
         self.max_drawdown = 0.0
 
+    def _release_reservation(self, amount: float) -> None:
+        """Release one exact reservation without retaining binary float dust."""
+        self.reserved_cash -= amount
+        if abs(self.reserved_cash) < 1e-9:
+            self.reserved_cash = 0.0
+
     def create_order(self, order_id: str, order: OrderIntent) -> Tuple[bool, str]:
         """
         Attempt to create pending order.
@@ -87,7 +93,7 @@ class PortfolioLedger:
 
         # Release reserved cash
         reserved_for_order = order.quantity * order.proposal.plan.entry_price
-        self.reserved_cash -= reserved_for_order
+        self._release_reservation(reserved_for_order)
 
         # Remove from pending
         del self.pending_orders[order_id]
@@ -111,7 +117,7 @@ class PortfolioLedger:
             self.cash -= entry_notional + fill_event.cost_paid
         else:
             self.cash += entry_notional - fill_event.cost_paid
-        self.reserved_cash -= fill_event.quantity_filled * order.proposal.plan.entry_price
+        self._release_reservation(fill_event.quantity_filled * order.proposal.plan.entry_price)
         self.total_costs += fill_event.cost_paid
 
         # Create position
@@ -252,13 +258,16 @@ class PortfolioLedger:
         if self.reserved_cash < 0:
             errors.append(f"Reserved cash negative: {self.reserved_cash:.2f}")
 
-        # Position count check
-        if len(self.positions) > 5:
-            errors.append(f"More than 5 positions: {len(self.positions)}")
+        # Universe size never changes the portfolio risk cap. A 48-symbol
+        # replay still has at most five concurrent portfolio positions.
+        max_allowed_positions = getattr(self, "max_positions_live", 5)
+        if len(self.positions) > max_allowed_positions:
+            errors.append(f"More than {max_allowed_positions} positions: {len(self.positions)}")
 
-        # Pending order check
-        if len(self.pending_orders) > 5:
-            errors.append(f"More than 5 pending orders: {len(self.pending_orders)}")
+        # Pending orders consume future position slots before they fill.
+        max_allowed_pending = getattr(self, "max_pending_orders", 5)
+        if len(self.pending_orders) > max_allowed_pending:
+            errors.append(f"More than {max_allowed_pending} pending orders: {len(self.pending_orders)}")
 
         # Exposure check
         if bar_data:

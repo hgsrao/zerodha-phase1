@@ -228,6 +228,12 @@ class TestMaxPositions:
                 assert not ok
                 assert reason == "Portfolio position limit reached"
 
+    def test_reservation_release_normalizes_float_dust(self):
+        ledger = PortfolioLedger()
+        ledger.reserved_cash = 0.1 + 0.2
+        ledger._release_reservation(0.3)
+        assert ledger.reserved_cash == 0.0
+
 
 class TestLedgerReconciliation:
     """Ledger must reconcile: every event matches state."""
