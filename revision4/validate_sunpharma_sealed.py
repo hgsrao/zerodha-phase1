@@ -230,25 +230,15 @@ def run_sunpharma_validation():
     print(f"  Fills: {len(result.fills)}")
     print(f"  Exits: {len(result.exits)}")
 
-    # Build daily P&L series from fills and exits (includes EOD flattens)
-    # NOTE: This captures transaction costs only; gross P&L requires CompletedTrade records
+    # Build daily net P&L series from authoritative completed_trades ledger
+    # Each date's P&L = sum of CompletedTrade.net_pnl for that date
     daily_pnl_series = {}
 
-    for fill in result.fills:
-        date = fill.timestamp_filled.split("T")[0]
-        pnl = -(fill.cost_paid)  # Entry cost reduces equity
-        daily_pnl_series[date] = daily_pnl_series.get(date, 0.0) + pnl
-
-    for exit_event in result.exits:
-        date = exit_event.timestamp_exited.split("T")[0]
-        pnl = -(exit_event.exit_cost_paid)  # Exit cost reduces equity
-        daily_pnl_series[date] = daily_pnl_series.get(date, 0.0) + pnl
-
-    # Include EOD flatten exits (canonical costs)
-    for exit_event in eod_flatten_exits:
-        date = exit_event.timestamp_exited.split("T")[0]
-        pnl = -(exit_event.exit_cost_paid)  # Exit cost reduces equity
-        daily_pnl_series[date] = daily_pnl_series.get(date, 0.0) + pnl
+    for completed_trade in ledger.completed_trades:
+        # Use exit date (when position was closed) as the P&L date
+        # Parse timestamp properly: handle both "YYYY-MM-DDTHH:MM:SS" and "YYYY-MM-DD HH:MM:SS"
+        exit_date = pd.Timestamp(completed_trade.exit_timestamp).date().isoformat()
+        daily_pnl_series[exit_date] = daily_pnl_series.get(exit_date, 0.0) + completed_trade.net_pnl
 
     # Count rejections by reason
     gate_rejects = [e for e in result.event_log if "GATE_REJECT" in str(e)]
@@ -337,7 +327,8 @@ def run_sunpharma_validation():
             "bars_processed": result.bars_processed,
             "orders_submitted": len(result.orders_submitted),
             "fills": len(result.fills),
-            "exits": len(result.exits),
+            "exits": len(ledger.completed_trades),  # All exits recorded in completed_trades (includes EOD flattens)
+            "eod_flattens": len(eod_flatten_exits),
             "gate_rejections": len(gate_rejects),
             "cross_session_cancellations": len(cross_session_cancels),
         },
