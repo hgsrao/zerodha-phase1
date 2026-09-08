@@ -94,6 +94,7 @@ class ProperGateEvaluator:
         daily_realized_loss: float,
         kill_switch_enabled: bool,
         bars=None,
+        next_bar_timestamp: Optional[str] = None,
     ) -> Tuple[bool, Optional[str]]:
         """
         Stage 1: Pre-submission gate evaluation (Gates 1-13, 17-18).
@@ -110,26 +111,22 @@ class ProperGateEvaluator:
             peak_equity: Peak equity tracked across run
             daily_realized_loss: Actual realized loss from ledger
             kill_switch_enabled: REAL kill switch state from config
+            next_bar_timestamp: Next eligible bar's timestamp for this symbol
 
         Returns:
             (approved: bool, rejection_reason: str or None)
         """
-        # EARLY CHECK: Session Expiry (Pre-submission Queue Expiry)
+        # EARLY CHECK: Cross-Session Order Rejection (Pre-submission Queue Expiry)
         # If no same-session fill opportunity exists, reject the order.
-        # Decision date: current bar's date
-        # Next fill date: symbol's next bar's date (if available)
-        if bars:
+        # The orchestrator passes next_bar_timestamp for this symbol.
+        # If next_bar_timestamp's date differs from decision_date, no same-session fill is possible.
+        if next_bar_timestamp is not None:
             import pandas as pd
-            current_bar = bars.get(order_intent.symbol)
-            if current_bar:
-                decision_date = pd.Timestamp(bar_timestamp).date().isoformat()
-                # Check if this is near end-of-session
-                decision_time = pd.Timestamp(bar_timestamp).time()
-                trading_hours_end = pd.Timestamp(self.config.trading_hours_end).time()
+            decision_date = pd.Timestamp(bar_timestamp).date().isoformat()
+            next_bar_date = pd.Timestamp(next_bar_timestamp).date().isoformat()
 
-                # If current bar is at or after trading_hours_end, no same-session fill possible
-                if decision_time >= trading_hours_end:
-                    return False, "Session expired: no same-session fill opportunity"
+            if decision_date != next_bar_date:
+                return False, "Cross-session order not queued: no same-session fill opportunity"
 
         plan = order_intent.proposal.plan
         current_equity = snapshot.marked_equity

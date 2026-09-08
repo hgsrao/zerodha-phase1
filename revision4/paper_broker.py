@@ -184,6 +184,43 @@ class PaperBroker:
             self.order_history[order_id] = expired_order
             del self.active_orders[order_id]
 
+    def cancel_order(self, order_id: str, reason: str) -> Tuple[bool, str]:
+        """
+        Atomically cancel a pending order.
+
+        Transitions PENDING → CANCELLED, records reason, removes from active.
+        Must be followed by ledger.release_reservation() and event logging.
+
+        Returns: (success, message)
+        """
+        if order_id not in self.active_orders:
+            return False, f"Order {order_id} not found in active orders"
+
+        order = self.active_orders[order_id]
+
+        if order.state != OrderState.PENDING:
+            return False, f"Cannot cancel order in state {order.state} (must be PENDING)"
+
+        # Transition to CANCELLED
+        cancelled_order = OrderIntent(
+            order_id=order.order_id,
+            timestamp_created=order.timestamp_created,
+            bar_index_created=order.bar_index_created,
+            symbol=order.symbol,
+            direction=order.direction,
+            quantity=order.quantity,
+            stop_price=order.stop_price,
+            target_price=order.target_price,
+            proposal=order.proposal,
+            state=OrderState.CANCELLED,
+            rejection_reason=reason,
+        )
+
+        self.order_history[order_id] = cancelled_order
+        del self.active_orders[order_id]
+
+        return True, f"Order {order_id} cancelled: {reason}"
+
     def get_active_orders(self) -> Dict[str, OrderIntent]:
         """Return copy of pending orders."""
         return self.active_orders.copy()

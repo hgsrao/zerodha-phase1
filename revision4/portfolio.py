@@ -72,6 +72,27 @@ class PortfolioLedger:
         self.reserved_cash += order.quantity * order.proposal.plan.entry_price
         return True, "Order created"
 
+    def cancel_order(self, order_id: str) -> Tuple[bool, str]:
+        """
+        Cancel a pending order and release its cash reservation.
+
+        Atomically removes order from pending and unreserves cash.
+        Used for cross-session rejections or other cancellations.
+        """
+        if order_id not in self.pending_orders:
+            return False, f"Order {order_id} not found in pending orders"
+
+        order = self.pending_orders[order_id]
+
+        # Release reserved cash
+        reserved_for_order = order.quantity * order.proposal.plan.entry_price
+        self.reserved_cash -= reserved_for_order
+
+        # Remove from pending
+        del self.pending_orders[order_id]
+
+        return True, f"Order {order_id} cancelled and reservation released"
+
     def fill_order(self, order_id: str, fill_event: FillEvent) -> Tuple[bool, str]:
         """
         Fill a pending order.
