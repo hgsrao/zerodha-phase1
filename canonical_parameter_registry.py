@@ -25,7 +25,7 @@ class ParameterSpec:
 
 
 class CanonicalParameterRegistry:
-    CONTRACT_ID = "ECS_REVISION_2_PARAMETER_SURFACE_V1"
+    CONTRACT_ID = "ECS_REVISION_2_PARAMETER_SURFACE_V2"
     # Updated deliberately, three times now:
     # 1. minimum_absolute_profit_rupees (a fixed per-share rupee constant,
     #    checked before quantity existed) was replaced with
@@ -56,7 +56,7 @@ class CanonicalParameterRegistry:
     #    deliberate expansion, net +1 calibratable (68→69 total).
     # Parameter count changed twice: first 68/20 (both), then 69/20 with
     # saturation_exit_bars. These changes are exactly what this hash tracks.
-    FROZEN_IDENTITY_SHA256 = "963b6cb434e892b0ffb4ed608e66e8f9793bc7c46bfae895505605e023a2ff26"
+    FROZEN_IDENTITY_SHA256 = "7712e701c73cb8ec04baabaf77baa73d8a9ada6337792d4212ed0840d931ba19"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",

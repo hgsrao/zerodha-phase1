@@ -2,7 +2,7 @@
 
 - the 23 fixed target parameters cannot be overridden by a calibration candidate
 - the 20-item safety contract is immutable and never merges into the 68-surface
-- a full run against real historical data consumes all 68 target parameters
+- a full run against real historical data consumes all 69 target parameters
 - runs are deterministic (no hidden randomness)
 """
 

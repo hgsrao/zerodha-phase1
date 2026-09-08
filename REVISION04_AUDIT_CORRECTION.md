@@ -110,3 +110,9 @@ Do not replace the declared hash merely to make the check pass. First recover
 the approved registry artifact or obtain an explicit, versioned authorization
 for a new contract identity. Until then, the Revision 4 configuration adapter
 must remain blocked.
+
+Git-history check: the same mismatch is present in commit `23ad9ca`, the
+commit that introduced the 69-parameter `saturation_exit_bars` revision and
+the declared `963b...` identity. This indicates that the identity was never
+verified successfully at introduction; it is not evidence of a later local
+checkout mutation.
