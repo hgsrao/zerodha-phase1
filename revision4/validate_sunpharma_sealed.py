@@ -18,6 +18,7 @@ from revision4.box_adapters import build_candidate_provider, build_exit_provider
 from revision4.gates_proper import ProperGateEvaluator
 from revision4.paper_broker import PaperBroker
 from revision4.portfolio import PortfolioLedger
+from revision4.config_access import calculate_transaction_cost
 import pandas as pd
 
 
@@ -183,32 +184,41 @@ def run_sunpharma_validation():
 
     print(f"  ✓ Completed")
 
-    # EOD FLATTENING: Close all remaining open positions
+    # EOD FLATTENING: Close all remaining open positions using canonical exit costs
     print(f"\n[EOD FLATTEN] Closing all remaining positions...")
+    eod_flatten_exits = []
     remaining_positions = list(ledger.positions.values())
     if remaining_positions:
         print(f"  Forcing close of {len(remaining_positions)} remaining positions")
+        last_bar = bars[-1] if bars else None
+
         for position in remaining_positions:
-            # Get last known price for this symbol from bars
-            bar = bars[-1] if bars else None
-            if bar and bar.symbol == position.symbol:
-                # Create synthetic exit at last bar's close
-                exit_price = bar.close
-                exit_cost = abs(position.quantity) * exit_price * 0.001  # Minimal cost estimate
+            if last_bar and last_bar.symbol == position.symbol:
+                # Use canonical exit cost model (direction-aware SELL)
+                exit_price = last_bar.close
+                side = "SELL" if position.direction == 1 else "BUY"  # Opposite direction to close
+                exit_cost_canonical = calculate_transaction_cost(
+                    exit_price, abs(position.quantity), side
+                )
+
+                # Create valid ExitEvent using canonical costs
                 exit_event = ExitEvent(
                     exit_id=f"eod_flatten_{position.order_id}",
                     order_id=position.order_id,
-                    timestamp_exited=bar.timestamp,
+                    timestamp_exited=last_bar.timestamp,
                     bar_index_exited=len(bars) - 1,
                     exit_price=exit_price,
-                    exit_cost_paid=exit_cost,
+                    exit_cost_paid=exit_cost_canonical,
                     exit_reason="EOD_FLATTEN",
                 )
+
+                # Close in ledger
                 ok, reason = ledger.close_position(exit_event, config)
                 if not ok:
                     print(f"    Warning: Failed to close {position.symbol}: {reason}")
                 else:
-                    print(f"    ✓ Closed {position.symbol}")
+                    eod_flatten_exits.append(exit_event)
+                    print(f"    ✓ Closed {position.symbol} at {exit_price:.2f} (cost: {exit_cost_canonical:.2f})")
     else:
         print(f"  No remaining positions to flatten")
 
@@ -220,8 +230,10 @@ def run_sunpharma_validation():
     print(f"  Fills: {len(result.fills)}")
     print(f"  Exits: {len(result.exits)}")
 
-    # Build daily P&L series from fills and exits
+    # Build daily P&L series from fills and exits (includes EOD flattens)
+    # NOTE: This captures transaction costs only; gross P&L requires CompletedTrade records
     daily_pnl_series = {}
+
     for fill in result.fills:
         date = fill.timestamp_filled.split("T")[0]
         pnl = -(fill.cost_paid)  # Entry cost reduces equity
@@ -229,7 +241,12 @@ def run_sunpharma_validation():
 
     for exit_event in result.exits:
         date = exit_event.timestamp_exited.split("T")[0]
-        # Exit generates P&L based on position (estimated)
+        pnl = -(exit_event.exit_cost_paid)  # Exit cost reduces equity
+        daily_pnl_series[date] = daily_pnl_series.get(date, 0.0) + pnl
+
+    # Include EOD flatten exits (canonical costs)
+    for exit_event in eod_flatten_exits:
+        date = exit_event.timestamp_exited.split("T")[0]
         pnl = -(exit_event.exit_cost_paid)  # Exit cost reduces equity
         daily_pnl_series[date] = daily_pnl_series.get(date, 0.0) + pnl
 
@@ -253,14 +270,20 @@ def run_sunpharma_validation():
 
     print(f"  Cross-session cancellations: {len(cross_session_cancels)}")
 
-    # Financial metrics: calculate both entry and exit costs
+    # Financial metrics: calculate both entry and exit costs (including EOD flattens)
     print(f"\n[FINANCIALS]")
     entry_costs = sum(fill.cost_paid for fill in result.fills)
     # Use exit_cost_paid (not exit_cost) from ExitEvent contract
-    exit_costs = sum(
+    result_exit_costs = sum(
         exit_event.exit_cost_paid for exit_event in result.exits
         if hasattr(exit_event, 'exit_cost_paid')
     )
+    # Add EOD flatten exit costs
+    eod_exit_costs = sum(
+        exit_event.exit_cost_paid for exit_event in eod_flatten_exits
+        if hasattr(exit_event, 'exit_cost_paid')
+    )
+    exit_costs = result_exit_costs + eod_exit_costs
     total_costs = entry_costs + exit_costs
 
     print(f"  Starting equity: {ledger.starting_cash}")
@@ -307,7 +330,7 @@ def run_sunpharma_validation():
         "symbol": symbol,
         "period": "2024-08-01 to 2024-08-31",
         "status": final_status,
-        "dataset_hash": _compute_dataset_hash(manifest_path),
+        "dataset_hash": _compute_dataset_hash(manifest_path, data_dir),
         "config_hash": _compute_config_hash(config),
         "metrics": {
             "timestamps_processed": result.timestamps_processed,
