@@ -188,13 +188,14 @@ For each open position (in order of entry bar index, oldest first):
 
 **Exit price model (predefined, direction-aware conservative):**
 ```
-For flatten at bar t+1:
-  - Use bar(t+1).open or bid-ask midpoint
+For flatten at bar t+1 (using OHLCV data only):
+  - Use bar(t+1).open as reference (only known data at decision time)
   - Apply direction-aware conservative buffer (always adverse):
-    - Long position (close long): fill = midpoint - 10 bps (price drops)
-    - Short position (close short): fill = midpoint + 10 bps (price rises)
+    - Long position (close long): fill = next_open × (1 - 0.001) = next_open × 0.999
+    - Short position (close short): fill = next_open × (1 + 0.001) = next_open × 1.001
   - This ensures slippage assumption is adverse in both cases
   - Never use bar(t+1).close (not yet known at decision time)
+  - Reserve midpoint-based model for future feed with authoritative bid/ask quotes
 ```
 
 **Example:**
@@ -210,18 +211,19 @@ Never: bar(t+2).close (future data)
 - Entry cost: already paid (from original fill)
 - Exit cost: canonical NSE model (brokerage + exchange + STT)
   - Direction-aware: SELL for long, BUY for short
-  - Calculated at conservative fill price
+  - Calculated at OHLCV reference price (next_open × conservative factor)
 
 ### 5.3 Live Broker Execution (Production)
 
 **Marketable exit order with bounded timeout/retries:**
 
 ```
-1. Create marketable exit order:
+1. Create marketable exit order (using real-time broker data):
    - Direction: opposite of position (SELL for long, BUY for short)
-   - Price: current best-bid/ask - 1 tick (ensure execution)
+   - Price: current best-bid/ask - 1 tick (ensure execution, authoritative market data)
    - Quantity: full position size
    - Timeout: 30 seconds (configurable per symbol)
+   - Note: Live broker uses real bid/ask (not OHLCV estimates)
 
 2. Submit order to broker
 
