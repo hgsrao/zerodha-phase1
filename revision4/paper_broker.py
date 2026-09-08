@@ -70,7 +70,11 @@ class PaperBroker:
         # Fill at open
         fill_price = bar_at_fill_time.open
         quantity_filled = order.quantity
-        cost_paid = quantity_filled * fill_price * config.entry_cost_pct + config.fixed_cost_per_trade
+
+        # Calculate cost using canonical config parameters
+        from revision4.config_access import get_entry_cost
+        entry_cost_pct, fixed_cost = get_entry_cost(config)
+        cost_paid = quantity_filled * fill_price * entry_cost_pct + fixed_cost
 
         # Create fill event
         fill_event = FillEvent(

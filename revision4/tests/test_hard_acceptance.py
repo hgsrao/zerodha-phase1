@@ -291,12 +291,13 @@ class TestParameterTrace:
         )
 
         # Check parameter trace - should have at least these params logged
+        # Note: Parameters are logged with canonical registry names, not simplified names
         trace = adapter.get_parameter_trace()
         trace_params = [t[0] for t in trace]
 
         assert len(trace) > 0, "Parameters should be traced"
-        assert "pa_confidence_min" in trace_params, "pa_confidence_min should be logged"
-        assert "trading_start_hour" in trace_params, "trading_start_hour should be logged"
+        assert "entry_confidence_threshold" in trace_params, "entry_confidence_threshold should be logged"
+        assert "trading_hours_start" in trace_params, "trading_hours_start should be logged"
 
 
 class TestEODFlattening:

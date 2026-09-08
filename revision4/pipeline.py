@@ -194,13 +194,17 @@ class PipelineAdapter:
         Input: ForecastSignal
         Output: IDDecision (valid or rejected + reason)
         """
-        # Fetch configured thresholds
-        pa_min = self._log_param("pa_confidence_min", self.config.pa_confidence_min)
-        chart_min = self._log_param("chart_confidence_min", self.config.chart_confidence_min)
-        trade_start_h = self._log_param("trading_start_hour", self.config.trading_start_hour)
-        trade_start_m = self._log_param("trading_start_minute", self.config.trading_start_minute)
-        trade_end_h = self._log_param("trading_end_hour", self.config.trading_end_hour)
-        trade_end_m = self._log_param("trading_end_minute", self.config.trading_end_minute)
+        from revision4.config_access import get_trading_hours, get_signal_thresholds
+
+        # Fetch configured thresholds using canonical names
+        entry_conf, min_conf = get_signal_thresholds(self.config)
+        pa_min = self._log_param("entry_confidence_threshold", entry_conf)
+        # Chart confidence is derived from market data, not configured
+        chart_min = self._log_param("chart_confidence_min", 0.5)
+
+        trade_start_h, trade_start_m, trade_end_h, trade_end_m = get_trading_hours(self.config)
+        self._log_param("trading_hours_start", f"{trade_start_h:02d}:{trade_start_m:02d}")
+        self._log_param("trading_hours_end", f"{trade_end_h:02d}:{trade_end_m:02d}")
 
         # Check PA confidence
         if forecast.pa_confidence < pa_min:
@@ -276,10 +280,15 @@ class PipelineAdapter:
         Input: IDDecision + ATR
         Output: TradePlan (stop/target sizing)
         """
-        # Fetch ATR parameters
-        atr_stop_mult = self._log_param("atr_stop_multiple", self.config.atr_stop_multiple)
-        atr_target_mult = self._log_param("atr_target_multiple", self.config.atr_target_multiple)
-        max_risk = self._log_param("max_risk_per_trade", self.config.max_risk_per_trade)
+        from revision4.config_access import get_atr_parameters, get_position_limits
+
+        # Fetch ATR parameters using canonical names
+        _, atr_stop_mult, atr_target_mult = get_atr_parameters(self.config)
+        self._log_param("stop_loss_atr_mult", atr_stop_mult)
+        self._log_param("profit_target_atr_mult", atr_target_mult)
+
+        _, _, max_risk = get_position_limits(self.config)
+        self._log_param("max_loss_per_trade_rupees", max_risk)
 
         # Calculate stops/targets
         stop_price = entry_price - (atr * atr_stop_mult)
@@ -314,11 +323,15 @@ class PipelineAdapter:
         Input: TradePlan + daily P&L
         Output: SizedProposal (MPC-scaled size)
         """
-        # Fetch MPC parameters
-        mpc_enabled = self._log_param("mpc_scaling_enabled", self.config.mpc_scaling_enabled)
-        mpc_loss_threshold = self._log_param("mpc_loss_threshold", self.config.mpc_loss_threshold)
-        entry_cost_pct = self._log_param("entry_cost_pct", self.config.entry_cost_pct)
-        fixed_cost = self._log_param("fixed_cost_per_trade", self.config.fixed_cost_per_trade)
+        from revision4.config_access import get_mpc_parameters, get_entry_cost
+
+        # Fetch MPC parameters using canonical names
+        mpc_enabled, mpc_loss_threshold = get_mpc_parameters(self.config)
+        self._log_param("kill_switch_enabled", mpc_enabled)
+        self._log_param("max_daily_loss_rupees", mpc_loss_threshold)
+
+        entry_cost_pct, fixed_cost = get_entry_cost(self.config)
+        self._log_param("max_slippage_fraction", entry_cost_pct)
 
         # MPC scaling factor
         if mpc_enabled:
