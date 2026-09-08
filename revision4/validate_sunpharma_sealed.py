@@ -7,6 +7,7 @@ No bypass wrappers. Real gates. Exact accounting.
 import json
 import sys
 import hashlib
+import uuid
 from datetime import datetime
 from dataclasses import asdict
 from typing import Dict, List, Optional
@@ -149,7 +150,10 @@ def run_sunpharma_validation():
     config_hash = _compute_config_hash(config)
     if dataset_hash.startswith("error:") or config_hash.startswith("error:"):
         raise RuntimeError(f"cannot start sealed validation: {dataset_hash}; {config_hash}")
-    remediation_run_id = f"sunpharma-202408-{config_hash[:12]}"
+    # A remediation log is append-only for exactly one execution.  The
+    # immutable dataset/config identities remain embedded in each record;
+    # the nonce prevents a repeat invocation from corrupting an older chain.
+    remediation_run_id = f"sunpharma-202408-{config_hash[:12]}-{uuid.uuid4().hex[:12]}"
     remediation_audit_path = f"diagnostic_output/{remediation_run_id}_gate16_audit.jsonl"
     remediator = Gate16Remediator(
         config, dataset_hash=dataset_hash, config_hash=config_hash,
@@ -322,11 +326,26 @@ def run_sunpharma_validation():
     print(f"  Open positions: {len(ledger.positions)}")
 
     # STRICT reconciliation check: all three must be zero
+    daily_pnl_matches_realized = abs(sum(daily_pnl_series.values()) - ledger.realized_pnl) <= 0.01
     reconciliation_ok = (
         len(ledger.pending_orders) == 0 and
         ledger.reserved_cash == 0.0 and
-        len(ledger.positions) == 0
+        len(ledger.positions) == 0 and
+        daily_pnl_matches_realized
     )
+    if remediator.violations:
+        # A remediated run is not certifiable, but its terminal ledger state
+        # must be captured in the same hash-linked chain as the breach.
+        remediator.record_reconciliation(
+            bars[-1].timestamp if bars else datetime.now().isoformat(),
+            pending_orders=len(ledger.pending_orders),
+            reserved_cash=ledger.reserved_cash,
+            open_positions=len(ledger.positions),
+            realized_pnl=ledger.realized_pnl,
+            daily_pnl=daily_pnl_series,
+            daily_pnl_matches_realized=daily_pnl_matches_realized,
+            exact=reconciliation_ok,
+        )
 
     print(f"\n[VALIDATION]")
     if reconciliation_ok:
@@ -356,6 +375,8 @@ def run_sunpharma_validation():
             "audit_log_path": remediation_audit_path,
             "violations": [asdict(item) for item in remediator.violations],
             "audit_chain_valid": remediator.verify_chain(),
+            "persisted_audit_chain_valid": remediator.verify_persisted_chain(),
+            "audit_events": [asdict(item) for item in remediator.audit_events],
             "quarantine_mode": remediator.quarantine_mode,
             "trading_halted": remediator.trading_halted,
         },
@@ -384,6 +405,7 @@ def run_sunpharma_validation():
             "pending_orders": len(ledger.pending_orders),
             "reserved_cash": round(ledger.reserved_cash, 2),
             "open_positions": len(ledger.positions),
+            "daily_pnl_matches_realized": daily_pnl_matches_realized,
             "exact": reconciliation_ok,
         },
         "ledger_identity": {
