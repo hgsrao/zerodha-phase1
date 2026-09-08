@@ -196,7 +196,10 @@ def build_candidate_provider(
                 risk_per_share=abs(plan.entry_price - plan.stop_price),
             )
 
-            # SizedProposal
+            # SizedProposal with canonical entry cost estimate
+            entry_side = "BUY" if pa_signal.direction == 1 else "SELL"
+            entry_cost_estimate = calculate_transaction_cost(bar.close, quantity, entry_side)
+
             proposal = SizedProposal(
                 timestamp=bar.timestamp,
                 bar_index=event_index,
@@ -204,7 +207,7 @@ def build_candidate_provider(
                 plan=trade_plan,
                 mpc_scaling_factor=1.0,  # Already included in quantity
                 final_quantity=quantity,
-                cost_estimate=quantity * bar.close * 0.001,  # Rough estimate
+                cost_estimate=entry_cost_estimate,  # Canonical NSE model
             )
 
             # OrderIntent
