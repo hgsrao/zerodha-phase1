@@ -86,7 +86,8 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
     warmup_start = pd.Timestamp(month_start, tz="UTC") - pd.DateOffset(days=60)
     warmup_end = pd.Timestamp(month_start, tz="UTC") - pd.DateOffset(days=1)
     bars_by_symbol, warmup_by_symbol, last_bars = {}, {}, {}
-    for symbol in symbols:
+    for number, symbol in enumerate(symbols, start=1):
+        print(f"[LOAD {number:02d}/48] {symbol}", flush=True)
         bars = list(loader.get_bars_for_month(symbol, month_start, month_end))
         history = list(loader.get_bars_for_month(
             symbol, warmup_start.strftime("%Y-%m-%d"), warmup_end.strftime("%Y-%m-%d"),
@@ -104,6 +105,7 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
         })
         bars_by_symbol[symbol] = bars
         last_bars[symbol] = bars[-1]
+    print("[RUN] chronological shared-portfolio replay", flush=True)
 
     ledger = PortfolioLedger(starting_cash=100_000.0)
     run_id = f"portfolio-48-{month_start.replace('-', '')}-{config_hash[:12]}-{uuid.uuid4().hex[:12]}"
