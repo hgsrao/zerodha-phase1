@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from collections import Counter
 
-from revision4.contracts import EffectiveConfig, Bar
+from revision4.contracts import EffectiveConfig, Bar, ExitEvent
 from revision4.validate_orchestrator import ManifestDataLoader
 from revision4.timestamp_orchestrator import TimestampOrchestrator
 from revision4.box_adapters import build_candidate_provider, build_exit_provider
@@ -21,23 +21,61 @@ from revision4.portfolio import PortfolioLedger
 import pandas as pd
 
 
-def _compute_dataset_hash(manifest_path: str) -> str:
-    """Compute SHA-256 hash of manifest file."""
+def _compute_dataset_hash(manifest_path: str, data_dir: str) -> str:
+    """Compute SHA-256 hash of all declared CSV files.
+
+    Validates each file against its manifest SHA-256 and produces a
+    deterministic hash of the full dataset identity.
+
+    Returns:
+        SHA-256 hash of concatenated file hashes (dataset identity)
+        or "error:..." if validation fails
+    """
     try:
-        with open(manifest_path, 'rb') as f:
-            return hashlib.sha256(f.read()).hexdigest()
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+
+        if "files" not in manifest:
+            return "error:no files in manifest"
+
+        # Validate each file and collect its hash
+        file_hashes = []
+        for file_entry in manifest["files"]:
+            filename = file_entry["filename"]
+            expected_sha = file_entry["sha256"]
+            symbol = file_entry["symbol"]
+
+            file_path = f"{data_dir}/{filename}"
+
+            try:
+                with open(file_path, 'rb') as f:
+                    actual_sha = hashlib.sha256(f.read()).hexdigest()
+
+                if actual_sha != expected_sha:
+                    return f"error:hash mismatch for {symbol}: expected {expected_sha}, got {actual_sha}"
+
+                file_hashes.append(actual_sha)
+            except FileNotFoundError:
+                return f"error:file not found: {file_path}"
+            except Exception as e:
+                return f"error:failed to read {filename}: {str(e)}"
+
+        # Hash the concatenation of all file hashes
+        concatenated = "".join(sorted(file_hashes))
+        dataset_hash = hashlib.sha256(concatenated.encode()).hexdigest()
+        return dataset_hash
     except Exception as e:
         return f"error:{str(e)}"
 
 
 def _compute_config_hash(config: EffectiveConfig) -> str:
-    """Compute SHA-256 hash of config dict representation."""
+    """Compute SHA-256 hash of all 89 effective config parameters."""
     try:
-        config_dict = {
-            "authorized_cross_session": config.require("authorized_cross_session"),
-            "kill_switch_enabled": config.require("kill_switch_enabled"),
-        }
-        config_json = json.dumps(config_dict, sort_keys=True)
+        # Get all 89 parameters from config
+        all_params = config.get_all_params()
+
+        # Serialize deterministically (sorted keys, JSON)
+        config_json = json.dumps(all_params, sort_keys=True, default=str)
         return hashlib.sha256(config_json.encode()).hexdigest()
     except Exception as e:
         return f"error:{str(e)}"
@@ -109,6 +147,12 @@ def run_sunpharma_validation():
         gate_evaluator=gate_evaluator,
     )
 
+    print(f"\n[HASH] Computing dataset and config identity...")
+    dataset_hash = _compute_dataset_hash(manifest_path, data_dir)
+    config_hash = _compute_config_hash(config)
+    print(f"  Dataset hash: {dataset_hash}")
+    print(f"  Config hash: {config_hash}")
+
     print(f"\n[RUN] Executing orchestrator...")
     try:
         result = orchestrator.run({symbol: bars})
@@ -121,8 +165,8 @@ def run_sunpharma_validation():
             "error": str(e),
             "timestamp": datetime.now().isoformat(),
             "symbol": symbol,
-            "dataset_hash": _compute_dataset_hash(manifest_path),
-            "config_hash": _compute_config_hash(config),
+            "dataset_hash": dataset_hash,
+            "config_hash": config_hash,
         }
     except Exception as e:
         # Other error
@@ -133,11 +177,40 @@ def run_sunpharma_validation():
             "error": str(e),
             "timestamp": datetime.now().isoformat(),
             "symbol": symbol,
-            "dataset_hash": _compute_dataset_hash(manifest_path),
-            "config_hash": _compute_config_hash(config),
+            "dataset_hash": dataset_hash,
+            "config_hash": config_hash,
         }
 
     print(f"  ✓ Completed")
+
+    # EOD FLATTENING: Close all remaining open positions
+    print(f"\n[EOD FLATTEN] Closing all remaining positions...")
+    remaining_positions = list(ledger.positions.values())
+    if remaining_positions:
+        print(f"  Forcing close of {len(remaining_positions)} remaining positions")
+        for position in remaining_positions:
+            # Get last known price for this symbol from bars
+            bar = bars[-1] if bars else None
+            if bar and bar.symbol == position.symbol:
+                # Create synthetic exit at last bar's close
+                exit_price = bar.close
+                exit_cost = abs(position.quantity) * exit_price * 0.001  # Minimal cost estimate
+                exit_event = ExitEvent(
+                    exit_id=f"eod_flatten_{position.order_id}",
+                    order_id=position.order_id,
+                    timestamp_exited=bar.timestamp,
+                    bar_index_exited=len(bars) - 1,
+                    exit_price=exit_price,
+                    exit_cost_paid=exit_cost,
+                    exit_reason="EOD_FLATTEN",
+                )
+                ok, reason = ledger.close_position(exit_event, config)
+                if not ok:
+                    print(f"    Warning: Failed to close {position.symbol}: {reason}")
+                else:
+                    print(f"    ✓ Closed {position.symbol}")
+    else:
+        print(f"  No remaining positions to flatten")
 
     # Analyze results
     print(f"\n[METRICS]")
@@ -146,6 +219,19 @@ def run_sunpharma_validation():
     print(f"  Orders submitted: {len(result.orders_submitted)}")
     print(f"  Fills: {len(result.fills)}")
     print(f"  Exits: {len(result.exits)}")
+
+    # Build daily P&L series from fills and exits
+    daily_pnl_series = {}
+    for fill in result.fills:
+        date = fill.timestamp_filled.split("T")[0]
+        pnl = -(fill.cost_paid)  # Entry cost reduces equity
+        daily_pnl_series[date] = daily_pnl_series.get(date, 0.0) + pnl
+
+    for exit_event in result.exits:
+        date = exit_event.timestamp_exited.split("T")[0]
+        # Exit generates P&L based on position (estimated)
+        pnl = -(exit_event.exit_cost_paid)  # Exit cost reduces equity
+        daily_pnl_series[date] = daily_pnl_series.get(date, 0.0) + pnl
 
     # Count rejections by reason
     gate_rejects = [e for e in result.event_log if "GATE_REJECT" in str(e)]
@@ -170,8 +256,11 @@ def run_sunpharma_validation():
     # Financial metrics: calculate both entry and exit costs
     print(f"\n[FINANCIALS]")
     entry_costs = sum(fill.cost_paid for fill in result.fills)
-    exit_costs = sum(exit_event.exit_cost for exit_event in result.exits
-                     if hasattr(exit_event, 'exit_cost') else 0.0)
+    # Use exit_cost_paid (not exit_cost) from ExitEvent contract
+    exit_costs = sum(
+        exit_event.exit_cost_paid for exit_event in result.exits
+        if hasattr(exit_event, 'exit_cost_paid')
+    )
     total_costs = entry_costs + exit_costs
 
     print(f"  Starting equity: {ledger.starting_cash}")
@@ -248,8 +337,9 @@ def run_sunpharma_validation():
             "starting_cash": ledger.starting_cash,
             "cash": ledger.cash,
             "realized_pnl": ledger.realized_pnl,
-            "daily_pnl": ledger.daily_pnl,
+            "final_daily_pnl": ledger.daily_pnl,
         },
+        "daily_pnl_series": daily_pnl_series,
     }
 
     print("\n" + "=" * 80)
