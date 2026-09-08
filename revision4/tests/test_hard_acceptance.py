@@ -20,14 +20,28 @@ class TestDatasetRequirements:
     """Dataset must have exactly 48 symbols."""
 
     def test_48_symbols_required(self):
-        """Fail if not 48 symbols."""
-        # In real test: load manifest and check
-        validator = DatasetValidator('revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json')
+        """Fail if not 48 symbols. Requires real data directory."""
+        import os
+
+        # Get the actual data directory from environment or manifest
+        data_dir = os.environ.get('NSE_DATA_DIR')
+        manifest_path = 'revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json'
+
+        if not os.path.exists(manifest_path):
+            pytest.skip("Manifest not available")
+
+        if not data_dir:
+            pytest.skip("NSE_DATA_DIR not set; skipping file validation")
+
+        validator = DatasetValidator(manifest_path)
         try:
-            seal = validator.load_manifest('/path/to/data')
+            seal = validator.load_manifest(data_dir)
             assert seal.symbol_count == 48, f"Need 48 symbols, got {seal.symbol_count}"
-        except FileNotFoundError:
-            pytest.skip("Manifest not available in test environment")
+
+            # Verify all hashes match
+            assert len(seal.symbol_hashes) == 48, "All 48 symbols should have hashes"
+        except RuntimeError as e:
+            pytest.fail(f"Dataset validation failed: {e}")
 
 
 class TestCashConstraints:

@@ -24,6 +24,7 @@ class DatasetValidator:
         """
         Load and validate 48-symbol manifest.
         Fail if not exactly 48 symbols.
+        Recompute hashes from files and verify against manifest.
         """
         from revision2.dataset_manifest import DatasetManifest
 
@@ -38,21 +39,36 @@ class DatasetValidator:
         if len(files) != 48:
             raise RuntimeError(f"Dataset has {len(files)} symbols, need exactly 48")
 
-        # Extract symbols and hashes
+        # Extract symbols and validate files + recompute hashes
         symbols = []
         symbol_hashes = {}
+        data_path = Path(data_dir)
 
         for file_record in files:
             symbol = file_record.symbol
             symbols.append(symbol)
-            symbol_hashes[symbol] = file_record.sha256
 
-        # Validate files exist
-        data_path = Path(data_dir)
-        for file_record in files:
+            # Check file exists
             file_full_path = data_path / file_record.filename
             if not file_full_path.exists():
                 raise RuntimeError(f"File not found: {file_full_path}")
+
+            # Recompute hash from file
+            try:
+                with open(file_full_path, 'rb') as f:
+                    file_hash = hashlib.sha256(f.read()).hexdigest()
+            except IOError as e:
+                raise RuntimeError(f"Cannot read {file_full_path}: {e}")
+
+            # Verify hash matches manifest
+            if file_hash != file_record.sha256:
+                raise RuntimeError(
+                    f"{symbol}: hash mismatch\n"
+                    f"  Expected (manifest): {file_record.sha256}\n"
+                    f"  Computed (file):     {file_hash}"
+                )
+
+            symbol_hashes[symbol] = file_hash
 
         # Create seal
         self.seal = DatasetSeal(
