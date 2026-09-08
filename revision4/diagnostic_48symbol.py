@@ -291,24 +291,30 @@ def run_48symbol_diagnostic(
 
             def patched_fill(order_id, bar, fill_idx, cfg):
                 order = orchestrator.broker.active_orders.get(order_id)
-                if order is not None:
-                    decision_close = order.proposal.plan.entry_price
-                    next_open = bar.open
-                    decision_timestamp = order.timestamp_created  # When order was created (decision bar)
-                    fill_timestamp = bar.timestamp  # When order filled (next bar)
-
-                    collector.record_candidate(
-                        symbol=symbol,
-                        bar_index=fill_idx,
-                        decision_timestamp=decision_timestamp,
-                        fill_timestamp=fill_timestamp,
-                        decision_close=decision_close,
-                        next_open=next_open,
-                    )
-                    candidate_count[0] += 1
 
                 try:
-                    return original_fill(order_id, bar, fill_idx, cfg)
+                    # Get actual fill event from broker (preserves real timestamp semantics)
+                    fill_event = original_fill(order_id, bar, fill_idx, cfg)
+
+                    # Only record if fill actually occurred
+                    if fill_event is not None and order is not None:
+                        decision_close = order.proposal.plan.entry_price
+                        next_open = bar.open
+                        decision_timestamp = order.timestamp_created  # When order was created
+                        fill_timestamp = fill_event.timestamp_filled  # Actual fill timestamp from broker
+
+                        collector.record_candidate(
+                            symbol=symbol,
+                            bar_index=fill_idx,
+                            decision_timestamp=decision_timestamp,
+                            fill_timestamp=fill_timestamp,
+                            decision_close=decision_close,
+                            next_open=next_open,
+                        )
+                        candidate_count[0] += 1
+
+                    return fill_event
+
                 except RuntimeError as e:
                     if "slippage" in str(e).lower():
                         return None
