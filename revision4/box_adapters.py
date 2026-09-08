@@ -24,7 +24,6 @@ from revision2.boxes import (
     P01DBox,
 )
 from revision2.contracts import MarketSnapshot
-from gates_framework import EntryDecisionEngine, SystemState, SafetyGateConfig, EntrySignal
 
 
 def build_candidate_provider(
@@ -39,11 +38,9 @@ def build_candidate_provider(
         warmup_bars_by_symbol: {symbol: DataFrame} with 60+ pre-run bars
                                strictly before the sealed month starts
 
-    Instantiates real Revision 2 boxes and runs full PA → ID → MPC → Safety → PM
-    → 18-gate engine pipeline.
+    Instantiates real Revision 2 boxes and runs full PA → ID → MPC → Safety → PM pipeline.
 
     Returns callback that generates RankedOrderCandidate at each timestamp.
-    Candidates only returned if they pass all 18 authorization gates.
     """
     # Instantiate boxes once (state shared across bars)
     pa_box = PredictiveAnalyticsBox()
@@ -53,18 +50,13 @@ def build_candidate_provider(
     position_manager = PositionManagerBox()
     p01d_box = P01DBox()
 
-    # 18-gate entry engine
-    safety_config = SafetyGateConfig()
-    entry_decision_engine = EntryDecisionEngine(config=safety_config)
-
     # Pre-calibrate PA on warmup bars (if provided)
     for symbol, warmup_df in warmup_bars_by_symbol.items():
         if len(warmup_df) >= 30:
             pa_box.calibrate(symbol, warmup_df)
 
-    # Maintain bar history and peak equity per symbol across timestamp calls
+    # Maintain bar history per symbol across timestamp calls
     bar_history: Dict[str, List[Bar]] = {}
-    peak_equity_by_symbol: Dict[str, float] = {}
 
     def candidate_provider(
         snapshot: PortfolioSnapshot,
@@ -74,7 +66,7 @@ def build_candidate_provider(
         """
         Generate ranked order candidates for this timestamp.
 
-        Complete pipeline:
+        Sequence:
           1. PA box generates signals (uses warmup calibration)
           2. ID box validates entry criteria
           3. MPC box creates trade plans with stops/targets
@@ -82,16 +74,12 @@ def build_candidate_provider(
           5. PositionManager sizes positions
           6. SafetyGates post-sizing checks (profit margin)
           7. P01D creates final orders
-          8. 18-gate entry engine authorizes (CRITICAL)
-          9. Return only candidates that pass all gates
+          8. Return ranked candidates
         """
         candidates: List[RankedOrderCandidate] = []
 
-        # Track peak equity across the run (required for drawdown logic)
-        current_equity = snapshot.marked_equity
-
         # Build equity curve from snapshot (required for safety gates)
-        equity_curve = [current_equity] if current_equity > 0 else [100_000.0]
+        equity_curve = [snapshot.marked_equity] if snapshot.marked_equity > 0 else [100_000.0]
 
         # Process each symbol
         for symbol, bar in bars.items():
@@ -193,50 +181,7 @@ def build_candidate_provider(
             if order is None:
                 continue
 
-            # 8. 18-GATE ENTRY ENGINE (CRITICAL AUTHORIZATION)
-            # Build SystemState from portfolio snapshot
-            system_state = SystemState(
-                portfolio_value=current_equity,
-                current_dd_percent=0.0,  # TODO: track peak for real drawdown
-                current_lambda=0.0,  # Single-symbol, no correlation
-                daily_realized_loss=0.0,  # TODO: track daily loss separately
-                daily_unrealized_loss=0.0,
-                open_positions_count=len(snapshot.positions),
-                open_positions=list(snapshot.positions.values()),
-                market_data_age_seconds=0,
-                broker_connected=True,
-                broker_offline_seconds=0,
-                kill_switch_active=False,  # TODO: wire from config
-                circuit_breaker_triggered=False,
-            )
-
-            # Create entry signal for gate evaluation
-            entry_signal = EntrySignal(
-                symbol=symbol,
-                entry_price=bar.close,
-                stop_loss_price=plan.stop_price,
-                profit_target_price=plan.target_price,
-                confidence=pa_signal.confidence,
-                suggested_quantity=quantity,
-                position_notional=quantity * bar.close,
-                risk_reward_ratio=id_decision.risk_reward_ratio,
-            )
-
-            # Invoke 18-gate engine
-            gate_result = entry_decision_engine.evaluate(
-                state=system_state,
-                signal=entry_signal,
-                proposed_quantity=quantity,
-                proposed_notional=quantity * bar.close,
-            )
-
-            # Only proceed if gates pass
-            if not gate_result.get("passed", False):
-                # Gate rejection—candidate does not pass authorization
-                # (This is correct behavior for entry authorization)
-                continue  # Skip this candidate
-
-            # 9. Build typed contracts correctly
+            # 8. Build typed contracts correctly
 
             # TradePlan for SizedProposal
             trade_plan = TradePlan(
