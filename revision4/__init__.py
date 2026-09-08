@@ -23,6 +23,11 @@ from revision4.contracts import (
 from revision4.dataset_seal import DatasetValidator, WarmupLoader, seal_dataset
 from revision4.portfolio import PortfolioLedger
 from revision4.paper_broker import PaperBroker
+from revision4.timestamp_orchestrator import (
+    RankedOrderCandidate,
+    TimestampOrchestrator,
+    TimestampReplayResult,
+)
 from revision4.pipeline import PipelineAdapter
 
 __all__ = [
@@ -38,6 +43,9 @@ __all__ = [
     "PortfolioLedger",
     # Broker
     "PaperBroker",
+    "RankedOrderCandidate",
+    "TimestampOrchestrator",
+    "TimestampReplayResult",
     # Pipeline
     "PipelineAdapter",
 ]
