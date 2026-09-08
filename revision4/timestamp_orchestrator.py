@@ -71,6 +71,7 @@ class TimestampOrchestrator:
         broker: Optional[PaperBroker] = None,
         gate_evaluator=None,
         gate16_remediator=None,
+        candidate_observer=None,
     ) -> None:
         if config is None:
             raise ValueError("TimestampOrchestrator requires canonical config")
@@ -81,6 +82,7 @@ class TimestampOrchestrator:
         self.broker = broker or PaperBroker()
         self.gate_evaluator = gate_evaluator
         self.gate16_remediator = gate16_remediator
+        self.candidate_observer = candidate_observer
         self._current_date: Optional[str] = None
 
     @staticmethod
@@ -137,6 +139,7 @@ class TimestampOrchestrator:
 
         for event_index, timestamp in enumerate(sorted_timestamps):
             bars = events[timestamp]
+            ratios = self.candidate_observer.observe_bars(bars) if self.candidate_observer else None
             date = timestamp.split("T", 1)[0]
             if self._current_date is not None and date != self._current_date:
                 self.ledger.reset_daily()
@@ -210,6 +213,8 @@ class TimestampOrchestrator:
             # This exact snapshot is shared by every candidate at timestamp t.
             snapshot = self.ledger.snapshot(timestamp, event_index, bars)
             candidates = self.candidate_provider(snapshot, bars, event_index)
+            if self.candidate_observer:
+                self.candidate_observer.observe_candidates(candidates, ratios)
             if self.gate16_remediator is not None and not self.gate16_remediator.entry_authorization_enabled:
                 candidates = ()
             ranked = sorted(candidates, key=lambda candidate: (-candidate.rank, candidate.order.order_id))

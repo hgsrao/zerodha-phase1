@@ -26,6 +26,7 @@ from revision4.gates_proper import ProperGateEvaluator
 from revision4.paper_broker import PaperBroker
 from revision4.portfolio import PortfolioLedger
 from revision4.timestamp_orchestrator import TimestampOrchestrator
+from revision4.range_atr_shadow import RangeATRShadowMonitor
 from revision4.validate_orchestrator import ManifestDataLoader
 from revision4.validate_sunpharma_sealed import _compute_config_hash, _compute_dataset_hash, _parse_rejection_reason
 
@@ -114,10 +115,12 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
         config, dataset_hash=dataset_hash, config_hash=config_hash,
         audit_log_path=audit_path, run_id=run_id,
     )
+    shadow_monitor = RangeATRShadowMonitor()
     orchestrator = TimestampOrchestrator(
         config=config, candidate_provider=build_candidate_provider(config, warmup_by_symbol),
         exit_provider=build_exit_provider(config), ledger=ledger, broker=PaperBroker(),
         gate_evaluator=ProperGateEvaluator(config), gate16_remediator=remediator,
+        candidate_observer=shadow_monitor,
     )
     result = orchestrator.run(bars_by_symbol)
     eod_exits = _eod_flatten(ledger, last_bars, config, result.timestamps_processed)
@@ -168,6 +171,7 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
         },
         "per_symbol": {symbol: dict(per_symbol[symbol]) for symbol in symbols},
         "rejection_breakdown": dict(rejection_breakdown),
+        "range_atr_shadow": shadow_monitor.summary(),
         "financials": {
             "starting_equity": ledger.starting_cash, "ending_equity": ledger.cash,
             "realized_pnl": ledger.realized_pnl, "total_costs": ledger.total_costs,
