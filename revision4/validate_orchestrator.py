@@ -108,11 +108,38 @@ def run_validation_replay(
     if not bars:
         return {"success": False, "error": f"No data for {symbol} in range"}
 
+    # Load warmup bars (60 bars strictly before the sealed month)
+    # This is required for PA calibration to avoid degenerate scales
+    print(f"\nLoading warmup bars...")
+    warmup_start = pd.Timestamp(start_date, tz='UTC') - pd.DateOffset(days=60)
+    warmup_end = pd.Timestamp(start_date, tz='UTC') - pd.DateOffset(days=1)
+
+    warmup_bars_by_symbol = {}
+    try:
+        warmup_data = loader.get_bars_for_month(symbol, warmup_start.strftime('%Y-%m-%d'), warmup_end.strftime('%Y-%m-%d'))
+        if len(warmup_data) >= 30:
+            # Convert to DataFrame format that PA expects
+            df_data = {
+                'timestamp': [b.timestamp for b in warmup_data],
+                'open': [b.open for b in warmup_data],
+                'high': [b.high for b in warmup_data],
+                'low': [b.low for b in warmup_data],
+                'close': [b.close for b in warmup_data],
+                'volume': [b.volume for b in warmup_data],
+            }
+            warmup_df = pd.DataFrame(df_data)
+            warmup_bars_by_symbol[symbol] = warmup_df
+            print(f"✓ Loaded {len(warmup_data)} warmup bars for {symbol}")
+        else:
+            print(f"⚠ Only {len(warmup_data)} warmup bars available (need 30+)")
+    except Exception as e:
+        print(f"⚠ Failed to load warmup bars: {e}")
+
     # Build orchestrator with real callbacks
     config = EffectiveConfig()
     orchestrator = TimestampOrchestrator(
         config=config,
-        candidate_provider=build_candidate_provider(config),
+        candidate_provider=build_candidate_provider(config, warmup_bars_by_symbol),
         exit_provider=build_exit_provider(config),
     )
 
