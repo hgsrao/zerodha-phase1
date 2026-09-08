@@ -49,10 +49,22 @@ def run():
     exact = not orchestrator.open_trades and not orchestrator.pending_entries
     if not exact or not orchestrator.gate16_remediator.verify_chain():
         raise RuntimeError("sealed replay reconciliation or audit integrity failed")
-    status = "REMEDIATION_REQUIRED" if orchestrator.gate16_remediator.violations else result["status"]
+    if result["completed_trades"] == 0:
+        status = "NO_EXECUTION"
+    elif orchestrator.gate16_remediator.violations:
+        status = "REMEDIATION_REQUIRED"
+    else:
+        status = result["status"]
     report = {"status": status, "symbol": SYMBOL, "dataset_hash": loader.get_dataset_hash(),
               "file_hash": actual, "config_hash": config_hash, "warmup_bars": WARMUP,
               "metrics": {k: result[k] for k in ("bars_processed", "orders_submitted", "fills", "completed_trades", "net_pnl", "total_cost")},
+              "rejection_funnel": {k: result.get(k, 0) for k in (
+                  "pa_signals", "id_approvals", "id_rejections", "mpc_plans",
+                  "safety_approvals", "safety_rejections", "gates_evaluated",
+                  "gates_passed", "gates_rejected", "orders_queued",
+                  "portfolio_cap_rejections", "cross_session_rejections",
+                  "pending_orders_cancelled",
+              )},
               "daily_net_pnl": dict(sorted(daily.items())), "reconciliation_exact": exact,
               "event_ledger": result["event_ledger"], "gate16_violations": len(orchestrator.gate16_remediator.violations),
               "audit_chain_valid": orchestrator.gate16_remediator.verify_chain(), "audit_path": str(audit_path)}
