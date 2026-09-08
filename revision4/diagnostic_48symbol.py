@@ -28,23 +28,12 @@ class DiagnosticCollector:
         os.makedirs(output_dir, exist_ok=True)
 
         self.raw_observations: List[Dict] = []
-        self.session_starts: Dict[str, set] = {}  # {symbol: {bar_index, ...}}
+        self.session_dates_seen: Dict[str, set] = {}  # {symbol: {YYYY-MM-DD, ...}}
 
-    def identify_session_starts(self, bars: List[Bar]) -> set:
-        """Identify first bar of each trading session (day)."""
-        starts = set()
-        if not bars:
-            return starts
-
-        current_date = None
-        for bar_index, bar in enumerate(bars):
-            # Extract date from timestamp (YYYY-MM-DD)
-            bar_date = bar.timestamp.split('T')[0]
-            if bar_date != current_date:
-                starts.add(bar_index)
-                current_date = bar_date
-
-        return starts
+    def identify_session_starts_from_timestamp(self) -> set:
+        """Return set of trading session start dates (for timestamp-based detection)."""
+        # This will be built incrementally during the run
+        return set()
 
     def record_candidate(
         self,
@@ -53,9 +42,17 @@ class DiagnosticCollector:
         timestamp: str,
         decision_close: float,
         next_open: float,
-        is_session_start: bool,
     ):
         """Record one candidate's slippage measurement."""
+        # Detect if this is the first bar of a new trading session (date)
+        bar_date = timestamp.split('T')[0]  # Extract YYYY-MM-DD
+
+        if symbol not in self.session_dates_seen:
+            self.session_dates_seen[symbol] = set()
+
+        is_session_start = bar_date not in self.session_dates_seen[symbol]
+        self.session_dates_seen[symbol].add(bar_date)
+
         slippage_pct = abs(next_open - decision_close) / decision_close * 100
 
         obs = {
@@ -254,9 +251,6 @@ def run_48symbol_diagnostic(
                 failed += 1
                 continue
 
-            # Identify session starts
-            session_starts = collector.identify_session_starts(bars)
-
             # Load warmup (60 bars before month)
             warmup_start = pd.Timestamp("2024-08-01", tz="UTC") - pd.DateOffset(days=60)
             warmup_end = pd.Timestamp("2024-08-01", tz="UTC") - pd.DateOffset(days=1)
@@ -294,14 +288,12 @@ def run_48symbol_diagnostic(
                 if order is not None:
                     decision_close = order.proposal.plan.entry_price
                     next_open = bar.open
-                    is_session_start = fill_idx in session_starts
                     collector.record_candidate(
                         symbol=symbol,
                         bar_index=fill_idx,
                         timestamp=bar.timestamp,
                         decision_close=decision_close,
                         next_open=next_open,
-                        is_session_start=is_session_start,
                     )
                     candidate_count[0] += 1
 
