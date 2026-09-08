@@ -65,3 +65,48 @@ not close the gaps above and is not an executable rebuild yet.
 
 These faults must be repaired and covered by failing-then-passing tests before
 the foundation can be called ready for an integration replay.
+
+## Post-fix verification (`27345ca`, `f45d639`)
+
+The following targeted repairs are present and the local hard-test command now
+reports 8 passed and 1 skipped:
+
+- ledger exit proceeds were corrected;
+- parameter logging now returns the fetched value; and
+- dataset validation now recomputes file hashes when run against a real data
+  directory.
+
+The following claims remain unverified or false:
+
+- `EffectiveConfig.get_all_params()` currently returns **61**, not 68,
+  parameters. It is not derived from the canonical registry.
+- The trace test proves only that a handful of ID thresholds were read. It
+  does not prove coverage, ownership, or causal effect for all calibratable
+  parameters.
+- The dataset test is skipped, so hash verification has not been exercised
+  against the real 48-file dataset by this test suite.
+- The future-data test remains an empty `pass` statement; determinism is
+  tested only by manually applying the same two ledger mutations.
+- The PA/chart adapter still contains explicit placeholder calculations and
+  does not call Revision 2 black boxes.
+
+Accordingly, the accurate status is **foundation partially repaired; replay
+engine and genuine Revision 2 integration remain required**.
+
+## Canonical registry verification
+
+The canonical registry in this checkout defines a newer target contract:
+
+- 69 target parameters: 47 calibratable and 22 fixed target values;
+- 20 separate immutable safety-contract values; and
+- the target contract is owned across the declared Revision 2 boxes.
+
+However, the registry's integrity gate currently fails. Its declared frozen
+SHA-256 is `963b6cb434e892b0ffb4ed608e66e8f9793bc7c46bfae895505605e023a2ff26`,
+while the current canonical payload computes to
+`564ca6e245426ade7507fcf5c0e04a520f1ed161e2a48b8ce0ed5f66049b3947`.
+
+Do not replace the declared hash merely to make the check pass. First recover
+the approved registry artifact or obtain an explicit, versioned authorization
+for a new contract identity. Until then, the Revision 4 configuration adapter
+must remain blocked.
