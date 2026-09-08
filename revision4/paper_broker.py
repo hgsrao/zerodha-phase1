@@ -25,12 +25,23 @@ class PaperBroker:
         self.fill_history: List[FillEvent] = []
         self.active_orders: Dict[str, OrderIntent] = {}  # Pending + partial
 
-    def submit_order(self, order_intent: OrderIntent) -> Tuple[bool, str]:
+    def submit_order(self, order_intent: OrderIntent, config=None) -> Tuple[bool, str]:
         """
         Submit order for trading.
         Order created at bar t, eligible for fill at bar t+1.
+
+        Requires: config with kill_switch_enabled parameter.
+        Returns: (success, reason_or_message)
         """
+        from revision4.config_access import get_kill_switch_status
+
         order_id = order_intent.order_id
+
+        # CHECK 1: Kill switch (safety gate - blocks ALL orders if disabled)
+        if config is not None:
+            kill_switch_enabled = get_kill_switch_status(config)
+            if not kill_switch_enabled:
+                return False, "Kill switch disabled: order submission blocked"
 
         # Check duplicate
         if order_id in self.order_history:
@@ -57,11 +68,21 @@ class PaperBroker:
         """
         Attempt to fill order at bar t+1 open.
         Returns FillEvent if filled, None if can't fill yet.
+
+        Requires: config with kill_switch_enabled parameter.
         """
+        from revision4.config_access import get_kill_switch_status
+
         if order_id not in self.active_orders:
             return None
 
         order = self.active_orders[order_id]
+
+        # CHECK 1: Kill switch (safety gate - blocks ALL fills if disabled)
+        if config is not None:
+            kill_switch_enabled = get_kill_switch_status(config)
+            if not kill_switch_enabled:
+                return None  # Can't fill while kill switch is disabled
 
         # Check eligibility: order created at bar t, fills at bar t+1+
         if fill_bar_index <= order.proposal.plan.bar_index:
@@ -150,3 +171,18 @@ class PaperBroker:
     def get_fill_history(self) -> List[FillEvent]:
         """Return all fills."""
         return self.fill_history.copy()
+
+    def retire_filled_orders(self) -> int:
+        """
+        Remove filled orders from active_orders after reconciliation.
+        Prevents unbounded memory growth and keeps order ledger auditable.
+
+        Returns: Count of orders retired.
+        """
+        filled_order_ids = [
+            oid for oid, order in self.active_orders.items()
+            if order.state == OrderState.FILLED
+        ]
+        for oid in filled_order_ids:
+            del self.active_orders[oid]
+        return len(filled_order_ids)
