@@ -97,7 +97,7 @@ def _parse_rejection_reason(event) -> Optional[str]:
     return None
 
 
-def run_sunpharma_validation():
+def run_sunpharma_validation(recovery_authorization_path: Optional[str] = None):
     """Run SUNPHARMA August 2024 validation with strict gates."""
 
     print("=" * 80)
@@ -129,6 +129,19 @@ def run_sunpharma_validation():
 
     # Build orchestrator
     config = EffectiveConfig()
+    recovery_authorization = None
+    if recovery_authorization_path:
+        approved_run = Gate16Remediator.from_persisted_audit(config, recovery_authorization_path)
+        approval = approved_run.audit_events[-1]
+        if approval.event_type != "MANUAL_RECOVERY_APPROVED":
+            raise RuntimeError("controlled replay requires a terminal MANUAL_RECOVERY_APPROVED audit event")
+        recovery_authorization = {
+            "approval_audit_path": recovery_authorization_path,
+            "approval_run_id": approved_run.run_id,
+            "approval_record_hash": approval.record_hash,
+            "approved_by": approval.payload["approved_by"],
+            "scope": approval.payload["approval_scope"],
+        }
 
     warmup_df_data = {
         "timestamp": [b.timestamp for b in warmup_data],
@@ -371,6 +384,7 @@ def run_sunpharma_validation():
         "symbol": symbol,
         "period": "2024-08-01 to 2024-08-31",
         "status": final_status,
+        "recovery_authorization": recovery_authorization,
         "gate16_remediation": {
             "audit_log_path": remediation_audit_path,
             "violations": [asdict(item) for item in remediator.violations],

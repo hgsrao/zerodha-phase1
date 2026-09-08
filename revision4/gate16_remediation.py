@@ -247,6 +247,47 @@ class Gate16Remediator:
             return False
         return True
 
+    @classmethod
+    def from_persisted_audit(cls, config, audit_log_path: str) -> "Gate16Remediator":
+        """Load a verified completed run before appending a human decision."""
+        path = Path(audit_log_path)
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        if not rows:
+            raise ValueError("recovery audit is empty")
+        first = rows[0]
+        remediator = cls(
+            config, dataset_hash=first["dataset_hash"], config_hash=first["config_hash"],
+            audit_log_path=str(path), run_id=first["run_id"],
+        )
+        remediator.audit_events = [
+            AuditEvent(
+                event_id=row["event_id"], run_id=row["run_id"],
+                dataset_hash=row["dataset_hash"], config_hash=row["config_hash"],
+                timestamp=row["timestamp"], event_type=row["event_type"],
+                payload=row["payload"], prior_hash=row["prior_hash"],
+                record_hash=row["record_hash"], signature_status=row["signature_status"],
+            )
+            for row in rows
+        ]
+        if not remediator.verify_chain() or not remediator.verify_persisted_chain():
+            raise ValueError("recovery audit chain is invalid")
+        return remediator
+
+    def record_persisted_manual_recovery(self, approved_by: str, rationale: str, timestamp: str) -> AuditEvent:
+        """Append the human approval only after a clean terminal reconciliation."""
+        if not approved_by or not rationale or not timestamp or self.trading_halted:
+            raise ValueError("manual recovery requires approver, rationale, timestamp, and a non-halted run")
+        if not self.audit_events or self.audit_events[-1].event_type != "RECONCILIATION_RESULT":
+            raise ValueError("manual recovery requires a terminal reconciliation event")
+        terminal = self.audit_events[-1].payload
+        if not terminal.get("exact") or terminal.get("pending_orders") != 0 or terminal.get("reserved_cash") != 0 or terminal.get("open_positions") != 0:
+            raise ValueError("manual recovery requires exact zero-state reconciliation")
+        return self._append_event(timestamp, "MANUAL_RECOVERY_APPROVED", {
+            "approved_by": approved_by, "rationale": rationale,
+            "approval_scope": "ONE_CONTROLLED_SUNPHARMA_REPLAY_ONLY",
+            "signature_status": "UNSIGNED",
+        })
+
     def approve_manual_recovery(self, approved_by: str, rationale: str, timestamp: str, ledger) -> bool:
         """Record a named limited approval; never grant it automatically."""
         if (not approved_by or not rationale or not timestamp or self.trading_halted

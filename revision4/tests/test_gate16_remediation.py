@@ -89,6 +89,27 @@ def test_persisted_chain_detects_tampering(tmp_path):
     assert not remediator.verify_persisted_chain()
 
 
+def test_recovery_approval_can_only_append_to_verified_zero_state_audit(tmp_path):
+    config = EffectiveConfig()
+    audit = tmp_path / "approval.jsonl"
+    remediator = Gate16Remediator(
+        config, dataset_hash="dataset-test", config_hash="config-test",
+        audit_log_path=str(audit), run_id="approval-test",
+    )
+    remediator._append_event("2024-08-02T10:00:00+00:00", "GATE16_VIOLATION", {"symbol": "TEST"})
+    remediator.record_reconciliation(
+        "2024-08-02T10:01:00+00:00", pending_orders=0, reserved_cash=0.0,
+        open_positions=0, realized_pnl=0.0, daily_pnl={},
+        daily_pnl_matches_realized=True, exact=True,
+    )
+    loaded = Gate16Remediator.from_persisted_audit(config, str(audit))
+    approval = loaded.record_persisted_manual_recovery(
+        "Shrinivas", "verify remediation reproducibility", "2024-08-02T10:02:00+00:00",
+    )
+    assert approval.event_type == "MANUAL_RECOVERY_APPROVED"
+    assert loaded.verify_chain() and loaded.verify_persisted_chain()
+
+
 def test_quarantine_cancellation_is_hash_linked(tmp_path):
     config = EffectiveConfig()
     audit = tmp_path / "cancellation.jsonl"
