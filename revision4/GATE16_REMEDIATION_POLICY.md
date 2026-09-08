@@ -62,14 +62,26 @@ SafetyViolation(
 **Storage requirements:**
 - Append-only database (no updates, only inserts)
 - Hash-linked chain (each record includes SHA-256 of prior)
-- Cryptographically signed (proof of authorship + immutability)
 - Durable write (not in-memory)
 - Included in sealed run report with chain verification
 
-**Chain integrity check:**
+**Cryptographic signing (REQUIRED, not yet implemented):**
+Before production use, implement:
+- Key custody: HSM or secure vault for signing key
+- Signer identity: named authority (service account + human reviewer)
+- Key rotation: schedule and policy for key expiration/renewal
+- Verification: public key infrastructure and signature check on every audit read
+- Attestation: each SafetyViolation record signed with timestamp and signer identity
+
+Until implemented:
+- Use hash-linked chain without cryptographic signatures
+- Mark audit records as "UNSIGNED" pending key custody
+- Do not rely on signatures for chain integrity (use hashes only)
+
+**Chain integrity check (pending signature implementation):**
 - On any replay or recovery: verify hash chain is unbroken
 - If chain break detected: full shutdown, no recovery permitted
-- If signature verification fails: full shutdown, no recovery permitted
+- [Future] If signature verification fails: full shutdown, no recovery permitted
 
 ---
 
@@ -174,12 +186,14 @@ For each open position (in order of entry bar index, oldest first):
 - Submit flatten order for **next eligible bar** (bar after breach detection)
 - Do NOT use current bar close (may contain future information)
 
-**Exit price model (predefined, conservative):**
+**Exit price model (predefined, direction-aware conservative):**
 ```
 For flatten at bar t+1:
   - Use bar(t+1).open or bid-ask midpoint
-  - Apply conservative slippage buffer: -10 bps (assume execution at worst 10bps)
-  - Conservative fill = midpoint - 10bps buffer
+  - Apply direction-aware conservative buffer (always adverse):
+    - Long position (close long): fill = midpoint - 10 bps (price drops)
+    - Short position (close short): fill = midpoint + 10 bps (price rises)
+  - This ensures slippage assumption is adverse in both cases
   - Never use bar(t+1).close (not yet known at decision time)
 ```
 
@@ -249,9 +263,9 @@ reconciliation_ok = (
     len(ledger.pending_orders) == 0 AND         # Zero pending orders
     ledger.reserved_cash == 0.0 AND             # Zero reserved cash
     all_completed_trades_have_net_pnl() AND     # All trades reconciled
-    audit_chain_is_unbroken() AND               # SafetyViolation hash chain valid
-    audit_signatures_verified()                 # All signatures cryptographically valid
+    audit_chain_is_unbroken()                   # SafetyViolation hash chain valid
 )
+# Note: audit_signatures_verified() requirement pending cryptographic key custody implementation
 ```
 
 **Failure conditions (any triggers shutdown):**
@@ -260,7 +274,7 @@ reconciliation_ok = (
 - Any reserved cash remains
 - Any completed trade missing net_pnl
 - Audit hash chain break detected
-- Audit signature verification fails
+- [Future] Audit signature verification fails (pending key custody)
 - Reconciliation deadline exceeded
 
 ### 6.3 Reconciliation Outcomes
