@@ -26,6 +26,7 @@ class TestCompletedTradeContract:
                     CompletedTrade(
                         trade_id="",  # EMPTY
                         symbol="INFY",
+                        direction=1,  # Long
                         entry_timestamp="2024-08-01T09:15:00Z",
                         entry_price=3000.0,
                         entry_cost=10.0,
@@ -50,6 +51,7 @@ class TestCompletedTradeContract:
                     CompletedTrade(
                         trade_id="trade_1",
                         symbol="INFY",
+                        direction=1,  # Long
                         entry_timestamp="2024-08-01T09:15:00Z",
                         entry_price=3000.0,
                         entry_cost=10.0,
@@ -64,6 +66,7 @@ class TestCompletedTradeContract:
                     CompletedTrade(
                         trade_id="trade_1",  # DUPLICATE
                         symbol="TCS",
+                        direction=1,  # Long
                         entry_timestamp="2024-08-01T10:00:00Z",
                         entry_price=4000.0,
                         entry_cost=15.0,
@@ -88,6 +91,7 @@ class TestCompletedTradeContract:
                     CompletedTrade(
                         trade_id="trade_1",
                         symbol="INFY",
+                        direction=1,  # Long
                         entry_timestamp="2024-08-01T14:00:00Z",
                         entry_price=3000.0,
                         entry_cost=10.0,
@@ -112,6 +116,7 @@ class TestCompletedTradeContract:
                     CompletedTrade(
                         trade_id="trade_1",
                         symbol="INFY",
+                        direction=1,  # Long
                         entry_timestamp="Aug 1, 2024",  # INVALID ISO format
                         entry_price=3000.0,
                         entry_cost=10.0,
@@ -136,6 +141,7 @@ class TestCompletedTradeContract:
                     CompletedTrade(
                         trade_id="trade_1",
                         symbol="INFY",
+                        direction=1,  # Long
                         entry_timestamp="2024-08-01T09:15:00Z",
                         entry_price=3000.0,
                         entry_cost=10.0,
@@ -160,6 +166,7 @@ class TestCompletedTradeContract:
                     CompletedTrade(
                         trade_id="trade_1",
                         symbol="INFY",
+                        direction=1,  # Long
                         entry_timestamp="2024-08-01T09:15:00Z",
                         entry_price=3000.0,
                         entry_cost=10.0,
@@ -186,6 +193,7 @@ class TestReconciliation:
         trade1 = CompletedTrade(
             trade_id="trade_1",
             symbol="INFY",
+            direction=1,  # Long
             entry_timestamp="2024-08-01T09:15:00Z",
             entry_price=3000.0,
             entry_cost=10.0,
@@ -200,6 +208,7 @@ class TestReconciliation:
         trade2 = CompletedTrade(
             trade_id="trade_2",
             symbol="TCS",
+            direction=1,  # Long
             entry_timestamp="2024-08-02T09:15:00Z",
             entry_price=4000.0,
             entry_cost=15.0,
@@ -225,6 +234,7 @@ class TestReconciliation:
         trade1 = CompletedTrade(
             trade_id="trade_1",
             symbol="INFY",
+            direction=1,  # Long
             entry_timestamp="2024-08-01T09:15:00Z",
             entry_price=3000.0,
             entry_cost=10.0,
@@ -239,6 +249,7 @@ class TestReconciliation:
         trade2 = CompletedTrade(
             trade_id="trade_2",
             symbol="TCS",
+            direction=1,  # Long
             entry_timestamp="2024-08-02T09:15:00Z",
             entry_price=4000.0,
             entry_cost=15.0,
@@ -273,6 +284,7 @@ class TestProfitFactorDerivation:
         trade1 = CompletedTrade(
             trade_id="trade_1",
             symbol="INFY",
+            direction=1,  # Long
             entry_timestamp="2024-08-01T09:15:00Z",
             entry_price=3000.0,
             entry_cost=10.0,
@@ -287,6 +299,7 @@ class TestProfitFactorDerivation:
         trade2 = CompletedTrade(
             trade_id="trade_2",
             symbol="TCS",
+            direction=1,  # Long
             entry_timestamp="2024-08-02T09:15:00Z",
             entry_price=4000.0,
             entry_cost=15.0,
@@ -308,6 +321,36 @@ class TestProfitFactorDerivation:
         # gross_loss = 0
         # profit_factor = 100 / 0 = inf
         assert eval.total_profit_factor == float("inf")
+
+    def test_short_trade_pnl_calculation(self):
+        """Verify short-trade P&L: (entry - exit) * qty."""
+        # Short: entry at 3010, exit at 3000 = profit of (3010 - 3000) * 10 = 100
+        short_trade = CompletedTrade(
+            trade_id="short_1",
+            symbol="INFY",
+            direction=-1,  # SHORT
+            entry_timestamp="2024-08-01T09:15:00Z",
+            entry_price=3010.0,
+            entry_cost=10.0,
+            exit_timestamp="2024-08-01T14:00:00Z",
+            exit_price=3000.0,  # Exited lower = profit
+            exit_cost=10.0,
+            exit_reason=ExitReason.TARGET_HIT,
+            quantity=10.0,
+            gross_pnl=100.0,  # (3010 - 3000) * 10 = 100
+            net_pnl=80.0,  # 100 - 10 - 10 = 80
+        )
+        eval = SealedRunEvaluation.create(
+            completed_trades=[short_trade],
+            starting_equity=100_000.0,
+            ending_equity=100_080.0,
+        )
+
+        assert eval.total_trades == 1
+        assert eval.total_wins == 1
+        assert eval.total_losses == 0
+        assert eval.total_profit_factor == float("inf")
+        assert eval.total_net_pnl == 80.0
 
 
 if __name__ == "__main__":
