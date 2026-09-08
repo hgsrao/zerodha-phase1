@@ -109,6 +109,13 @@ class Gate16Remediator:
         measured = abs(fill.fill_price - intended) / intended * 100 if intended else float("inf")
         breach = self._append_event(timestamp, "GATE16_VIOLATION", {
             "order_id": order.order_id, "fill_id": fill.fill_id, "symbol": fill.symbol,
+            "decision_timestamp": order.timestamp_created,
+            "submission_timestamp": fill.timestamp_submitted,
+            "fill_timestamp": fill.timestamp_filled,
+            "intended_entry_price": intended,
+            "actual_fill_price": fill.fill_price,
+            # PaperBroker fills a market order at the eligible bar open.
+            "eligible_bar_open": fill.fill_price,
             "measured_slippage_pct": measured, "tolerance_pct": tolerance,
         })
         violation = SafetyViolation(

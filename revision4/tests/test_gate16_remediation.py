@@ -67,6 +67,10 @@ def test_breach_quarantines_flattens_and_requires_manual_recovery(tmp_path):
     persisted = [json.loads(line) for line in audit.read_text().splitlines()]
     assert persisted[0]["run_id"] == "test-run"
     assert persisted[0]["dataset_hash"] == "dataset-test"
+    assert persisted[0]["payload"]["decision_timestamp"] == first
+    assert persisted[0]["payload"]["fill_timestamp"] == second
+    assert persisted[0]["payload"]["intended_entry_price"] == 100.0
+    assert persisted[0]["payload"]["actual_fill_price"] == 101.0
     assert persisted[-1]["event_type"] == "MANUAL_RECOVERY_APPROVED"
 
 
