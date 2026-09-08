@@ -39,6 +39,7 @@ class CompletedTrade:
     """
     trade_id: str  # Unique identifier
     symbol: str
+    direction: int  # +1 for long, -1 for short
 
     # Entry leg
     entry_timestamp: str  # ISO format: '2024-08-01T09:15:00Z'
@@ -53,7 +54,7 @@ class CompletedTrade:
 
     # Quantity and P&L
     quantity: float
-    gross_pnl: float  # (exit_price - entry_price) * quantity
+    gross_pnl: float  # Long: (exit - entry) * qty; Short: (entry - exit) * qty
     net_pnl: float  # gross_pnl - entry_cost - exit_cost
 
 
@@ -146,6 +147,8 @@ class SealedRunEvaluation:
                 raise ValueError(f"Trade {i}: trade_id required")
             if not trade.symbol:
                 raise ValueError(f"Trade {i}: symbol required")
+            if trade.direction not in [1, -1]:
+                raise ValueError(f"Trade {i}: direction must be +1 (long) or -1 (short)")
             if trade.quantity <= 0:
                 raise ValueError(f"Trade {i}: quantity must be positive")
             if trade.entry_price <= 0 or trade.exit_price <= 0:
@@ -171,11 +174,18 @@ class SealedRunEvaluation:
             if exit_dt_naive <= entry_dt_naive:
                 raise ValueError(f"Trade {trade.trade_id}: exit must be after entry")
 
-        # Verify P&L calculations
+        # Verify P&L calculations (direction-aware)
         for trade in completed_trades:
-            expected_gross = (trade.exit_price - trade.entry_price) * trade.quantity
+            if trade.direction == 1:  # Long
+                expected_gross = (trade.exit_price - trade.entry_price) * trade.quantity
+            else:  # Short
+                expected_gross = (trade.entry_price - trade.exit_price) * trade.quantity
+
             if abs(trade.gross_pnl - expected_gross) > 0.01:
-                raise ValueError(f"Trade {trade.trade_id}: gross_pnl mismatch")
+                raise ValueError(
+                    f"Trade {trade.trade_id}: gross_pnl mismatch "
+                    f"(direction={trade.direction}, expected {expected_gross:.2f}, got {trade.gross_pnl:.2f})"
+                )
             expected_net = trade.gross_pnl - trade.entry_cost - trade.exit_cost
             if abs(trade.net_pnl - expected_net) > 0.01:
                 raise ValueError(f"Trade {trade.trade_id}: net_pnl mismatch")
