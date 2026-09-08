@@ -213,6 +213,21 @@ class TestMaxPositions:
         assert ok == False, "Reconciliation should fail with 6 positions"
         assert "More than 5 positions" in msg
 
+    def test_sixth_pending_order_across_symbols_rejected(self):
+        """Five reserved orders consume all portfolio position slots."""
+        ledger = PortfolioLedger()
+        for i in range(6):
+            symbol = f"PENDING{i}"
+            plan = TradePlan("2024-08-01T09:15:00", 0, symbol, 1, 100.0, 95.0, 110.0, 1.0, 1.0)
+            proposal = SizedProposal("2024-08-01T09:15:00", 0, symbol, plan, 1.0, 1.0, 0.0)
+            order = OrderIntent(f"pending-{i}", "2024-08-01T09:15:00", 0, symbol, 1, 1.0, 95.0, 110.0, proposal)
+            ok, reason = ledger.create_order(order.order_id, order)
+            if i < 5:
+                assert ok
+            else:
+                assert not ok
+                assert reason == "Portfolio position limit reached"
+
 
 class TestLedgerReconciliation:
     """Ledger must reconcile: every event matches state."""

@@ -53,11 +53,12 @@ class PortfolioLedger:
             return False, "Duplicate order ID"
 
         # Check position limit
-        existing_positions = len(self.positions)
-        pending_same_symbol = len([o for o in self.pending_orders.values() if o.symbol == order.symbol])
-
-        if existing_positions + pending_same_symbol >= 5:
-            return False, "Position limit reached"
+        # The cap is portfolio-wide.  Every pending order can become a live
+        # position on the next timestamp, so a per-symbol pending count would
+        # permit an unsafe burst across many symbols.
+        committed_slots = len(self.positions) + len(self.pending_orders)
+        if committed_slots >= 5:
+            return False, "Portfolio position limit reached"
 
         # Reserve enough cash for either direction.  This is intentionally
         # conservative for shorts until a broker-specific margin model is
