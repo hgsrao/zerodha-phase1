@@ -1,159 +1,172 @@
 """
-REVISION 04: Research Target Configuration
+REVISION 04: Research Target and Sealed Run Evaluation
 
-This is an EVALUATION METRIC, not a trading instruction.
-The engine must NEVER override risk gates or bypass authorization to achieve this target.
+₹400/day is a REPORTING BENCHMARK only, not a trading target.
+The evaluator REJECTS incomplete reports and FAILS CLOSED on missing data.
+Acceptance thresholds are configured separately for smoke tests, research, calibration.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Tuple, Optional
+from datetime import datetime
 
 
 @dataclass(frozen=True)
-class ResearchTarget:
+class BenchmarkConfig:
     """
-    Research target for sealed month evaluation.
-
-    Used for reporting only. Risk gates and authorization are never overridden
-    to achieve these numbers.
+    Reporting benchmark (not trading target).
+    Used only for displaying "sessions above/below ₹400" in reports.
     """
-    starting_capital: float = 100_000.0  # ₹1 lakh
-    daily_net_pnl_benchmark: float = 400.0  # ₹400/day (~0.4% daily)
-
-    # These are computed from actual data
-    total_trading_sessions: Optional[int] = None
-    expected_monthly_pnl: Optional[float] = None
-
-    def compute_monthly_target(self, session_count: int) -> float:
-        """
-        Compute expected monthly P&L based on actual trading sessions.
-
-        Args:
-            session_count: Number of actual trading sessions in sealed data
-
-        Returns:
-            Expected monthly P&L (daily_benchmark × session_count)
-        """
-        return self.daily_net_pnl_benchmark * session_count
+    daily_net_pnl_benchmark: float = 400.0  # ₹400/day (~0.4% on ₹100k)
+    starting_capital: float = 100_000.0
 
 
-@dataclass
-class RunEvaluation:
+@dataclass(frozen=True)
+class DailyResult:
+    """
+    One trading session's results (required for honest evaluation).
+    """
+    date: str  # ISO format: '2024-08-01'
+    net_pnl: float  # Rupees (can be negative)
+    trades: int
+    wins: int
+    losses: int
+    max_dd_pct: float  # Max intraday drawdown %
+    safety_violations: int
+
+
+@dataclass(frozen=True)
+class SealedRunEvaluation:
     """
     Evaluation report after sealed month run.
-    Shows attainment of research target, but never influenced by it.
+    REJECTS if data is incomplete.
+    Shows attainment of ₹400/day benchmark (informational only).
     """
+    # Required: actual data
+    daily_results: List[DailyResult]  # One entry per trading session
     starting_equity: float
     ending_equity: float
-    net_pnl: float  # ending - starting
+    total_net_pnl: float
+    total_profit_factor: float  # (sum of wins) / (sum of losses)
+    total_safety_violations: int
 
+    # Derived from daily_results
     total_trading_sessions: int
-    avg_daily_net_pnl: float  # net_pnl / sessions
-
-    sessions_above_benchmark: int  # count of days where daily_pnl >= ₹400
-    sessions_below_benchmark: int  # count of days where daily_pnl < ₹400
-    attainment_rate: float  # above / total
-
+    avg_daily_net_pnl: float
     max_drawdown_pct: float
-    max_drawdown_rupees: float
-
     total_trades: int
-    winning_trades: int
-    losing_trades: int
+    total_wins: int
+    total_losses: int
     win_rate: float
-    profit_factor: float
 
-    safety_violations: int  # Must be 0
+    # Benchmark comparison (reporting only, not decision-making)
+    sessions_above_benchmark: int
+    sessions_below_benchmark: int
+    attainment_rate: float
 
-    def is_acceptable(self) -> bool:
+    @classmethod
+    def create(
+        cls,
+        daily_results: List[DailyResult],
+        starting_equity: float,
+        ending_equity: float,
+        total_profit_factor: float,
+        benchmark: BenchmarkConfig = None,
+    ) -> "SealedRunEvaluation":
         """
-        Determine if run meets minimal acceptance criteria.
+        Create evaluation from actual daily results.
+        FAILS if required fields are missing.
 
-        This is NOT about hitting the ₹400 benchmark.
-        This is about fundamental soundness.
+        Args:
+            daily_results: One DailyResult per trading session (REQUIRED, no defaults)
+            starting_equity: Starting capital (REQUIRED)
+            ending_equity: Final equity (REQUIRED)
+            total_profit_factor: (sum wins) / (sum losses) (REQUIRED, no default)
+            benchmark: Reporting benchmark (default: ₹400/day)
+
+        Raises:
+            ValueError: If daily_results empty, profit_factor missing, etc.
         """
-        # Safety violations are deal-breaker
-        if self.safety_violations > 0:
-            return False
+        if not daily_results:
+            raise ValueError("daily_results cannot be empty; report is incomplete")
 
-        # Positive expectancy after costs
-        if self.net_pnl <= 0:
-            return False
+        if not starting_equity or not ending_equity:
+            raise ValueError("starting_equity and ending_equity are required")
 
-        # Minimum trades for statistical validity
-        if self.total_trades < 5:
-            return False
+        if total_profit_factor is None or total_profit_factor < 0:
+            raise ValueError(f"total_profit_factor must be explicit (got {total_profit_factor})")
 
-        # Controlled drawdown
-        if self.max_drawdown_pct > 50.0:  # Don't lose more than 50% equity
-            return False
+        if benchmark is None:
+            benchmark = BenchmarkConfig()
 
-        return True
+        # Derive from daily_results (no defaults)
+        total_net_pnl = ending_equity - starting_equity
+        total_sessions = len(daily_results)
+        avg_daily_pnl = total_net_pnl / total_sessions if total_sessions > 0 else 0.0
 
+        # Aggregate trades, wins, losses, safety
+        total_trades = sum(d.trades for d in daily_results)
+        total_wins = sum(d.wins for d in daily_results)
+        total_losses = sum(d.losses for d in daily_results)
+        total_safety_violations = sum(d.safety_violations for d in daily_results)
+        win_rate = total_wins / total_trades if total_trades > 0 else 0.0
 
-def evaluate_run(
-    seal_config: dict,
-    run_result: dict,
-    benchmark: ResearchTarget = None,
-) -> RunEvaluation:
-    """
-    Evaluate a sealed month run against research target.
+        # Max drawdown: worst intraday drawdown across all sessions
+        max_dd = max((d.max_dd_pct for d in daily_results), default=0.0)
 
-    Args:
-        seal_config: DatasetSeal info (symbol count, date range, etc.)
-        run_result: RunResult from replay
-        benchmark: ResearchTarget (default: ₹400/day)
+        # Benchmark attainment: count sessions above ₹400
+        sessions_above = sum(1 for d in daily_results if d.net_pnl >= benchmark.daily_net_pnl_benchmark)
+        sessions_below = total_sessions - sessions_above
+        attainment_rate = sessions_above / total_sessions if total_sessions > 0 else 0.0
 
-    Returns:
-        RunEvaluation with all metrics
-    """
-    if benchmark is None:
-        benchmark = ResearchTarget()
+        return cls(
+            daily_results=daily_results,
+            starting_equity=starting_equity,
+            ending_equity=ending_equity,
+            total_net_pnl=total_net_pnl,
+            total_profit_factor=total_profit_factor,
+            total_safety_violations=total_safety_violations,
+            total_trading_sessions=total_sessions,
+            avg_daily_net_pnl=avg_daily_pnl,
+            max_drawdown_pct=max_dd,
+            total_trades=total_trades,
+            total_wins=total_wins,
+            total_losses=total_losses,
+            win_rate=win_rate,
+            sessions_above_benchmark=sessions_above,
+            sessions_below_benchmark=sessions_below,
+            attainment_rate=attainment_rate,
+        )
 
-    # Extract from run_result
-    starting_equity = run_result.get("starting_equity", 100_000.0)
-    ending_equity = run_result.get("ending_equity", starting_equity)
-    net_pnl = ending_equity - starting_equity
-
-    total_trades = run_result.get("total_trades", 0)
-    winning_trades = run_result.get("winning_trades", 0)
-    losing_trades = run_result.get("losing_trades", 0)
-    max_drawdown = run_result.get("max_drawdown", 0.0)
-
-    # Compute from seal_config (actual trading sessions)
-    # For now, assume NSE 1-min data = ~6.5 hours/day × 60 min = ~390 bars/day
-    # Sealed month has approximately 21-22 trading days
-    trading_sessions = seal_config.get("trading_sessions", 21)
-
-    avg_daily_pnl = net_pnl / trading_sessions if trading_sessions > 0 else 0.0
-
-    # Count days above/below benchmark
-    # (This requires per-day P&L from run_result; simplified for now)
-    sessions_above = run_result.get("sessions_above_benchmark", 0)
-    sessions_below = trading_sessions - sessions_above
-    attainment_rate = sessions_above / trading_sessions if trading_sessions > 0 else 0.0
-
-    win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
-    profit_factor = run_result.get("profit_factor", 1.0)
-
-    safety_violations = run_result.get("safety_violations", 0)
-    max_drawdown_rupees = starting_equity * (max_drawdown / 100.0)
-
-    return RunEvaluation(
-        starting_equity=starting_equity,
-        ending_equity=ending_equity,
-        net_pnl=net_pnl,
-        total_trading_sessions=trading_sessions,
-        avg_daily_net_pnl=avg_daily_pnl,
-        sessions_above_benchmark=sessions_above,
-        sessions_below_benchmark=sessions_below,
-        attainment_rate=attainment_rate,
-        max_drawdown_pct=max_drawdown,
-        max_drawdown_rupees=max_drawdown_rupees,
-        total_trades=total_trades,
-        winning_trades=winning_trades,
-        losing_trades=losing_trades,
-        win_rate=win_rate,
-        profit_factor=profit_factor,
-        safety_violations=safety_violations,
-    )
+    def to_report(self) -> str:
+        """
+        Generate plain-text report for stdout.
+        Shows all metrics and benchmark attainment.
+        """
+        lines = [
+            "="*60,
+            "SEALED MONTH RUN EVALUATION",
+            "="*60,
+            f"Starting Equity:           ₹{self.starting_equity:,.2f}",
+            f"Ending Equity:             ₹{self.ending_equity:,.2f}",
+            f"Net P&L:                   ₹{self.total_net_pnl:,.2f}",
+            "",
+            f"Trading Sessions:          {self.total_trading_sessions}",
+            f"Avg Daily Net P&L:         ₹{self.avg_daily_net_pnl:,.2f}",
+            f"Max Drawdown:              {self.max_drawdown_pct:.2f}%",
+            "",
+            f"Total Trades:              {self.total_trades}",
+            f"Winning Trades:            {self.total_wins}",
+            f"Losing Trades:             {self.total_losses}",
+            f"Win Rate:                  {self.win_rate:.1%}",
+            f"Profit Factor:             {self.total_profit_factor:.2f}",
+            "",
+            f"Safety Violations:         {self.total_safety_violations}",
+            "",
+            "BENCHMARK ATTAINMENT (₹400/day, reporting only):",
+            f"Sessions Above ₹400:       {self.sessions_above_benchmark}/{self.total_trading_sessions}",
+            f"Sessions Below ₹400:       {self.sessions_below_benchmark}/{self.total_trading_sessions}",
+            f"Attainment Rate:           {self.attainment_rate:.1%}",
+            "="*60,
+        ]
+        return "\n".join(lines)
