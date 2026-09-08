@@ -11,7 +11,7 @@ import pytest
 from datetime import datetime
 from revision4.contracts import (
     EffectiveConfig, PortfolioSnapshot, Position, OrderIntent,
-    TradePlan, SizedProposal, Bar,
+    TradePlan, SizedProposal, Bar, FillEvent,
 )
 from revision4.gates_proper import ProperGateEvaluator
 
@@ -221,18 +221,16 @@ class TestPreSubmissionGates:
 class TestPostFillGates:
     """Test Stage 2: Post-fill gate evaluation (Gate 16)."""
 
-    def test_post_fill_placeholder(self, gate_evaluator, sample_order_intent):
-        """Post-fill gates are not yet implemented (placeholder always passes)."""
-        # This is a placeholder test for Stage 2
-        # Will be implemented when FillEvent struct is finalized
-
-        # For now, placeholder always passes
+    def test_post_fill_slippage_gate(self, gate_evaluator, sample_order_intent):
+        """Gate 16 compares the planned price with an actual fill."""
+        fill = FillEvent("fill-1", "test_order_1", "2024-08-01T09:16:00Z", 1,
+                         "SUNPHARMA", 1, 100, 500.0, 1.0,
+                         "2024-08-01T09:15:00Z", "2024-08-01T09:15:00Z")
         approved, reason = gate_evaluator.evaluate_post_fill(
             order_intent=sample_order_intent,
-            fill_event=None,  # TODO: Use real FillEvent
+            fill_event=fill,
         )
-
-        assert approved is True
+        assert approved
         assert reason is None
 
 

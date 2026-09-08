@@ -229,6 +229,8 @@ def build_candidate_provider(
             candidate = RankedOrderCandidate(
                 order=order_intent,
                 rank=rank_score,
+                pa_confidence=pa_signal.confidence,
+                id_risk_reward=id_decision.risk_reward_ratio,
             )
             candidates.append(candidate)
 

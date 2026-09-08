@@ -27,6 +27,8 @@ class RankedOrderCandidate:
 
     order: OrderIntent
     rank: float
+    pa_confidence: Optional[float] = None
+    id_risk_reward: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -66,6 +68,7 @@ class TimestampOrchestrator:
         exit_provider: Optional[ExitProvider] = None,
         ledger: Optional[PortfolioLedger] = None,
         broker: Optional[PaperBroker] = None,
+        gate_evaluator=None,
     ) -> None:
         if config is None:
             raise ValueError("TimestampOrchestrator requires canonical config")
@@ -74,6 +77,8 @@ class TimestampOrchestrator:
         self.exit_provider = exit_provider or (lambda _snapshot, _bars, _index: ())
         self.ledger = ledger or PortfolioLedger()
         self.broker = broker or PaperBroker()
+        self.gate_evaluator = gate_evaluator
+        self._current_date: Optional[str] = None
 
     @staticmethod
     def build_event_stream(bars_by_symbol: Mapping[str, Sequence[Bar]]) -> Dict[str, Dict[str, Bar]]:
@@ -104,6 +109,10 @@ class TimestampOrchestrator:
 
         for event_index, timestamp in enumerate(sorted(events)):
             bars = events[timestamp]
+            date = timestamp.split("T", 1)[0]
+            if self._current_date is not None and date != self._current_date:
+                self.ledger.reset_daily()
+            self._current_date = date
 
             # Exits observe the state from prior timestamps, before new fills
             # or candidates at this timestamp can change it.
@@ -128,6 +137,16 @@ class TimestampOrchestrator:
                     raise RuntimeError(f"fill {fill.fill_id} cannot reconcile: {reason}")
                 fills.append(fill)
                 event_log.append((timestamp, "FILL", order_id))
+                if self.gate_evaluator is not None:
+                    ok, reason = self.gate_evaluator.evaluate_post_fill(order, fill)
+                    if not ok:
+                        raise RuntimeError(f"post-fill gate rejected {order_id}: {reason}")
+                    ok, reason = self.gate_evaluator.evaluate_post_reconciliation(
+                        order, fill, int(order.quantity), int(fill.quantity_filled),
+                        fill.cost_paid, fill.cost_paid,
+                    )
+                    if not ok:
+                        raise RuntimeError(f"post-reconciliation gate rejected {order_id}: {reason}")
             self.broker.retire_filled_orders()
 
             # This exact snapshot is shared by every candidate at timestamp t.
@@ -138,6 +157,17 @@ class TimestampOrchestrator:
                 order = candidate.order
                 if order.timestamp_created != timestamp or order.bar_index_created != event_index:
                     raise ValueError("candidate order does not belong to the current timestamp")
+                if self.gate_evaluator is not None:
+                    if candidate.pa_confidence is None or candidate.id_risk_reward is None:
+                        raise RuntimeError(f"candidate {order.order_id} lacks authoritative PA/ID gate inputs")
+                    ok, reason = self.gate_evaluator.evaluate_pre_submission(
+                        order, snapshot, candidate.pa_confidence, candidate.id_risk_reward,
+                        timestamp, self.ledger.peak_equity, max(0.0, -self.ledger.daily_pnl),
+                        self.config.require("kill_switch_enabled"), bars,
+                    )
+                    if not ok:
+                        event_log.append((timestamp, "GATE_REJECT", f"{order.order_id}:{reason}"))
+                        continue
                 ok, reason = self.ledger.create_order(order.order_id, order)
                 if not ok:
                     event_log.append((timestamp, "LEDGER_REJECT", f"{order.order_id}:{reason}"))

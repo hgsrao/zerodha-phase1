@@ -37,6 +37,8 @@ from gates_framework import (
     Gate11LambdaDerating,
     Gate12StrategySignals,
     Gate13OrderDuplication,
+    Gate15OrderReconciliation,
+    Gate16Slippage,
     Gate17MarketClose,
     Gate18CircuitBreaker,
     SystemState,
@@ -91,6 +93,7 @@ class ProperGateEvaluator:
         peak_equity: float,
         daily_realized_loss: float,
         kill_switch_enabled: bool,
+        bars=None,
     ) -> Tuple[bool, Optional[str]]:
         """
         Stage 1: Pre-submission gate evaluation (Gates 1-13, 17-18).
@@ -122,7 +125,7 @@ class ProperGateEvaluator:
             current_dd_percent=drawdown_pct,
             current_lambda=0.0,  # Single-symbol (documented limitation)
             daily_realized_loss=daily_realized_loss,
-            daily_unrealized_loss=self._calculate_unrealized_loss(snapshot),
+            daily_unrealized_loss=self._calculate_unrealized_loss(snapshot, bars or {}),
             open_positions_count=len(snapshot.positions),
             open_positions=list(snapshot.positions.values()),
             market_data_age_seconds=0,
@@ -178,12 +181,10 @@ class ProperGateEvaluator:
         Returns:
             (approved: bool, rejection_reason: str or None)
         """
-        # TODO: Implement Gate 16 Slippage
-        # Compare order_intent.proposal.plan.entry_price vs fill_event.fill_price
-        # Reject if slippage exceeds configured tolerance
-
-        # Placeholder: always pass for now
-        return True, None
+        decision = Gate16Slippage(self.safety_config).evaluate(
+            order_intent.proposal.plan.entry_price, fill_event.fill_price
+        )
+        return decision.passed, None if decision.passed else f"{decision.gate_name}: {decision.reason}"
 
     def evaluate_post_reconciliation(
         self,
@@ -211,27 +212,25 @@ class ProperGateEvaluator:
         Returns:
             (approved: bool, rejection_reason: str or None)
         """
-        # TODO: Implement Gate 15 Reconciliation
-        # Check: actual_quantity == expected_quantity
-        # Check: abs(actual_cost - expected_cost) within tolerance
-        # Reject if mismatch suggests data corruption or error
-
-        # Placeholder: always pass for now
+        decision = Gate15OrderReconciliation(self.safety_config).evaluate(expected_quantity, actual_quantity)
+        if not decision.passed:
+            return False, f"{decision.gate_name}: {decision.reason}"
+        if abs(expected_cost - actual_cost) > 0.01:
+            return False, "post-reconciliation cost does not match authoritative fill"
         return True, None
 
-    def _calculate_unrealized_loss(self, snapshot: PortfolioSnapshot) -> float:
+    def _calculate_unrealized_loss(self, snapshot: PortfolioSnapshot, bars) -> float:
         """Calculate real unrealized loss from open positions."""
         unrealized_loss = 0.0
 
         for position in snapshot.positions.values():
-            # For unrealized loss calculation, we need the current market price
-            # For now, use mark_to_market value from position
-            # TODO: Get actual market price for position.symbol at current timestamp
-
-            if position.direction == 1:  # Long
-                unrealized_pnl = (position.entry_price - position.entry_price) * position.quantity
-            else:  # Short
-                unrealized_pnl = (position.entry_price - position.entry_price) * position.quantity
+            bar = bars.get(position.symbol)
+            if bar is None:
+                continue
+            if position.direction == 1:
+                unrealized_pnl = (bar.close - position.entry_price) * position.quantity
+            else:
+                unrealized_pnl = (position.entry_price - bar.close) * position.quantity
 
             if unrealized_pnl < 0:
                 unrealized_loss += abs(unrealized_pnl)

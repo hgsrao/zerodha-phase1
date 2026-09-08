@@ -13,6 +13,7 @@ from revision4.dataset_seal import DatasetValidator
 from revision4.timestamp_orchestrator import TimestampOrchestrator
 from revision4.box_adapters import build_candidate_provider, build_exit_provider
 from revision4.research_target import SealedRunEvaluation, BenchmarkConfig
+from revision4.gates_proper import ProperGateEvaluator
 
 
 class ManifestDataLoader:
@@ -145,6 +146,7 @@ def run_validation_replay(
         config=config,
         candidate_provider=build_candidate_provider(config, warmup_bars_by_symbol),
         exit_provider=build_exit_provider(config),
+        gate_evaluator=ProperGateEvaluator(config),
     )
 
     # Run replay
