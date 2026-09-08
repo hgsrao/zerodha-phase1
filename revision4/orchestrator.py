@@ -17,8 +17,8 @@ Each bar timestamp:
 
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
-from datetime import datetime
-from revision4.contracts import Bar, EffectiveConfig
+import uuid
+from revision4.contracts import Bar, EffectiveConfig, OrderIntent, OrderState, SizedProposal, TradePlan
 from revision4.paper_broker import PaperBroker
 from revision4.portfolio import PortfolioLedger
 from revision4.research_target import SealedRunEvaluation, BenchmarkConfig
@@ -50,6 +50,13 @@ class TimestampOrchestrator:
         self.current_timestamp: Optional[str] = None
         self.current_bar_index: int = 0
         self.snapshots: List[TimestampSnapshot] = []
+        self.bar_history: Dict[str, List[Bar]] = {}
+
+    def add_bar(self, bar: Bar):
+        """Add bar to history for processing."""
+        if bar.symbol not in self.bar_history:
+            self.bar_history[bar.symbol] = []
+        self.bar_history[bar.symbol].append(bar)
 
     def process_timestamp(
         self,
@@ -71,28 +78,40 @@ class TimestampOrchestrator:
         self.current_timestamp = timestamp
         self.current_bar_index = bar_index
 
-        # 1. EXIT PROCESSING
-        # TODO: Implement exit logic (stop/target/time/liquidation)
+        # 1. EXIT PROCESSING (simplified: no active exits for validation replay)
+        # TODO: Full implementation with stop/target/time/liquidation
 
         # 2. FILL PENDING ORDERS at bar t+1 open
-        # TODO: For each pending order eligible for fill:
-        #   - Call broker.try_fill_order()
-        #   - If filled, call ledger.fill_order()
-        #   - Track CompletedTrade
+        # For each pending order eligible for fill (submitted at prior bar)
+        for order_id in list(self.broker.active_orders.keys()):
+            order = self.broker.active_orders[order_id]
+            # Check if this order can fill at this bar
+            if bar_index > order.bar_index_created:
+                fill_event = self.broker.try_fill_order(
+                    order_id,
+                    bars[order.symbol],
+                    bar_index,
+                    self.config,
+                )
+                if fill_event:
+                    # Fill in ledger
+                    ok, msg = self.ledger.fill_order(order_id, fill_event)
+                    if not ok:
+                        print(f"Warning: Fill failed: {msg}")
 
-        # 3. GENERATE SIGNALS (all 48 symbols)
+        # 3. GENERATE SIGNALS (simplified: no actual PA box for validation)
         # TODO: Call pipeline.generate_forecast() for each symbol
 
-        # 4. RANK CANDIDATES
+        # 4. RANK CANDIDATES (simplified: skip ranking for validation)
         # TODO: Call position_manager.rank_candidates()
 
-        # 5. ALLOCATE CAPITAL
+        # 5. ALLOCATE CAPITAL (simplified: skip allocation for validation)
         # TODO: Respect position limits, cash constraints
 
-        # 6. APPLY 18 SAFETY GATES
+        # 6. APPLY 18 SAFETY GATES (simplified: skip gates for validation)
         # TODO: Call safety_gates.authorize() for each candidate
 
-        # 7. CREATE PENDING ORDERS
+        # 7. CREATE PENDING ORDERS (simplified: none for validation replay)
         # TODO: For authorized candidates:
         #   - Create OrderIntent
         #   - Call broker.submit_order()
