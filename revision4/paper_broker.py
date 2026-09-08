@@ -101,9 +101,11 @@ class PaperBroker:
         fill_price = bar_at_fill_time.open
         quantity_filled = order.quantity
 
-        # Calculate cost using NSE/India real cost model (entry side)
+        # Calculate cost for the actual entry side.  A long enters by buying;
+        # a short enters by selling, which is the side on which STT applies.
         from revision4.config_access import calculate_transaction_cost
-        cost_paid = calculate_transaction_cost(fill_price, quantity_filled, side="BUY")
+        entry_side = "BUY" if order.direction == 1 else "SELL"
+        cost_paid = calculate_transaction_cost(fill_price, quantity_filled, side=entry_side)
 
         # Create fill event
         fill_event = FillEvent(

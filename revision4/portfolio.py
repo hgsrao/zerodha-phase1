@@ -12,6 +12,7 @@ from revision4.contracts import (
     Position, PortfolioSnapshot, OrderIntent, FillEvent,
     ExitEvent, ExitReason, Bar
 )
+from revision4.research_target import CompletedTrade
 
 
 class PortfolioLedger:
@@ -31,6 +32,7 @@ class PortfolioLedger:
 
         self.realized_pnl = 0.0
         self.total_costs = 0.0
+        self.completed_trades: list[CompletedTrade] = []
 
         # Daily tracking
         self.daily_pnl = 0.0
@@ -57,11 +59,13 @@ class PortfolioLedger:
         if existing_positions + pending_same_symbol >= 5:
             return False, "Position limit reached"
 
-        # Check cash for BUY order
-        if order.direction == 1:
-            cost_estimate = order.quantity * order.proposal.plan.entry_price + order.proposal.cost_estimate
-            if self.cash - self.reserved_cash < cost_estimate:
-                return False, f"Insufficient cash: need {cost_estimate:.0f}, have {self.cash - self.reserved_cash:.0f}"
+        # Reserve enough cash for either direction.  This is intentionally
+        # conservative for shorts until a broker-specific margin model is
+        # introduced: a short may not create leverage merely because it will
+        # later receive sale proceeds.
+        cost_estimate = order.quantity * order.proposal.plan.entry_price + order.proposal.cost_estimate
+        if self.cash - self.reserved_cash < cost_estimate:
+            return False, f"Insufficient cash: need {cost_estimate:.0f}, have {self.cash - self.reserved_cash:.0f}"
 
         # Create order
         self.pending_orders[order_id] = order
@@ -78,8 +82,13 @@ class PortfolioLedger:
 
         order = self.pending_orders[order_id]
 
-        # Execute fill
-        self.cash -= fill_event.quantity_filled * fill_event.fill_price + fill_event.cost_paid
+        # Execute fill.  Long entries pay cash; short entries receive sale
+        # proceeds and carry a negative marked position value.
+        entry_notional = fill_event.quantity_filled * fill_event.fill_price
+        if order.direction == 1:
+            self.cash -= entry_notional + fill_event.cost_paid
+        else:
+            self.cash += entry_notional - fill_event.cost_paid
         self.reserved_cash -= fill_event.quantity_filled * order.proposal.plan.entry_price
         self.total_costs += fill_event.cost_paid
 
@@ -102,43 +111,75 @@ class PortfolioLedger:
 
         return True, "Order filled"
 
-    def close_position(self, exit_event: ExitEvent, config=None) -> Tuple[bool, str]:
+    def close_position(self, exit_event: ExitEvent, config) -> Tuple[bool, str]:
         """
         Close a position. Record exit event.
         Update cash, P&L, and deduct exit costs.
 
         Args:
             exit_event: ExitEvent with exit prices and reason
-            config: Config for calculating transaction costs (optional)
+            config: Mandatory canonical config for transaction costs.
         """
         if exit_event.symbol not in self.positions:
             return False, "Position not found"
+        if config is None:
+            raise ValueError("close_position requires config")
 
         position = self.positions[exit_event.symbol]
+        if exit_event.direction != position.direction:
+            return False, "Exit direction does not match position"
+        if exit_event.quantity != position.quantity:
+            return False, "Exit quantity does not match position"
 
-        # CALCULATE EXIT COSTS (SELL-side: brokerage + exchange + STT)
-        exit_cost = 0.0
-        if config is not None:
-            from revision4.config_access import calculate_transaction_cost
-            exit_cost = calculate_transaction_cost(
-                exit_event.exit_price,
-                exit_event.quantity,
-                side="SELL"
-            )
+        # The exit side depends on the position: a long exits by selling;
+        # a short exits by buying back.  This determines the applicable STT.
+        from revision4.config_access import calculate_transaction_cost
+        exit_side = "SELL" if position.direction == 1 else "BUY"
+        exit_cost = calculate_transaction_cost(
+            exit_event.exit_price,
+            exit_event.quantity,
+            side=exit_side,
+        )
+        if abs(exit_event.exit_cost_paid - exit_cost) > 0.01:
+            return False, "Exit cost does not match the canonical cost model"
+        if abs(exit_event.entry_cost_paid - position.cost_paid) > 0.01:
+            return False, "Entry cost does not match the authoritative fill"
 
-        # Update cash:
-        # 1. Add sale proceeds: exit_price * quantity
-        # 2. Subtract exit costs: brokerage + exchange + STT
-        sale_proceeds = exit_event.exit_price * exit_event.quantity
-        self.cash += sale_proceeds
-        self.cash -= exit_cost
+        if position.direction == 1:
+            gross_pnl = (exit_event.exit_price - position.entry_price) * position.quantity
+        else:
+            gross_pnl = (position.entry_price - exit_event.exit_price) * position.quantity
+        net_pnl = gross_pnl - position.cost_paid - exit_cost
+        if abs(exit_event.pnl_realized - net_pnl) > 0.01:
+            return False, "Exit P&L does not reconcile with prices and costs"
+
+        # Long exits receive sale proceeds.  Short exits pay the buy-to-cover
+        # amount.  In both cases the exit-side transaction cost is deducted.
+        exit_notional = exit_event.exit_price * exit_event.quantity
+        if position.direction == 1:
+            self.cash += exit_notional - exit_cost
+        else:
+            self.cash -= exit_notional + exit_cost
         self.total_costs += exit_cost
 
-        # Update P&L (realized = gross - entry_cost - exit_cost)
-        # The pnl_realized in exit_event should already account for costs
-        # or we need to verify reconciliation
-        self.realized_pnl += exit_event.pnl_realized
-        self.daily_pnl += exit_event.pnl_realized
+        self.realized_pnl += net_pnl
+        self.daily_pnl += net_pnl
+
+        self.completed_trades.append(CompletedTrade(
+            trade_id=exit_event.exit_id,
+            symbol=position.symbol,
+            direction=position.direction,
+            entry_timestamp=position.entry_bar_timestamp,
+            entry_price=position.entry_price,
+            entry_cost=position.cost_paid,
+            exit_timestamp=exit_event.timestamp_exit,
+            exit_price=exit_event.exit_price,
+            exit_cost=exit_cost,
+            exit_reason=exit_event.exit_reason,
+            quantity=position.quantity,
+            gross_pnl=gross_pnl,
+            net_pnl=net_pnl,
+        ))
 
         # Remove position
         del self.positions[exit_event.symbol]

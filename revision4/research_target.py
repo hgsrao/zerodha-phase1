@@ -18,17 +18,7 @@ EVALUATOR CONTRACT: Aggregates trades by exit date, derives:
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 from datetime import datetime
-from enum import Enum
-
-
-class ExitReason(Enum):
-    """Trade exit reason (must match revision4/contracts.py)."""
-    TARGET_HIT = "TARGET_HIT"
-    STOP_HIT = "STOP_HIT"
-    TIME_EXIT = "TIME_EXIT"
-    EOD_FLATTENING = "EOD_FLATTENING"
-    LIQUIDATION = "LIQUIDATION"
-    ERROR = "ERROR"
+from revision4.contracts import ExitReason
 
 
 @dataclass(frozen=True)

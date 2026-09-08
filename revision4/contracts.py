@@ -235,8 +235,11 @@ class Position:
     def marked_value(self, current_price: float) -> float:
         if self.direction == 1:
             return self.quantity * current_price
-        else:
-            return self.quantity * (2 * self.entry_price - current_price)
+        # A short position is a liability at the current market price.  The
+        # short-sale proceeds are already reflected in ledger cash at fill;
+        # adding a synthetic entry-price component here would double count
+        # those proceeds and overstate equity.
+        return -self.quantity * current_price
 
 
 @dataclass

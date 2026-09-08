@@ -310,6 +310,11 @@ class TestEODFlattening:
         ledger = PortfolioLedger()
 
         from revision4.contracts import Position
+        from revision4.config_access import calculate_transaction_cost
+
+        entry_cost = calculate_transaction_cost(3000.0, 10.0, "BUY")
+        exit_cost = calculate_transaction_cost(3010.0, 10.0, "SELL")
+        net_pnl = 100.0 - entry_cost - exit_cost
 
         # Add a position
         pos = Position(
@@ -321,7 +326,7 @@ class TestEODFlattening:
             quantity=10.0,
             stop_price=2990.0,
             target_price=3025.0,
-            cost_paid=5.0,
+            cost_paid=entry_cost,
             fill_id="fill_1",
         )
 
@@ -341,17 +346,17 @@ class TestEODFlattening:
             quantity=10.0,
             direction=1,
             bars_held=390,
-            entry_cost_paid=5.0,  # From entry
-            exit_cost_paid=0.0,   # Assume no additional exit cost for this test
+            entry_cost_paid=entry_cost,
+            exit_cost_paid=exit_cost,
             exit_reason=ExitReason.EOD_FLATTENING,
-            pnl_realized=100.0 - 5.0,  # (exit - entry) * qty - entry_cost
+            pnl_realized=net_pnl,
             pnl_pct=0.33,
         )
 
         ok, msg = ledger.close_position(exit_event, config)
         assert ok == True, f"Should close position: {msg}"
         assert "INFY" not in ledger.positions, "Position should be removed"
-        assert ledger.realized_pnl == 95.0, "P&L should be recorded"
+        assert ledger.realized_pnl == pytest.approx(net_pnl), "P&L should be recorded"
 
 
 if __name__ == "__main__":
