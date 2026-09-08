@@ -376,19 +376,6 @@ class EffectiveConfig:
     position_rebalancing_enabled: bool = False
     position_sector_limits: bool = False
 
-    # ===== SAFETY PARAMETERS (20 IMMUTABLE - not calibratable) =====
-    # These are FIXED policy parameters, never changed during calibration
-    cash_never_negative: bool = True
-    max_positions_hard_limit: int = 5
-    daily_loss_hard_limit: float = 2000.0
-    eod_flattening_required: bool = True
-    no_overnight_positions: bool = True
-    no_future_data_access: bool = True
-    deterministic_replay_required: bool = True
-    order_timestamp_auditing: bool = True
-    reconciliation_after_every_bar: bool = True
-    position_index_tracking: bool = True
-
     def require(self, param_name: str) -> Any:
         """
         Fetch parameter value with audit trail.

@@ -40,3 +40,28 @@ valid 48-symbol, 68-parameter trading system.
 
 The ₹1,000/day figure is a research target only. It is not a promise or an
 acceptance criterion for an unverified engine.
+
+## Post-foundation update (`e130e9c`)
+
+The new typed-contract foundation is a useful structural start, but it does
+not close the gaps above and is not an executable rebuild yet.
+
+- The current hard-test command reports **1 failed, 8 passed**, not 9/9.
+  Its dataset test uses a non-existent `/path/to/data` and catches the wrong
+  exception type.
+- `PipelineAdapter.generate_forecast()` explicitly contains replacement
+  placeholders, including a constant chart confidence. It does not invoke a
+  Revision 2 PA or chart box.
+- `_log_param()` does not return the supplied value. Consequently, calling
+  `make_id_decision()` attempts to compare a float with `None` and fails.
+- The claimed 68-parameter configuration has 71 declared fields, and the
+  parameter-trace test accepts an empty trace (`len(trace) >= 0`). It does not
+  prove parameter consumption.
+- `PortfolioLedger.close_position()` currently adds zero cash at exit
+  (`exit_price * quantity - exit_price * quantity`), so a completed trade
+  cannot reconcile its sale proceeds.
+- Dataset validation still reads hashes from the manifest without recomputing
+  the on-disk file hashes.
+
+These faults must be repaired and covered by failing-then-passing tests before
+the foundation can be called ready for an integration replay.

@@ -26,8 +26,9 @@ class PipelineAdapter:
         self.parameter_trace = []  # Log every parameter used
 
     def _log_param(self, param_name: str, value):
-        """Audit trail: every parameter fetch."""
+        """Audit trail: every parameter fetch. Returns the value."""
         self.parameter_trace.append((param_name, value))
+        return value
 
     def generate_forecast(
         self,

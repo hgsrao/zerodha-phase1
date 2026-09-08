@@ -112,10 +112,11 @@ class PortfolioLedger:
 
         position = self.positions[exit_event.symbol]
 
-        # Update cash
-        self.cash += exit_event.exit_price * exit_event.quantity - exit_event.quantity * exit_event.exit_price
+        # Update cash (add sale proceeds)
+        sale_proceeds = exit_event.exit_price * exit_event.quantity
+        self.cash += sale_proceeds
 
-        # Update P&L
+        # Update P&L (already includes costs)
         self.realized_pnl += exit_event.pnl_realized
         self.daily_pnl += exit_event.pnl_realized
 

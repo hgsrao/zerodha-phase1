@@ -252,28 +252,37 @@ class TestParameterTrace:
     """Every parameter fetch is logged for audit."""
 
     def test_parameter_trace_logged(self):
-        """All 68 parameters should appear in trace."""
+        """Parameters fetched via _log_param should appear in trace."""
         from revision4.pipeline import PipelineAdapter
 
         config = EffectiveConfig()
         adapter = PipelineAdapter(config)
 
-        # Use adapter to generate signals
-        import numpy as np
-        closes = np.array([1000, 1005, 1010, 1015, 1020])
-        volumes = np.array([1e6, 1e6, 1e6, 1e6, 1e6])
-
-        signal = adapter.generate_forecast(
+        # Use adapter to call make_id_decision (which logs params)
+        forecast = ForecastSignal(
             timestamp="2024-08-01T09:15:00",
             bar_index=0,
             symbol="INFY",
-            closes=closes,
-            volumes=volumes,
+            signal_type=SignalType.MOMENTUM_UP,
+            pa_confidence=0.80,
+            chart_confidence=0.65,
+            rejection_reason=None,
         )
 
-        # Check parameter trace
+        decision = adapter.make_id_decision(
+            forecast=forecast,
+            hour=10,
+            minute=0,
+            grid_sync=True,
+        )
+
+        # Check parameter trace - should have at least these params logged
         trace = adapter.get_parameter_trace()
-        assert len(trace) >= 0, "Some parameters should be logged"
+        trace_params = [t[0] for t in trace]
+
+        assert len(trace) > 0, "Parameters should be traced"
+        assert "pa_confidence_min" in trace_params, "pa_confidence_min should be logged"
+        assert "trading_start_hour" in trace_params, "trading_start_hour should be logged"
 
 
 class TestEODFlattening:
