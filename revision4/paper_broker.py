@@ -71,10 +71,9 @@ class PaperBroker:
         fill_price = bar_at_fill_time.open
         quantity_filled = order.quantity
 
-        # Calculate cost using canonical config parameters
-        from revision4.config_access import get_entry_cost
-        entry_cost_pct, fixed_cost = get_entry_cost(config)
-        cost_paid = quantity_filled * fill_price * entry_cost_pct + fixed_cost
+        # Calculate cost using NSE/India real cost model (entry side)
+        from revision4.config_access import calculate_transaction_cost
+        cost_paid = calculate_transaction_cost(fill_price, quantity_filled, side="BUY")
 
         # Create fill event
         fill_event = FillEvent(

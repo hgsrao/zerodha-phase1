@@ -322,26 +322,21 @@ class PipelineAdapter:
         Run Revision 2 MPC Box.
         Input: TradePlan + daily P&L
         Output: SizedProposal (MPC-scaled size)
+
+        NOTE: Real MPC parameters come from Revision 2 ModelPredictiveControlBox.
+        This is a simplified placeholder. Full integration TBD.
         """
-        from revision4.config_access import get_mpc_parameters, get_entry_cost
+        # Log relevant config for audit
+        max_daily_loss = self.config.require("max_daily_loss_rupees")
+        self._log_param("max_daily_loss_rupees", max_daily_loss)
 
-        # Fetch MPC parameters using canonical names
-        mpc_enabled, mpc_loss_threshold = get_mpc_parameters(self.config)
-        self._log_param("kill_switch_enabled", mpc_enabled)
-        self._log_param("max_daily_loss_rupees", mpc_loss_threshold)
-
-        entry_cost_pct, fixed_cost = get_entry_cost(self.config)
-        self._log_param("max_slippage_fraction", entry_cost_pct)
-
-        # MPC scaling factor
-        if mpc_enabled:
-            remaining_loss_budget = mpc_loss_threshold - abs(min(daily_pnl, 0))
-            if remaining_loss_budget <= 0:
-                scaling_factor = 0.0
-            else:
-                scaling_factor = remaining_loss_budget / mpc_loss_threshold
+        # MPC scaling: reduce size if approaching daily loss limit
+        # This is a simplified version; real MPC box will consume canonical params directly
+        remaining_loss_budget = max_daily_loss - abs(min(daily_pnl, 0))
+        if remaining_loss_budget <= 0:
+            scaling_factor = 0.0
         else:
-            scaling_factor = 1.0
+            scaling_factor = remaining_loss_budget / max_daily_loss
 
         # Apply MPC scaling
         final_quantity = plan.position_size_base * scaling_factor

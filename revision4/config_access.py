@@ -23,14 +23,30 @@ def get_trading_hours(config: EffectiveConfig) -> Tuple[int, int, int, int]:
     return start_h, start_m, end_h, end_m
 
 
-def get_entry_cost(config: EffectiveConfig) -> Tuple[float, float]:
+def calculate_transaction_cost(
+    price: float, quantity: float, side: str
+) -> float:
     """
-    Get entry cost parameters.
-    Returns: (slippage_fraction, fixed_cost_per_trade_rupees)
+    Calculate transaction cost for one trade leg (entry or exit).
+
+    Real NSE/India cost model (from Revision 2):
+    - Brokerage: min(₹20, 0.03% of turnover)
+    - Exchange charges: 0.00345% of turnover
+    - STT (taxes): 0.025% of turnover (SELL only)
+
+    Args:
+        price: Execution price per unit
+        quantity: Number of units
+        side: 'BUY' or 'SELL'
+
+    Returns:
+        Total cost in rupees
     """
-    slippage_frac = config.require("max_slippage_fraction")  # ~0.001
-    # Note: no explicit fixed_cost in canonical registry; use 0
-    return slippage_frac, 0.0
+    turnover = price * quantity
+    cost = min(20.0, 0.0003 * turnover) + 0.0000345 * turnover
+    if side.upper() == "SELL":
+        cost += 0.00025 * turnover
+    return cost
 
 
 def get_atr_parameters(config: EffectiveConfig) -> Tuple[int, float, float]:
@@ -45,19 +61,16 @@ def get_atr_parameters(config: EffectiveConfig) -> Tuple[int, float, float]:
     return period, stop_mult, target_mult
 
 
-def get_mpc_parameters(config: EffectiveConfig) -> Tuple[bool, float]:
+def get_kill_switch_status(config: EffectiveConfig) -> bool:
     """
-    Get MPC (Model Predictive Control) parameters.
-    Returns: (mpc_enabled, loss_threshold_rupees)
+    Get kill switch authorization status.
 
-    Note: Canonical registry doesn't have explicit mpc_scaling_enabled.
-    Use kill_switch_enabled as proxy (if kill_switch is on, MPC is active).
+    Kill switch is a safety control that BLOCKS all orders when engaged.
+    Do NOT use this as an MPC enable/disable flag.
+
+    Returns: bool (True = orders permitted, False = all orders blocked)
     """
-    # Infer MPC enabled from safety parameters
-    kill_switch = config.require("kill_switch_enabled")
-    loss_threshold = config.require("max_daily_loss_rupees")
-
-    return kill_switch, float(loss_threshold)
+    return config.require("kill_switch_enabled")
 
 
 def get_position_limits(config: EffectiveConfig) -> Tuple[int, int, float]:
