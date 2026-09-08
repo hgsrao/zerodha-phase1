@@ -39,31 +39,37 @@ class DiagnosticCollector:
         self,
         symbol: str,
         bar_index: int,
-        timestamp: str,
+        decision_timestamp: str,
+        fill_timestamp: str,
         decision_close: float,
         next_open: float,
     ):
-        """Record one candidate's slippage measurement."""
-        # Detect if this is the first bar of a new trading session (date)
-        bar_date = timestamp.split('T')[0]  # Extract YYYY-MM-DD
+        """Record one candidate's slippage measurement.
 
-        if symbol not in self.session_dates_seen:
-            self.session_dates_seen[symbol] = set()
+        Session gap = date(decision_bar) != date(fill_bar)
+        Intraday gap = date(decision_bar) == date(fill_bar)
+        """
+        # Extract dates (YYYY-MM-DD)
+        decision_date = decision_timestamp.split('T')[0]
+        fill_date = fill_timestamp.split('T')[0]
 
-        is_session_start = bar_date not in self.session_dates_seen[symbol]
-        self.session_dates_seen[symbol].add(bar_date)
+        # Session gap occurs when decision and fill are on different dates
+        is_session_gap = decision_date != fill_date
 
         slippage_pct = abs(next_open - decision_close) / decision_close * 100
 
         obs = {
             "symbol": symbol,
             "bar_index": bar_index,
-            "timestamp": timestamp,
+            "decision_timestamp": decision_timestamp,
+            "fill_timestamp": fill_timestamp,
+            "decision_date": decision_date,
+            "fill_date": fill_date,
             "decision_close": round(decision_close, 2),
             "next_open": round(next_open, 2),
             "slippage_pct": round(slippage_pct, 6),
-            "is_session_start": is_session_start,
-            "gap_type": "session" if is_session_start else "intraday",
+            "is_session_gap": is_session_gap,
+            "gap_type": "session" if is_session_gap else "intraday",
         }
 
         self.raw_observations.append(obs)
@@ -108,10 +114,10 @@ class DiagnosticCollector:
         return summary
 
     def _summarize_by_gap_type(self, gap_type: str) -> Dict:
-        """Generate summary for one gap type."""
+        """Generate summary for one gap type (session or intraday)."""
         obs = [o for o in self.raw_observations if o["gap_type"] == gap_type]
         if not obs:
-            return {"count": 0}
+            return {"count": 0, "note": f"No {gap_type} gaps found"}
 
         slips = sorted([o["slippage_pct"] for o in obs])
         n = len(slips)
@@ -144,8 +150,8 @@ class DiagnosticCollector:
                 "p95_pct": round(slips[int(n * 0.95)], 6) if slips else 0,
                 "p99_pct": round(slips[int(n * 0.99)] if n > 1 else (slips[-1] if slips else 0), 6),
                 "max_pct": round(max(slips), 6) if slips else 0,
-                "session_starts": sum(1 for o in obs if o["is_session_start"]),
-                "intraday": sum(1 for o in obs if not o["is_session_start"]),
+                "session_gaps": sum(1 for o in obs if o["is_session_gap"]),
+                "intraday_gaps": sum(1 for o in obs if not o["is_session_gap"]),
             }
 
         return by_sym
@@ -288,10 +294,14 @@ def run_48symbol_diagnostic(
                 if order is not None:
                     decision_close = order.proposal.plan.entry_price
                     next_open = bar.open
+                    decision_timestamp = order.timestamp_created  # When order was created (decision bar)
+                    fill_timestamp = bar.timestamp  # When order filled (next bar)
+
                     collector.record_candidate(
                         symbol=symbol,
                         bar_index=fill_idx,
-                        timestamp=bar.timestamp,
+                        decision_timestamp=decision_timestamp,
+                        fill_timestamp=fill_timestamp,
                         decision_close=decision_close,
                         next_open=next_open,
                     )
