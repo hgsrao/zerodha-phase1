@@ -84,7 +84,7 @@ def run_shadow_month(args: argparse.Namespace) -> dict:
     all_bars = loader._load_symbol_csv(args.symbol)
     timestamps = pd.to_datetime(all_bars["timestamp"], utc=True, errors="raise")
     start = _to_utc(args.start)
-    end_exclusive = _to_utc(args.end) + pd.Timedelta(days=1)
+    end_exclusive = _to_utc(args.end) + pd.Timedelta("1D")
     target = all_bars.loc[(timestamps >= start) & (timestamps < end_exclusive)].copy()
     if target.empty:
         raise ValueError(f"no {args.symbol} bars within {args.start} through {args.end}")
@@ -151,7 +151,13 @@ def main() -> None:
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2, default=_json_default) + "\n")
-    print(json.dumps({key: report[key] for key in ("kind", "status", "scope", "identity", "execution", "grid_shadow")}, indent=2, default=_json_default))
+    console_report = {
+        key: report[key] for key in ("kind", "status", "scope", "identity", "execution")
+    }
+    console_report["grid_shadow"] = {
+        key: report["grid_shadow"][key] for key in ("enabled", "available", "synchronized")
+    }
+    print(json.dumps(console_report, indent=2, default=_json_default))
     print(f"\nSaved shadow report: {output}")
 
 
