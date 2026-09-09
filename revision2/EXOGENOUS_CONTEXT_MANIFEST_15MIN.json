@@ -1,0 +1,25 @@
+{
+  "files": [
+    {
+      "first_timestamp": "2016-01-01 09:15:00+05:30",
+      "last_timestamp": "2026-08-25 15:15:00+05:30",
+      "name": "INDIA_VIX_15MIN",
+      "path": "/home/shrinivas/ECS_Complete/EXOGENOUS_CONTEXT_V1_RAW_20160101_20260825/INDIA_VIX_15MIN_20160101_20260825.csv",
+      "row_count": 65662,
+      "sha256": "9992deda85005fdb9ee2d6684f8a84a3cabd3f591655450207aeeaacbe7c1a8d",
+      "size_bytes": 3385943,
+      "timestamp_column": "date"
+    },
+    {
+      "first_timestamp": "2023-08-14T09:15:00+05:30",
+      "last_timestamp": "2026-08-13T15:15:00+05:30",
+      "name": "NIFTY_50_15MIN",
+      "path": "/home/shrinivas/ECS_Complete/P01D_RESEARCH_48STOCK_20260816/MARKET_15MIN_RESEARCH_READY/NSE_NIFTY 50_15minute_2023-08-14_2026-08-13.csv",
+      "row_count": 18501,
+      "sha256": "c2e78705f61b5bad66257890ed1ec0cd3703571e721c16e1b2d2128ee4ea5443",
+      "size_bytes": 1158440,
+      "timestamp_column": "timestamp"
+    }
+  ],
+  "manifest_hash": "a5ebf422da0408e167dda2b99804646930d7a87c6f31d7d69202b35978efc0b2"
+}
