@@ -1,0 +1,57 @@
+{
+  "_metadata": {
+    "name": "Stage 1: SUNPHARMA Sealed Replay (₹20 Minimum Profit)",
+    "date": "2026-09-09",
+    "version": "1.0",
+    "purpose": "Conservative upper-tail execution test with minimum_absolute_profit_rupees = ₹20",
+    "approval": "Approved for sealed paper-replay with all other parameters frozen",
+    "versioning": "inhouse_sunpharma_sealed_report_v20.json"
+  },
+  "parameter_overrides": {
+    "minimum_absolute_profit_rupees": 20.0
+  },
+  "frozen_parameters": {
+    "comment": "All parameters not listed in parameter_overrides retain their canonical defaults",
+    "base_dp_dt_multiplier": 1.0,
+    "base_dv_dt_multiplier": 1.0,
+    "entry_confidence_threshold": 0.50,
+    "exit_confidence_threshold": 0.60,
+    "min_risk_reward_ratio": 1.50,
+    "profit_target_margin_buffer": 0.10,
+    "vwap_weight": 0.25,
+    "confirmation_2bar_weight": 0.25,
+    "momentum_weight": 0.25,
+    "volatility_weight": 0.25,
+    "green_threshold": 0.75,
+    "amber_threshold_lower": 0.50,
+    "red_threshold": 0.30,
+    "slippage_guard_threshold": 0.05,
+    "volatility_regime_multiplier": 1.00,
+    "low_vol_regime_multiplier": 1.00,
+    "medium_vol_regime_multiplier": 1.00,
+    "high_vol_regime_multiplier": 1.00,
+    "profit_target_atr_mult": 1.50,
+    "stop_loss_atr_mult": 0.75,
+    "atr_calculation_period": 20,
+    "entry_signal_smoothing_window": 3,
+    "exit_signal_smoothing_window": 2,
+    "slippage_cost_multiplier": 1.00,
+    "momentum_calculation_period": 20,
+    "vwap_calculation_period": 20,
+    "signal_persistence_requirement": 1.50,
+    "min_hold_bars": 2,
+    "max_hold_bars": 60
+  },
+  "safety_gates_unchanged": {
+    "kill_switch_enabled": true,
+    "safety_drawdown_halt_threshold": 0.25,
+    "max_daily_loss_rupees": 50000
+  },
+  "notes": [
+    "This configuration is ONLY for Stage 1 sealed replay testing.",
+    "Expected approval rate: ~10-15% of 2,631 MPC plans (those with profit > ₹20).",
+    "All other gates, safety contracts, and parameter ranges remain unchanged.",
+    "Output file: diagnostic_output/inhouse_sunpharma_sealed_report_v20.json",
+    "Do NOT apply this configuration to live trading or without versioning."
+  ]
+}
