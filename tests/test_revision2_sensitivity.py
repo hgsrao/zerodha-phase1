@@ -259,6 +259,23 @@ class TestRevision2ParameterSensitivity(unittest.TestCase):
         outputs = (bias(spec.default), bias(spec.minimum), bias(spec.maximum))
         self._assert_sensitive("learning_rate_exploration_factor", outputs)
 
+    def test_unified_execution_interprets_session_bounds_as_nse_time(self):
+        """UTC historical bars must be compared against IST session bounds."""
+        box = UnifiedExecutionBox()
+        config = self._config()
+
+        # 03:45 UTC is the NSE 09:15 IST market open.
+        at_open, _, _ = box.check_window("2024-01-01T03:45:00+00:00", config)
+        # 09:59 UTC is 15:29 IST, immediately before the configured close.
+        before_close, _, _ = box.check_window("2024-01-01T09:59:00+00:00", config)
+        before_open, _, _ = box.check_window("2024-01-01T03:44:00+00:00", config)
+        malformed, _, _ = box.check_window("not-a-timestamp", config)
+
+        self.assertTrue(at_open)
+        self.assertTrue(before_close)
+        self.assertFalse(before_open)
+        self.assertFalse(malformed)
+
 
 class TestSafetyGatesPostSizingProfitMargin(unittest.TestCase):
     """SafetyGatesTargetBox.evaluate_post_sizing()'s minimum_profit_margin_
