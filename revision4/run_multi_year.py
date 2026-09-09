@@ -9,6 +9,7 @@ is continuous within each period.
 from __future__ import annotations
 
 import json
+import argparse
 from pathlib import Path
 
 from revision4.validate_48symbol_sealed import DATA_DIR, MANIFEST_PATH, run_48symbol_validation
@@ -22,10 +23,14 @@ PERIODS = (
 
 
 def run_multi_year_replay(manifest_path: str = MANIFEST_PATH,
-                          data_dir: str = DATA_DIR) -> dict:
-    """Run sealed evaluation periods only; never learn or alter configuration."""
+                          data_dir: str = DATA_DIR,
+                          period_name: str = "train") -> dict:
+    """Run exactly one sealed period; never learn or alter configuration."""
+    selected = [period for period in PERIODS if period[0] == period_name]
+    if len(selected) != 1:
+        raise ValueError(f"unknown sealed period: {period_name}")
     reports = {}
-    for name, start, end in PERIODS:
+    for name, start, end in selected:
         print(f"[PERIOD {name}] {start} through {end}", flush=True)
         report = run_48symbol_validation(
             manifest_path=manifest_path, data_dir=data_dir,
@@ -45,7 +50,10 @@ def run_multi_year_replay(manifest_path: str = MANIFEST_PATH,
 
 
 if __name__ == "__main__":
-    result = run_multi_year_replay()
-    output = Path("diagnostic_output/three_period_v3_sandbox_report.json")
+    parser = argparse.ArgumentParser(description="Run one explicit sealed V3 sandbox period")
+    parser.add_argument("--period", choices=[name for name, _, _ in PERIODS], default="train")
+    args = parser.parse_args()
+    result = run_multi_year_replay(period_name=args.period)
+    output = Path(f"diagnostic_output/{args.period}_v3_sandbox_report.json")
     output.write_text(json.dumps(result, indent=2, default=str) + "\n")
     print(f"[SEALED REPORT] {output}")
