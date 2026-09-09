@@ -158,7 +158,7 @@ class ContinuousExitControllerWithGrid:
         self, side: str, entry_price: float, stop_price: float, target_price: float, max_hold_bars: int,
     ) -> ExitControllerState:
         return ExitControllerState(
-            side=side, entry_price=entry_price,
+            side=side, entry_price=entry_price, initial_stop_price=stop_price,
             original_target_distance=abs(target_price - entry_price),
             current_stop_price=stop_price, current_target_price=target_price,
             favorable_extreme=entry_price, max_hold_bars=max(1, int(max_hold_bars)),

@@ -228,6 +228,12 @@ class Revision2ExternalEngineOrchestrator:
             cost += 0.00025 * turnover
         return cost
 
+    @staticmethod
+    def _paper_fill_price(market_price: float, side: str, slippage_fraction: float) -> float:
+        """Mirror PaperBrokerAdapter's deterministic adverse-fill convention."""
+        slip = float(market_price) * float(slippage_fraction)
+        return round(float(market_price) + slip if side == "BUY" else float(market_price) - slip, 4)
+
     def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
         close_side = "SELL" if trade["side"] == "BUY" else "BUY"
         result = self.broker.place_order(
@@ -235,6 +241,7 @@ class Revision2ExternalEngineOrchestrator:
             market_price=exit_price, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
         )
         if result["passed"]:
+            state = self._exit_controller_states.get(symbol)
             pnl = (
                 (result["filled_price"] - trade["entry_price"]) * trade["quantity"]
                 if trade["side"] == "BUY" else (trade["entry_price"] - result["filled_price"]) * trade["quantity"]
@@ -249,10 +256,42 @@ class Revision2ExternalEngineOrchestrator:
                 "reason": reason, "pnl": pnl, "costs": trade_costs, "net_pnl": pnl - trade_costs,
                 "trade_id": trade.get("trade_id"), "candidate_id": trade.get("candidate_id"),
             }
+            shadow = None
+            if state is not None and state.shadow_exit_price is not None:
+                shadow_close_side = "SELL" if trade["side"] == "BUY" else "BUY"
+                # Compare like with like: the shadow stop identifies the
+                # counterfactual *market* trigger from causal OHLC, then it
+                # receives the same deterministic paper-broker adverse fill
+                # adjustment as the live exit.  Comparing its raw stop with
+                # the live broker fill would fabricate a P&L difference even
+                # when both trigger on the same bar.
+                shadow_market_exit_price = float(state.shadow_exit_price)
+                shadow_filled_price = self._paper_fill_price(
+                    shadow_market_exit_price, shadow_close_side, self.broker.slippage_fraction
+                )
+                shadow_pnl = (
+                    (shadow_filled_price - trade["entry_price"]) * trade["quantity"]
+                    if trade["side"] == "BUY" else (trade["entry_price"] - shadow_filled_price) * trade["quantity"]
+                )
+                shadow_costs = self._leg_cost(trade["entry_price"], trade["quantity"], trade["side"]) + self._leg_cost(
+                    shadow_filled_price, trade["quantity"], shadow_close_side
+                )
+                shadow = {
+                    "shadow_exit_timestamp": state.shadow_exit_timestamp,
+                    "shadow_market_exit_price": shadow_market_exit_price,
+                    "shadow_exit_price": shadow_filled_price,
+                    "shadow_exit_reason": state.shadow_exit_reason,
+                    "shadow_exit_bars_held": state.shadow_exit_bars_held,
+                    "shadow_pnl": shadow_pnl,
+                    "shadow_costs": shadow_costs,
+                    "shadow_net_pnl": shadow_pnl - shadow_costs,
+                }
+                completed["shadow_r_trajectory"] = shadow
             self.completed_trades.append(completed)
             self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
                 "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
                 "exit_reason": reason, "net_pnl": completed["net_pnl"], "pnl": pnl, "costs": trade_costs,
+                "shadow_r_trajectory": shadow,
             })
             self._equity_curve.append(self._equity())
             del self.open_trades[symbol]
@@ -287,6 +326,11 @@ class Revision2ExternalEngineOrchestrator:
         state = self._exit_controller_states.get(symbol)
         current_stop = trade["stop_price"]
         if state is not None:
+            shadow_exit = self.exit_controller.check_shadow_stop(state, bar, timestamp)
+            if shadow_exit is not None:
+                self._record_controller_event("SHADOW_R_TRAJECTORY_EXIT", timestamp, symbol, {
+                    "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"), **shadow_exit,
+                })
             # Droop input: CURRENT ATR, re-measured this bar -- not the
             # frozen entry-time ATR -- matches how atr is computed
             # everywhere else in this file (signal.volatility * close).
@@ -366,6 +410,12 @@ class Revision2ExternalEngineOrchestrator:
         regime = self.id_box._current_regime(symbol, float(bar["close"]))
         if regime == "stressed" and held_bars >= trade["minimum_hold_bars"]:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "regime_stressed_exit")
+            return
+        if state is not None and state.shadow_exit_price is None:
+            shadow_update = self.exit_controller.update_shadow_r_trajectory(state, float(bar["close"]))
+            self._record_controller_event("SHADOW_R_TRAJECTORY_UPDATE", timestamp, symbol, {
+                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"), **shadow_update,
+            })
 
     @staticmethod
     def build_clock(symbol_bars: Dict[str, pd.DataFrame], warmup: int) -> List[_ClockEvent]:
@@ -746,6 +796,8 @@ class Revision2ExternalEngineOrchestrator:
                 "events": len(self.controller_telemetry),
                 "entry_throttle_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "ENTRY_CONFIDENCE_THROTTLE"),
                 "exit_protection_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "EXIT_PROTECTION_UPDATE"),
+                "shadow_r_trajectory_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "SHADOW_R_TRAJECTORY_UPDATE"),
+                "shadow_r_trajectory_exits": sum(1 for row in self.controller_telemetry if row["event_type"] == "SHADOW_R_TRAJECTORY_EXIT"),
                 "outcomes": sum(1 for row in self.controller_telemetry if row["event_type"] == "CONTROLLER_OUTCOME"),
             },
             "grid_shadow": {

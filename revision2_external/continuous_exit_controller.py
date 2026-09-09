@@ -141,6 +141,13 @@ from typing import Any, Deque, Dict, Optional
 from simple_pid import PID
 
 
+# Research-only reference curve.  It is intentionally fixed, disclosed and
+# non-calibratable while it is evaluated in shadow mode.  At u=0 protection is
+# -1R (the original stop); at u=1 it reaches break-even.  It has no authority
+# over the live trailing stop.
+SHADOW_R_TRAJECTORY_GAMMA = 0.65
+
+
 def _clip(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
 
@@ -153,6 +160,7 @@ class ExitControllerState:
 
     side: str
     entry_price: float
+    initial_stop_price: float
     original_target_distance: float
     current_stop_price: float
     current_target_price: float
@@ -164,6 +172,12 @@ class ExitControllerState:
     adjustment_history: list = field(default_factory=list)
     studies_adjustment_history: list = field(default_factory=list)
     last_telemetry: Dict[str, Any] = field(default_factory=dict)
+    shadow_stop_price: Optional[float] = None
+    shadow_exit_price: Optional[float] = None
+    shadow_exit_timestamp: Optional[str] = None
+    shadow_exit_reason: Optional[str] = None
+    shadow_exit_bars_held: Optional[int] = None
+    last_shadow_telemetry: Dict[str, Any] = field(default_factory=dict)
 
 
 class ContinuousExitController:
@@ -216,11 +230,92 @@ class ContinuousExitController:
         self, side: str, entry_price: float, stop_price: float, target_price: float, max_hold_bars: int,
     ) -> ExitControllerState:
         return ExitControllerState(
-            side=side, entry_price=entry_price,
+            side=side, entry_price=entry_price, initial_stop_price=stop_price,
             original_target_distance=abs(target_price - entry_price),
             current_stop_price=stop_price, current_target_price=target_price,
             favorable_extreme=entry_price, max_hold_bars=max(1, int(max_hold_bars)),
+            shadow_stop_price=stop_price,
         )
+
+    @staticmethod
+    def _r_multiple(state: ExitControllerState, price: float) -> float:
+        initial_risk = abs(state.entry_price - state.initial_stop_price)
+        if initial_risk <= 0:
+            raise ValueError("shadow R trajectory requires a non-zero initial stop distance")
+        signed_move = price - state.entry_price if state.side == "BUY" else state.entry_price - price
+        return float(signed_move / initial_risk)
+
+    @staticmethod
+    def _price_for_r(state: ExitControllerState, r_multiple: float) -> float:
+        risk = abs(state.entry_price - state.initial_stop_price)
+        return state.entry_price + risk * r_multiple if state.side == "BUY" else state.entry_price - risk * r_multiple
+
+    def update_shadow_r_trajectory(self, state: ExitControllerState, current_close: float) -> Dict[str, Any]:
+        """Update a next-bar-only, counterfactual R-protection stop.
+
+        The reference is a protective floor, not a profit forecast.  It is
+        only proposed when realised R is behind that floor, and it can only
+        make the shadow stop stricter.  The live stop is never read or
+        modified by this method.
+        """
+        if state.shadow_exit_price is not None:
+            return state.last_shadow_telemetry
+        progress = _clip(state.bars_held / state.max_hold_bars, 0.0, 1.0)
+        reference_r = -1.0 + progress ** SHADOW_R_TRAJECTORY_GAMMA
+        actual_r = self._r_multiple(state, float(current_close))
+        stop_before = float(state.shadow_stop_price)
+        lagging = actual_r < reference_r
+        candidate = self._price_for_r(state, reference_r)
+        if lagging:
+            if state.side == "BUY":
+                state.shadow_stop_price = max(state.shadow_stop_price, candidate)
+            else:
+                state.shadow_stop_price = min(state.shadow_stop_price, candidate)
+        state.last_shadow_telemetry = {
+            "shadow_r_actual": actual_r,
+            "shadow_r_reference": reference_r,
+            "shadow_progress": progress,
+            "shadow_lagging": lagging,
+            "shadow_stop_before": stop_before,
+            "shadow_stop_after": float(state.shadow_stop_price),
+            "shadow_gamma": SHADOW_R_TRAJECTORY_GAMMA,
+            "shadow_bars_held": int(state.bars_held),
+        }
+        return state.last_shadow_telemetry
+
+    def check_shadow_stop(self, state: ExitControllerState, bar: Any, timestamp: object) -> Optional[Dict[str, Any]]:
+        """Test the *previously armed* shadow stop against this bar's OHLC.
+
+        This is deliberately called before update_shadow_r_trajectory() for
+        the current bar.  A close observed on this bar therefore cannot cause
+        a counterfactual stop fill earlier inside the same bar.
+        """
+        if state.shadow_exit_price is not None:
+            return None
+        stop = float(state.shadow_stop_price)
+        if state.side == "BUY":
+            if float(bar["open"]) <= stop:
+                price, reason = float(bar["open"]), "shadow_r_stop_gap"
+            elif float(bar["low"]) <= stop:
+                price, reason = stop, "shadow_r_stop"
+            else:
+                return None
+        else:
+            if float(bar["open"]) >= stop:
+                price, reason = float(bar["open"]), "shadow_r_stop_gap"
+            elif float(bar["high"]) >= stop:
+                price, reason = stop, "shadow_r_stop"
+            else:
+                return None
+        state.shadow_exit_price = price
+        state.shadow_exit_timestamp = str(timestamp)
+        state.shadow_exit_reason = reason
+        state.shadow_exit_bars_held = state.bars_held
+        return {
+            "shadow_exit_price": price, "shadow_exit_timestamp": str(timestamp),
+            "shadow_exit_reason": reason, "shadow_stop_at_trigger": stop,
+            "shadow_exit_bars_held": state.bars_held,
+        }
 
     def update(
         self, symbol: str, state: ExitControllerState, current_confidence: float,
