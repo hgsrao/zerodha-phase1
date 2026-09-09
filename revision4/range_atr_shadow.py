@@ -29,13 +29,25 @@ class RangeATRShadowMonitor:
     def observe_candidates(self, candidates, ratios):
         for candidate in candidates:
             ratio = ratios.get(candidate.order.symbol)
-            self.rows.append({"order_id": candidate.order.order_id, "symbol": candidate.order.symbol, "range_atr": ratio})
+            self.rows.append({
+                "order_id": candidate.order.order_id,
+                "symbol": candidate.order.symbol,
+                "range_atr": ratio,
+                "pa_confidence": candidate.pa_confidence,
+                "id_risk_reward": candidate.id_risk_reward,
+            })
 
     def summary(self):
         usable = [row for row in self.rows if row["range_atr"] is not None]
+        confidences = [row["pa_confidence"] for row in self.rows if row["pa_confidence"] is not None]
         return {
             "candidate_count": len(self.rows),
             "usable_count": len(usable),
+            "pa_confidence": {
+                "count": len(confidences),
+                "minimum": min(confidences) if confidences else None,
+                "maximum": max(confidences) if confidences else None,
+            },
             "would_reject": {
                 str(threshold): sum(row["range_atr"] > threshold for row in usable)
                 for threshold in self.thresholds
