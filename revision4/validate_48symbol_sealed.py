@@ -11,7 +11,7 @@ import hashlib
 import json
 import uuid
 from collections import Counter, defaultdict
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -25,7 +25,7 @@ from revision4.gate16_remediation import Gate16Remediator
 from revision4.gates_proper import ProperGateEvaluator
 from revision4.paper_broker import PaperBroker
 from revision4.portfolio import PortfolioLedger
-from revision4.timestamp_orchestrator import TimestampOrchestrator
+from revision4.timestamp_orchestrator import TimestampOrchestrator, TimestampReplayResult
 from revision4.range_atr_shadow import RangeATRShadowMonitor
 from revision4.validate_orchestrator import ManifestDataLoader
 from revision4.validate_sunpharma_sealed import _compute_config_hash, _compute_dataset_hash, _parse_rejection_reason
@@ -36,6 +36,41 @@ DATA_DIR = "/home/shrinivas/ECS_Complete/P01D_CHART_STUDIES_V10_HISTORICAL_REPLA
 MONTH_START = "2024-08-01"
 MONTH_END = "2024-08-31"
 WARMUP_BARS = 60
+
+
+def _build_calibration_config(registry: CanonicalParameterRegistry, overrides=None) -> EffectiveConfig:
+    """Build one candidate configuration while refusing safety-policy edits."""
+    overrides = dict(overrides or {})
+    if not overrides:
+        return EffectiveConfig()
+
+    invalid = []
+    for name, value in overrides.items():
+        try:
+            spec = registry.get(name)
+        except KeyError:
+            invalid.append(f"unknown parameter {name}")
+            continue
+        if not spec.calibratable:
+            invalid.append(f"immutable parameter {name}")
+            continue
+        if not hasattr(EffectiveConfig(), name):
+            invalid.append(f"V3 config does not expose {name}")
+            continue
+        if spec.param_type in ("int", "float") and not (spec.minimum <= value <= spec.maximum):
+            invalid.append(f"{name} outside [{spec.minimum}, {spec.maximum}]")
+    if invalid:
+        raise ValueError("invalid V3 calibration override(s): " + "; ".join(invalid))
+    return replace(EffectiveConfig(), **overrides)
+
+
+def _partition_by_session(bars_by_symbol):
+    """Partition symbol streams by their observed market date, preserving order."""
+    sessions = defaultdict(lambda: defaultdict(list))
+    for symbol, bars in bars_by_symbol.items():
+        for bar in bars:
+            sessions[pd.Timestamp(bar.timestamp).date().isoformat()][symbol].append(bar)
+    return {date: dict(symbol_bars) for date, symbol_bars in sorted(sessions.items())}
 
 
 def _completed_trade_ledger(completed_trades):
@@ -100,11 +135,12 @@ def _eod_flatten(ledger, last_bars, config, event_index):
 
 
 def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
-                             month_start=MONTH_START, month_end=MONTH_END):
+                             month_start=MONTH_START, month_end=MONTH_END,
+                             calibration_overrides=None):
     """Execute one sealed shared-ledger validation pass; never tune parameters."""
     registry = CanonicalParameterRegistry()
     registry.verify_frozen_identity()
-    config = EffectiveConfig()
+    config = _build_calibration_config(registry, calibration_overrides)
     dataset_hash = _compute_dataset_hash(manifest_path, data_dir)
     config_hash = _compute_config_hash(config)
     if dataset_hash.startswith("error:") or config_hash.startswith("error:"):
@@ -153,8 +189,28 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
         gate_evaluator=ProperGateEvaluator(config), gate16_remediator=remediator,
         candidate_observer=shadow_monitor,
     )
-    result = orchestrator.run(bars_by_symbol)
-    eod_exits = _eod_flatten(ledger, last_bars, config, result.timestamps_processed)
+    # A selected range may span many market sessions.  Run those sessions in
+    # chronological order against the *same* model, broker and portfolio,
+    # then flatten at every session close.  This prevents a monthly replay
+    # from silently becoming an overnight strategy.
+    session_results = []
+    eod_exits = []
+    processed_timestamps = 0
+    for _session_date, session_bars in _partition_by_session(bars_by_symbol).items():
+        session_result = orchestrator.run(session_bars)
+        session_results.append(session_result)
+        processed_timestamps += session_result.timestamps_processed
+        session_last_bars = {symbol: stream[-1] for symbol, stream in session_bars.items()}
+        eod_exits.extend(_eod_flatten(ledger, session_last_bars, config, processed_timestamps))
+
+    result = TimestampReplayResult(
+        timestamps_processed=sum(item.timestamps_processed for item in session_results),
+        bars_processed=sum(item.bars_processed for item in session_results),
+        orders_submitted=tuple(order for item in session_results for order in item.orders_submitted),
+        fills=tuple(fill for item in session_results for fill in item.fills),
+        exits=tuple(exit_event for item in session_results for exit_event in item.exits) + tuple(eod_exits),
+        event_log=tuple(event for item in session_results for event in item.event_log),
+    )
 
     daily_pnl = defaultdict(float)
     per_symbol = {symbol: Counter() for symbol in symbols}
