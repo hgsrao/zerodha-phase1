@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 from collections import deque
 from dataclasses import replace
+from datetime import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -743,11 +744,26 @@ class UnifiedExecutionBox:
         learning_rate = req("learning_rate_exploration_factor", "meta-learning exploration rate", "exploration_bias")
 
         try:
-            raw = str(timestamp)
-            time_part = (raw.split("T")[-1] if "T" in raw else raw.split(" ")[-1])[:5]
-            in_window = start <= time_part <= end
-        except Exception:
-            in_window = True
+            # The canonical session bounds are NSE/India times.  Historical
+            # data may carry UTC timestamps, so comparing the raw clock text
+            # would accidentally admit only 14:45--15:30 IST for a
+            # "09:15"--"15:30" configuration.  Convert every timestamp to
+            # Asia/Kolkata before applying the configured bounds.
+            parsed = pd.Timestamp(timestamp)
+            if parsed.tzinfo is None:
+                # A naive bar time is interpreted as the exchange-local time,
+                # never as the host machine's local timezone.
+                parsed = parsed.tz_localize("Asia/Kolkata")
+            else:
+                parsed = parsed.tz_convert("Asia/Kolkata")
+            current = parsed.time()
+            start_time = time.fromisoformat(str(start))
+            end_time = time.fromisoformat(str(end))
+            in_window = start_time <= current <= end_time
+        except (TypeError, ValueError):
+            # A malformed event timestamp must not create an uncontrolled
+            # entry opportunity.
+            in_window = False
 
         exploration_bias = float(phase1) * float(phase2) * float(learning_rate)
         return in_window, exploration_bias, trace
