@@ -57,7 +57,8 @@ def test_data_and_entry_rejections_are_explicit():
     admitted, reason = boxes.admit_and_certify("DENIED", _history())
     assert not admitted and "universe" in reason
     chart = boxes.chart_signal(_history())
-    approved, reason = boxes.validate_entry(1, "2024-08-01T08:00:00+00:00", chart)
+    # 02:00 UTC is 07:30 IST, before the canonical NSE session open.
+    approved, reason = boxes.validate_entry(1, "2024-08-01T02:00:00+00:00", chart)
     assert not approved and "window" in reason
 
 

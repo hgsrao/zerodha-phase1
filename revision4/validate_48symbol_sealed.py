@@ -27,6 +27,7 @@ from revision4.paper_broker import PaperBroker
 from revision4.portfolio import PortfolioLedger
 from revision4.timestamp_orchestrator import TimestampOrchestrator, TimestampReplayResult
 from revision4.range_atr_shadow import RangeATRShadowMonitor
+from revision4.warmup_admission import assess_warmup
 from revision4.validate_orchestrator import ManifestDataLoader
 from revision4.validate_sunpharma_sealed import _compute_config_hash, _compute_dataset_hash, _parse_rejection_reason
 
@@ -165,6 +166,7 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
     warmup_start = pd.Timestamp(month_start, tz="UTC") - pd.DateOffset(days=60)
     warmup_end = pd.Timestamp(month_start, tz="UTC") - pd.DateOffset(days=1)
     bars_by_symbol, warmup_by_symbol, last_bars = {}, {}, {}
+    warmup_admissions = {}
     for number, symbol in enumerate(symbols, start=1):
         print(f"[LOAD {number:02d}/48] {symbol}", flush=True)
         bars = list(loader.get_bars_for_month(symbol, month_start, month_end))
@@ -182,8 +184,17 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
             "low": [bar.low for bar in warmup], "close": [bar.close for bar in warmup],
             "volume": [bar.volume for bar in warmup],
         })
+        admission = assess_warmup(symbol, warmup_by_symbol[symbol], minimum_bars=WARMUP_BARS)
+        warmup_admissions[symbol] = admission.report()
+        if not admission.admitted:
+            # File integrity remains verified and this rejection is sealed in
+            # the report, but PA must never receive fallback scales for a
+            # flat/non-finite calibration window.
+            continue
         bars_by_symbol[symbol] = bars
         last_bars[symbol] = bars[-1]
+    if not bars_by_symbol:
+        raise RuntimeError("no symbols passed deterministic warmup admission")
     print("[RUN] chronological shared-portfolio replay", flush=True)
 
     ledger = PortfolioLedger(starting_cash=100_000.0)
@@ -268,7 +279,17 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
     )
     return {
         "run_id": run_id, "timestamp": datetime.now().isoformat(), "status": status,
-        "universe": {"symbol_count": len(symbols), "symbols": symbols},
+        "universe": {
+            "symbol_count": len(symbols), "symbols": symbols,
+            "active_symbol_count": len(bars_by_symbol),
+            "active_symbols": sorted(bars_by_symbol),
+        },
+        "warmup_admission": {
+            "admitted_symbols": sorted(bars_by_symbol),
+            "rejected_symbols": [warmup_admissions[symbol] for symbol in symbols
+                                 if not warmup_admissions[symbol]["admitted"]],
+            "by_symbol": warmup_admissions,
+        },
         "period": f"{month_start} to {month_end}", "warmup_bars_per_symbol": WARMUP_BARS,
         "dataset_hash": dataset_hash, "config_hash": config_hash,
         "registry_contract_id": registry.CONTRACT_ID,
