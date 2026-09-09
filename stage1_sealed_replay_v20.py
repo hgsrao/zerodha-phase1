@@ -17,7 +17,6 @@ Expected outcome:
 - Exact reconciliation enforcement
 """
 
-import hashlib
 import json
 import os
 import sys
@@ -36,6 +35,31 @@ from revision2.portfolio_orchestrator import Revision2PortfolioOrchestrator
 MANIFEST = "revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json"
 SYMBOL = "SUNPHARMA"
 WARMUP = 60
+OVERRIDE_PATH = Path("config_override_stage1_v20.json")
+
+
+def load_stage1_overrides(path: Path = OVERRIDE_PATH) -> dict:
+    """Load the approved, versioned Stage 1 calibration payload.
+
+    The registry validates the payload when the orchestrator is constructed.
+    Keeping this loader narrow prevents report-only values from accidentally
+    being treated as executable configuration.
+    """
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    overrides = payload.get("parameter_overrides")
+    if not isinstance(overrides, dict) or not overrides:
+        raise ValueError(f"{path} must contain a non-empty parameter_overrides object")
+    return dict(overrides)
+
+
+def build_stage1_orchestrator(registry: CanonicalParameterRegistry) -> Revision2PortfolioOrchestrator:
+    """Construct the run with the approved override through the only valid API."""
+    return Revision2PortfolioOrchestrator(
+        [SYMBOL],
+        registry=registry,
+        calibration_overrides=load_stage1_overrides(),
+        starting_equity=100_000.0,
+    )
 
 def run():
     """Run Stage 1 sealed replay with ₹20 minimum profit override."""
@@ -70,22 +94,19 @@ def run():
     print("🔧 Initializing orchestrator with Stage 1 configuration...")
     registry = CanonicalParameterRegistry()
 
-    # Get default values
-    values = {name: spec.default for name, spec in registry.params.items()}
-
-    # Apply Stage 1 override: minimum_absolute_profit_rupees = ₹20
-    original_profit_floor = values.get("minimum_absolute_profit_rupees", 50.0)
-    values["minimum_absolute_profit_rupees"] = 20.0
-
-    config_hash = hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()
-
     audit_path = Path("diagnostic_output/inhouse_sunpharma_gate16_audit_v20.jsonl")
-    orchestrator = Revision2PortfolioOrchestrator([SYMBOL], registry=registry, starting_equity=100_000.0)
-
-    # Apply overridden config
-    for name, value in values.items():
-        if name == "minimum_absolute_profit_rupees":
-            print(f"   ✓ Override: {name} = ₹{value:.2f} (from ₹{original_profit_floor:.2f})")
+    original_profit_floor = float(registry.params["minimum_absolute_profit_rupees"].default)
+    overrides = load_stage1_overrides()
+    orchestrator = build_stage1_orchestrator(registry)
+    active_profit_floor = float(orchestrator.config.require("minimum_absolute_profit_rupees"))
+    if active_profit_floor != float(overrides["minimum_absolute_profit_rupees"]):
+        raise RuntimeError("Stage 1 minimum profit override was not applied to EffectiveConfig")
+    config_hash = orchestrator.config.config_hash
+    print(
+        "   ✓ Override applied through EffectiveConfig: "
+        f"minimum_absolute_profit_rupees = ₹{active_profit_floor:.2f} "
+        f"(from ₹{original_profit_floor:.2f})"
+    )
 
     orchestrator.cross_session_policy = CrossSessionRejectionPolicy(allow_cross_session=False)
     orchestrator.gate16_remediator = Gate16Remediator(
@@ -155,7 +176,7 @@ def run():
         "stage": "Stage 1",
         "status": status,
         "symbol": SYMBOL,
-        "minimum_profit_rupees": 20.0,
+        "minimum_profit_rupees": active_profit_floor,
         "minimum_profit_original": original_profit_floor,
         "dataset_hash": loader.get_dataset_hash(),
         "file_hash": actual,
