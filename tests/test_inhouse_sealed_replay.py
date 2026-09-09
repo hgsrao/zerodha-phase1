@@ -72,8 +72,7 @@ def test_sealed_replay_runner_with_overrides():
         manifest_path = create_test_manifest(tmpdir, 1)
 
         overrides = {
-            "max_position_quantity": 5000,
-            "initial_stop_fraction": 0.02,
+            "max_hold_bars": 61,
         }
 
         runner1 = SealedReplayRunner(manifest_path)
@@ -81,6 +80,16 @@ def test_sealed_replay_runner_with_overrides():
 
         # Different overrides should produce different config hash
         assert runner1.config_hash != runner2.config_hash
+
+
+def test_sealed_replay_runner_rejects_unknown_or_immutable_overrides():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manifest_path = create_test_manifest(tmpdir, 1)
+        with pytest.raises(ValueError, match="invalid calibration overrides"):
+            SealedReplayRunner(manifest_path, calibration_overrides={
+                "max_position_quantity": 5000,
+                "initial_stop_fraction": 0.02,
+            })
 
 
 def test_sealed_replay_report_structure():

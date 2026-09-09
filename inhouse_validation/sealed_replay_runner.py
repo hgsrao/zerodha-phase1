@@ -55,11 +55,17 @@ class SealedReplayRunner:
         calibration_overrides: Optional[Dict[str, Any]] = None,
         starting_equity: float = 100_000.0,
         nse_data_dir_override: Optional[str] = None,
+        month_start: Optional[str] = None,
+        month_end: Optional[str] = None,
+        warmup_bars: int = 60,
     ):
         self.manifest_loader = ManifestLoader(manifest_path)
         self.dataset_hash = self.manifest_loader.get_dataset_hash()
         self.registry = CanonicalParameterRegistry()
         self.calibration_overrides = calibration_overrides or {}
+        errors = self.registry.validate_calibration_payload(self.calibration_overrides)
+        if errors:
+            raise ValueError(f"invalid calibration overrides: {errors}")
 
         # Build config
         values = {name: spec.default for name, spec in self.registry.params.items()}
@@ -69,6 +75,9 @@ class SealedReplayRunner:
 
         self.starting_equity = starting_equity
         self.nse_data_dir_override = nse_data_dir_override
+        self.month_start = month_start
+        self.month_end = month_end
+        self.warmup_bars = warmup_bars
 
         # Initialize components
         self.gate16_remediator = Gate16Remediator(
@@ -100,8 +109,27 @@ class SealedReplayRunner:
             # Load and verify all 48 files
             print("Loading 48-symbol manifest-verified dataset...")
             all_data = self.manifest_loader.verify_and_load(
-                use_nse_data_dir=True
+                use_nse_data_dir=True, data_dir_override=self.nse_data_dir_override,
             )
+            if (self.month_start is None) != (self.month_end is None):
+                raise ValueError("month_start and month_end must be supplied together")
+            if self.month_start is not None:
+                start = pd.Timestamp(self.month_start, tz="UTC")
+                end = pd.Timestamp(self.month_end, tz="UTC") + pd.Timedelta(days=1)
+                windowed = {}
+                for symbol, frame in all_data.items():
+                    columns = {name.lower(): name for name in frame.columns}
+                    if "timestamp" not in columns:
+                        raise RuntimeError(f"{symbol}: timestamp column missing")
+                    timestamps = pd.to_datetime(frame[columns["timestamp"]], utc=True)
+                    live = frame.loc[(timestamps >= start) & (timestamps < end)]
+                    history = frame.loc[timestamps < start]
+                    if len(live) == 0:
+                        raise RuntimeError(f"{symbol}: no bars in sealed period")
+                    if len(history) < self.warmup_bars:
+                        raise RuntimeError(f"{symbol}: requires {self.warmup_bars} warmup bars")
+                    windowed[symbol] = pd.concat([history.iloc[-self.warmup_bars:], live], ignore_index=True)
+                all_data = windowed
             symbols = list(all_data.keys())
             print(f"✓ Loaded {len(symbols)} symbols")
 
@@ -121,7 +149,7 @@ class SealedReplayRunner:
 
             # CRITICAL: Call orchestrator.run() with all data
             print("Starting chronological orchestration...")
-            self.orchestrator.run(all_data)
+            result = self.orchestrator.run(all_data, warmup=self.warmup_bars)
 
             # Extract metrics from orchestrator state
             self.bars_processed = sum(len(df) for df in all_data.values())
@@ -130,18 +158,21 @@ class SealedReplayRunner:
             # Calculate daily P&L from completed trades
             for trade in self.completed_trades:
                 exit_date = pd.Timestamp(trade.get('exit_timestamp', '2026-08-01')).date().isoformat()
-                net_pnl = trade.get('pnl_realized', 0.0)
+                net_pnl = float(trade.get('net_pnl', 0.0))
                 self.daily_pnl_series[exit_date] = self.daily_pnl_series.get(exit_date, 0.0) + net_pnl
 
             # Calculate costs from trades
-            total_entry_costs = sum(trade.get('entry_cost', 0.0) for trade in self.completed_trades)
-            total_exit_costs = sum(trade.get('exit_cost', 0.0) for trade in self.completed_trades)
+            total_entry_costs = sum(float(trade.get('entry_cost', 0.0)) for trade in self.completed_trades)
+            total_exit_costs = sum(float(trade.get('exit_cost', 0.0)) for trade in self.completed_trades)
+            net_pnl = sum(self.daily_pnl_series.values())
+            gross_pnl = sum(float(trade.get('pnl', 0.0)) for trade in self.completed_trades)
 
             # Reconciliation checks (MUST ALL PASS)
             reconciliation_exact = (
                 len(self.orchestrator.open_trades) == 0 and
                 len(self.orchestrator.pending_entries) == 0 and
-                abs(self.orchestrator.broker.realized_pnl - sum(self.daily_pnl_series.values())) < 0.01
+                abs(self.orchestrator.broker.realized_pnl - gross_pnl) < 0.01 and
+                abs(net_pnl - (gross_pnl - total_entry_costs - total_exit_costs)) < 0.01
             )
 
             if not reconciliation_exact:
@@ -176,13 +207,15 @@ class SealedReplayRunner:
                 config_hash=self.config_hash,
                 symbols_loaded=len(symbols),
                 bars_processed=self.bars_processed,
-                orders_submitted=len(self.orchestrator.completed_trades),
-                orders_filled=len([t for t in self.completed_trades if t.get('filled')]),
+                orders_submitted=int(result.get('orders_submitted', 0)),
+                orders_filled=int(result.get('fills', 0)),
                 gate16_breaches=len(self.gate16_remediator.violations),
-                rejected_orders=len([t for t in self.completed_trades if t.get('rejection_reason')]),
+                rejected_orders=(int(result.get('safety_rejections', 0)) +
+                                 int(result.get('gates_rejected', 0)) +
+                                 int(result.get('cross_session_rejections', 0))),
                 starting_equity=self.starting_equity,
-                ending_equity=self.orchestrator._equity_curve[-1] if self.orchestrator._equity_curve else self.starting_equity,
-                realized_pnl=self.orchestrator.broker.realized_pnl,
+                ending_equity=self.starting_equity + net_pnl,
+                realized_pnl=net_pnl,
                 entry_costs=total_entry_costs,
                 exit_costs=total_exit_costs,
                 daily_pnl_series=self.daily_pnl_series,

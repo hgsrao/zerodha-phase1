@@ -276,6 +276,8 @@ class Revision2PortfolioOrchestrator:
                 # expectancy reflect what the trade actually kept, not its
                 # gross price move.
                 "costs": trade_costs,
+                "entry_cost": entry_cost,
+                "exit_cost": exit_cost,
                 "net_pnl": pnl - trade_costs,
             })
             self._equity_curve.append(self._equity())

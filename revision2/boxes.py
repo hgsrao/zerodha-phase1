@@ -489,16 +489,25 @@ class SafetyGatesTargetBox:
         if worst_case_trade_loss_rupees > max_loss_trade:
             return False, f"worst-case trade loss Rs.{worst_case_trade_loss_rupees:.2f} exceeds per-trade cap Rs.{max_loss_trade:.2f}", trace
 
-        # COST-RELATIVE PROFIT RULE:
-        # Projected gross target profit must exceed round-trip costs + required margin
+        # ECONOMIC PROFIT RULE:
+        # The explicitly calibratable rupee floor and the fixed cost buffer are
+        # both binding.  The former is a strategy/economic choice; the latter
+        # prevents an apparent target from being consumed by estimated costs.
+        # Previously ``minimum_absolute_profit_rupees`` was read but never
+        # used, which made an override appear to work while not changing order
+        # admission at all.
         target_profit_rupees = abs(plan.target_price - plan.entry_price) * quantity
         required_net_margin_factor = 1.5  # 50% above costs for risk buffer
-        required_profit = total_round_trip_cost * required_net_margin_factor
+        required_profit = max(
+            min_absolute_profit,
+            total_round_trip_cost * required_net_margin_factor,
+        )
 
         if target_profit_rupees < required_profit:
             return False, (
                 f"target profit Rs.{target_profit_rupees:.2f} insufficient; "
-                f"needs Rs.{required_profit:.2f} (round-trip cost Rs.{total_round_trip_cost:.2f} × {required_net_margin_factor}x margin)"
+                f"needs Rs.{required_profit:.2f} (absolute floor Rs.{min_absolute_profit:.2f}; "
+                f"round-trip cost Rs.{total_round_trip_cost:.2f} × {required_net_margin_factor}x margin)"
             ), trace
 
         daily_loss_so_far = max(0.0, peak - current)

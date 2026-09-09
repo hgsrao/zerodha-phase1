@@ -82,7 +82,8 @@ class ManifestLoader:
             manifest_hash=manifest_hash,
         )
 
-    def verify_and_load(self, use_nse_data_dir: bool = True) -> Dict[str, pd.DataFrame]:
+    def verify_and_load(self, use_nse_data_dir: bool = True,
+                        data_dir_override: Optional[str] = None) -> Dict[str, pd.DataFrame]:
         """
         Verify all 48 file hashes and load into memory.
 
@@ -96,7 +97,9 @@ class ManifestLoader:
             RuntimeError: If any file is missing, altered, or hash mismatches.
         """
         # Determine data directory
-        if use_nse_data_dir:
+        if data_dir_override is not None:
+            data_dir = data_dir_override
+        elif use_nse_data_dir:
             data_dir = os.environ.get('NSE_DATA_DIR', self.manifest.data_dir)
         else:
             data_dir = self.manifest.data_dir
