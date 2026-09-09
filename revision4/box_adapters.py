@@ -212,7 +212,7 @@ def build_candidate_provider(
 
             # OrderIntent
             order_intent = OrderIntent(
-                order_id=f"{event_index}_{symbol}",
+                order_id=make_order_id(bar.timestamp, event_index, symbol),
                 symbol=symbol,
                 direction=pa_signal.direction,
                 quantity=quantity,
@@ -375,3 +375,14 @@ def build_exit_provider(config: EffectiveConfig):
         return exits
 
     return exit_provider
+
+def make_order_id(timestamp: str, event_index: int, symbol: str) -> str:
+    """Return a deterministic ID unique across a multi-session replay.
+
+    ``event_index`` is local to one ``TimestampOrchestrator.run()`` call and
+    therefore restarts at zero when the sealed validator starts the next
+    market session.  The timestamp namespace prevents the shared broker's
+    durable order history from seeing a false duplicate on a later day.
+    """
+    timestamp_key = pd.Timestamp(timestamp).strftime("%Y%m%dT%H%M%S%f%z")
+    return f"{timestamp_key}_{event_index}_{symbol}"

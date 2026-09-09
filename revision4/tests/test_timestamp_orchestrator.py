@@ -1,6 +1,8 @@
 """Ordering and shared-portfolio tests for chronological replay."""
 
 from revision4.contracts import Bar, EffectiveConfig, OrderIntent, SizedProposal, TradePlan
+from revision4.box_adapters import make_order_id
+from revision4.paper_broker import PaperBroker
 from revision4.timestamp_orchestrator import RankedOrderCandidate, TimestampOrchestrator
 
 
@@ -57,3 +59,19 @@ def test_candidates_are_globally_ranked_from_one_shared_timestamp_snapshot():
     assert len(seen_snapshot_ids) == 1
     assert [order.order_id for order in result.orders_submitted] == ["zzz-high", "aaa-low"]
     assert [event[2] for event in result.event_log] == ["zzz-high", "aaa-low"]
+
+
+def test_order_ids_are_unique_across_sessions_when_event_index_restarts():
+    """A shared broker retains history across daily orchestrator.run() calls."""
+    first_id = make_order_id("2023-09-01T03:45:00+00:00", 0, "TRENT")
+    second_id = make_order_id("2023-09-04T03:45:00+00:00", 0, "TRENT")
+
+    assert first_id != second_id
+
+    broker = PaperBroker()
+    config = EffectiveConfig()
+    first = _order(first_id, "2023-09-01T03:45:00+00:00", 0, "TRENT", 100)
+    second = _order(second_id, "2023-09-04T03:45:00+00:00", 0, "TRENT", 100)
+    assert broker.submit_order(first, config) == (True, "Order submitted")
+    assert broker.cancel_order(first_id, "end of first test session")[0] is True
+    assert broker.submit_order(second, config) == (True, "Order submitted")
