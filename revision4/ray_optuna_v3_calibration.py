@@ -232,7 +232,12 @@ class RayOptunaV3Calibrator:
                 "report": report,
             })
 
-        winners = [trial for trial in validation_trials if trial["eligible"]]
+        # A calibration run may rank losing candidates for diagnostic purposes,
+        # but no losing validation result can be promoted as a configuration.
+        winners = [
+            trial for trial in validation_trials
+            if trial["eligible"] and trial["score"] > 0.0
+        ]
         winner = max(winners, key=lambda trial: trial["score"]) if winners else None
         return RayOptunaCalibrationResult(
             training_trials=training_trials,

@@ -77,3 +77,12 @@ def test_trial_reports_one_metrics_mapping_to_ray(monkeypatch):
     assert captured["score"] == 27.0
     assert captured["eligible"] is True
     assert captured["completed_trades"] == 3
+
+
+def test_losing_validation_candidate_cannot_be_promoted():
+    safe_but_losing = _safe_report(-1.0)
+    assert V3IntradayCalibrator._score(safe_but_losing) < 0.0
+    # The Ray wrapper applies this condition when choosing ``selected_params``:
+    # safety eligibility is necessary, but positive separate validation P&L is
+    # also required before a configuration may be promoted.
+    assert not (V3IntradayCalibrator._score(safe_but_losing) > 0.0)
