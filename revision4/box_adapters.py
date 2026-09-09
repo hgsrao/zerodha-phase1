@@ -7,6 +7,8 @@ Uses real Revision 4 typed contracts (Position, ExitReason, etc).
 Explicit error reporting: no silent failures, no broad except blocks.
 """
 
+from collections import deque
+
 import pandas as pd
 from typing import Mapping, Sequence, Optional, Dict, List
 from revision4.contracts import (
@@ -57,8 +59,18 @@ def build_candidate_provider(
         if len(warmup_df) >= 30:
             pa_box.calibrate(symbol, warmup_df)
 
-    # Maintain bar history per symbol across timestamp calls
-    bar_history: Dict[str, List[Bar]] = {}
+    # PA, chart studies and ATR use bounded trailing windows.  Keeping every
+    # historical bar and rebuilding a DataFrame at every timestamp makes a
+    # month-long replay O(n²) without adding information: PA was calibrated
+    # from the explicit pre-run warmup and its PID state is retained inside
+    # the real MPC box.
+    history_limit = max(
+        int(config.require("momentum_calculation_period")),
+        int(config.require("vwap_calculation_period")),
+        int(config.require("atr_calculation_period")),
+        14,
+    ) + 1
+    bar_history: Dict[str, deque[Bar]] = {}
 
     def candidate_provider(
         snapshot: PortfolioSnapshot,
@@ -91,7 +103,7 @@ def build_candidate_provider(
 
             # Accumulate bar history for this symbol
             if symbol not in bar_history:
-                bar_history[symbol] = []
+                bar_history[symbol] = deque(maxlen=history_limit)
             bar_history[symbol].append(bar)
 
             # Convert bar history to DataFrame for PA
