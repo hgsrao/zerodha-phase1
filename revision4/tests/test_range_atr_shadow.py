@@ -8,6 +8,7 @@ def test_zero_atr_is_recorded_as_unavailable_not_divided():
     bar = SimpleNamespace(high=0.0, low=0.0, close=0.0)
 
     assert monitor.observe_bars({"FLAT": bar})["FLAT"] is None
+    assert monitor.observe_bars({"FLAT": bar})["FLAT"] is None
 
 
 def test_candidate_confidence_is_observed_without_affecting_execution():
@@ -20,4 +21,3 @@ def test_candidate_confidence_is_observed_without_affecting_execution():
     summary = monitor.summary()
     assert summary["candidate_count"] == 1
     assert summary["pa_confidence"] == {"count": 1, "minimum": 0.42, "maximum": 0.42}
-    assert monitor.observe_bars({"FLAT": bar})["FLAT"] is None
