@@ -38,6 +38,37 @@ MONTH_END = "2024-08-31"
 WARMUP_BARS = 60
 
 
+def _completed_trade_ledger(completed_trades):
+    """Serialize the authoritative ledger without losing intraday evidence."""
+    records = []
+    for trade in completed_trades:
+        entry_timestamp = pd.Timestamp(trade.entry_timestamp).isoformat()
+        exit_timestamp = pd.Timestamp(trade.exit_timestamp).isoformat()
+        entry_date = pd.Timestamp(trade.entry_timestamp).date().isoformat()
+        exit_date = pd.Timestamp(trade.exit_timestamp).date().isoformat()
+        reason = getattr(trade.exit_reason, "value", str(trade.exit_reason))
+        records.append({
+            "trade_id": trade.trade_id,
+            "symbol": trade.symbol,
+            "side": "LONG" if trade.direction == 1 else "SHORT",
+            "direction": trade.direction,
+            "entry_timestamp": entry_timestamp,
+            "exit_timestamp": exit_timestamp,
+            "entry_price": trade.entry_price,
+            "exit_price": trade.exit_price,
+            "quantity": trade.quantity,
+            "entry_cost": trade.entry_cost,
+            "exit_cost": trade.exit_cost,
+            "gross_pnl": trade.gross_pnl,
+            "net_pnl": trade.net_pnl,
+            "exit_reason": reason,
+            "same_session": entry_date == exit_date,
+        })
+    return sorted(records, key=lambda record: (
+        record["entry_timestamp"], record["exit_timestamp"], record["trade_id"]
+    ))
+
+
 def _eod_flatten(ledger, last_bars, config, event_index):
     """Close every remaining position at its own final observed close."""
     exits = []
@@ -145,6 +176,10 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
                 per_symbol[symbol]["gate_rejections"] += 1
 
     daily_pnl = dict(sorted(daily_pnl.items()))
+    completed_trade_ledger = _completed_trade_ledger(ledger.completed_trades)
+    cross_session_trades = [
+        trade for trade in completed_trade_ledger if not trade["same_session"]
+    ]
     daily_matches_realized = abs(sum(daily_pnl.values()) - ledger.realized_pnl) <= 0.01
     exact = (not ledger.positions and not ledger.pending_orders and ledger.reserved_cash == 0.0
              and daily_matches_realized)
@@ -177,6 +212,14 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
             "realized_pnl": ledger.realized_pnl, "total_costs": ledger.total_costs,
         },
         "daily_pnl_series": daily_pnl,
+        "completed_trade_ledger": completed_trade_ledger,
+        "intraday_audit": {
+            "completed_trade_count": len(completed_trade_ledger),
+            "same_session_trade_count": len(completed_trade_ledger) - len(cross_session_trades),
+            "cross_session_trade_count": len(cross_session_trades),
+            "all_trades_same_session": not cross_session_trades,
+            "cross_session_trade_ids": [trade["trade_id"] for trade in cross_session_trades],
+        },
         "reconciliation": {
             "pending_orders": len(ledger.pending_orders), "reserved_cash": ledger.reserved_cash,
             "open_positions": len(ledger.positions), "daily_pnl_matches_realized": daily_matches_realized,
