@@ -72,6 +72,7 @@ class TimestampOrchestrator:
         gate_evaluator=None,
         gate16_remediator=None,
         candidate_observer=None,
+        exit_observer=None,
     ) -> None:
         if config is None:
             raise ValueError("TimestampOrchestrator requires canonical config")
@@ -83,6 +84,7 @@ class TimestampOrchestrator:
         self.gate_evaluator = gate_evaluator
         self.gate16_remediator = gate16_remediator
         self.candidate_observer = candidate_observer
+        self.exit_observer = exit_observer
         self._current_date: Optional[str] = None
 
     @staticmethod
@@ -159,6 +161,8 @@ class TimestampOrchestrator:
                     raise RuntimeError(f"exit {exit_event.exit_id} rejected: {reason}")
                 exits.append(exit_event)
                 event_log.append((timestamp, "EXIT", exit_event.exit_id))
+                if self.exit_observer is not None:
+                    self.exit_observer(exit_event)
 
             # Only an observed bar for the order's symbol can fill it.
             for order_id, order in self.broker.get_active_orders().items():

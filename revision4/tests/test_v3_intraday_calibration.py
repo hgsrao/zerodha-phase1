@@ -1,6 +1,6 @@
 import pytest
 
-from revision4.v3_intraday_calibration import V3IntradayCalibrator
+from revision4.v3_intraday_calibration import REQUIRED_TEN_BOX_PATHS, V3IntradayCalibrator
 
 
 def _safe_report(net_pnl):
@@ -9,6 +9,7 @@ def _safe_report(net_pnl):
         "financials": {"realized_pnl": net_pnl},
         "intraday_audit": {"completed_trade_count": 4, "all_trades_same_session": True},
         "reconciliation": {"exact": True},
+        "ten_box_audit": {"calls": {name: 1 for name in REQUIRED_TEN_BOX_PATHS}},
     }
 
 
@@ -44,4 +45,10 @@ def test_calibrator_refuses_immutable_gate16_parameter():
 def test_calibrator_rejects_non_intraday_candidate_even_with_positive_pnl():
     report = _safe_report(100.0)
     report["intraday_audit"]["all_trades_same_session"] = False
+    assert V3IntradayCalibrator._score(report) == float("-inf")
+
+
+def test_calibrator_rejects_report_missing_a_required_box_path():
+    report = _safe_report(100.0)
+    del report["ten_box_audit"]["calls"]["exit_controller"]
     assert V3IntradayCalibrator._score(report) == float("-inf")

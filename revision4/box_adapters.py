@@ -15,6 +15,7 @@ from revision4.contracts import (
 )
 from revision4.config_access import calculate_transaction_cost
 from revision4.timestamp_orchestrator import RankedOrderCandidate
+from revision4.ten_box_integration import TenBoxIntegration
 from revision2.boxes import (
     PredictiveAnalyticsBox,
     IntelligentDiscriminationBox,
@@ -49,6 +50,7 @@ def build_candidate_provider(
     safety_gates = SafetyGatesTargetBox()
     position_manager = PositionManagerBox()
     p01d_box = P01DBox()
+    ten_box = TenBoxIntegration(config)
 
     # Pre-calibrate PA on warmup bars (if provided)
     for symbol, warmup_df in warmup_bars_by_symbol.items():
@@ -103,6 +105,10 @@ def build_candidate_provider(
             }
             df = pd.DataFrame(df_data)
 
+            admitted, _reason = ten_box.admit_and_certify(symbol, df)
+            if not admitted:
+                continue
+
             # Build MarketSnapshot with full history
             market_snapshot = MarketSnapshot(
                 symbol=symbol,
@@ -112,12 +118,24 @@ def build_candidate_provider(
             )
 
             # 1. PA: Generate signal
+            ten_box.audit.called("predictive_analytics")
             pa_signal, pa_trace = pa_box.evaluate(market_snapshot, config)
             if pa_signal.direction == 0:
                 # No directional bias
                 continue
 
+            # Chart confirmation and canonical execution-window validation
+            # are independent of ID's statistical discrimination.
+            chart = ten_box.chart_signal(df)
+            approved_entry, _reason = ten_box.validate_entry(pa_signal.direction, bar.timestamp, chart)
+            if not approved_entry:
+                continue
+            grid_ok, _reason = ten_box.grid_allows(pa_signal.direction, bars)
+            if not grid_ok:
+                continue
+
             # 2. ID: Validate signal
+            ten_box.audit.called("intelligent_discrimination")
             id_decision, id_trace = id_box.evaluate(pa_signal, config)
             if not id_decision.approved:
                 # Signal rejected
@@ -141,6 +159,7 @@ def build_candidate_provider(
             # Ensure ATR has floor
             atr = max(atr, bar.close * 0.005)
 
+            ten_box.audit.called("mpc")
             plan, pid_info, mpc_trace = mpc_box.build_plan(
                 pa_signal, id_decision, bar.close, atr, config
             )
@@ -156,6 +175,7 @@ def build_candidate_provider(
                 continue
 
             # 5. PositionManager: Size the position
+            ten_box.audit.called("position_manager")
             quantity, pm_trace = position_manager.size(
                 plan,
                 available_equity=snapshot.cash,
@@ -168,6 +188,10 @@ def build_candidate_provider(
                 # No sizing available (capital limit, position limit, etc)
                 continue
 
+            risk_ok, _reason = ten_box.approve_risk(plan.entry_price, plan.stop_price, quantity)
+            if not risk_ok:
+                continue
+
             # 6. SafetyGates post-sizing: Check profit margin and trade-loss caps
             approved_post, reason_post, safety_post_trace = safety_gates.evaluate_post_sizing(
                 equity_curve, plan, quantity, config
@@ -177,6 +201,7 @@ def build_candidate_provider(
                 continue
 
             # 7. P01D: Create final order
+            ten_box.audit.called("execution")
             order, p01d_trace = p01d_box.create_order(symbol, plan, quantity, config)
             if order is None:
                 continue
@@ -224,7 +249,9 @@ def build_candidate_provider(
             )
 
             # Rank by PA confidence (higher = better)
-            rank_score = pa_signal.confidence + (0.1 if pa_signal.quality_band == "green" else 0)
+            # Chart momentum is a deterministic quality adjustment, not a
+            # fabricated confidence value.
+            rank_score = pa_signal.confidence + (0.1 if pa_signal.quality_band == "green" else 0) + abs(chart.momentum)
 
             candidate = RankedOrderCandidate(
                 order=order_intent,
@@ -238,10 +265,12 @@ def build_candidate_provider(
         candidates.sort(key=lambda c: (-c.rank, c.order.order_id))
         return candidates
 
+    # The sealed validator and integration tests consume this audit directly.
+    candidate_provider.ten_box_integration = ten_box
     return candidate_provider
 
 
-def build_exit_provider(config: EffectiveConfig):
+def build_exit_provider(config: EffectiveConfig, ten_box_integration: Optional[TenBoxIntegration] = None):
     """
     Build exit_provider callback for TimestampOrchestrator.
 
@@ -283,6 +312,11 @@ def build_exit_provider(config: EffectiveConfig):
 
             exit_reason = None
             exit_price = None
+
+            if ten_box_integration is not None:
+                exit_reason, exit_price = ten_box_integration.decide_exit(
+                    snapshot, position, bar, event_index, atr=0.0,
+                )
 
             # 1. Forced close: drawdown halt
             try:

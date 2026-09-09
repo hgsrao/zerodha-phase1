@@ -25,6 +25,13 @@ DEFAULT_ECONOMIC_PARAMETERS = (
     "max_hold_bars",
 )
 
+REQUIRED_TEN_BOX_PATHS = frozenset({
+    "data_input", "predictive_analytics", "chart_studies", "entry_validator",
+    "risk_manager", "grid_sync", "position_manager", "exit_controller",
+    "mpc", "performance_tracker", "execution_window",
+    "intelligent_discrimination", "execution",
+})
+
 
 @dataclass(frozen=True)
 class V3CalibrationResult:
@@ -84,6 +91,10 @@ class V3IntradayCalibrator:
             return float("-inf")
         if intraday.get("completed_trade_count", 0) == 0:
             return float("-inf")
+        calls = report.get("ten_box_audit", {}).get("calls", {})
+        missing = REQUIRED_TEN_BOX_PATHS.difference(name for name, count in calls.items() if count > 0)
+        if missing:
+            return float("-inf")
         return float(report["financials"]["realized_pnl"])
 
     def _evaluate_training(self, params: Dict[str, Any]):
@@ -97,6 +108,9 @@ class V3IntradayCalibrator:
             "status": report["status"],
             "reconciliation_exact": report["reconciliation"]["exact"],
             "all_trades_same_session": report["intraday_audit"]["all_trades_same_session"],
+            "ten_box_paths_complete": not REQUIRED_TEN_BOX_PATHS.difference(
+                name for name, count in report.get("ten_box_audit", {}).get("calls", {}).items() if count > 0
+            ),
         }
 
     def run(self, phase1_trials: int = 6, phase2_generations: int = 1,

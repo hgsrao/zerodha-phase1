@@ -183,11 +183,13 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
         audit_log_path=audit_path, run_id=run_id,
     )
     shadow_monitor = RangeATRShadowMonitor()
+    candidate_provider = build_candidate_provider(config, warmup_by_symbol)
+    ten_box = candidate_provider.ten_box_integration
     orchestrator = TimestampOrchestrator(
-        config=config, candidate_provider=build_candidate_provider(config, warmup_by_symbol),
-        exit_provider=build_exit_provider(config), ledger=ledger, broker=PaperBroker(),
+        config=config, candidate_provider=candidate_provider,
+        exit_provider=build_exit_provider(config, ten_box), ledger=ledger, broker=PaperBroker(),
         gate_evaluator=ProperGateEvaluator(config), gate16_remediator=remediator,
-        candidate_observer=shadow_monitor,
+        candidate_observer=shadow_monitor, exit_observer=ten_box.record_exit,
     )
     # A selected range may span many market sessions.  Run those sessions in
     # chronological order against the *same* model, broker and portfolio,
@@ -201,7 +203,10 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
         session_results.append(session_result)
         processed_timestamps += session_result.timestamps_processed
         session_last_bars = {symbol: stream[-1] for symbol, stream in session_bars.items()}
-        eod_exits.extend(_eod_flatten(ledger, session_last_bars, config, processed_timestamps))
+        session_eod_exits = _eod_flatten(ledger, session_last_bars, config, processed_timestamps)
+        for event in session_eod_exits:
+            ten_box.record_exit(event)
+        eod_exits.extend(session_eod_exits)
 
     result = TimestampReplayResult(
         timestamps_processed=sum(item.timestamps_processed for item in session_results),
@@ -263,6 +268,7 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
         "per_symbol": {symbol: dict(per_symbol[symbol]) for symbol in symbols},
         "rejection_breakdown": dict(rejection_breakdown),
         "range_atr_shadow": shadow_monitor.summary(),
+        "ten_box_audit": {**ten_box.audit.report(), "performance": ten_box.performance_report()},
         "financials": {
             "starting_equity": ledger.starting_cash, "ending_equity": ledger.cash,
             "realized_pnl": ledger.realized_pnl, "total_costs": ledger.total_costs,
