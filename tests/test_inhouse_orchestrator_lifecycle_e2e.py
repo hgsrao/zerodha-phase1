@@ -54,6 +54,17 @@ def test_runtime_event_ledger_hash_chain_is_intact():
         prior = event["record_hash"]
 
 
+def test_safety_rejection_reason_totals_reconcile_to_funnel_total():
+    """The diagnostic must retain the rule that rejected each candidate."""
+    bars = _bars()
+    orchestrator = Revision2PortfolioOrchestrator(list(bars), starting_equity=1_000_000.0)
+    report = orchestrator.run(bars, warmup=40)
+
+    reasons = report["safety_rejection_reasons"]
+    assert sum(reasons.values()) == report["safety_rejections"]
+    assert all(count > 0 for count in reasons.values())
+
+
 def test_friday_intent_is_cancelled_on_monday_by_real_run():
     timestamps = pd.date_range("2024-08-05 09:15", periods=62, freq="min", tz="Asia/Kolkata")
     bars = {"SUNPHARMA": pd.DataFrame({

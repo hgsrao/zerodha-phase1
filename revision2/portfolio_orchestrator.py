@@ -359,11 +359,22 @@ class Revision2PortfolioOrchestrator:
         funnel = {
             "bars_processed": 0, "pa_signals": 0, "id_approvals": 0, "id_rejections": 0,
             "mpc_plans": 0, "safety_approvals": 0, "safety_rejections": 0,
+            # A total alone cannot distinguish a legitimate safety rejection
+            # from a wiring/configuration defect.  Keep the authoritative
+            # rejection reason at the point it is produced; this is reporting
+            # only and does not change authorization behaviour.
+            "safety_rejection_reasons": {},
             "gates_evaluated": 0, "gates_passed": 0, "gates_rejected": 0,
             "orders_submitted": 0, "exit_orders_submitted": 0, "fills": 0,
             "portfolio_cap_rejections": 0, "orders_queued": 0,
             "pending_orders_cancelled": 0, "cross_session_rejections": 0,
         }
+
+        def record_safety_rejection(stage: str, reason: str) -> None:
+            funnel["safety_rejections"] += 1
+            key = f"{stage}: {reason or 'rejected'}"
+            reasons = funnel["safety_rejection_reasons"]
+            reasons[key] = reasons.get(key, 0) + 1
         max_concurrent = int(self.safety_contract.values["max_concurrent_positions"])
         max_gross_fraction = float(self.safety_contract.values["max_gross_exposure_fraction"])
         sector_cap_fraction = float(self.config.require("max_sector_exposure_fraction"))
@@ -578,10 +589,10 @@ class Revision2PortfolioOrchestrator:
                     continue
                 funnel["mpc_plans"] += 1
 
-                approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(self._equity_curve, self.config)
+                approved, safety_reason, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(self._equity_curve, self.config)
                 self._record(trace)
                 if not approved:
-                    funnel["safety_rejections"] += 1
+                    record_safety_rejection("SafetyGatesTargetBox.pre_sizing", safety_reason)
                     continue
                 size_mult *= pid_info["entry_timing_multiplier"]
 
@@ -619,10 +630,10 @@ class Revision2PortfolioOrchestrator:
                     funnel["portfolio_cap_rejections"] += 1
                     continue
 
-                post_ok, _, trace = self.safety_gates_target.evaluate_post_sizing(self._equity_curve, plan, quantity, self.config)
+                post_ok, safety_reason, trace = self.safety_gates_target.evaluate_post_sizing(self._equity_curve, plan, quantity, self.config)
                 self._record(trace)
                 if not post_ok:
-                    funnel["safety_rejections"] += 1
+                    record_safety_rejection("SafetyGatesTargetBox.post_sizing", safety_reason)
                     continue
                 funnel["safety_approvals"] += 1
 
@@ -673,7 +684,7 @@ class Revision2PortfolioOrchestrator:
                     parameter_registry=self.registry,
                 )
                 if not gate2["passed"]:
-                    funnel["safety_rejections"] += 1
+                    record_safety_rejection("ExecutionGate.pre_submit", str(gate2.get("reason", "rejected")))
                     continue
 
                 # An intraday intent must have a same-session next eligible
