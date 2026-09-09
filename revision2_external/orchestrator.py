@@ -42,6 +42,7 @@ from revision2.portfolio_orchestrator import SECTOR_MAP, _ClockEvent
 from revision2_external.composite_study_signal import CompositeStudySignal
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars
+from revision2_external.grid_context import SealedGridContextProvider
 from revision2_external.indicators_talib import TALibPredictiveAnalyticsBox
 from revision2_external.pid_controller import SimplePIDModelPredictiveControlBox
 from revision2_external.position_sizing_pyportfolioopt import PyPortfolioOptPositionManagerBox, compute_portfolio_weights
@@ -67,6 +68,7 @@ class Revision2ExternalEngineOrchestrator:
         calibration_overrides: Optional[Dict[str, Any]] = None,
         starting_equity: float = 1_000_000.0,
         sector_map: Optional[Dict[str, str]] = None,
+        grid_context_provider: Optional[SealedGridContextProvider] = None,
     ) -> None:
         self.symbols = list(symbols)
         self.registry = registry or CanonicalParameterRegistry()
@@ -92,6 +94,11 @@ class Revision2ExternalEngineOrchestrator:
         self.config = EffectiveConfig.build(values, registry_hash=self.registry.FROZEN_IDENTITY_SHA256)
         self.safety_contract = SafetyContract.from_registry(self.registry)
         self.sector_map = dict(sector_map) if sector_map is not None else dict(SECTOR_MAP)
+        # The provider is shadow-only in this release.  It records a causal,
+        # timestamp-aligned Nifty/VIX assessment but is not an entry gate and
+        # cannot alter quantity, stops, targets, or safety policy.
+        self.grid_context_provider = grid_context_provider
+        self.grid_shadow_observations: List[Dict[str, Any]] = []
 
         self.data_ingestion = DataIngestionBox()
         self.pa = TALibPredictiveAnalyticsBox()
@@ -489,6 +496,15 @@ class Revision2ExternalEngineOrchestrator:
                     continue
                 funnel["id_approvals"] += 1
 
+                if self.grid_context_provider is not None:
+                    observation = self.grid_context_provider.observe(
+                        symbol,
+                        bars.iloc[:bar_idx + 1],
+                        timestamp,
+                        signal.direction,
+                    )
+                    self.grid_shadow_observations.append(observation.to_dict())
+
                 atr = signal.volatility * bars.iloc[bar_idx]["close"]
                 next_open = float(bars.iloc[bar_idx + 1]["open"])
                 plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
@@ -698,6 +714,12 @@ class Revision2ExternalEngineOrchestrator:
             "trades": self.completed_trades,
             "mtm_equity_curve": self._mtm_equity_curve,
             "mtm_max_drawdown_fraction": mtm_max_drawdown_fraction,
+            "grid_shadow": {
+                "enabled": self.grid_context_provider is not None,
+                "observations": self.grid_shadow_observations,
+                "available": sum(1 for row in self.grid_shadow_observations if row["available"]),
+                "synchronized": sum(1 for row in self.grid_shadow_observations if row["synchronized"] is True),
+            },
         }
 
     def _in_trading_window(self, timestamp: str) -> bool:
