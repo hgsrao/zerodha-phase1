@@ -31,6 +31,15 @@ def test_full_engine_runs_on_real_data_and_produces_real_trades():
     assert abs(report["gross_pnl"] - sum(t["pnl"] for t in report["trades"])) < 1e-6
     assert abs(report["net_pnl"] - sum(t["net_pnl"] for t in report["trades"])) < 1e-6
 
+    # Controller telemetry is observation-only, but it must be complete
+    # enough to join each completed outcome to its controller state.
+    telemetry = report["controller_telemetry"]
+    summary = report["controller_telemetry_summary"]
+    assert summary["entry_throttle_updates"] == report["mpc_plans"]
+    assert summary["outcomes"] == report["completed_trades"]
+    assert any(row["event_type"] == "EXIT_PROTECTION_UPDATE" for row in telemetry)
+    assert all("trade_id" in trade and "candidate_id" in trade for trade in report["trades"])
+
     # Every expected box actually ran and left a trace.
     assert report["pa_signals"] > 0
     assert report["id_approvals"] > 0

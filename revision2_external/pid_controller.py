@@ -193,8 +193,23 @@ class SimplePIDModelPredictiveControlBox:
             side=side, entry_price=float(effective_entry), stop_price=float(stop_price),
             target_price=float(target_price), minimum_hold_bars=min_hold, maximum_hold_bars=max_hold,
         )
+        entry_p, entry_i, entry_d = entry_pid.components
+        exit_p, exit_i, exit_d = exit_pid.components
+        # Observation-only detail for the telemetry ledger.  None of these
+        # fields participates in the plan calculations above.
         pid_info = {
             "entry_adjustment": entry_adjustment, "exit_adjustment": exit_adjustment,
             "entry_timing_multiplier": entry_timing_multiplier,
+            "entry_setpoint": confidence_baseline,
+            "entry_measurement": float(decision.confidence),
+            "entry_error": confidence_baseline - float(decision.confidence),
+            "entry_p": float(entry_p), "entry_i": float(entry_i), "entry_d": float(entry_d),
+            "entry_clamped": abs(entry_adjustment) >= integral_clamp - 1e-12,
+            "exit_setpoint": confidence_baseline,
+            "exit_measurement": float(decision.confidence),
+            "exit_error": confidence_baseline - float(decision.confidence),
+            "exit_p": float(exit_p), "exit_i": float(exit_i), "exit_d": float(exit_d),
+            "exit_clamped": abs(exit_adjustment) >= integral_clamp - 1e-12,
+            "exit_tightness": exit_tightness,
         }
         return plan, pid_info, trace

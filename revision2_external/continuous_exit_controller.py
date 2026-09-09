@@ -136,7 +136,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict, Optional
+from typing import Any, Deque, Dict, Optional
 
 from simple_pid import PID
 
@@ -163,6 +163,7 @@ class ExitControllerState:
     consecutive_bars_at_low_studies_extreme: int = 0     # chart-studies track's own saturation streak -- fully independent
     adjustment_history: list = field(default_factory=list)
     studies_adjustment_history: list = field(default_factory=list)
+    last_telemetry: Dict[str, Any] = field(default_factory=dict)
 
 
 class ContinuousExitController:
@@ -287,6 +288,7 @@ class ContinuousExitController:
 
         # Droop: current ATR, not the frozen entry-time distance -- see
         # module docstring's "Droop" section.
+        stop_before = state.current_stop_price
         droop_distance = current_atr * self.atr_droop_mult
         stop_distance_now = droop_distance * combined_tightness
         if state.side == "BUY":
@@ -295,6 +297,24 @@ class ContinuousExitController:
         else:
             candidate_stop = state.favorable_extreme + stop_distance_now
             state.current_stop_price = min(state.current_stop_price, candidate_stop)  # only ratchet down
+
+        pa_p, pa_i, pa_d = pid.components
+        studies_p, studies_i, studies_d = studies_pid.components
+        state.last_telemetry = {
+            "pa_setpoint": float(baseline), "pa_measurement": float(current_confidence),
+            "pa_error": float(baseline - current_confidence), "pa_p": float(pa_p),
+            "pa_i": float(pa_i), "pa_d": float(pa_d), "pa_output": float(adjustment),
+            "pa_clamped": bool(abs(adjustment) >= self.clamp - 1e-12),
+            "studies_setpoint": float(studies_baseline), "studies_measurement": float(current_chart_studies_confidence),
+            "studies_error": float(studies_baseline - current_chart_studies_confidence),
+            "studies_p": float(studies_p), "studies_i": float(studies_i), "studies_d": float(studies_d),
+            "studies_output": float(studies_adjustment),
+            "studies_clamped": bool(abs(studies_adjustment) >= self.clamp - 1e-12),
+            "time_tightness": float(time_tightness), "combined_tightness": float(combined_tightness),
+            "atr": float(current_atr), "favorable_extreme": float(state.favorable_extreme),
+            "stop_before": float(stop_before), "stop_after": float(state.current_stop_price),
+            "bars_held": int(state.bars_held),
+        }
 
         return state
 

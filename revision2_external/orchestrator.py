@@ -99,6 +99,11 @@ class Revision2ExternalEngineOrchestrator:
         # cannot alter quantity, stops, targets, or safety policy.
         self.grid_context_provider = grid_context_provider
         self.grid_shadow_observations: List[Dict[str, Any]] = []
+        # Observation-only controller ledger. It is never consulted by
+        # order, sizing, stop, target, or safety code.
+        self.controller_telemetry: List[Dict[str, Any]] = []
+        self._controller_sequence = 0
+        self._trade_sequence = 0
 
         self.data_ingestion = DataIngestionBox()
         self.pa = TALibPredictiveAnalyticsBox()
@@ -237,15 +242,27 @@ class Revision2ExternalEngineOrchestrator:
             trade_costs = self._leg_cost(trade["entry_price"], trade["quantity"], trade["side"]) + self._leg_cost(
                 result["filled_price"], trade["quantity"], close_side
             )
-            self.completed_trades.append({
+            completed = {
                 "symbol": symbol, "side": trade["side"], "entry_price": trade["entry_price"],
                 "exit_price": result["filled_price"], "quantity": trade["quantity"],
                 "entry_timestamp": trade["entry_timestamp"], "exit_timestamp": str(timestamp),
                 "reason": reason, "pnl": pnl, "costs": trade_costs, "net_pnl": pnl - trade_costs,
+                "trade_id": trade.get("trade_id"), "candidate_id": trade.get("candidate_id"),
+            }
+            self.completed_trades.append(completed)
+            self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
+                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+                "exit_reason": reason, "net_pnl": completed["net_pnl"], "pnl": pnl, "costs": trade_costs,
             })
             self._equity_curve.append(self._equity())
             del self.open_trades[symbol]
             self._exit_controller_states.pop(symbol, None)
+
+    def _record_controller_event(self, event_type: str, timestamp: object, symbol: str, payload: Dict[str, Any]) -> None:
+        """Record controller state without introducing a feedback path."""
+        self.controller_telemetry.append({
+            "event_type": event_type, "timestamp": str(timestamp), "symbol": symbol, **payload,
+        })
 
     def _maybe_exit(
         self, symbol: str, timestamp, bar, signal, held_bars: int, session_last_bar: bool,
@@ -280,6 +297,9 @@ class Revision2ExternalEngineOrchestrator:
             )
             self._exit_controller_states[symbol] = state
             current_stop = state.current_stop_price
+            self._record_controller_event("EXIT_PROTECTION_UPDATE", timestamp, symbol, {
+                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"), **state.last_telemetry,
+            })
 
         exit_price, reason = None, None
         if trade["side"] == "BUY":
@@ -512,6 +532,11 @@ class Revision2ExternalEngineOrchestrator:
                 if plan is None:
                     continue
                 funnel["mpc_plans"] += 1
+                self._controller_sequence += 1
+                candidate_id = f"candidate-{self._controller_sequence}"
+                self._record_controller_event("ENTRY_CONFIDENCE_THROTTLE", timestamp, symbol, {
+                    "candidate_id": candidate_id, **pid_info,
+                })
 
                 approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(self._equity_curve, self.config)
                 self._record(trace)
@@ -668,11 +693,13 @@ class Revision2ExternalEngineOrchestrator:
                 funnel["orders_submitted"] += 1
                 if fill["passed"]:
                     funnel["fills"] += 1
+                    self._trade_sequence += 1
                     self.open_trades[symbol] = {
                         "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
                         "target_price": plan.target_price, "quantity": quantity,
                         "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
                         "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
+                        "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
                     }
                     entry_bar_index[symbol] = bar_idx + 1
                     self._exit_controller_states[symbol] = self.exit_controller.open_position(
@@ -714,6 +741,13 @@ class Revision2ExternalEngineOrchestrator:
             "trades": self.completed_trades,
             "mtm_equity_curve": self._mtm_equity_curve,
             "mtm_max_drawdown_fraction": mtm_max_drawdown_fraction,
+            "controller_telemetry": self.controller_telemetry,
+            "controller_telemetry_summary": {
+                "events": len(self.controller_telemetry),
+                "entry_throttle_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "ENTRY_CONFIDENCE_THROTTLE"),
+                "exit_protection_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "EXIT_PROTECTION_UPDATE"),
+                "outcomes": sum(1 for row in self.controller_telemetry if row["event_type"] == "CONTROLLER_OUTCOME"),
+            },
             "grid_shadow": {
                 "enabled": self.grid_context_provider is not None,
                 "observations": self.grid_shadow_observations,
