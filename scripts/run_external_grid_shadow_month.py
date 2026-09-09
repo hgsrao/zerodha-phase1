@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -84,7 +85,7 @@ def run_shadow_month(args: argparse.Namespace) -> dict:
     all_bars = loader._load_symbol_csv(args.symbol)
     timestamps = pd.to_datetime(all_bars["timestamp"], utc=True, errors="raise")
     start = _to_utc(args.start)
-    end_exclusive = _to_utc(args.end) + pd.Timedelta("1D")
+    end_exclusive = _to_utc(args.end) + timedelta(days=1)
     target = all_bars.loc[(timestamps >= start) & (timestamps < end_exclusive)].copy()
     if target.empty:
         raise ValueError(f"no {args.symbol} bars within {args.start} through {args.end}")
@@ -127,6 +128,8 @@ def run_shadow_month(args: argparse.Namespace) -> dict:
             key: result[key]
             for key in ("orders_submitted", "fills", "completed_trades", "gross_pnl", "net_pnl", "ending_equity")
         },
+        "controller_telemetry_summary": result["controller_telemetry_summary"],
+        "controller_telemetry": result["controller_telemetry"],
         "grid_shadow": shadow,
         "trades": result["trades"],
     }
