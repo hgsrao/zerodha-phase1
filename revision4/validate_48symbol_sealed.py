@@ -38,6 +38,17 @@ MONTH_END = "2024-08-31"
 WARMUP_BARS = 60
 
 
+def _determine_status(*, exact: bool, completed_trade_count: int, has_remediation: bool) -> str:
+    """Certification is impossible without an actual completed-trade path."""
+    if not exact:
+        return "SHUTDOWN"
+    if has_remediation:
+        return "REMEDIATION_REQUIRED"
+    if completed_trade_count == 0:
+        return "NO_EXECUTION"
+    return "PASSED"
+
+
 def _build_calibration_config(registry: CanonicalParameterRegistry, overrides=None) -> EffectiveConfig:
     """Build one candidate configuration while refusing safety-policy edits."""
     overrides = dict(overrides or {})
@@ -251,7 +262,10 @@ def run_48symbol_validation(manifest_path=MANIFEST_PATH, data_dir=DATA_DIR,
             open_positions=len(ledger.positions), realized_pnl=ledger.realized_pnl,
             daily_pnl=daily_pnl, daily_pnl_matches_realized=daily_matches_realized, exact=exact,
         )
-    status = "REMEDIATION_REQUIRED" if remediator.violations and exact else ("PASSED" if exact else "SHUTDOWN")
+    status = _determine_status(
+        exact=exact, completed_trade_count=len(completed_trade_ledger),
+        has_remediation=bool(remediator.violations),
+    )
     return {
         "run_id": run_id, "timestamp": datetime.now().isoformat(), "status": status,
         "universe": {"symbol_count": len(symbols), "symbols": symbols},

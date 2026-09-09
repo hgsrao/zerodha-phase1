@@ -5,6 +5,7 @@ from dataclasses import replace
 
 from revision4.contracts import Bar, EffectiveConfig, ExitEvent, ExitReason, PortfolioSnapshot, Position
 from revision4.ten_box_integration import TenBoxIntegration
+from revision4.validate_48symbol_sealed import _determine_status
 
 
 def _history() -> pd.DataFrame:
@@ -86,3 +87,8 @@ def test_exit_controller_and_performance_tracker_use_actual_exit_event():
     assert boxes.performance_report() == {"closed_trades": 1, "daily_pnl": {"2024-08-01": 38.0}}
     assert boxes.audit.report()["calls"]["exit_controller"] == 1
     assert boxes.audit.report()["calls"]["performance_tracker"] == 1
+
+
+def test_empty_reconciled_replay_is_no_execution_not_passed():
+    assert _determine_status(exact=True, completed_trade_count=0, has_remediation=False) == "NO_EXECUTION"
+    assert _determine_status(exact=True, completed_trade_count=1, has_remediation=False) == "PASSED"
