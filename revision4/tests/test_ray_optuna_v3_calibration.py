@@ -1,5 +1,6 @@
 import pytest
 
+import revision4.ray_optuna_v3_calibration as ray_calibration
 from revision4.ray_optuna_v3_calibration import (
     INELIGIBLE_SCORE,
     RayOptunaV3Calibrator,
@@ -57,3 +58,22 @@ def test_parallelism_is_hard_bounded_to_two_workers():
 def test_worker_manifest_path_is_absolute_for_ray_trial_directories():
     calibrator = RayOptunaV3Calibrator("2023-09-01", "2023-09-29", "2023-10-02", "2023-10-06")
     assert calibrator.manifest_path.startswith("/")
+
+
+def test_trial_reports_one_metrics_mapping_to_ray(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(ray_calibration.tune, "report", lambda metrics: captured.update(metrics))
+
+    def evaluator(**_kwargs):
+        return _safe_report(27.0)
+
+    ray_calibration.evaluate_sealed_trial(
+        {"profit_target_atr_mult": 1.5},
+        train_start="2023-09-01",
+        train_end="2023-09-29",
+        parameter_names=("profit_target_atr_mult",),
+        evaluator=evaluator,
+    )
+    assert captured["score"] == 27.0
+    assert captured["eligible"] is True
+    assert captured["completed_trades"] == 3

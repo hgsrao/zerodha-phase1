@@ -110,16 +110,17 @@ def evaluate_sealed_trial(
     complete_paths = not REQUIRED_TEN_BOX_PATHS.difference(
         name for name, count in calls.items() if count > 0
     )
-    tune.report(
-        score=float(raw_score) if eligible else INELIGIBLE_SCORE,
-        eligible=eligible,
-        net_pnl=float(report.get("financials", {}).get("realized_pnl", 0.0)),
-        completed_trades=int(intraday.get("completed_trade_count", 0)),
-        status=str(report.get("status", "UNKNOWN")),
-        reconciliation_exact=bool(reconciliation.get("exact")),
-        all_trades_same_session=bool(intraday.get("all_trades_same_session")),
-        ten_box_paths_complete=complete_paths,
-    )
+    # Ray 2.58 requires one mapping here; keyword arguments are not accepted.
+    tune.report({
+        "score": float(raw_score) if eligible else INELIGIBLE_SCORE,
+        "eligible": eligible,
+        "net_pnl": float(report.get("financials", {}).get("realized_pnl", 0.0)),
+        "completed_trades": int(intraday.get("completed_trade_count", 0)),
+        "status": str(report.get("status", "UNKNOWN")),
+        "reconciliation_exact": bool(reconciliation.get("exact")),
+        "all_trades_same_session": bool(intraday.get("all_trades_same_session")),
+        "ten_box_paths_complete": complete_paths,
+    })
 
 
 @dataclass(frozen=True)
