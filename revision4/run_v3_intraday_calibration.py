@@ -16,6 +16,8 @@ def main() -> None:
     parser.add_argument("--train-end", default="2023-09-15")
     parser.add_argument("--validation-start", default="2023-09-18")
     parser.add_argument("--validation-end", default="2023-09-22")
+    parser.add_argument("--test-start", default="2023-09-25")
+    parser.add_argument("--test-end", default="2023-09-29")
     parser.add_argument("--phase1-trials", type=int, default=6)
     parser.add_argument("--phase2-generations", type=int, default=1)
     parser.add_argument("--phase3-iterations", type=int, default=1)
@@ -38,7 +40,7 @@ def main() -> None:
         "kind": "sealed_v3_intraday_calibration",
         "calibration_period": f"{args.train_start} to {args.train_end}",
         "validation_period": f"{args.validation_start} to {args.validation_end}",
-        "untouched_test_period": "2023-09-25 to 2023-09-29",
+        "untouched_test_period": f"{args.test_start} to {args.test_end}",
         "selected_params": result.selected_params,
         "selected_validation_report": result.selected_validation_report,
         "training_trials": [asdict(trial) for trial in result.training_trials],
