@@ -1,0 +1,2 @@
+score,net_pnl,sharpe,profit_factor,max_drawdown,trades,timestamp,checkpoint_dir_name,done,training_iteration,trial_id,date,time_this_iter_s,time_total_s,pid,hostname,node_ip,time_since_restore,iterations_since_restore
+0.0,0,0.0,0.0,0.0,0,1788936391,,True,1,d46247d7,2026-09-09_12-16-31,0.0025281906127929688,0.0025281906127929688,78176,shrinivas-Blade,10.37.160.47,0.0025281906127929688,1

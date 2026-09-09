@@ -1,0 +1,28 @@
+Starting 48-symbol sealed replay...
+Start time: Wed Sep  9 10:01:52 AM IST 2026
+Data directory: /home/shrinivas/ECS_Complete/P01D_CHART_STUDIES_V10_HISTORICAL_REPLAY_20260825/DATA_1MIN_48_20230703_20260824
+
+====================================================================================================
+48-SYMBOL SEALED REPLAY VALIDATION
+====================================================================================================
+
+📊 Loading manifest and verifying 48 symbol files...
+   ✓ Loaded 8/48 symbols (2,329,100 total bars)
+   ✓ Loaded 16/48 symbols (4,658,202 total bars)
+   ✓ Loaded 24/48 symbols (6,987,279 total bars)
+   ✓ Loaded 32/48 symbols (9,303,577 total bars)
+   ✓ Loaded 40/48 symbols (11,632,638 total bars)
+   ✓ Loaded 48/48 symbols (13,961,740 total bars)
+   ✓ All 48 symbols verified and loaded
+   ✓ Dataset hash: b56824787da547c94ba3fa9266062eee3798c6230cfefd997dfd3dd2315809a9
+
+🔧 Initializing orchestrator with all 8 integration steps...
+   ✓ Step 1: Lifecycle dependencies initialized
+   ✓ Step 2: Cross-session pre-submission policy wired
+   ✓ Step 3: Gate16 post-fill detection wired
+
+⚡ Running chronological 48-symbol orchestration (this may take several minutes)...
+
+Completion time: Wed Sep  9 10:19:59 AM IST 2026
+Exit code: 0
+⚠️  Report not found

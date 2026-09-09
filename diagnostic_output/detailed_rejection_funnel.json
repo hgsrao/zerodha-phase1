@@ -1,0 +1,25 @@
+{
+  "symbol": "SUNPHARMA",
+  "days": 5,
+  "bars_processed": 1949,
+  "funnel": {
+    "bars_processed": 1949,
+    "pa_signals": 1949,
+    "id_approvals": 32,
+    "id_rejections": 1917,
+    "mpc_plans": 0,
+    "safety_approvals": 0,
+    "safety_rejections": 0,
+    "gates_evaluated": 0,
+    "gates_passed": 0,
+    "gates_rejected": 0,
+    "orders_submitted": 0,
+    "fills": 0,
+    "completed_trades": 0
+  },
+  "metrics": {
+    "net_pnl": 0.0,
+    "completed_trades": 0,
+    "sharpe": 0
+  }
+}

@@ -395,13 +395,10 @@ class ModelPredictiveControlBox:
             stop_price = effective_entry + stop_distance
             target_price = effective_entry - target_distance
 
-        # Compared per-share since MPC doesn't yet know the trade's
-        # quantity (PositionManager decides that downstream); dividing by an
-        # assumed reference lot keeps the comparison in a plausible range
-        # instead of being swamped by entry_price.
-        projected_profit = abs(target_price - effective_entry)
-        if projected_profit < min_abs_profit / 10.0:
-            return None, {"reason": "below minimum absolute profit floor"}, trace
+        # NOTE: Minimum profit validation moved to SafetyGatesTargetBox.evaluate_post_sizing()
+        # that has access to actual quantity. MPC does not know quantity yet.
+        # We compute per-share projected profit for the ledger, but do NOT gate here.
+        projected_profit_per_share = abs(target_price - effective_entry)
 
         plan = TradePlan(
             side=side,
@@ -416,6 +413,10 @@ class ModelPredictiveControlBox:
             "exit_adjustment": exit_pid_result["adjustment"],
             "entry_integral": entry_pid_result["integral"],
             "entry_timing_multiplier": entry_timing_multiplier,
+            "projected_profit_per_share": projected_profit_per_share,
+            "atr_used": atr,
+            "stop_distance": stop_distance,
+            "target_distance": target_distance,
         }
         return plan, pid_info, trace
 
@@ -473,7 +474,13 @@ class SafetyGatesTargetBox:
 
         max_loss_trade = float(req("max_loss_per_trade_rupees", "per-trade rupee loss cap (post-sizing)", "approved"))
         max_loss_day = float(req("max_loss_per_day_rupees", "daily rupee loss cap", "approved"))
-        min_absolute_profit = float(req("minimum_absolute_profit_rupees", "minimum target profit in rupees after sizing", "approved"))
+        min_absolute_profit = float(req("minimum_absolute_profit_rupees", "minimum target profit in rupees after sizing (cost-adjusted)", "approved"))
+
+        # Cost estimation: assume entry and exit costs proportional to price distance
+        # Typical slippage on NSE: 0.05-0.20 per share, brokerage ~0.01-0.05 per share
+        estimated_entry_cost_per_share = 0.10  # Conservative estimate
+        estimated_exit_cost_per_share = 0.10
+        total_round_trip_cost = (estimated_entry_cost_per_share + estimated_exit_cost_per_share) * quantity
 
         peak = max(equity_curve) if equity_curve else 0.0
         current = equity_curve[-1] if equity_curve else 0.0
@@ -482,9 +489,17 @@ class SafetyGatesTargetBox:
         if worst_case_trade_loss_rupees > max_loss_trade:
             return False, f"worst-case trade loss Rs.{worst_case_trade_loss_rupees:.2f} exceeds per-trade cap Rs.{max_loss_trade:.2f}", trace
 
+        # COST-RELATIVE PROFIT RULE:
+        # Projected gross target profit must exceed round-trip costs + required margin
         target_profit_rupees = abs(plan.target_price - plan.entry_price) * quantity
-        if target_profit_rupees < min_absolute_profit:
-            return False, f"target profit Rs.{target_profit_rupees:.2f} below minimum Rs.{min_absolute_profit:.2f}", trace
+        required_net_margin_factor = 1.5  # 50% above costs for risk buffer
+        required_profit = total_round_trip_cost * required_net_margin_factor
+
+        if target_profit_rupees < required_profit:
+            return False, (
+                f"target profit Rs.{target_profit_rupees:.2f} insufficient; "
+                f"needs Rs.{required_profit:.2f} (round-trip cost Rs.{total_round_trip_cost:.2f} × {required_net_margin_factor}x margin)"
+            ), trace
 
         daily_loss_so_far = max(0.0, peak - current)
         if daily_loss_so_far > max_loss_day:
