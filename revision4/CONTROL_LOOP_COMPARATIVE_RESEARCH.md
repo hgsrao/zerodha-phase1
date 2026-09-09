@@ -186,6 +186,49 @@ morning increases urgency, size, or holding time.  This is exactly when the
 system should become more selective.  The ₹400 figure remains a research
 benchmark used after the session to evaluate the strategy.
 
+## Physical-system analogies: transfer test
+
+The cross-domain comparison is useful, but only after separating transferable
+control principles from non-transferable claims.  A power grid, insulin pump,
+or spacecraft controls a physical plant whose actuators affect its measured
+state.  A trading system does **not** control the market price.  It controls
+only whether, how much, and how urgently it trades.
+
+### Principles worth transferring
+
+| Physical-control principle | Trading-system translation | Rev4 implication |
+|---|---|---|
+| Hierarchical constraint ownership | lower layers cannot overrule higher-level safety constraints | Gate16, drawdown, cash, cross-session and EOD rules always dominate PID output |
+| Multiple loop speeds | fast local loop, slower supervisory loop, still slower planning loop | exit control may run per bar; entry-quality per signal; performance adaptation only after a completed session/window |
+| Sensor/data-quality interlock | unreliable measurement disables or limits automation | manifest validation, warmup admission, stale-data detection and no-future-data checks precede all PID updates |
+| Actuator saturation and anti-windup | controllers have bounded output and cannot accumulate impossible commands | retain bounded PID integral/clamp and bound output to sizing reduction or exit tightening |
+| Simulation/shadow validation before deployment | demonstrate integrated behavior under realistic disturbances | record shadow actions first; require sealed train/validation evidence before enabling any action |
+
+The U.S. Department of Energy describes grid frequency regulation as layered:
+fast local response, secondary automatic generation control, and slower
+supervisory dispatch.  That supports Rev4's multi-rate architecture, not a
+single all-purpose PID.  NASA's safety-control work similarly treats safety as
+constraints imposed by higher levels of a hierarchy.  FDA material on
+closed-loop insulin systems highlights that sensor accuracy, actuator limits,
+and integrated real-world testing are central requirements.
+
+### Analogies to reject or narrow
+
+| Proposed analogy | Why it breaks in markets | Correct narrow use |
+|---|---|---|
+| “PID should make price reach target.” | an order cannot force a liquid equity to reach an MPC target | PID adjusts exposure and exit protection only |
+| “Setpoint equals what worked in good conditions.” | selecting only winning history creates survivorship bias and a moving target | derive a regime-conditioned baseline from **all prior approved observations**, then test out of sample |
+| “Nifty/grid is like grid frequency.” | Nifty is an observed market reference, not a quantity Rev4 can regulate | use it as an exogenous regime state and only derate risk under adverse alignment |
+| “Two-sided PID means increase risk when error is positive.” | the market model is uncertain; automatic leverage expansion can amplify loss | allow normal sizing only up to pre-approved caps; negative regime feedback can only reduce risk |
+
+### Direct design conclusion
+
+Keep the hierarchical architecture, multi-rate loops, data-quality interlocks,
+bounded outputs, anti-windup, audit trail and shadow-testing discipline.  Do
+not import physical-domain assumptions about controllability or stable plant
+dynamics.  The appropriate trading objective is **better decision quality after
+costs and within risk limits**, not setpoint tracking of price or daily P&L.
+
 ## Evidence from the latest sealed Rev4 validation
 
 The two validation finalists had positive gross P&L but negative after-cost P&L:
@@ -246,3 +289,13 @@ support immediately enabling an adaptive controller in live or paper trading.
    Overview](https://www.quantconnect.com/docs/v1/algorithm-framework/overview)”
    and “[Execution](https://www.quantconnect.com/docs/v1/algorithm-framework/execution)”
    documentation, accessed September 2026.
+7. U.S. Department of Energy. “[Technologies for Transmission Grid Automatic
+   Controls](https://www.energy.gov/sites/default/files/2021-05/Automatic%20Controls%20Dagle%20Schoenwald_0.pdf)”
+   2021.
+8. Leveson, N. “[A New Approach to System Safety and
+   Security](https://c3.ndc.nasa.gov/dashlink/static/media/other/SSAC-1_SSAC_Leveson.pdf)”
+   NASA Safety and Mission Success Academy material.
+9. U.S. Food and Drug Administration. “[Technical Considerations for Medical
+   Devices with Physiologic Closed-Loop Control
+   Technology](https://www.fda.gov/regulatory-information/search-fda-guidance-documents/technical-considerations-medical-devices-physiologic-closed-loop-control-technology)”
+   2023.
