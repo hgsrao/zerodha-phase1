@@ -52,3 +52,8 @@ def test_parallelism_is_hard_bounded_to_two_workers():
     calibrator = RayOptunaV3Calibrator("2023-09-01", "2023-09-29", "2023-10-02", "2023-10-06")
     with pytest.raises(ValueError, match="between 1 and 2"):
         calibrator.run(samples=1, max_concurrent_trials=3)
+
+
+def test_worker_manifest_path_is_absolute_for_ray_trial_directories():
+    calibrator = RayOptunaV3Calibrator("2023-09-01", "2023-09-29", "2023-10-02", "2023-10-06")
+    assert calibrator.manifest_path.startswith("/")

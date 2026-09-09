@@ -29,12 +29,14 @@ from revision4.v3_intraday_calibration import (
     REQUIRED_TEN_BOX_PATHS,
     V3IntradayCalibrator,
 )
-from revision4.validate_48symbol_sealed import run_48symbol_validation
+from revision4.validate_48symbol_sealed import DATA_DIR, MANIFEST_PATH, run_48symbol_validation
 
 
 # Ray's result table needs a finite scalar.  The boolean ``eligible`` remains
 # authoritative; this sentinel must never be treated as an economic score.
 INELIGIBLE_SCORE = -1.0e18
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+ABSOLUTE_MANIFEST_PATH = str((REPOSITORY_ROOT / MANIFEST_PATH).resolve())
 
 
 def validated_parameter_specs(parameter_names: Iterable[str]) -> Dict[str, ParameterSpec]:
@@ -87,11 +89,15 @@ def evaluate_sealed_trial(
     train_start: str,
     train_end: str,
     parameter_names: Tuple[str, ...],
+    manifest_path: str = ABSOLUTE_MANIFEST_PATH,
+    data_dir: str = DATA_DIR,
     evaluator: Callable[..., Dict[str, Any]] = run_48symbol_validation,
 ) -> None:
     """Ray worker function: execute exactly one independent sealed train replay."""
     params = normalize_trial_parameters(config, parameter_names)
     report = evaluator(
+        manifest_path=manifest_path,
+        data_dir=data_dir,
         month_start=train_start,
         month_end=train_end,
         calibration_overrides=params,
@@ -136,6 +142,8 @@ class RayOptunaV3Calibrator:
         validation_end: str,
         parameter_names: Iterable[str] = DEFAULT_ECONOMIC_PARAMETERS,
         evaluator: Callable[..., Dict[str, Any]] = run_48symbol_validation,
+        manifest_path: str = ABSOLUTE_MANIFEST_PATH,
+        data_dir: str = DATA_DIR,
         seed: int = 20260909,
     ) -> None:
         self.train_start, self.train_end = train_start, train_end
@@ -143,6 +151,8 @@ class RayOptunaV3Calibrator:
         self.parameter_names = tuple(parameter_names)
         validated_parameter_specs(self.parameter_names)
         self.evaluator = evaluator
+        self.manifest_path = str(Path(manifest_path).resolve())
+        self.data_dir = str(Path(data_dir).resolve())
         self.seed = seed
 
     def run(
@@ -168,6 +178,8 @@ class RayOptunaV3Calibrator:
                 train_start=self.train_start,
                 train_end=self.train_end,
                 parameter_names=self.parameter_names,
+                manifest_path=self.manifest_path,
+                data_dir=self.data_dir,
                 evaluator=self.evaluator,
             ),
             {"cpu": 1},
@@ -205,6 +217,8 @@ class RayOptunaV3Calibrator:
         validation_trials: List[Dict[str, Any]] = []
         for finalist in finalists:
             report = self.evaluator(
+                manifest_path=self.manifest_path,
+                data_dir=self.data_dir,
                 month_start=self.validation_start,
                 month_end=self.validation_end,
                 calibration_overrides=finalist["params"],
