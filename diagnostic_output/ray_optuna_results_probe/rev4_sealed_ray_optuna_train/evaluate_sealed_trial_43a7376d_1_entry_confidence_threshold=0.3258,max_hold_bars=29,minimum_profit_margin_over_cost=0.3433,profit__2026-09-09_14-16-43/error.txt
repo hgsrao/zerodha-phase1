@@ -1,0 +1,23 @@
+Failure # 1 (occurred at 2026-09-09_14-16-45)
+[36mray::ImplicitFunc.train()[39m (pid=169718, ip=10.37.160.47, actor_id=c6984031a7f80a05e1d1cdb401000000, repr=evaluate_sealed_trial)
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/ray/tune/trainable/trainable.py", line 329, in train
+    raise skipped from exception_cause(skipped)
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/ray/air/_internal/util.py", line 98, in run
+    self._ret = self._target(*self._args, **self._kwargs)
+                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/ray/tune/trainable/function_trainable.py", line 44, in <lambda>
+    training_func=lambda: self._trainable_func(self.config),
+                          ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/ray/tune/trainable/function_trainable.py", line 249, in _trainable_func
+    output = fn()
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/ray/tune/trainable/util.py", line 134, in inner
+    return trainable(config, **fn_kwargs)
+  File "/home/shrinivas/ECS_Project_external_engine/revision4/ray_optuna_v3_calibration.py", line 94, in evaluate_sealed_trial
+    report = evaluator(
+        month_start=train_start,
+        month_end=train_end,
+        calibration_overrides=params,
+    )
+  File "/home/shrinivas/ECS_Project_external_engine/revision4/validate_48symbol_sealed.py", line 158, in run_48symbol_validation
+    raise RuntimeError(f"cannot start sealed validation: {dataset_hash}; {config_hash}")
+RuntimeError: cannot start sealed validation: error:[Errno 2] No such file or directory: 'revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json'; 0d477893d2a6f3097a526f7a0ef870bc6c9571addb627f9c16e3e3e8924051ec

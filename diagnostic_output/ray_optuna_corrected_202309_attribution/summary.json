@@ -1,0 +1,889 @@
+{
+  "source": "diagnostic_output/ray_optuna_corrected_202309.json",
+  "validation_period": "2023-10-02 to 2023-10-06",
+  "untouched_test_period": "2023-10-09 to 2023-10-13",
+  "finalists": [
+    {
+      "number": 1,
+      "params": {
+        "entry_confidence_threshold": 0.24227392051658062,
+        "profit_target_atr_mult": 1.5774734771652394,
+        "stop_loss_atr_mult": 0.7783940375137295,
+        "minimum_profit_margin_over_cost": 0.42922296671521654,
+        "max_hold_bars": 72
+      },
+      "status": "PASSED",
+      "reconciliation_exact": true,
+      "attribution": {
+        "trade_count": 191,
+        "gross_pnl": 212.8677154761258,
+        "total_cost": 715.8968016685403,
+        "net_pnl": -503.0290861924145,
+        "cost_share_of_gross": 3.3631065193107306,
+        "by_symbol": [
+          {
+            "symbol": "KOTAKBANK",
+            "trades": 10,
+            "gross_pnl": -73.12939166391419,
+            "total_cost": 42.846369581511574,
+            "net_pnl": -115.97576124542577,
+            "winning_trades": 1,
+            "losing_trades": 9
+          },
+          {
+            "symbol": "COALINDIA",
+            "trades": 11,
+            "gross_pnl": -44.90825080635153,
+            "total_cost": 46.18597040965616,
+            "net_pnl": -91.0942212160077,
+            "winning_trades": 3,
+            "losing_trades": 8
+          },
+          {
+            "symbol": "ASIANPAINT",
+            "trades": 10,
+            "gross_pnl": -30.077152631329227,
+            "total_cost": 29.232652557555184,
+            "net_pnl": -59.30980518888441,
+            "winning_trades": 3,
+            "losing_trades": 7
+          },
+          {
+            "symbol": "SHRIRAMFIN",
+            "trades": 3,
+            "gross_pnl": -43.02326743289194,
+            "total_cost": 14.074221649368013,
+            "net_pnl": -57.09748908225995,
+            "winning_trades": 0,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "NTPC",
+            "trades": 5,
+            "gross_pnl": -37.197393276156106,
+            "total_cost": 19.83500760697045,
+            "net_pnl": -57.032400883126556,
+            "winning_trades": 1,
+            "losing_trades": 4
+          },
+          {
+            "symbol": "CIPLA",
+            "trades": 3,
+            "gross_pnl": -38.73726660529542,
+            "total_cost": 10.680939365679471,
+            "net_pnl": -49.41820597097489,
+            "winning_trades": 0,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "ETERNAL",
+            "trades": 19,
+            "gross_pnl": 44.446748574193336,
+            "total_cost": 85.18339645502257,
+            "net_pnl": -40.736647880829246,
+            "winning_trades": 7,
+            "losing_trades": 12
+          },
+          {
+            "symbol": "INFY",
+            "trades": 4,
+            "gross_pnl": -23.740101273032224,
+            "total_cost": 15.494248910805911,
+            "net_pnl": -39.23435018383813,
+            "winning_trades": 1,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "JSWSTEEL",
+            "trades": 4,
+            "gross_pnl": -19.266600624038006,
+            "total_cost": 15.41522577790874,
+            "net_pnl": -34.68182640194675,
+            "winning_trades": 1,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "HCLTECH",
+            "trades": 4,
+            "gross_pnl": -16.788749426791355,
+            "total_cost": 13.61182438668326,
+            "net_pnl": -30.400573813474615,
+            "winning_trades": 1,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "BEL",
+            "trades": 3,
+            "gross_pnl": -15.626492505110832,
+            "total_cost": 12.930493935206101,
+            "net_pnl": -28.556986440316937,
+            "winning_trades": 1,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "EICHERMOT",
+            "trades": 2,
+            "gross_pnl": -21.267612584851577,
+            "total_cost": 6.106517016409633,
+            "net_pnl": -27.37412960126121,
+            "winning_trades": 0,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "RELIANCE",
+            "trades": 2,
+            "gross_pnl": -12.78220594233585,
+            "total_cost": 7.445067400626704,
+            "net_pnl": -20.227273342962555,
+            "winning_trades": 0,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "TCS",
+            "trades": 11,
+            "gross_pnl": 16.205914949894122,
+            "total_cost": 36.11434908177485,
+            "net_pnl": -19.90843413188074,
+            "winning_trades": 3,
+            "losing_trades": 8
+          },
+          {
+            "symbol": "HINDUNILVR",
+            "trades": 3,
+            "gross_pnl": -8.482513047325938,
+            "total_cost": 9.21213640061433,
+            "net_pnl": -17.69464944794027,
+            "winning_trades": 1,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "AXISBANK",
+            "trades": 4,
+            "gross_pnl": -2.861209462892475,
+            "total_cost": 14.708816874565338,
+            "net_pnl": -17.57002633745781,
+            "winning_trades": 1,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "HDFCBANK",
+            "trades": 1,
+            "gross_pnl": -12.909746172625205,
+            "total_cost": 3.502574753362101,
+            "net_pnl": -16.412320925987306,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "SBILIFE",
+            "trades": 1,
+            "gross_pnl": -10.413282629851437,
+            "total_cost": 3.502805493039685,
+            "net_pnl": -13.916088122891122,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "HINDALCO",
+            "trades": 2,
+            "gross_pnl": -4.2499999999998295,
+            "total_cost": 7.3800726249999995,
+            "net_pnl": -11.630072624999828,
+            "winning_trades": 1,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "LT",
+            "trades": 8,
+            "gross_pnl": 13.85708546573278,
+            "total_cost": 22.567498394287618,
+            "net_pnl": -8.71041292855484,
+            "winning_trades": 3,
+            "losing_trades": 5
+          },
+          {
+            "symbol": "SUNPHARMA",
+            "trades": 1,
+            "gross_pnl": -2.199999999999818,
+            "total_cost": 4.102784300000001,
+            "net_pnl": -6.302784299999819,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "TITAN",
+            "trades": 13,
+            "gross_pnl": 34.93838622928433,
+            "total_cost": 38.70462368675101,
+            "net_pnl": -3.76623745746668,
+            "winning_trades": 6,
+            "losing_trades": 7
+          },
+          {
+            "symbol": "TATASTEEL",
+            "trades": 3,
+            "gross_pnl": 10.100000000000577,
+            "total_cost": 13.255558379999998,
+            "net_pnl": -3.1555583799994213,
+            "winning_trades": 1,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "JIOFIN",
+            "trades": 1,
+            "gross_pnl": 4.5,
+            "total_cost": 3.72540735,
+            "net_pnl": 0.7745926500000002,
+            "winning_trades": 1,
+            "losing_trades": 0
+          },
+          {
+            "symbol": "DRREDDY",
+            "trades": 7,
+            "gross_pnl": 31.91517201151737,
+            "total_cost": 27.169576474962142,
+            "net_pnl": 4.74559553655523,
+            "winning_trades": 4,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "WIPRO",
+            "trades": 2,
+            "gross_pnl": 12.999999999999858,
+            "total_cost": 7.69177105,
+            "net_pnl": 5.308228949999858,
+            "winning_trades": 2,
+            "losing_trades": 0
+          },
+          {
+            "symbol": "SBIN",
+            "trades": 12,
+            "gross_pnl": 56.49961024469599,
+            "total_cost": 49.970427530373144,
+            "net_pnl": 6.529182714322836,
+            "winning_trades": 5,
+            "losing_trades": 7
+          },
+          {
+            "symbol": "POWERGRID",
+            "trades": 3,
+            "gross_pnl": 18.828482193107277,
+            "total_cost": 11.652345847841872,
+            "net_pnl": 7.176136345265405,
+            "winning_trades": 1,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "M&M",
+            "trades": 15,
+            "gross_pnl": 68.02572683908375,
+            "total_cost": 60.75704667429592,
+            "net_pnl": 7.268680164787819,
+            "winning_trades": 6,
+            "losing_trades": 9
+          },
+          {
+            "symbol": "BAJFINANCE",
+            "trades": 8,
+            "gross_pnl": 45.85357928776273,
+            "total_cost": 30.203691456513177,
+            "net_pnl": 15.649887831249549,
+            "winning_trades": 5,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "INDIGO",
+            "trades": 6,
+            "gross_pnl": 53.95338542815716,
+            "total_cost": 17.63185304257428,
+            "net_pnl": 36.32153238558289,
+            "winning_trades": 3,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "MAXHEALTH",
+            "trades": 1,
+            "gross_pnl": 46.97262425050667,
+            "total_cost": 4.236316857188205,
+            "net_pnl": 42.73630739331847,
+            "winning_trades": 1,
+            "losing_trades": 0
+          },
+          {
+            "symbol": "BAJAJFINSV",
+            "trades": 6,
+            "gross_pnl": 84.55528544545905,
+            "total_cost": 17.57548776434287,
+            "net_pnl": 66.97979768111618,
+            "winning_trades": 4,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "ADANIENT",
+            "trades": 3,
+            "gross_pnl": 86.87695064152376,
+            "total_cost": 13.189722577649968,
+            "net_pnl": 73.6872280638738,
+            "winning_trades": 2,
+            "losing_trades": 1
+          }
+        ],
+        "by_exit_reason": [
+          {
+            "exit_reason": "STOP_HIT",
+            "trades": 74,
+            "gross_pnl": -1023.0310216040574,
+            "total_cost": 282.19589037691816,
+            "net_pnl": -1305.2269119809757,
+            "winning_trades": 0,
+            "losing_trades": 74
+          },
+          {
+            "exit_reason": "EOD_FLATTENING",
+            "trades": 17,
+            "gross_pnl": 34.500000000000796,
+            "total_cost": 59.796290499999984,
+            "net_pnl": -25.296290499999206,
+            "winning_trades": 6,
+            "losing_trades": 11
+          },
+          {
+            "exit_reason": "TIME_EXIT",
+            "trades": 81,
+            "gross_pnl": 468.8000000000021,
+            "total_cost": 301.34661108,
+            "net_pnl": 167.45338892000214,
+            "winning_trades": 44,
+            "losing_trades": 37
+          },
+          {
+            "exit_reason": "TARGET_HIT",
+            "trades": 19,
+            "gross_pnl": 732.5987370801805,
+            "total_cost": 72.55800971162218,
+            "net_pnl": 660.0407273685584,
+            "winning_trades": 19,
+            "losing_trades": 0
+          }
+        ],
+        "by_entry_hour_ist": [
+          {
+            "entry_hour_ist": "9",
+            "trades": 49,
+            "gross_pnl": -80.16877916139383,
+            "total_cost": 182.40399096542143,
+            "net_pnl": -262.57277012681527,
+            "winning_trades": 13,
+            "losing_trades": 36
+          },
+          {
+            "entry_hour_ist": "10",
+            "trades": 29,
+            "gross_pnl": -52.57908558121167,
+            "total_cost": 118.45655041192498,
+            "net_pnl": -171.03563599313665,
+            "winning_trades": 9,
+            "losing_trades": 20
+          },
+          {
+            "entry_hour_ist": "13",
+            "trades": 25,
+            "gross_pnl": -3.2940519994161406,
+            "total_cost": 89.43143729595604,
+            "net_pnl": -92.72548929537218,
+            "winning_trades": 8,
+            "losing_trades": 17
+          },
+          {
+            "entry_hour_ist": "14",
+            "trades": 24,
+            "gross_pnl": -2.387563043686683,
+            "total_cost": 85.09530651408221,
+            "net_pnl": -87.48286955776891,
+            "winning_trades": 10,
+            "losing_trades": 14
+          },
+          {
+            "entry_hour_ist": "15",
+            "trades": 14,
+            "gross_pnl": 3.646931322587591,
+            "total_cost": 49.48495143135804,
+            "net_pnl": -45.838020108770465,
+            "winning_trades": 2,
+            "losing_trades": 12
+          },
+          {
+            "entry_hour_ist": "12",
+            "trades": 25,
+            "gross_pnl": 161.61022541354203,
+            "total_cost": 95.89062038840056,
+            "net_pnl": 65.71960502514142,
+            "winning_trades": 13,
+            "losing_trades": 12
+          },
+          {
+            "entry_hour_ist": "11",
+            "trades": 25,
+            "gross_pnl": 186.04003852570452,
+            "total_cost": 95.13394466139708,
+            "net_pnl": 90.90609386430744,
+            "winning_trades": 14,
+            "losing_trades": 11
+          }
+        ]
+      },
+      "report": "diagnostic_output/ray_optuna_corrected_202309_attribution/finalist_1.json",
+      "ledger_csv": "diagnostic_output/ray_optuna_corrected_202309_attribution/finalist_1.csv"
+    },
+    {
+      "number": 2,
+      "params": {
+        "entry_confidence_threshold": 0.27323219067062576,
+        "profit_target_atr_mult": 2.151015537199441,
+        "stop_loss_atr_mult": 1.1709719278530035,
+        "minimum_profit_margin_over_cost": 1.3250248512945042,
+        "max_hold_bars": 67
+      },
+      "status": "PASSED",
+      "reconciliation_exact": true,
+      "attribution": {
+        "trade_count": 154,
+        "gross_pnl": 287.91921463713726,
+        "total_cost": 576.656412081973,
+        "net_pnl": -288.7371974448358,
+        "cost_share_of_gross": 2.0028410150004383,
+        "by_symbol": [
+          {
+            "symbol": "KOTAKBANK",
+            "trades": 6,
+            "gross_pnl": -63.38531638017861,
+            "total_cost": 26.31553848832917,
+            "net_pnl": -89.70085486850778,
+            "winning_trades": 0,
+            "losing_trades": 6
+          },
+          {
+            "symbol": "NTPC",
+            "trades": 5,
+            "gross_pnl": -63.155242408298676,
+            "total_cost": 20.93604003019444,
+            "net_pnl": -84.09128243849311,
+            "winning_trades": 1,
+            "losing_trades": 4
+          },
+          {
+            "symbol": "AXISBANK",
+            "trades": 4,
+            "gross_pnl": -45.23580065054239,
+            "total_cost": 15.510390375317606,
+            "net_pnl": -60.74619102586,
+            "winning_trades": 0,
+            "losing_trades": 4
+          },
+          {
+            "symbol": "SHRIRAMFIN",
+            "trades": 2,
+            "gross_pnl": -46.8668528545947,
+            "total_cost": 9.308604962279862,
+            "net_pnl": -56.17545781687456,
+            "winning_trades": 0,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "TCS",
+            "trades": 8,
+            "gross_pnl": -21.023624172516975,
+            "total_cost": 26.04039674167116,
+            "net_pnl": -47.064020914188134,
+            "winning_trades": 2,
+            "losing_trades": 6
+          },
+          {
+            "symbol": "HCLTECH",
+            "trades": 5,
+            "gross_pnl": -21.98188943080254,
+            "total_cost": 17.010736892014602,
+            "net_pnl": -38.992626322817145,
+            "winning_trades": 2,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "BAJAJ-AUTO",
+            "trades": 1,
+            "gross_pnl": -25.71607998066156,
+            "total_cost": 4.4331275287535306,
+            "net_pnl": -30.149207509415092,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "JIOFIN",
+            "trades": 1,
+            "gross_pnl": -24.77010255407751,
+            "total_cost": 4.3731495250571415,
+            "net_pnl": -29.14325207913465,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "EICHERMOT",
+            "trades": 2,
+            "gross_pnl": -21.931094477543866,
+            "total_cost": 6.199052501102738,
+            "net_pnl": -28.1301469786466,
+            "winning_trades": 0,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "TATASTEEL",
+            "trades": 7,
+            "gross_pnl": 0.5986615647621107,
+            "total_cost": 28.710168467706584,
+            "net_pnl": -28.111506902944477,
+            "winning_trades": 3,
+            "losing_trades": 4
+          },
+          {
+            "symbol": "HDFCBANK",
+            "trades": 2,
+            "gross_pnl": -13.29999999999984,
+            "total_cost": 9.78582535,
+            "net_pnl": -23.08582534999984,
+            "winning_trades": 0,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "BEL",
+            "trades": 1,
+            "gross_pnl": -19.14859490162854,
+            "total_cost": 3.8706636462799984,
+            "net_pnl": -23.019258547908542,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "LT",
+            "trades": 3,
+            "gross_pnl": -12.561035449173687,
+            "total_cost": 8.468273424779959,
+            "net_pnl": -21.029308873953646,
+            "winning_trades": 0,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "DRREDDY",
+            "trades": 8,
+            "gross_pnl": 13.607796326950847,
+            "total_cost": 32.16596219212863,
+            "net_pnl": -18.55816586517778,
+            "winning_trades": 4,
+            "losing_trades": 4
+          },
+          {
+            "symbol": "CIPLA",
+            "trades": 1,
+            "gross_pnl": -13.199999999999818,
+            "total_cost": 4.2908152,
+            "net_pnl": -17.490815199999815,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "TRENT",
+            "trades": 1,
+            "gross_pnl": -14.440765297210419,
+            "total_cost": 2.51329537268378,
+            "net_pnl": -16.9540606698942,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "SUNPHARMA",
+            "trades": 1,
+            "gross_pnl": -11.0,
+            "total_cost": 4.1077497,
+            "net_pnl": -15.1077497,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "ADANIPORTS",
+            "trades": 4,
+            "gross_pnl": 1.4999999999997726,
+            "total_cost": 15.226868750000001,
+            "net_pnl": -13.726868750000227,
+            "winning_trades": 1,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "HINDUNILVR",
+            "trades": 6,
+            "gross_pnl": 0.25,
+            "total_cost": 13.819241025,
+            "net_pnl": -13.569241025,
+            "winning_trades": 2,
+            "losing_trades": 4
+          },
+          {
+            "symbol": "ASIANPAINT",
+            "trades": 5,
+            "gross_pnl": 1.7186799102437362,
+            "total_cost": 14.62112865157002,
+            "net_pnl": -12.902448741326289,
+            "winning_trades": 2,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "JSWSTEEL",
+            "trades": 1,
+            "gross_pnl": -7.200000000000273,
+            "total_cost": 4.2068334,
+            "net_pnl": -11.406833400000272,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "SBILIFE",
+            "trades": 1,
+            "gross_pnl": -6.149999999999864,
+            "total_cost": 3.501379424999999,
+            "net_pnl": -9.651379424999863,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "WIPRO",
+            "trades": 1,
+            "gross_pnl": -1.899999999999892,
+            "total_cost": 3.3994191999999996,
+            "net_pnl": -5.299419199999892,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "HDFCLIFE",
+            "trades": 5,
+            "gross_pnl": 16.75000000000057,
+            "total_cost": 19.759605825,
+            "net_pnl": -3.009605824999433,
+            "winning_trades": 2,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "ADANIENT",
+            "trades": 1,
+            "gross_pnl": -0.6000000000003638,
+            "total_cost": 2.2197695,
+            "net_pnl": -2.8197695000003637,
+            "winning_trades": 0,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "INDIGO",
+            "trades": 3,
+            "gross_pnl": 4.650000000000091,
+            "total_cost": 6.594015675,
+            "net_pnl": -1.9440156749999091,
+            "winning_trades": 1,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "INFY",
+            "trades": 8,
+            "gross_pnl": 32.75814678290135,
+            "total_cost": 29.906589436794608,
+            "net_pnl": 2.851557346106741,
+            "winning_trades": 4,
+            "losing_trades": 4
+          },
+          {
+            "symbol": "POWERGRID",
+            "trades": 2,
+            "gross_pnl": 11.0,
+            "total_cost": 8.0440954,
+            "net_pnl": 2.9559046,
+            "winning_trades": 1,
+            "losing_trades": 1
+          },
+          {
+            "symbol": "TITAN",
+            "trades": 6,
+            "gross_pnl": 23.708515780333983,
+            "total_cost": 17.834462327473602,
+            "net_pnl": 5.874053452860376,
+            "winning_trades": 4,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "COALINDIA",
+            "trades": 9,
+            "gross_pnl": 57.01882927642407,
+            "total_cost": 38.78662120160703,
+            "net_pnl": 18.232208074817045,
+            "winning_trades": 5,
+            "losing_trades": 4
+          },
+          {
+            "symbol": "M&M",
+            "trades": 12,
+            "gross_pnl": 72.01307339869709,
+            "total_cost": 45.1064032140744,
+            "net_pnl": 26.906670184622676,
+            "winning_trades": 6,
+            "losing_trades": 6
+          },
+          {
+            "symbol": "BAJAJFINSV",
+            "trades": 5,
+            "gross_pnl": 48.857654576995174,
+            "total_cost": 16.285851099100253,
+            "net_pnl": 32.57180347789491,
+            "winning_trades": 3,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "BAJFINANCE",
+            "trades": 2,
+            "gross_pnl": 63.7545658324359,
+            "total_cost": 7.409942043729059,
+            "net_pnl": 56.34462378870685,
+            "winning_trades": 2,
+            "losing_trades": 0
+          },
+          {
+            "symbol": "SBIN",
+            "trades": 5,
+            "gross_pnl": 77.30795920753383,
+            "total_cost": 20.635144437645078,
+            "net_pnl": 56.672814769888745,
+            "winning_trades": 2,
+            "losing_trades": 3
+          },
+          {
+            "symbol": "MAXHEALTH",
+            "trades": 6,
+            "gross_pnl": 84.07531226223455,
+            "total_cost": 25.10317245804828,
+            "net_pnl": 58.97213980418626,
+            "winning_trades": 4,
+            "losing_trades": 2
+          },
+          {
+            "symbol": "ETERNAL",
+            "trades": 14,
+            "gross_pnl": 211.9164182748537,
+            "total_cost": 60.156078613631436,
+            "net_pnl": 151.76033966122228,
+            "winning_trades": 9,
+            "losing_trades": 5
+          }
+        ],
+        "by_exit_reason": [
+          {
+            "exit_reason": "STOP_HIT",
+            "trades": 31,
+            "gross_pnl": -683.5417833780732,
+            "total_cost": 119.36809819263391,
+            "net_pnl": -802.909881570707,
+            "winning_trades": 0,
+            "losing_trades": 31
+          },
+          {
+            "exit_reason": "EOD_FLATTENING",
+            "trades": 19,
+            "gross_pnl": 46.599999999999724,
+            "total_cost": 65.69291229999999,
+            "net_pnl": -19.092912300000275,
+            "winning_trades": 6,
+            "losing_trades": 13
+          },
+          {
+            "exit_reason": "TIME_EXIT",
+            "trades": 94,
+            "gross_pnl": 397.24999999999955,
+            "total_cost": 351.348742115,
+            "net_pnl": 45.90125788499943,
+            "winning_trades": 44,
+            "losing_trades": 50
+          },
+          {
+            "exit_reason": "TARGET_HIT",
+            "trades": 10,
+            "gross_pnl": 527.6109980152111,
+            "total_cost": 40.246659474339104,
+            "net_pnl": 487.364338540872,
+            "winning_trades": 10,
+            "losing_trades": 0
+          }
+        ],
+        "by_entry_hour_ist": [
+          {
+            "entry_hour_ist": "9",
+            "trades": 36,
+            "gross_pnl": -12.52213540216161,
+            "total_cost": 129.98661499866245,
+            "net_pnl": -142.50875040082406,
+            "winning_trades": 14,
+            "losing_trades": 22
+          },
+          {
+            "entry_hour_ist": "10",
+            "trades": 22,
+            "gross_pnl": 9.201373263117034,
+            "total_cost": 87.86058810002896,
+            "net_pnl": -78.65921483691193,
+            "winning_trades": 9,
+            "losing_trades": 13
+          },
+          {
+            "entry_hour_ist": "12",
+            "trades": 24,
+            "gross_pnl": 44.206664378888306,
+            "total_cost": 93.54778315781006,
+            "net_pnl": -49.34111877892173,
+            "winning_trades": 11,
+            "losing_trades": 13
+          },
+          {
+            "entry_hour_ist": "13",
+            "trades": 19,
+            "gross_pnl": 24.473085004604812,
+            "total_cost": 70.61725754310541,
+            "net_pnl": -46.144172538500584,
+            "winning_trades": 6,
+            "losing_trades": 13
+          },
+          {
+            "entry_hour_ist": "15",
+            "trades": 9,
+            "gross_pnl": -3.6000000000001364,
+            "total_cost": 31.401596200000004,
+            "net_pnl": -35.00159620000014,
+            "winning_trades": 1,
+            "losing_trades": 8
+          },
+          {
+            "entry_hour_ist": "11",
+            "trades": 22,
+            "gross_pnl": 105.35592735225514,
+            "total_cost": 85.33367286899254,
+            "net_pnl": 20.02225448326259,
+            "winning_trades": 8,
+            "losing_trades": 14
+          },
+          {
+            "entry_hour_ist": "14",
+            "trades": 22,
+            "gross_pnl": 120.8043000404337,
+            "total_cost": 77.90889921337363,
+            "net_pnl": 42.89540082706003,
+            "winning_trades": 11,
+            "losing_trades": 11
+          }
+        ]
+      },
+      "report": "diagnostic_output/ray_optuna_corrected_202309_attribution/finalist_2.json",
+      "ledger_csv": "diagnostic_output/ray_optuna_corrected_202309_attribution/finalist_2.csv"
+    }
+  ]
+}

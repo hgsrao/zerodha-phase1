@@ -1,0 +1,27 @@
+Failure # 1 (occurred at 2026-09-09_14-37-28)
+[36mray::ImplicitFunc.train()[39m (pid=172876, ip=10.37.160.47, actor_id=20a6dc9c28076f43a4dc4f1301000000, repr=evaluate_sealed_trial)
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/ray/tune/trainable/trainable.py", line 329, in train
+    raise skipped from exception_cause(skipped)
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/ray/air/_internal/util.py", line 98, in run
+    self._ret = self._target(*self._args, **self._kwargs)
+                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/ray/tune/trainable/function_trainable.py", line 44, in <lambda>
+    training_func=lambda: self._trainable_func(self.config),
+                          ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/ray/tune/trainable/function_trainable.py", line 249, in _trainable_func
+    output = fn()
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/ray/tune/trainable/util.py", line 134, in inner
+    return trainable(config, **fn_kwargs)
+  File "/home/shrinivas/ECS_Project_external_engine/revision4/ray_optuna_v3_calibration.py", line 113, in evaluate_sealed_trial
+    tune.report(
+    ~~~~~~~~~~~^
+        score=float(raw_score) if eligible else INELIGIBLE_SCORE,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        ten_box_paths_complete=complete_paths,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/ray/train/_internal/session.py", line 689, in wrapper
+    return fn(*args, **kwargs)
+TypeError: report() got an unexpected keyword argument 'score'

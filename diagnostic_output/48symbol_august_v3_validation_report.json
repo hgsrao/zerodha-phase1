@@ -1,0 +1,389 @@
+{
+  "run_id": "portfolio-48-20240801-ea61559b37db-42b2330c4380",
+  "timestamp": "2026-09-08T16:47:33.862776",
+  "status": "REMEDIATION_REQUIRED",
+  "universe": {
+    "symbol_count": 48,
+    "symbols": [
+      "ADANIENT",
+      "ADANIPORTS",
+      "APOLLOHOSP",
+      "ASIANPAINT",
+      "AXISBANK",
+      "BAJAJ-AUTO",
+      "BAJAJFINSV",
+      "BAJFINANCE",
+      "BEL",
+      "BHARTIARTL",
+      "CIPLA",
+      "COALINDIA",
+      "DRREDDY",
+      "EICHERMOT",
+      "ETERNAL",
+      "GRASIM",
+      "HCLTECH",
+      "HDFCBANK",
+      "HDFCLIFE",
+      "HINDALCO",
+      "HINDUNILVR",
+      "ICICIBANK",
+      "INDIGO",
+      "INFY",
+      "ITC",
+      "JIOFIN",
+      "JSWSTEEL",
+      "KOTAKBANK",
+      "LT",
+      "M&M",
+      "MARUTI",
+      "MAXHEALTH",
+      "NTPC",
+      "ONGC",
+      "POWERGRID",
+      "RELIANCE",
+      "SBILIFE",
+      "SBIN",
+      "SHRIRAMFIN",
+      "SUNPHARMA",
+      "TATACONSUM",
+      "TATASTEEL",
+      "TCS",
+      "TECHM",
+      "TITAN",
+      "TRENT",
+      "ULTRACEMCO",
+      "WIPRO"
+    ]
+  },
+  "period": "2024-08-01 to 2024-08-31",
+  "warmup_bars_per_symbol": 60,
+  "dataset_hash": "d7d391794f426204a1e3bb9a4dc6e8e872b341f6a1f61508d5f291ba60a7c7db",
+  "config_hash": "ea61559b37db7b7de20a78802831fcef0f52a5fb8285c04a05c3aa6f84d6a1b1",
+  "registry_contract_id": "ECS_REVISION_2_PARAMETER_SURFACE_V3",
+  "registry_hash": "26755ba69e28a81142a424fcca1a8c1b1f51a377ef70ba46fa52a97f96f28d74",
+  "metrics": {
+    "timestamps_processed": 7875,
+    "bars_processed": 377997,
+    "orders_submitted": 483,
+    "fills": 483,
+    "exits": 483,
+    "eod_flattens": 0
+  },
+  "per_symbol": {
+    "ADANIENT": {
+      "exits": 4,
+      "orders_submitted": 4,
+      "fills": 4,
+      "gate_rejections": 48
+    },
+    "ADANIPORTS": {
+      "exits": 6,
+      "orders_submitted": 6,
+      "fills": 6,
+      "gate_rejections": 43
+    },
+    "APOLLOHOSP": {},
+    "ASIANPAINT": {
+      "exits": 21,
+      "orders_submitted": 21,
+      "fills": 21,
+      "gate_rejections": 37
+    },
+    "AXISBANK": {
+      "exits": 8,
+      "orders_submitted": 8,
+      "fills": 8,
+      "gate_rejections": 28
+    },
+    "BAJAJ-AUTO": {},
+    "BAJAJFINSV": {
+      "exits": 2,
+      "orders_submitted": 2,
+      "fills": 2,
+      "gate_rejections": 50
+    },
+    "BAJFINANCE": {
+      "exits": 3,
+      "orders_submitted": 3,
+      "fills": 3,
+      "gate_rejections": 32
+    },
+    "BEL": {
+      "exits": 9,
+      "orders_submitted": 9,
+      "fills": 9,
+      "gate_rejections": 49
+    },
+    "BHARTIARTL": {
+      "exits": 15,
+      "orders_submitted": 15,
+      "fills": 15,
+      "gate_rejections": 25
+    },
+    "CIPLA": {
+      "exits": 33,
+      "orders_submitted": 33,
+      "fills": 33,
+      "gate_rejections": 32
+    },
+    "COALINDIA": {
+      "exits": 10,
+      "orders_submitted": 10,
+      "fills": 10,
+      "gate_rejections": 36
+    },
+    "DRREDDY": {
+      "exits": 13,
+      "orders_submitted": 13,
+      "fills": 13,
+      "gate_rejections": 32
+    },
+    "EICHERMOT": {
+      "exits": 10,
+      "orders_submitted": 10,
+      "fills": 10,
+      "gate_rejections": 31
+    },
+    "ETERNAL": {
+      "exits": 19,
+      "orders_submitted": 19,
+      "fills": 19,
+      "gate_rejections": 36
+    },
+    "GRASIM": {
+      "exits": 30,
+      "orders_submitted": 30,
+      "fills": 30,
+      "gate_rejections": 26
+    },
+    "HCLTECH": {
+      "exits": 15,
+      "orders_submitted": 15,
+      "fills": 15,
+      "gate_rejections": 42
+    },
+    "HDFCBANK": {
+      "exits": 14,
+      "orders_submitted": 14,
+      "fills": 14,
+      "gate_rejections": 39
+    },
+    "HDFCLIFE": {
+      "exits": 29,
+      "orders_submitted": 29,
+      "fills": 29,
+      "gate_rejections": 23
+    },
+    "HINDALCO": {
+      "exits": 1,
+      "orders_submitted": 1,
+      "fills": 1,
+      "gate_rejections": 36
+    },
+    "HINDUNILVR": {
+      "exits": 10,
+      "orders_submitted": 10,
+      "fills": 10,
+      "gate_rejections": 37
+    },
+    "ICICIBANK": {
+      "exits": 4,
+      "orders_submitted": 4,
+      "fills": 4,
+      "gate_rejections": 27
+    },
+    "INDIGO": {
+      "exits": 3,
+      "orders_submitted": 3,
+      "fills": 3,
+      "gate_rejections": 37
+    },
+    "INFY": {
+      "exits": 18,
+      "orders_submitted": 18,
+      "fills": 18,
+      "gate_rejections": 39
+    },
+    "ITC": {
+      "exits": 3,
+      "orders_submitted": 3,
+      "fills": 3,
+      "gate_rejections": 45
+    },
+    "JIOFIN": {
+      "exits": 26,
+      "orders_submitted": 26,
+      "fills": 26,
+      "gate_rejections": 27
+    },
+    "JSWSTEEL": {
+      "exits": 1,
+      "orders_submitted": 1,
+      "fills": 1,
+      "gate_rejections": 36
+    },
+    "KOTAKBANK": {
+      "gate_rejections": 20
+    },
+    "LT": {
+      "gate_rejections": 32
+    },
+    "M&M": {
+      "exits": 18,
+      "orders_submitted": 18,
+      "fills": 18,
+      "gate_rejections": 23
+    },
+    "MARUTI": {},
+    "MAXHEALTH": {
+      "exits": 1,
+      "orders_submitted": 1,
+      "fills": 1,
+      "gate_rejections": 28
+    },
+    "NTPC": {
+      "exits": 6,
+      "orders_submitted": 6,
+      "fills": 6,
+      "gate_rejections": 41
+    },
+    "ONGC": {
+      "exits": 13,
+      "orders_submitted": 13,
+      "fills": 13,
+      "gate_rejections": 48
+    },
+    "POWERGRID": {
+      "exits": 2,
+      "orders_submitted": 2,
+      "fills": 2,
+      "gate_rejections": 36
+    },
+    "RELIANCE": {
+      "exits": 10,
+      "orders_submitted": 10,
+      "fills": 10,
+      "gate_rejections": 41
+    },
+    "SBILIFE": {
+      "exits": 10,
+      "orders_submitted": 10,
+      "fills": 10,
+      "gate_rejections": 40
+    },
+    "SBIN": {
+      "exits": 10,
+      "orders_submitted": 10,
+      "fills": 10,
+      "gate_rejections": 28
+    },
+    "SHRIRAMFIN": {
+      "exits": 23,
+      "orders_submitted": 23,
+      "fills": 23,
+      "gate_rejections": 26
+    },
+    "SUNPHARMA": {
+      "exits": 8,
+      "orders_submitted": 8,
+      "fills": 8,
+      "gate_rejections": 35
+    },
+    "TATACONSUM": {
+      "exits": 2,
+      "orders_submitted": 2,
+      "fills": 2,
+      "gate_rejections": 40
+    },
+    "TATASTEEL": {
+      "exits": 25,
+      "orders_submitted": 25,
+      "fills": 25,
+      "gate_rejections": 34
+    },
+    "TCS": {
+      "exits": 25,
+      "orders_submitted": 25,
+      "fills": 25,
+      "gate_rejections": 38
+    },
+    "TECHM": {
+      "exits": 2,
+      "orders_submitted": 2,
+      "fills": 2,
+      "gate_rejections": 56
+    },
+    "TITAN": {
+      "exits": 7,
+      "orders_submitted": 7,
+      "fills": 7,
+      "gate_rejections": 40
+    },
+    "TRENT": {
+      "exits": 2,
+      "orders_submitted": 2,
+      "fills": 2,
+      "gate_rejections": 23
+    },
+    "ULTRACEMCO": {},
+    "WIPRO": {
+      "exits": 12,
+      "orders_submitted": 12,
+      "fills": 12,
+      "gate_rejections": 43
+    }
+  },
+  "rejection_breakdown": {
+    "Gate12StrategySignals": 1558,
+    "Order rejected": 7
+  },
+  "financials": {
+    "starting_equity": 100000.0,
+    "ending_equity": 98082.1041082768,
+    "realized_pnl": -1917.895891723112,
+    "total_costs": 1918.6843541187454
+  },
+  "daily_pnl_series": {
+    "2024-08-01": -290.5090024152244,
+    "2024-08-02": 52.72168604770661,
+    "2024-08-05": 267.7466500968555,
+    "2024-08-06": -103.60967968268513,
+    "2024-08-07": -555.1856948110985,
+    "2024-08-08": -116.23341901884784,
+    "2024-08-09": -381.00163382287076,
+    "2024-08-12": -441.61538862557376,
+    "2024-08-13": 64.04288123191078,
+    "2024-08-14": -205.3810918385996,
+    "2024-08-16": -238.59582342051436,
+    "2024-08-19": 29.72462453583017
+  },
+  "reconciliation": {
+    "pending_orders": 0,
+    "reserved_cash": 0.0,
+    "open_positions": 0,
+    "daily_pnl_matches_realized": true,
+    "exact": true
+  },
+  "gate16_remediation": {
+    "audit_log_path": "diagnostic_output/portfolio-48-20240801-ea61559b37db-42b2330c4380_gate16_audit.jsonl",
+    "violations": [
+      {
+        "violation_id": "32c2c3a6-fa2f-416d-ab87-7da2fa6c6eab",
+        "run_id": "portfolio-48-20240801-ea61559b37db-42b2330c4380",
+        "dataset_hash": "d7d391794f426204a1e3bb9a4dc6e8e872b341f6a1f61508d5f291ba60a7c7db",
+        "config_hash": "ea61559b37db7b7de20a78802831fcef0f52a5fb8285c04a05c3aa6f84d6a1b1",
+        "timestamp_detected": "2024-08-19 03:46:00+00:00",
+        "order_id": "4125_MAXHEALTH",
+        "fill_id": "7a673378-1683-454d-bec5-d3cf6d9261b6",
+        "symbol": "MAXHEALTH",
+        "measured_slippage_pct": 0.21031091911555994,
+        "tolerance_pct": 0.15,
+        "prior_hash": "GENESIS",
+        "record_hash": "cda87e1a61da729b4550c371a27878b39dbce0c1e43b6da9b45fb7c9768cadd2",
+        "signature_status": "UNSIGNED"
+      }
+    ],
+    "audit_chain_valid": true,
+    "persisted_audit_chain_valid": true
+  }
+}

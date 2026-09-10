@@ -1,28 +1,111 @@
 {
-  "timestamp": "2026-09-08T14:30:15.905190",
+  "timestamp": "2026-09-08T14:45:28.580327",
   "symbol": "SUNPHARMA",
   "period": "2024-08-01 to 2024-08-31",
   "status": "REMEDIATION_REQUIRED",
   "gate16_remediation": {
-    "audit_log_path": "diagnostic_output/sunpharma-202408-34cd884062ec_gate16_audit.jsonl",
+    "audit_log_path": "diagnostic_output/sunpharma-202408-34cd884062ec-a6f3e97612bc_gate16_audit.jsonl",
     "violations": [
       {
-        "violation_id": "588436da-aecb-4305-bd37-94e69bf2bc20",
-        "run_id": "sunpharma-202408-34cd884062ec",
+        "violation_id": "5fa00109-2412-4003-ac39-de4872f5d8dd",
+        "run_id": "sunpharma-202408-34cd884062ec-a6f3e97612bc",
         "dataset_hash": "d7d391794f426204a1e3bb9a4dc6e8e872b341f6a1f61508d5f291ba60a7c7db",
         "config_hash": "34cd884062ecc2698de293d232315bfdd00295980ca437fda64993855d674f45",
         "timestamp_detected": "2024-08-02 03:46:00+00:00",
         "order_id": "375_SUNPHARMA",
-        "fill_id": "95875d9f-e9be-41b0-8c95-26d7102eab8d",
+        "fill_id": "6f951ed2-2ddc-4545-b3d4-4098e55f8149",
         "symbol": "SUNPHARMA",
         "measured_slippage_pct": 0.10350436196954013,
         "tolerance_pct": 0.1,
         "prior_hash": "GENESIS",
-        "record_hash": "147df618fc5098cc9232e51ad53752f8307362a86cc4b87731dad14dbad47554",
+        "record_hash": "dbaeb5b146726a43d8c49d3b5a617e46b0e169038cbadbf972e0dd71937094c9",
         "signature_status": "UNSIGNED"
       }
     ],
     "audit_chain_valid": true,
+    "persisted_audit_chain_valid": true,
+    "audit_events": [
+      {
+        "event_id": "5fa00109-2412-4003-ac39-de4872f5d8dd",
+        "run_id": "sunpharma-202408-34cd884062ec-a6f3e97612bc",
+        "dataset_hash": "d7d391794f426204a1e3bb9a4dc6e8e872b341f6a1f61508d5f291ba60a7c7db",
+        "config_hash": "34cd884062ecc2698de293d232315bfdd00295980ca437fda64993855d674f45",
+        "timestamp": "2024-08-02 03:46:00+00:00",
+        "event_type": "GATE16_VIOLATION",
+        "payload": {
+          "order_id": "375_SUNPHARMA",
+          "fill_id": "6f951ed2-2ddc-4545-b3d4-4098e55f8149",
+          "symbol": "SUNPHARMA",
+          "measured_slippage_pct": 0.10350436196954013,
+          "tolerance_pct": 0.1
+        },
+        "prior_hash": "GENESIS",
+        "record_hash": "dbaeb5b146726a43d8c49d3b5a617e46b0e169038cbadbf972e0dd71937094c9",
+        "signature_status": "UNSIGNED"
+      },
+      {
+        "event_id": "1f517ceb-4a7c-4162-817a-5ddeab366e76",
+        "run_id": "sunpharma-202408-34cd884062ec-a6f3e97612bc",
+        "dataset_hash": "d7d391794f426204a1e3bb9a4dc6e8e872b341f6a1f61508d5f291ba60a7c7db",
+        "config_hash": "34cd884062ecc2698de293d232315bfdd00295980ca437fda64993855d674f45",
+        "timestamp": "2024-08-02 03:46:00+00:00",
+        "event_type": "QUARANTINE_ACTIVATED",
+        "payload": {
+          "trigger_violation_id": "5fa00109-2412-4003-ac39-de4872f5d8dd",
+          "breach_count": 1,
+          "entry_authorization_enabled": false
+        },
+        "prior_hash": "dbaeb5b146726a43d8c49d3b5a617e46b0e169038cbadbf972e0dd71937094c9",
+        "record_hash": "f8f5c703cba39bb21d87863327fb64ef1c9be18d353e7b538d53543ff6809558",
+        "signature_status": "UNSIGNED"
+      },
+      {
+        "event_id": "a13f8ef4-9fa0-47cb-a588-2407acc5d709",
+        "run_id": "sunpharma-202408-34cd884062ec-a6f3e97612bc",
+        "dataset_hash": "d7d391794f426204a1e3bb9a4dc6e8e872b341f6a1f61508d5f291ba60a7c7db",
+        "config_hash": "34cd884062ecc2698de293d232315bfdd00295980ca437fda64993855d674f45",
+        "timestamp": "2024-08-02 03:47:00+00:00",
+        "event_type": "ADVERSE_FLATTEN",
+        "payload": {
+          "exit_id": "gate16_flatten_SUNPHARMA_377",
+          "position_fill_id": "6f951ed2-2ddc-4545-b3d4-4098e55f8149",
+          "symbol": "SUNPHARMA",
+          "direction": -1,
+          "next_bar_open_reference": 1700.15,
+          "adverse_factor": 1.001,
+          "flatten_price": 1701.85015,
+          "exit_cost": 1.1385377503499998,
+          "net_pnl": -28.81327875034997
+        },
+        "prior_hash": "f8f5c703cba39bb21d87863327fb64ef1c9be18d353e7b538d53543ff6809558",
+        "record_hash": "064958724e6b368ecc75b686bc78ec802952cd2be92da8b32c13eac9252a6430",
+        "signature_status": "UNSIGNED"
+      },
+      {
+        "event_id": "da00700c-fa49-4ae6-bf6c-8b10c5f07056",
+        "run_id": "sunpharma-202408-34cd884062ec-a6f3e97612bc",
+        "dataset_hash": "d7d391794f426204a1e3bb9a4dc6e8e872b341f6a1f61508d5f291ba60a7c7db",
+        "config_hash": "34cd884062ecc2698de293d232315bfdd00295980ca437fda64993855d674f45",
+        "timestamp": "2024-08-30 09:59:00+00:00",
+        "event_type": "RECONCILIATION_RESULT",
+        "payload": {
+          "exact": true,
+          "pending_orders": 0,
+          "reserved_cash": 0.0,
+          "open_positions": 0,
+          "realized_pnl": -78.84667052500161,
+          "daily_pnl": {
+            "2024-08-01": -76.38541060680237,
+            "2024-08-02": -2.4612599181992465
+          },
+          "daily_pnl_total": -78.84667052500161,
+          "daily_pnl_matches_realized": true
+        },
+        "prior_hash": "064958724e6b368ecc75b686bc78ec802952cd2be92da8b32c13eac9252a6430",
+        "record_hash": "59e45284fc4541be3f4518accb015c627d27607609d7886da7cad44878379e0e",
+        "signature_status": "UNSIGNED"
+      }
+    ],
     "quarantine_mode": true,
     "trading_halted": false
   },
@@ -53,6 +136,7 @@
     "pending_orders": 0,
     "reserved_cash": 0.0,
     "open_positions": 0,
+    "daily_pnl_matches_realized": true,
     "exact": true
   },
   "ledger_identity": {

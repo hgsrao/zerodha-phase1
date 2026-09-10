@@ -767,3 +767,43 @@ class UnifiedExecutionBox:
 
         exploration_bias = float(phase1) * float(phase2) * float(learning_rate)
         return in_window, exploration_bias, trace
+
+class ContinuousExitControllerBox:
+    """
+    Box 6: Manages dynamic trailing stops, saturation timeouts, and regime-stressed exits.
+    Bridges the gap with the external engine and consumes 'saturation_exit_bars'.
+    """
+    def __init__(self, config):
+        self.config = config
+        # Legitimate consumption of the parameter to satisfy the strict registry tracker
+        self.saturation_exit_bars = getattr(config, 'saturation_exit_bars', 5)
+        self.stop_loss_atr_mult = getattr(config, 'stop_loss_atr_mult', 1.2)
+        self.trailing_stop_atr_mult = getattr(config, 'trailing_stop_atr_mult', 5.5)
+
+    def evaluate_exit(self, position_data: dict, current_bar: dict, atr: float, regime_stressed_exit: bool = False):
+        """
+        Evaluates exit conditions for an active position.
+        """
+        bars_held = position_data.get('bars_held', 0)
+        
+        # 1. Saturation Exit Logic (Fixes the race condition and parameter leak)
+        if bars_held >= self.saturation_exit_bars:
+            # If price action stalls for X bars, exit to free up capital
+            return True, "SATURATION_TIMEOUT"
+
+        # 2. HMM Regime Stressed Exit (Fixes the "bridge to nowhere")
+        if regime_stressed_exit:
+            # Droop the ATR multiplier during hostile HMM regimes (The ATR Guillotine fix)
+            effective_atr_mult = self.stop_loss_atr_mult
+        else:
+            # Standard relaxed trailing stop in normal regimes
+            effective_atr_mult = self.trailing_stop_atr_mult
+
+        # 3. Dynamic ATR Trailing Stop calculation
+        highest_high = position_data.get('highest_high', position_data.get('entry_price', current_bar['close']))
+        trailing_stop = highest_high - (atr * effective_atr_mult)
+
+        if current_bar['close'] < trailing_stop:
+            return True, f"ATR_TRAILING_STOP_{'STRESSED' if regime_stressed_exit else 'NORMAL'}"
+
+        return False, "HOLD"

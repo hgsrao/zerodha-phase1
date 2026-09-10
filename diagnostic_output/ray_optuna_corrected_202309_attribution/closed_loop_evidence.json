@@ -1,0 +1,267 @@
+{
+  "method": "decision-bar features only; no future prices used as inputs",
+  "joined_trade_count": 328,
+  "source_trade_count": 345,
+  "feature_rows_path": "diagnostic_output/ray_optuna_corrected_202309_attribution/closed_loop_feature_rows.csv",
+  "limitations": [
+    "prior ledger does not preserve per-trade PID adjustments",
+    "prior ledger does not preserve Grid Sync or Nifty state",
+    "features are descriptive evidence, not an approved control rule"
+  ],
+  "by_finalist": {
+    "1": {
+      "by_exit_reason": [
+        {
+          "exit_reason": "EOD_FLATTENING",
+          "trades": 17,
+          "net_pnl": -25.29629,
+          "median_hold_minutes": 15.0,
+          "median_range_atr": 1.121693,
+          "median_volume_ratio": 1.133432,
+          "median_signed_move5_atr": 0.102041,
+          "median_signed_vwap_gap_atr": 5.905366
+        },
+        {
+          "exit_reason": "STOP_HIT",
+          "trades": 68,
+          "net_pnl": -1200.479061,
+          "median_hold_minutes": 18.0,
+          "median_range_atr": 1.099773,
+          "median_volume_ratio": 0.927628,
+          "median_signed_move5_atr": 1.024364,
+          "median_signed_vwap_gap_atr": 1.589583
+        },
+        {
+          "exit_reason": "TARGET_HIT",
+          "trades": 18,
+          "net_pnl": 623.874384,
+          "median_hold_minutes": 17.0,
+          "median_range_atr": 1.246377,
+          "median_volume_ratio": 1.272546,
+          "median_signed_move5_atr": 1.772669,
+          "median_signed_vwap_gap_atr": 3.937186
+        },
+        {
+          "exit_reason": "TIME_EXIT",
+          "trades": 78,
+          "net_pnl": 139.769818,
+          "median_hold_minutes": 60.0,
+          "median_range_atr": 1.106014,
+          "median_volume_ratio": 0.972241,
+          "median_signed_move5_atr": 1.068504,
+          "median_signed_vwap_gap_atr": 3.415208
+        }
+      ],
+      "by_entry_hour_ist": [
+        {
+          "entry_hour_ist": 9,
+          "trades": 39,
+          "net_pnl": -221.674835,
+          "median_hold_minutes": 20.0,
+          "median_range_atr": 1.272727,
+          "median_volume_ratio": 0.864424,
+          "median_signed_move5_atr": 1.421108,
+          "median_signed_vwap_gap_atr": 0.657127
+        },
+        {
+          "entry_hour_ist": 10,
+          "trades": 29,
+          "net_pnl": -171.035636,
+          "median_hold_minutes": 43.0,
+          "median_range_atr": 1.185185,
+          "median_volume_ratio": 0.943805,
+          "median_signed_move5_atr": 1.24283,
+          "median_signed_vwap_gap_atr": 3.072788
+        },
+        {
+          "entry_hour_ist": 11,
+          "trades": 25,
+          "net_pnl": 90.906094,
+          "median_hold_minutes": 60.0,
+          "median_range_atr": 1.203351,
+          "median_volume_ratio": 0.98033,
+          "median_signed_move5_atr": 1.090909,
+          "median_signed_vwap_gap_atr": 3.443721
+        },
+        {
+          "entry_hour_ist": 12,
+          "trades": 25,
+          "net_pnl": 65.719605,
+          "median_hold_minutes": 60.0,
+          "median_range_atr": 1.055635,
+          "median_volume_ratio": 0.676828,
+          "median_signed_move5_atr": 0.512821,
+          "median_signed_vwap_gap_atr": 6.113024
+        },
+        {
+          "entry_hour_ist": 13,
+          "trades": 25,
+          "net_pnl": -92.725489,
+          "median_hold_minutes": 60.0,
+          "median_range_atr": 1.100917,
+          "median_volume_ratio": 1.158097,
+          "median_signed_move5_atr": 1.61435,
+          "median_signed_vwap_gap_atr": 6.931392
+        },
+        {
+          "entry_hour_ist": 14,
+          "trades": 24,
+          "net_pnl": -87.48287,
+          "median_hold_minutes": 43.5,
+          "median_range_atr": 1.135832,
+          "median_volume_ratio": 1.341405,
+          "median_signed_move5_atr": 1.072867,
+          "median_signed_vwap_gap_atr": 5.525378
+        },
+        {
+          "entry_hour_ist": 15,
+          "trades": 14,
+          "net_pnl": -45.83802,
+          "median_hold_minutes": 7.5,
+          "median_range_atr": 0.873085,
+          "median_volume_ratio": 1.025647,
+          "median_signed_move5_atr": 0.05102,
+          "median_signed_vwap_gap_atr": 7.482763
+        }
+      ]
+    },
+    "2": {
+      "by_exit_reason": [
+        {
+          "exit_reason": "EOD_FLATTENING",
+          "trades": 19,
+          "net_pnl": -19.092912,
+          "median_hold_minutes": 30.0,
+          "median_range_atr": 1.428571,
+          "median_volume_ratio": 1.468109,
+          "median_signed_move5_atr": 1.41136,
+          "median_signed_vwap_gap_atr": 6.599703
+        },
+        {
+          "exit_reason": "STOP_HIT",
+          "trades": 28,
+          "net_pnl": -722.161804,
+          "median_hold_minutes": 23.0,
+          "median_range_atr": 1.33357,
+          "median_volume_ratio": 1.266271,
+          "median_signed_move5_atr": 2.20685,
+          "median_signed_vwap_gap_atr": 2.787661
+        },
+        {
+          "exit_reason": "TARGET_HIT",
+          "trades": 9,
+          "net_pnl": 437.381794,
+          "median_hold_minutes": 30.0,
+          "median_range_atr": 1.6,
+          "median_volume_ratio": 1.744036,
+          "median_signed_move5_atr": 2.413793,
+          "median_signed_vwap_gap_atr": 3.844408
+        },
+        {
+          "exit_reason": "TIME_EXIT",
+          "trades": 91,
+          "net_pnl": -0.820463,
+          "median_hold_minutes": 60.0,
+          "median_range_atr": 0.942408,
+          "median_volume_ratio": 0.651241,
+          "median_signed_move5_atr": 0.744186,
+          "median_signed_vwap_gap_atr": 2.589942
+        }
+      ],
+      "by_entry_hour_ist": [
+        {
+          "entry_hour_ist": 9,
+          "trades": 29,
+          "net_pnl": -158.464939,
+          "median_hold_minutes": 60.0,
+          "median_range_atr": 1.272727,
+          "median_volume_ratio": 0.624771,
+          "median_signed_move5_atr": 2.411101,
+          "median_signed_vwap_gap_atr": 0.148053
+        },
+        {
+          "entry_hour_ist": 10,
+          "trades": 22,
+          "net_pnl": -78.659215,
+          "median_hold_minutes": 60.0,
+          "median_range_atr": 0.756614,
+          "median_volume_ratio": 0.636268,
+          "median_signed_move5_atr": 0.46612,
+          "median_signed_vwap_gap_atr": 2.795917
+        },
+        {
+          "entry_hour_ist": 11,
+          "trades": 22,
+          "net_pnl": 20.022254,
+          "median_hold_minutes": 60.0,
+          "median_range_atr": 1.0553,
+          "median_volume_ratio": 0.832889,
+          "median_signed_move5_atr": 0.87747,
+          "median_signed_vwap_gap_atr": 4.75389
+        },
+        {
+          "entry_hour_ist": 12,
+          "trades": 24,
+          "net_pnl": -49.341119,
+          "median_hold_minutes": 60.0,
+          "median_range_atr": 1.148601,
+          "median_volume_ratio": 1.044082,
+          "median_signed_move5_atr": 1.133871,
+          "median_signed_vwap_gap_atr": 5.036358
+        },
+        {
+          "entry_hour_ist": 13,
+          "trades": 19,
+          "net_pnl": -46.144173,
+          "median_hold_minutes": 60.0,
+          "median_range_atr": 1.284404,
+          "median_volume_ratio": 1.220544,
+          "median_signed_move5_atr": 1.391304,
+          "median_signed_vwap_gap_atr": 3.43044
+        },
+        {
+          "entry_hour_ist": 14,
+          "trades": 22,
+          "net_pnl": 42.895401,
+          "median_hold_minutes": 47.0,
+          "median_range_atr": 1.432161,
+          "median_volume_ratio": 1.717475,
+          "median_signed_move5_atr": 1.430822,
+          "median_signed_vwap_gap_atr": 6.382914
+        },
+        {
+          "entry_hour_ist": 15,
+          "trades": 9,
+          "net_pnl": -35.001596,
+          "median_hold_minutes": 3.0,
+          "median_range_atr": 0.966543,
+          "median_volume_ratio": 1.091762,
+          "median_signed_move5_atr": 1.189591,
+          "median_signed_vwap_gap_atr": 6.599703
+        }
+      ]
+    }
+  },
+  "stop_vs_target_combined": [
+    {
+      "exit_reason": "STOP_HIT",
+      "trades": 96,
+      "net_pnl": -1922.640866,
+      "median_hold_minutes": 18.5,
+      "median_range_atr": 1.173807,
+      "median_volume_ratio": 1.03589,
+      "median_signed_move5_atr": 1.431882,
+      "median_signed_vwap_gap_atr": 2.300589
+    },
+    {
+      "exit_reason": "TARGET_HIT",
+      "trades": 27,
+      "net_pnl": 1061.256177,
+      "median_hold_minutes": 20.0,
+      "median_range_atr": 1.584158,
+      "median_volume_ratio": 1.517454,
+      "median_signed_move5_atr": 2.238806,
+      "median_signed_vwap_gap_atr": 3.844408
+    }
+  ]
+}

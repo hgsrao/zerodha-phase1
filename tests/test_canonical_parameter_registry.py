@@ -27,7 +27,7 @@ def test_revision_2_manifest_surface_contract_is_exact():
 def test_registry_identity_is_frozen_and_matches_contract():
     registry = CanonicalParameterRegistry()
 
-    assert registry.CONTRACT_ID == "ECS_REVISION_2_PARAMETER_SURFACE_V2"
+    assert registry.CONTRACT_ID == "ECS_REVISION_2_PARAMETER_SURFACE_V3"
     assert registry.FROZEN_IDENTITY_SHA256 == (
         "7712e701c73cb8ec04baabaf77baa73d8a9ada6337792d4212ed0840d931ba19"
     )

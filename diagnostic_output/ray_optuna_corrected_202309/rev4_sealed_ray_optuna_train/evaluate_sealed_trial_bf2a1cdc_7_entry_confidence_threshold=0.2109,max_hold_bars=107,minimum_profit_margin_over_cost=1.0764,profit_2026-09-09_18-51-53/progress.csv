@@ -1,0 +1,2 @@
+score,eligible,net_pnl,completed_trades,status,reconciliation_exact,all_trades_same_session,ten_box_paths_complete,timestamp,checkpoint_dir_name,done,training_iteration,trial_id,date,time_this_iter_s,time_total_s,pid,hostname,node_ip,time_since_restore,iterations_since_restore
+-4385.230072621105,True,-4385.230072621105,1193,PASSED,True,True,True,1788961368,,False,1,bf2a1cdc,2026-09-09_19-12-48,1252.5154185295105,1252.5154185295105,322832,shrinivas-Blade,10.37.160.47,1252.5154185295105,1
