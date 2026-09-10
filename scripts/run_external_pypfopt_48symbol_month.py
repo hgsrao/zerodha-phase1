@@ -91,10 +91,12 @@ def main() -> None:
     args = parser.parse_args()
 
     manifest = DatasetManifest.load(str(MANIFEST_PATH))
+    print("[VERIFY] Re-hashing manifest-declared data files...", flush=True)
     verification = verify_manifest(manifest)
     if not verification.valid:
         raise RuntimeError(f"manifest verification failed: {verification.message}")
 
+    print(f"[LOAD] Loading one month from {args.start}...", flush=True)
     bars = _month_bars(manifest, args.start)
     if len(bars) < 2:
         raise RuntimeError("fewer than two symbols have data in the requested month")
@@ -103,7 +105,12 @@ def main() -> None:
     orchestrator = Revision2ExternalEngineOrchestrator(
         sorted(bars), registry, starting_equity=1_000_000.0,
     )
+    print(
+        f"[RUN] Chronological shared-portfolio replay: {len(bars)} symbols, "
+        f"{sum(len(frame) for frame in bars.values()):,} bars", flush=True,
+    )
     report = orchestrator.run(bars, warmup=60)
+    print("[REPORT] Computing sizing and risk-geometry summary...", flush=True)
     sizing = _sizing_summary(report)
     if not sizing["risk_geometry_intact"]:
         raise RuntimeError("risk derater exceeded the ATR base risk budget")
