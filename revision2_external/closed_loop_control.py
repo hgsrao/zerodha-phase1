@@ -13,6 +13,7 @@ before any actuator is permitted to consume them.
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List
 
@@ -38,9 +39,20 @@ class TradeReferencePath:
     target_r: float
     max_hold_bars: int
     curve_gamma: float = 1.0
+    response_time_bars: float = 20.0
 
     def progress(self, bars_held: int) -> float:
-        return _clip(float(bars_held) / max(1, self.max_hold_bars), 0.0, 1.0)
+        """Causal first-order response curve normalized at max hold.
+
+        ``response_time_bars`` is the market analogue of a plant time
+        constant. A small value expects a fast move; a large value gives a
+        slower symbol more time. It is frozen into the path at entry.
+        """
+        tau = max(float(self.response_time_bars), 1e-6)
+        held = _clip(float(bars_held), 0.0, float(self.max_hold_bars))
+        numerator = 1.0 - math.exp(-held / tau)
+        denominator = 1.0 - math.exp(-float(self.max_hold_bars) / tau)
+        return _clip(numerator / max(denominator, 1e-12), 0.0, 1.0) ** self.curve_gamma
 
     def expected_r(self, bars_held: int) -> float:
         return self.target_r * self.progress(bars_held) ** self.curve_gamma
@@ -119,15 +131,71 @@ class CausalOutcomeLedger:
         }
 
 
+class SymbolDynamicsProfiler:
+    """Estimate a causal response time and damping from already-closed bars.
+
+    The response time is an effective, bounded half-life of deviations from
+    a causal EMA. It is not a claim that a stock is a mechanical oscillator;
+    it is a transparent first-order approximation used to shape a reference
+    path. The profile is frozen on entry and never recalculated from a
+    position's future bars.
+    """
+
+    def __init__(self, lookback_bars: int = 60, ema_span: int = 20) -> None:
+        self.lookback_bars = max(20, int(lookback_bars))
+        self.ema_span = max(2, int(ema_span))
+
+    def estimate(self, bars: Any) -> Dict[str, Any]:
+        closes = [float(value) for value in list(bars["close"])[-self.lookback_bars:]]
+        if len(closes) < 3:
+            return {
+                "sample_bars": len(closes), "response_time_bars": 20.0,
+                "deviation_persistence": None, "directional_efficiency": 0.0,
+                "damping_ratio": 1.0, "suggested_pid_gain_scale": 1.0,
+            }
+        alpha = 2.0 / (self.ema_span + 1.0)
+        ema = closes[0]
+        deviations: List[float] = []
+        for close in closes:
+            ema = alpha * close + (1.0 - alpha) * ema
+            deviations.append(close - ema)
+        previous, current = deviations[:-1], deviations[1:]
+        denominator = sum(value * value for value in previous)
+        persistence = sum(a * b for a, b in zip(previous, current)) / denominator if denominator > 1e-12 else 0.5
+        # A stable, finite half-life requires 0 < phi < 1. Out-of-range
+        # samples fall back to the closest defensible bounded response.
+        bounded_phi = _clip(persistence, 0.05, 0.99)
+        base_response_time = _clip(math.log(0.5) / math.log(bounded_phi), 5.0, 45.0)
+        absolute_path = sum(abs(b - a) for a, b in zip(closes[:-1], closes[1:]))
+        efficiency = abs(closes[-1] - closes[0]) / absolute_path if absolute_path > 1e-12 else 0.0
+        damping = _clip(1.0 - efficiency, 0.0, 1.0)
+        # A choppy path (high damping) needs MORE, not less, time before a
+        # trajectory breach becomes meaningful. Without this correction a
+        # mean-reverting/noisy symbol can be assigned the minimum half-life
+        # and be force-exited precisely because it is noisy.
+        response_time = _clip(base_response_time * (1.0 + 2.0 * damping), 5.0, 45.0)
+        # Recorded for future PID gain scheduling research. It is not yet
+        # fed into the PID gains, avoiding unvalidated mid-trade retuning.
+        gain_scale = _clip(20.0 / response_time, 0.5, 1.5)
+        return {
+            "sample_bars": len(closes), "base_response_time_bars": base_response_time,
+            "response_time_bars": response_time,
+            "deviation_persistence": persistence, "directional_efficiency": efficiency,
+            "damping_ratio": damping, "suggested_pid_gain_scale": gain_scale,
+        }
+
+
 class ClosedLoopSupervisor:
     """Owns the three causal loop calculations, not trade execution."""
 
     def __init__(self) -> None:
         self.outcomes = CausalOutcomeLedger()
+        self.dynamics_profiler = SymbolDynamicsProfiler()
 
     def entry_snapshot(
         self, symbol: str, side: str, entry_price: float, stop_price: float,
         target_price: float, max_hold_bars: int, regime: str = "unknown",
+        dynamics: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         risk = abs(float(entry_price) - float(stop_price))
         if risk <= 0.0:
@@ -136,11 +204,13 @@ class ClosedLoopSupervisor:
         path = TradeReferencePath(
             symbol=symbol, side=side, entry_price=float(entry_price), initial_risk=risk,
             target_r=target_r, max_hold_bars=max(1, int(max_hold_bars)),
+            response_time_bars=float((dynamics or {}).get("response_time_bars", 20.0)),
         )
         return {
             "regime": regime,
             "reference_path": path.to_dict(),
             "entry_quality": self.outcomes.profile(symbol, side, regime),
+            "symbol_dynamics": dict(dynamics or {}),
         }
 
     @staticmethod

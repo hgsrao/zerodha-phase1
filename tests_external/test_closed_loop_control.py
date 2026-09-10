@@ -1,4 +1,6 @@
-from revision2_external.closed_loop_control import ClosedLoopSupervisor
+import pandas as pd
+
+from revision2_external.closed_loop_control import ClosedLoopSupervisor, SymbolDynamicsProfiler, TradeReferencePath
 from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
 
 
@@ -57,3 +59,26 @@ def test_orchestrator_only_allows_explicit_closed_loop_modes():
         assert "closed_loop_mode" in str(exc)
     else:
         raise AssertionError("invalid closed-loop mode was accepted")
+
+
+def test_symbol_response_time_changes_path_speed_without_future_bars():
+    fast = TradeReferencePath("FAST", "BUY", 100.0, 2.0, 1.5, 60, response_time_bars=5.0)
+    slow = TradeReferencePath("SLOW", "BUY", 100.0, 2.0, 1.5, 60, response_time_bars=35.0)
+    assert fast.expected_r(10) > slow.expected_r(10)
+
+    closes = pd.DataFrame({"close": [100 + 0.1 * i + (-0.2 if i % 3 == 0 else 0.0) for i in range(80)]})
+    profile = SymbolDynamicsProfiler().estimate(closes)
+    assert profile["sample_bars"] == 60
+    assert 5.0 <= profile["response_time_bars"] <= 45.0
+    assert 0.0 <= profile["damping_ratio"] <= 1.0
+    assert 0.5 <= profile["suggested_pid_gain_scale"] <= 1.5
+
+
+def test_high_damping_slows_not_accelerates_response_time():
+    directional = pd.DataFrame({"close": [100.0 + i for i in range(80)]})
+    choppy = pd.DataFrame({"close": [100.0 + (1 if i % 2 else -1) + 0.02 * i for i in range(80)]})
+    profiler = SymbolDynamicsProfiler()
+    clean = profiler.estimate(directional)
+    noisy = profiler.estimate(choppy)
+    assert noisy["damping_ratio"] > clean["damping_ratio"]
+    assert noisy["response_time_bars"] >= noisy["base_response_time_bars"]

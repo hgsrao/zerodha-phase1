@@ -885,10 +885,14 @@ class Revision2ExternalEngineOrchestrator:
                 if fill["passed"]:
                     funnel["fills"] += 1
                     self._trade_sequence += 1
+                    # Causal plant/dynamics estimate: this slice ends at
+                    # the decision bar. It cannot see the fill bar or any
+                    # subsequent held-position price action.
+                    symbol_dynamics = self.closed_loop.dynamics_profiler.estimate(bars.iloc[:bar_idx + 1])
                     closed_loop_snapshot = self.closed_loop.entry_snapshot(
                         symbol=symbol, side=plan.side, entry_price=float(fill["filled_price"]),
                         stop_price=float(plan.stop_price), target_price=float(plan.target_price),
-                        max_hold_bars=int(plan.maximum_hold_bars), regime="unknown",
+                        max_hold_bars=int(plan.maximum_hold_bars), regime="unknown", dynamics=symbol_dynamics,
                     )
                     self._record_controller_event("CLOSED_LOOP_ENTRY_SNAPSHOT", next_ts, symbol, {
                         "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
