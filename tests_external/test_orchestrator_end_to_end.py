@@ -38,6 +38,10 @@ def test_full_engine_runs_on_real_data_and_produces_real_trades():
     assert summary["entry_throttle_updates"] == report["mpc_plans"]
     assert summary["outcomes"] == report["completed_trades"]
     assert any(row["event_type"] == "EXIT_PROTECTION_UPDATE" for row in telemetry)
+    exit_updates = [row for row in telemetry if row["event_type"] == "EXIT_PROTECTION_UPDATE"]
+    assert {"baseline_window_bars", "entry_atr", "atr_drift_fraction", "study_weights",
+            "study_hit_rates", "study_votes", "study_weights_clamped", "binding_constraints"} <= set(exit_updates[0])
+    assert set(exit_updates[0]["study_weights"]) == {"ichimoku", "bollinger", "stochastic", "session_vwap"}
     assert all("trade_id" in trade and "candidate_id" in trade for trade in report["trades"])
     entry_events = [row for row in telemetry if row["event_type"] == "ENTRY_CONFIDENCE_THROTTLE"]
     assert entry_events
@@ -158,8 +162,22 @@ def test_regime_stressed_exit_fires_once_minimum_hold_is_met():
     # flat, healthy 0.6 throughout -- this test is isolated to the
     # regime-exit path, not the (separately tested) chart-studies track.
     orch._maybe_exit("INFY", "2024-01-02 09:21", bar, signal, held_bars=1, session_last_bar=False,
-                      chart_studies_confidence=0.6)
+                      chart_studies_confidence=0.6,
+                      chart_studies_audit={
+                          "weights": {"ichimoku": 0.25, "bollinger": 0.25,
+                                      "stochastic": 0.25, "session_vwap": 0.25},
+                          "hit_rates": {"ichimoku": 0.6, "bollinger": 0.5,
+                                        "stochastic": 0.5, "session_vwap": 0.4},
+                          "votes": {"ichimoku": 1, "bollinger": 1,
+                                    "stochastic": 0, "session_vwap": -1},
+                      })
     assert "INFY" in orch.open_trades, "exited before minimum_hold_bars was satisfied"
+    update = next(row for row in orch.controller_telemetry if row["event_type"] == "EXIT_PROTECTION_UPDATE")
+    assert update["baseline_window_bars"] == orch.exit_controller.baseline_window
+    assert update["study_weights"]["ichimoku"] == 0.25
+    assert update["study_hit_rates"]["session_vwap"] == 0.4
+    assert update["study_votes"]["stochastic"] == 0
+    assert update["study_weights_clamped"] is False
 
     # held_bars=2: minimum_hold_bars satisfied, regime still stressed -- must exit now.
     orch._maybe_exit("INFY", "2024-01-02 09:22", bar, signal, held_bars=2, session_last_bar=False,

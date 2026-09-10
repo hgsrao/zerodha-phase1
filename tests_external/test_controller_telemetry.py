@@ -40,4 +40,9 @@ def test_exit_controller_telemetry_captures_monotonic_stop_action():
     telemetry = state.last_telemetry
     assert telemetry["stop_after"] >= telemetry["stop_before"]
     assert telemetry["bars_held"] == 1
-    assert {"pa_setpoint", "pa_measurement", "studies_setpoint", "studies_measurement", "combined_tightness"} <= set(telemetry)
+    assert {"pa_setpoint", "pa_measurement", "studies_setpoint", "studies_measurement",
+            "pa_tightness", "studies_tightness", "time_tightness", "combined_tightness",
+            "binding_constraints"} <= set(telemetry)
+    # On the first healthy update both confidence tracks remain at 1.0,
+    # while the time curve is already slightly tighter.
+    assert telemetry["binding_constraints"] == ["time"]

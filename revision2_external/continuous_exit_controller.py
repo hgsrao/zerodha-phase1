@@ -393,6 +393,20 @@ class ContinuousExitController:
         # either confidence source fading fast still tightens quickly
         # regardless of what the other or time is doing.
         combined_tightness = min(confidence_tightness, studies_tightness, time_tightness)
+        # This is deliberately computed from the *tightness terms*, which
+        # are the actual inputs to the min() control law above.  Reporting a
+        # raw PID output as the binding constraint would be misleading: a
+        # larger absolute output maps to a smaller tightness.  Preserve ties
+        # rather than inventing a single winner when two loops agree.
+        tightness_terms = {
+            "pa": confidence_tightness,
+            "studies": studies_tightness,
+            "time": time_tightness,
+        }
+        binding_constraints = sorted(
+            name for name, value in tightness_terms.items()
+            if abs(value - combined_tightness) <= 1e-12
+        )
 
         # Droop: current ATR, not the frozen entry-time distance -- see
         # module docstring's "Droop" section.
@@ -418,7 +432,10 @@ class ContinuousExitController:
             "studies_p": float(studies_p), "studies_i": float(studies_i), "studies_d": float(studies_d),
             "studies_output": float(studies_adjustment),
             "studies_clamped": bool(abs(studies_adjustment) >= self.clamp - 1e-12),
+            "pa_tightness": float(confidence_tightness),
+            "studies_tightness": float(studies_tightness),
             "time_tightness": float(time_tightness), "combined_tightness": float(combined_tightness),
+            "binding_constraints": binding_constraints,
             "atr": float(current_atr), "favorable_extreme": float(state.favorable_extreme),
             "stop_before": float(stop_before), "stop_after": float(state.current_stop_price),
             "bars_held": int(state.bars_held),

@@ -321,7 +321,7 @@ class Revision2ExternalEngineOrchestrator:
 
     def _maybe_exit(
         self, symbol: str, timestamp, bar, signal, held_bars: int, session_last_bar: bool,
-        chart_studies_confidence: float,
+        chart_studies_confidence: float, chart_studies_audit: Optional[Dict[str, Any]] = None,
     ) -> None:
         trade = self.open_trades.get(symbol)
         if trade is None:
@@ -357,8 +357,28 @@ class Revision2ExternalEngineOrchestrator:
             )
             self._exit_controller_states[symbol] = state
             current_stop = state.current_stop_price
+            entry_atr = trade.get("entry_atr")
+            atr_drift_fraction = None
+            if entry_atr is not None and float(entry_atr) > 0.0:
+                atr_drift_fraction = (current_atr - float(entry_atr)) / float(entry_atr)
+            study_weights = dict((chart_studies_audit or {}).get("weights", {}))
+            study_hit_rates = dict((chart_studies_audit or {}).get("hit_rates", {}))
+            # These bounds are owned by CompositeStudySignal.  This is a
+            # passive audit label only; it cannot influence the controller.
+            study_weights_clamped = any(
+                weight <= 0.05 + 1e-12 or weight >= 0.60 - 1e-12
+                for weight in study_weights.values()
+            )
             self._record_controller_event("EXIT_PROTECTION_UPDATE", timestamp, symbol, {
-                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"), **state.last_telemetry,
+                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+                "baseline_window_bars": self.exit_controller.baseline_window,
+                "entry_atr": entry_atr,
+                "atr_drift_fraction": atr_drift_fraction,
+                "study_weights": study_weights,
+                "study_hit_rates": study_hit_rates,
+                "study_votes": dict((chart_studies_audit or {}).get("votes", {})),
+                "study_weights_clamped": study_weights_clamped,
+                **state.last_telemetry,
             })
 
         exit_price, reason = None, None
@@ -570,7 +590,10 @@ class Revision2ExternalEngineOrchestrator:
                 chart_studies_confidence = float(composite_result["confidence"])
 
                 held = bar_idx - entry_bar_index.get(symbol, bar_idx)
-                self._maybe_exit(symbol, timestamp, bars.iloc[bar_idx], signal, held, session_last_bar, chart_studies_confidence)
+                self._maybe_exit(
+                    symbol, timestamp, bars.iloc[bar_idx], signal, held, session_last_bar,
+                    chart_studies_confidence, composite_result,
+                )
 
                 if symbol in self.open_trades or not in_window:
                     continue
