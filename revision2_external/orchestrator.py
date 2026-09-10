@@ -260,6 +260,14 @@ class Revision2ExternalEngineOrchestrator:
                 "planned_stop_price": trade.get("planned_stop_price"),
                 "planned_target_price": trade.get("planned_target_price"),
             }
+            if state is not None:
+                risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
+                if risk > 0:
+                    favorable = state.mfe_price - trade["entry_price"] if trade["side"] == "BUY" else trade["entry_price"] - state.mfe_price
+                    adverse = state.mae_price - trade["entry_price"] if trade["side"] == "BUY" else trade["entry_price"] - state.mae_price
+                    completed.update({"mfe_price": state.mfe_price, "mae_price": state.mae_price,
+                                      "mfe_r": favorable / risk, "mae_r": adverse / risk,
+                                      "terminal_bar_excursion": "intrabar_order_unknown"})
             shadow = None
             if state is not None and state.shadow_exit_price is not None:
                 shadow_close_side = "SELL" if trade["side"] == "BUY" else "BUY"
@@ -297,6 +305,8 @@ class Revision2ExternalEngineOrchestrator:
                 "exit_reason": reason, "net_pnl": completed["net_pnl"], "pnl": pnl, "costs": trade_costs,
                 "entry_atr": completed["entry_atr"], "planned_entry_price": completed["planned_entry_price"],
                 "planned_stop_price": completed["planned_stop_price"], "planned_target_price": completed["planned_target_price"],
+                "mfe_r": completed.get("mfe_r"), "mae_r": completed.get("mae_r"),
+                "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
                 "shadow_r_trajectory": shadow,
             })
             self._equity_curve.append(self._equity())
@@ -417,6 +427,8 @@ class Revision2ExternalEngineOrchestrator:
         if regime == "stressed" and held_bars >= trade["minimum_hold_bars"]:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "regime_stressed_exit")
             return
+        if state is not None:
+            self.exit_controller.observe_completed_bar_excursion(state, bar)
         if state is not None and state.shadow_exit_price is None:
             shadow_update = self.exit_controller.update_shadow_r_trajectory(state, float(bar["close"]))
             self._record_controller_event("SHADOW_R_TRAJECTORY_UPDATE", timestamp, symbol, {

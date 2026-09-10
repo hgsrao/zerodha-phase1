@@ -165,6 +165,8 @@ class ExitControllerState:
     current_stop_price: float
     current_target_price: float
     favorable_extreme: float  # real price-curve high-water-mark (input #3)
+    mfe_price: float  # passive high/low excursion, excludes terminal bar
+    mae_price: float
     max_hold_bars: int  # needed for the continuous time-decay input (#4)
     bars_held: int = 0
     consecutive_bars_at_low_confidence_extreme: int = 0  # PA track's own saturation streak
@@ -233,9 +235,20 @@ class ContinuousExitController:
             side=side, entry_price=entry_price, initial_stop_price=stop_price,
             original_target_distance=abs(target_price - entry_price),
             current_stop_price=stop_price, current_target_price=target_price,
-            favorable_extreme=entry_price, max_hold_bars=max(1, int(max_hold_bars)),
+            favorable_extreme=entry_price, mfe_price=entry_price, mae_price=entry_price,
+            max_hold_bars=max(1, int(max_hold_bars)),
             shadow_stop_price=stop_price,
         )
+
+    @staticmethod
+    def observe_completed_bar_excursion(state: ExitControllerState, bar: Any) -> None:
+        """Observe a surviving bar only; terminal-bar high/low is ambiguous."""
+        if state.side == "BUY":
+            state.mfe_price = max(state.mfe_price, float(bar["high"]))
+            state.mae_price = min(state.mae_price, float(bar["low"]))
+        else:
+            state.mfe_price = min(state.mfe_price, float(bar["low"]))
+            state.mae_price = max(state.mae_price, float(bar["high"]))
 
     @staticmethod
     def _r_multiple(state: ExitControllerState, price: float) -> float:

@@ -51,3 +51,11 @@ def test_shadow_path_never_widens_a_short_stop():
 def test_shadow_counterfactual_uses_the_same_adverse_paper_fill_model_as_live_exits():
     assert Revision2ExternalEngineOrchestrator._paper_fill_price(100.0, "SELL", 0.0005) == 99.95
     assert Revision2ExternalEngineOrchestrator._paper_fill_price(100.0, "BUY", 0.0005) == 100.05
+
+
+def test_excursion_ledger_tracks_only_passive_high_low_extremes():
+    state = _controller().open_position("BUY", 100.0, 90.0, 115.0, max_hold_bars=10)
+    ContinuousExitController.observe_completed_bar_excursion(
+        state, {"open": 100.0, "high": 106.0, "low": 97.0, "close": 101.0}
+    )
+    assert (state.mfe_price, state.mae_price) == (106.0, 97.0)
