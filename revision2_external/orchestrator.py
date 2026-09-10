@@ -255,6 +255,10 @@ class Revision2ExternalEngineOrchestrator:
                 "entry_timestamp": trade["entry_timestamp"], "exit_timestamp": str(timestamp),
                 "reason": reason, "pnl": pnl, "costs": trade_costs, "net_pnl": pnl - trade_costs,
                 "trade_id": trade.get("trade_id"), "candidate_id": trade.get("candidate_id"),
+                "entry_atr": trade.get("entry_atr"),
+                "planned_entry_price": trade.get("planned_entry_price"),
+                "planned_stop_price": trade.get("planned_stop_price"),
+                "planned_target_price": trade.get("planned_target_price"),
             }
             shadow = None
             if state is not None and state.shadow_exit_price is not None:
@@ -291,6 +295,8 @@ class Revision2ExternalEngineOrchestrator:
             self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
                 "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
                 "exit_reason": reason, "net_pnl": completed["net_pnl"], "pnl": pnl, "costs": trade_costs,
+                "entry_atr": completed["entry_atr"], "planned_entry_price": completed["planned_entry_price"],
+                "planned_stop_price": completed["planned_stop_price"], "planned_target_price": completed["planned_target_price"],
                 "shadow_r_trajectory": shadow,
             })
             self._equity_curve.append(self._equity())
@@ -585,7 +591,23 @@ class Revision2ExternalEngineOrchestrator:
                 self._controller_sequence += 1
                 candidate_id = f"candidate-{self._controller_sequence}"
                 self._record_controller_event("ENTRY_CONFIDENCE_THROTTLE", timestamp, symbol, {
-                    "candidate_id": candidate_id, **pid_info,
+                    "candidate_id": candidate_id,
+                    # Passive input/geometry telemetry. These values were
+                    # fixed by PA, ID and MPC above; recording them cannot
+                    # alter admission, sizing, stops, targets or execution.
+                    "pa_confidence": float(signal.confidence),
+                    "id_confidence": float(decision.confidence),
+                    "id_timing_quality": float(decision.timing_quality),
+                    "id_risk_reward_ratio": float(decision.risk_reward_ratio),
+                    "entry_atr": float(atr),
+                    "planned_entry_price": float(plan.entry_price),
+                    "planned_stop_price": float(plan.stop_price),
+                    "planned_target_price": float(plan.target_price),
+                    "planned_stop_distance": abs(float(plan.entry_price) - float(plan.stop_price)),
+                    "planned_target_distance": abs(float(plan.target_price) - float(plan.entry_price)),
+                    "planned_minimum_hold_bars": int(plan.minimum_hold_bars),
+                    "planned_maximum_hold_bars": int(plan.maximum_hold_bars),
+                    **pid_info,
                 })
 
                 approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(self._equity_curve, self.config)
@@ -749,6 +771,8 @@ class Revision2ExternalEngineOrchestrator:
                         "target_price": plan.target_price, "quantity": quantity,
                         "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
                         "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
+                        "entry_atr": float(atr), "planned_entry_price": float(plan.entry_price),
+                        "planned_stop_price": float(plan.stop_price), "planned_target_price": float(plan.target_price),
                         "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
                     }
                     entry_bar_index[symbol] = bar_idx + 1

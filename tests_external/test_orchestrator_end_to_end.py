@@ -39,6 +39,11 @@ def test_full_engine_runs_on_real_data_and_produces_real_trades():
     assert summary["outcomes"] == report["completed_trades"]
     assert any(row["event_type"] == "EXIT_PROTECTION_UPDATE" for row in telemetry)
     assert all("trade_id" in trade and "candidate_id" in trade for trade in report["trades"])
+    entry_events = [row for row in telemetry if row["event_type"] == "ENTRY_CONFIDENCE_THROTTLE"]
+    assert entry_events
+    assert {"pa_confidence", "id_confidence", "entry_atr", "planned_entry_price",
+            "planned_stop_price", "planned_target_price"} <= set(entry_events[0])
+    assert {"entry_atr", "planned_entry_price", "planned_stop_price", "planned_target_price"} <= set(report["trades"][0])
 
     # Every expected box actually ran and left a trace.
     assert report["pa_signals"] > 0
