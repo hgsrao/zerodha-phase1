@@ -24,6 +24,8 @@ def test_entry_features_are_direction_aware_and_causal():
 
 def test_attribution_requires_path_aware_trade_telemetry():
     bars = _bars()
+    # A directionally extreme BUY close: close equals the decision-bar high.
+    bars.loc[bars.index[-1], "high"] = bars.loc[bars.index[-1], "close"]
     timestamp = str(bars.iloc[-1]["timestamp"])
     report = {
         "controller_telemetry": [{"event_type": "ENTRY_CONFIDENCE_THROTTLE", "candidate_id": "c1", "timestamp": timestamp}],
@@ -33,3 +35,6 @@ def test_attribution_requires_path_aware_trade_telemetry():
     result = build_attribution([report], bars)
     assert result["all_trades"]["immediate_rejections"] == 1
     assert result["shadow_only"] is True
+    screen = result["exploratory_screens"]["two_factor_climax_volume_p75_directional_close_0_85"]
+    assert screen["directional_close_threshold"] == 0.85
+    assert screen["would_veto"]["trades"] == 1

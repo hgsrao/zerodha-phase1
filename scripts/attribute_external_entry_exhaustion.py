@@ -147,6 +147,27 @@ def build_attribution(reports: Iterable[Dict[str, Any]], bars: pd.DataFrame) -> 
                 "feature": feature, "threshold": threshold, "would_veto": _cohort(vetoed),
                 "would_keep": _cohort(row for row in rows if row[feature] < threshold),
             }
+
+    # A volume spike alone includes legitimate breakouts.  This screen is
+    # deliberately narrower: it asks whether high relative volume AND a
+    # close at the directional edge of that same decision bar identify the
+    # immediate-rejection cohort.  It remains a cohort study, not a replay:
+    # the result can justify a *candidate* rule, never promotion by itself.
+    for quantile in ("p75", "p90"):
+        volume_threshold = thresholds["volume_ratio"][("p75", "p90", "p95").index(quantile)]
+        vetoed = [
+            row for row in rows
+            if row["volume_ratio"] >= volume_threshold and row["directional_close_location"] >= 0.85
+        ]
+        screens[f"two_factor_climax_volume_{quantile}_directional_close_0_85"] = {
+            "feature": "volume_ratio AND directional_close_location",
+            "volume_threshold": volume_threshold,
+            "directional_close_threshold": 0.85,
+            "would_veto": _cohort(vetoed),
+            "would_keep": _cohort(row for row in rows if not (
+                row["volume_ratio"] >= volume_threshold and row["directional_close_location"] >= 0.85
+            )),
+        }
     return {
         "kind": "EXTERNAL_ENTRY_EXHAUSTION_SHADOW_ATTRIBUTION",
         "status": "ATTRIBUTION_COMPLETE",
