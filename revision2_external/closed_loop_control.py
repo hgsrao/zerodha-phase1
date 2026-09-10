@@ -113,6 +113,9 @@ class CausalOutcomeLedger:
             "symbol_regime_win_rate": local_win_rate,
             "pooled_win_rate": pooled_win_rate,
             "suggested_entry_derate": _clip(0.5 + pooled_win_rate, 0.5, 1.0),
+            # This is a future-entry correction, not a new safety limit.
+            # It becomes actionable only after enough completed evidence.
+            "suggested_confidence_offset": _clip((0.5 - pooled_win_rate) * 0.10, 0.0, 0.05),
         }
 
 

@@ -71,8 +71,12 @@ class Revision2ExternalEngineOrchestrator:
         starting_equity: float = 1_000_000.0,
         sector_map: Optional[Dict[str, str]] = None,
         grid_context_provider: Optional[SealedGridContextProvider] = None,
+        closed_loop_mode: str = "shadow",
     ) -> None:
+        if closed_loop_mode not in {"shadow", "active_paper"}:
+            raise ValueError("closed_loop_mode must be 'shadow' or 'active_paper'")
         self.symbols = list(symbols)
+        self.closed_loop_mode = closed_loop_mode
         self.registry = registry or CanonicalParameterRegistry()
         overrides = calibration_overrides or {}
         errors = self.registry.validate_calibration_payload(overrides)
@@ -379,6 +383,27 @@ class Revision2ExternalEngineOrchestrator:
                     "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
                     "bars_held": state.bars_held, **path_observation.to_dict(),
                 })
+                if self.closed_loop_mode == "active_paper" and path_observation.behind_path:
+                    # Path control is one-way and never crosses the current
+                    # price (guaranteed by the supervisor). It can only make
+                    # the already-ratcheted stop stricter.
+                    risk = float(closed_loop_snapshot["reference_path"]["initial_risk"])
+                    entry = float(trade["entry_price"])
+                    proposed_stop = (
+                        entry + path_observation.suggested_protection_r * risk
+                        if trade["side"] == "BUY" else entry - path_observation.suggested_protection_r * risk
+                    )
+                    before_path_actuation = state.current_stop_price
+                    if trade["side"] == "BUY":
+                        state.current_stop_price = max(state.current_stop_price, proposed_stop)
+                    else:
+                        state.current_stop_price = min(state.current_stop_price, proposed_stop)
+                    current_stop = state.current_stop_price
+                    self._record_controller_event("TRADE_PATH_STOP_ACTUATION", timestamp, symbol, {
+                        "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+                        "stop_before": before_path_actuation, "proposed_stop": proposed_stop,
+                        "stop_after": state.current_stop_price,
+                    })
             entry_atr = trade.get("entry_atr")
             atr_drift_fraction = None
             if entry_atr is not None and float(entry_atr) > 0.0:
@@ -647,6 +672,11 @@ class Revision2ExternalEngineOrchestrator:
                 funnel["mpc_plans"] += 1
                 self._controller_sequence += 1
                 candidate_id = f"candidate-{self._controller_sequence}"
+                entry_quality = self.closed_loop.outcomes.profile(symbol, plan.side)
+                self._record_controller_event("ENTRY_QUALITY_COMPARATOR", timestamp, symbol, {
+                    "candidate_id": candidate_id, "id_confidence": float(decision.confidence),
+                    **entry_quality,
+                })
                 self._record_controller_event("ENTRY_CONFIDENCE_THROTTLE", timestamp, symbol, {
                     "candidate_id": candidate_id,
                     # Passive input/geometry telemetry. These values were
@@ -673,6 +703,19 @@ class Revision2ExternalEngineOrchestrator:
                     funnel["safety_rejections"] += 1
                     continue
                 size_mult *= pid_info["entry_timing_multiplier"]
+                if (
+                    self.closed_loop_mode == "active_paper"
+                    and entry_quality["symbol_regime_samples"] >= 20
+                    and float(decision.confidence) < float(self.config.require("entry_confidence_threshold"))
+                    + float(entry_quality["suggested_confidence_offset"])
+                ):
+                    self._record_controller_event("ENTRY_QUALITY_HOLD", timestamp, symbol, {
+                        "candidate_id": candidate_id,
+                        "effective_confidence_floor": float(self.config.require("entry_confidence_threshold"))
+                        + float(entry_quality["suggested_confidence_offset"]),
+                        "id_confidence": float(decision.confidence),
+                    })
+                    continue
 
                 if len(self.open_trades) >= max_concurrent:
                     funnel["portfolio_cap_rejections"] += 1
@@ -684,6 +727,15 @@ class Revision2ExternalEngineOrchestrator:
                 self._record_controller_event("PORTFOLIO_RISK_COMPARATOR", timestamp, symbol, {
                     "candidate_id": candidate_id, **portfolio_observation,
                 })
+                if self.closed_loop_mode == "active_paper":
+                    size_mult *= float(entry_quality["suggested_entry_derate"])
+                    size_mult *= float(portfolio_observation["suggested_new_risk_derate"])
+                    self._record_controller_event("DYNAMIC_SIZE_ACTUATION", timestamp, symbol, {
+                        "candidate_id": candidate_id,
+                        "entry_quality_derate": entry_quality["suggested_entry_derate"],
+                        "portfolio_risk_derate": portfolio_observation["suggested_new_risk_derate"],
+                        "resulting_size_multiplier": size_mult,
+                    })
                 sector = self.sector_map.get(symbol, "Unclassified")
 
                 quantity, trace = self.position_manager.size(
@@ -882,6 +934,7 @@ class Revision2ExternalEngineOrchestrator:
             "gross_pnl": gross_pnl, "net_pnl": sum(t["net_pnl"] for t in self.completed_trades),
             "ending_equity": self.starting_equity + sum(t["net_pnl"] for t in self.completed_trades),
             "config_hash": self.config.config_hash, "safety_contract_hash": self.safety_contract.contract_hash,
+            "closed_loop_mode": self.closed_loop_mode,
             "certification_audit": certification_audit,
             "final_portfolio_weights": self._portfolio_weights,
             "parameter_coverage": {
@@ -904,6 +957,9 @@ class Revision2ExternalEngineOrchestrator:
                 "trade_path_comparisons": sum(1 for row in self.controller_telemetry if row["event_type"] == "TRADE_PATH_COMPARATOR"),
                 "portfolio_risk_comparisons": sum(1 for row in self.controller_telemetry if row["event_type"] == "PORTFOLIO_RISK_COMPARATOR"),
                 "outcome_ledger_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "OUTCOME_LEDGER_UPDATE"),
+                "entry_quality_comparisons": sum(1 for row in self.controller_telemetry if row["event_type"] == "ENTRY_QUALITY_COMPARATOR"),
+                "dynamic_size_actuations": sum(1 for row in self.controller_telemetry if row["event_type"] == "DYNAMIC_SIZE_ACTUATION"),
+                "trade_path_stop_actuations": sum(1 for row in self.controller_telemetry if row["event_type"] == "TRADE_PATH_STOP_ACTUATION"),
             },
             "grid_shadow": {
                 "enabled": self.grid_context_provider is not None,

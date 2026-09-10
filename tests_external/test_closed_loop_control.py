@@ -1,4 +1,5 @@
 from revision2_external.closed_loop_control import ClosedLoopSupervisor
+from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
 
 
 def test_one_symbol_one_signal_traverses_all_three_closed_loops():
@@ -47,3 +48,12 @@ def test_reference_path_is_frozen_and_does_not_use_future_outcome():
     supervisor.record_outcome({"symbol": "INFY", "side": "SELL", "net_pnl": 50.0})
     after = supervisor.observe_trade_path(snapshot, current_price=100.5, bars_held=5)
     assert before == after
+
+
+def test_orchestrator_only_allows_explicit_closed_loop_modes():
+    try:
+        Revision2ExternalEngineOrchestrator(["SUNPHARMA"], closed_loop_mode="invalid")
+    except ValueError as exc:
+        assert "closed_loop_mode" in str(exc)
+    else:
+        raise AssertionError("invalid closed-loop mode was accepted")
