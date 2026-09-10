@@ -29,12 +29,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = PROJECT_ROOT / "revision2" / "DATASET_MANIFEST_48SYMBOL_1MIN.json"
 
 
-def _month_bars(manifest: DatasetManifest, start: str) -> dict[str, pd.DataFrame]:
-    """Load the same bounded interval for every symbol with real data."""
+def _bounded_bars(
+    manifest: DatasetManifest, start: str, end_exclusive: str | None, symbols: list[str] | None,
+) -> dict[str, pd.DataFrame]:
+    """Load a causal, identically bounded interval for selected symbols."""
     loader = MarketDataLoader(manifest.data_dir, synthetic_if_missing=False)
     symbol_bars: dict[str, pd.DataFrame] = {}
     start_date = pd.Timestamp(start)
+    requested = set(symbols) if symbols else None
     for record in sorted(manifest.files, key=lambda item: item.symbol):
+        if requested is not None and record.symbol not in requested:
+            continue
         frame = loader._load_symbol_csv(record.symbol)
         timezone = frame["timestamp"].dt.tz
         if start_date.tzinfo is None:
@@ -43,7 +48,16 @@ def _month_bars(manifest: DatasetManifest, start: str) -> dict[str, pd.DataFrame
             interval_start = start_date.tz_convert(timezone)
         else:
             interval_start = start_date.tz_localize(None)
-        interval_end = interval_start + pd.DateOffset(months=1)
+        if end_exclusive is None:
+            interval_end = interval_start + pd.DateOffset(months=1)
+        else:
+            raw_end = pd.Timestamp(end_exclusive)
+            if raw_end.tzinfo is None:
+                interval_end = raw_end.tz_localize(timezone) if timezone is not None else raw_end
+            elif timezone is not None:
+                interval_end = raw_end.tz_convert(timezone)
+            else:
+                interval_end = raw_end.tz_localize(None)
         bounded = frame[(frame["timestamp"] >= interval_start) & (frame["timestamp"] < interval_end)].reset_index(drop=True)
         if not bounded.empty:
             symbol_bars[record.symbol] = bounded
@@ -84,6 +98,8 @@ def _sizing_summary(report: dict) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", default="2023-07-03", help="First calendar day of the one-month interval")
+    parser.add_argument("--end-exclusive", default=None, help="Optional exclusive end date; overrides the one-month default")
+    parser.add_argument("--symbols", nargs="+", default=None, help="Optional symbol subset for a fixed-parameter smoke replay")
     parser.add_argument(
         "--output",
         default=str(PROJECT_ROOT / "diagnostic_output" / "external_pypfopt_derater_20230703_1month.json"),
@@ -96,8 +112,8 @@ def main() -> None:
     if not verification.valid:
         raise RuntimeError(f"manifest verification failed: {verification.message}")
 
-    print(f"[LOAD] Loading one month from {args.start}...", flush=True)
-    bars = _month_bars(manifest, args.start)
+    print(f"[LOAD] Loading data from {args.start}...", flush=True)
+    bars = _bounded_bars(manifest, args.start, args.end_exclusive, args.symbols)
     if len(bars) < 2:
         raise RuntimeError("fewer than two symbols have data in the requested month")
 
@@ -119,7 +135,7 @@ def main() -> None:
         "run_type": "fixed_parameter_shared_portfolio_measurement",
         "engine": "Revision2ExternalEngineOrchestrator",
         "period_start": args.start,
-        "period_end_exclusive": str(pd.Timestamp(args.start) + pd.DateOffset(months=1)),
+        "period_end_exclusive": args.end_exclusive or str(pd.Timestamp(args.start) + pd.DateOffset(months=1)),
         "symbols_loaded": sorted(bars),
         "total_input_bars": sum(len(frame) for frame in bars.values()),
         "dataset_manifest_hash": manifest.manifest_hash,
