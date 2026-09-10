@@ -60,8 +60,9 @@ def main() -> None:
         "metrics": {key: report[key] for key in ("orders_submitted", "fills", "completed_trades", "net_pnl", "gross_pnl", "ending_equity", "mtm_max_drawdown_fraction")},
         "controller_event_counts": dict(Counter(row["event_type"] for row in events)),
         "trades": report["trades"],
-        "dynamic_events": [
+        "control_trace_events": [
             row for row in events if row["event_type"] in {
+                "ENTRY_CONFIDENCE_THROTTLE", "EXIT_PROTECTION_UPDATE", "CONTROLLER_OUTCOME",
                 "ENTRY_QUALITY_COMPARATOR", "PORTFOLIO_RISK_COMPARATOR", "DYNAMIC_SIZE_ACTUATION",
                 "CLOSED_LOOP_ENTRY_SNAPSHOT", "TRADE_PATH_COMPARATOR", "TRADE_PATH_STOP_ACTUATION",
                 "OUTCOME_LEDGER_UPDATE",
