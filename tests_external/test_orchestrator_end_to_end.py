@@ -55,6 +55,15 @@ def test_full_engine_runs_on_real_data_and_produces_real_trades():
             "equal_weight", "conviction_derate", "safety_max_quantity", "final_quantity"} <= set(sizing_events[0])
     assert all(row["derated_risk_budget"] <= row["base_risk_budget"] for row in sizing_events)
 
+    # The three-loop layer is wired into real orchestration but remains
+    # observation-only until a sealed shadow study authorizes an actuator.
+    assert summary["closed_loop_entry_snapshots"] == report["fills"]
+    assert summary["trade_path_comparisons"] > 0
+    assert summary["portfolio_risk_comparisons"] >= report["mpc_plans"]
+    assert summary["outcome_ledger_updates"] == report["completed_trades"]
+    path_events = [row for row in telemetry if row["event_type"] == "TRADE_PATH_COMPARATOR"]
+    assert {"actual_r", "expected_r", "lower_bound_r", "error_r", "behind_path"} <= set(path_events[0])
+
     # Every expected box actually ran and left a trace.
     assert report["pa_signals"] > 0
     assert report["id_approvals"] > 0

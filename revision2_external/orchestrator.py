@@ -40,6 +40,7 @@ from revision2.boxes import DataIngestionBox, P01DBox, SafetyGatesTargetBox
 from revision2.contracts import EffectiveConfig, MarketSnapshot, SafetyContract, StartupCertificate, StartupNotCertifiedError
 from revision2.portfolio_orchestrator import SECTOR_MAP, _ClockEvent
 from revision2_external.composite_study_signal import CompositeStudySignal
+from revision2_external.closed_loop_control import ClosedLoopSupervisor
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars
 from revision2_external.grid_context import SealedGridContextProvider
@@ -164,6 +165,10 @@ class Revision2ExternalEngineOrchestrator:
             "pid_integral_window_bars", "trailing_stop_atr_mult", "saturation_exit_bars",
         })
         self._exit_controller_states: Dict[str, ExitControllerState] = {}
+        # Three-loop supervisory layer. Its first release is deliberately
+        # observation-only: every proposed adjustment is recorded, but no
+        # entry, size or stop is changed until sealed shadow evidence exists.
+        self.closed_loop = ClosedLoopSupervisor()
 
         self.startup_certificate = self._issue_startup_certificate()
 
@@ -301,6 +306,9 @@ class Revision2ExternalEngineOrchestrator:
                 }
                 completed["shadow_r_trajectory"] = shadow
             self.completed_trades.append(completed)
+            closed_loop_profile = self.closed_loop.record_outcome(
+                completed, regime=trade.get("closed_loop", {}).get("regime", "unknown"),
+            )
             self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
                 "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
                 "exit_reason": reason, "net_pnl": completed["net_pnl"], "pnl": pnl, "costs": trade_costs,
@@ -309,6 +317,10 @@ class Revision2ExternalEngineOrchestrator:
                 "mfe_r": completed.get("mfe_r"), "mae_r": completed.get("mae_r"),
                 "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
                 "shadow_r_trajectory": shadow,
+            })
+            self._record_controller_event("OUTCOME_LEDGER_UPDATE", timestamp, symbol, {
+                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+                "net_pnl": completed["net_pnl"], "entry_quality_profile": closed_loop_profile,
             })
             self._equity_curve.append(self._equity())
             del self.open_trades[symbol]
@@ -358,6 +370,15 @@ class Revision2ExternalEngineOrchestrator:
             )
             self._exit_controller_states[symbol] = state
             current_stop = state.current_stop_price
+            closed_loop_snapshot = trade.get("closed_loop")
+            if closed_loop_snapshot is not None:
+                path_observation = self.closed_loop.observe_trade_path(
+                    closed_loop_snapshot, float(bar["close"]), state.bars_held,
+                )
+                self._record_controller_event("TRADE_PATH_COMPARATOR", timestamp, symbol, {
+                    "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+                    "bars_held": state.bars_held, **path_observation.to_dict(),
+                })
             entry_atr = trade.get("entry_atr")
             atr_drift_fraction = None
             if entry_atr is not None and float(entry_atr) > 0.0:
@@ -657,6 +678,12 @@ class Revision2ExternalEngineOrchestrator:
                     funnel["portfolio_cap_rejections"] += 1
                     continue
                 equity_now = self._equity()
+                portfolio_observation = self.closed_loop.observe_portfolio_risk(
+                    self._gross_exposure_notional(), equity_now, max_gross_fraction,
+                )
+                self._record_controller_event("PORTFOLIO_RISK_COMPARATOR", timestamp, symbol, {
+                    "candidate_id": candidate_id, **portfolio_observation,
+                })
                 sector = self.sector_map.get(symbol, "Unclassified")
 
                 quantity, trace = self.position_manager.size(
@@ -806,6 +833,15 @@ class Revision2ExternalEngineOrchestrator:
                 if fill["passed"]:
                     funnel["fills"] += 1
                     self._trade_sequence += 1
+                    closed_loop_snapshot = self.closed_loop.entry_snapshot(
+                        symbol=symbol, side=plan.side, entry_price=float(fill["filled_price"]),
+                        stop_price=float(plan.stop_price), target_price=float(plan.target_price),
+                        max_hold_bars=int(plan.maximum_hold_bars), regime="unknown",
+                    )
+                    self._record_controller_event("CLOSED_LOOP_ENTRY_SNAPSHOT", next_ts, symbol, {
+                        "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
+                        **closed_loop_snapshot,
+                    })
                     self.open_trades[symbol] = {
                         "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
                         "target_price": plan.target_price, "quantity": quantity,
@@ -814,6 +850,7 @@ class Revision2ExternalEngineOrchestrator:
                         "entry_atr": float(atr), "planned_entry_price": float(plan.entry_price),
                         "planned_stop_price": float(plan.stop_price), "planned_target_price": float(plan.target_price),
                         "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
+                        "closed_loop": closed_loop_snapshot,
                     }
                     entry_bar_index[symbol] = bar_idx + 1
                     self._exit_controller_states[symbol] = self.exit_controller.open_position(
@@ -863,6 +900,10 @@ class Revision2ExternalEngineOrchestrator:
                 "shadow_r_trajectory_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "SHADOW_R_TRAJECTORY_UPDATE"),
                 "shadow_r_trajectory_exits": sum(1 for row in self.controller_telemetry if row["event_type"] == "SHADOW_R_TRAJECTORY_EXIT"),
                 "outcomes": sum(1 for row in self.controller_telemetry if row["event_type"] == "CONTROLLER_OUTCOME"),
+                "closed_loop_entry_snapshots": sum(1 for row in self.controller_telemetry if row["event_type"] == "CLOSED_LOOP_ENTRY_SNAPSHOT"),
+                "trade_path_comparisons": sum(1 for row in self.controller_telemetry if row["event_type"] == "TRADE_PATH_COMPARATOR"),
+                "portfolio_risk_comparisons": sum(1 for row in self.controller_telemetry if row["event_type"] == "PORTFOLIO_RISK_COMPARATOR"),
+                "outcome_ledger_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "OUTCOME_LEDGER_UPDATE"),
             },
             "grid_shadow": {
                 "enabled": self.grid_context_provider is not None,
