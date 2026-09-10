@@ -85,7 +85,8 @@ def _sizing_summary(report: dict) -> dict:
         row for row in events
         if float(row.get("derated_risk_budget", 0.0)) > float(row.get("base_risk_budget", 0.0)) + 1e-9
     ]
-    derates = [float(row["conviction_derate"]) for row in sized if "conviction_derate" in row]
+    all_derates = [float(row["conviction_derate"]) for row in events if "conviction_derate" in row]
+    sized_derates = [float(row["conviction_derate"]) for row in sized if "conviction_derate" in row]
     starvation_by_symbol = Counter(row["symbol"] for row in starved)
     return {
         "position_sizing_events": len(events),
@@ -94,10 +95,16 @@ def _sizing_summary(report: dict) -> dict:
         "capital_starvation_by_symbol": dict(sorted(starvation_by_symbol.items())),
         "risk_derate_violations": len(violations),
         "risk_geometry_intact": not violations,
-        "conviction_derate": {
-            "min": min(derates) if derates else None,
-            "max": max(derates) if derates else None,
-            "mean": sum(derates) / len(derates) if derates else None,
+        "conviction_derate_all_events": {
+            "min": min(all_derates) if all_derates else None,
+            "max": max(all_derates) if all_derates else None,
+            "mean": sum(all_derates) / len(all_derates) if all_derates else None,
+            "zero_count": sum(value == 0.0 for value in all_derates),
+        },
+        "conviction_derate_sized_events_only": {
+            "min": min(sized_derates) if sized_derates else None,
+            "max": max(sized_derates) if sized_derates else None,
+            "mean": sum(sized_derates) / len(sized_derates) if sized_derates else None,
         },
     }
 
