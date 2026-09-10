@@ -29,6 +29,10 @@ class GridShadowObservation:
     source_age_seconds: Optional[float] = None
     nifty_close: Optional[float] = None
     vix_close: Optional[float] = None
+    nifty_ema_50: Optional[float] = None
+    macro_nifty_trend: Optional[int] = None
+    macro_vix_level: Optional[float] = None
+    macro_vix_slope: Optional[float] = None
     synchronized: Optional[bool] = None
     phase_delta_degrees: Optional[float] = None
 
@@ -116,6 +120,19 @@ class SealedGridContextProvider:
         if len(context) < self.minimum_aligned_bars:
             return self._unavailable(symbol, decision, direction, "GRID_CONTEXT_WARMUP_INSUFFICIENT")
 
+        # These labels are computed only after the source timestamp has been
+        # verified as a completed, fresh Nifty/VIX bar.  ``*_prior`` contains
+        # strictly pre-decision data, so neither indicator can use a bar that
+        # was not available when the candidate was evaluated.
+        if len(nifty_prior) < 50 or len(vix_prior) < 5:
+            return self._unavailable(symbol, decision, direction, "GRID_CONTEXT_FEATURE_WARMUP_INSUFFICIENT")
+        nifty_ema_50 = float(nifty_prior["close"].ewm(span=50, adjust=False).mean().iloc[-1])
+        nifty_close = float(nifty_prior["close"].iloc[-1])
+        macro_nifty_trend = 1 if nifty_close > nifty_ema_50 else -1
+        vix_close = float(vix_prior["close"].iloc[-1])
+        vix_prior_close = float(vix_prior["close"].iloc[-5])
+        macro_vix_slope = (vix_close - vix_prior_close) / vix_prior_close
+
         timestamp_column = "timestamp" if "timestamp" in symbol_bars.columns else "date" if "date" in symbol_bars.columns else None
         if timestamp_column is None or "close" not in symbol_bars.columns:
             raise ValueError("symbol bars require timestamp/date and close columns")
@@ -149,8 +166,12 @@ class SealedGridContextProvider:
             reason=result.reason,
             source_timestamp=source_timestamp.isoformat(),
             source_age_seconds=float(age.total_seconds()),
-            nifty_close=float(aligned["close_nifty"].iloc[-1]),
-            vix_close=float(aligned["close_vix"].iloc[-1]),
+            nifty_close=nifty_close,
+            vix_close=vix_close,
+            nifty_ema_50=nifty_ema_50,
+            macro_nifty_trend=macro_nifty_trend,
+            macro_vix_level=vix_close,
+            macro_vix_slope=macro_vix_slope,
             synchronized=bool(result.is_synchronized),
             phase_delta_degrees=float(result.delta_phi),
         )

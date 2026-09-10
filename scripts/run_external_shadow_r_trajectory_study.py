@@ -138,17 +138,24 @@ def main() -> None:
     parser.add_argument("--symbol", default="SUNPHARMA")
     parser.add_argument("--start", default=TRAIN_START)
     parser.add_argument("--months", type=int, choices=CHECKPOINT_MONTHS, default=12)
+    parser.add_argument("--monthly-report-dir", type=Path,
+                        help="directory for sealed raw monthly reports, required for later macro attribution")
     parser.add_argument("--output", default=None)
     args = parser.parse_args()
 
     reports = []
     for index, (start, end) in enumerate(month_windows(args.start, args.months), start=1):
         print(f"[MONTH {index}/{args.months}] {args.symbol} {start} through {end}", flush=True)
-        reports.append(run_shadow_month(argparse.Namespace(
+        report = run_shadow_month(argparse.Namespace(
             symbol=args.symbol, start=start, end=end,
             stock_manifest=str(DEFAULT_STOCK_MANIFEST), context_manifest=str(DEFAULT_CONTEXT_MANIFEST),
             context_warmup_bars=1000, min_engine_warmup_bars=60, starting_equity=100_000.0,
-        )))
+        ))
+        reports.append(report)
+        if args.monthly_report_dir is not None:
+            args.monthly_report_dir.mkdir(parents=True, exist_ok=True)
+            raw_output = args.monthly_report_dir / f"{args.symbol}_{start.replace('-', '')}.json"
+            raw_output.write_text(json.dumps(report, indent=2, default=str) + "\n")
     study = aggregate_reports(reports)
     output = Path(args.output) if args.output else Path(
         f"diagnostic_output/external_shadow_r_trajectory_{args.symbol}_{args.start.replace('-', '')}_{args.months}m.json"

@@ -48,6 +48,34 @@ def test_uses_real_symbol_prices_not_nifty_as_the_plant_series():
     assert observation.source_timestamp < observation.decision_timestamp
 
 
+def test_macro_labels_are_causal_and_independent_of_future_context_rows():
+    nifty, vix, stock = _context_frames()
+    future = pd.Timestamp("2024-01-03 02:45:00+05:30")
+    nifty = pd.concat([nifty, pd.DataFrame({"timestamp": [future], "close": [9_999_999.0]})], ignore_index=True)
+    vix = pd.concat([vix, pd.DataFrame({"date": [future], "close": [999.0]})], ignore_index=True)
+    capture = _CaptureSynchronizer()
+    decision = pd.Timestamp("2024-01-03 02:31:00+05:30")
+
+    baseline = SealedGridContextProvider(nifty, vix, synchronizer=capture).observe("INFY", stock, decision, 1)
+    modified_nifty = nifty.copy()
+    modified_vix = vix.copy()
+    modified_nifty.loc[modified_nifty["timestamp"] == future, "close"] = 1.0
+    modified_vix.loc[modified_vix["date"] == future, "close"] = 1.0
+    changed_future = SealedGridContextProvider(modified_nifty, modified_vix, synchronizer=_CaptureSynchronizer()).observe(
+        "INFY", stock, decision, 1
+    )
+
+    assert baseline.available
+    assert baseline.nifty_ema_50 is not None
+    assert baseline.macro_nifty_trend in {-1, 1}
+    assert baseline.macro_vix_level is not None
+    assert baseline.macro_vix_slope is not None
+    assert (baseline.nifty_ema_50, baseline.macro_nifty_trend, baseline.macro_vix_level, baseline.macro_vix_slope) == (
+        changed_future.nifty_ema_50, changed_future.macro_nifty_trend,
+        changed_future.macro_vix_level, changed_future.macro_vix_slope,
+    )
+
+
 def test_rejects_mismatched_nifty_and_vix_context_timestamps():
     nifty, vix, stock = _context_frames()
     vix = vix.iloc[:-1].copy()
