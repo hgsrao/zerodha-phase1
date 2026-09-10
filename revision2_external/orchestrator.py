@@ -52,6 +52,7 @@ from runtime.operating_mode import ExecutionGate, PaperBrokerAdapter
 
 SNAPSHOT_LOOKBACK_BARS = 300
 PORTFOLIO_WEIGHT_REFIT_EVERY_BARS = 500  # PyPortfolioOpt refit cadence, per unique clock tick
+PORTFOLIO_WEIGHT_LOOKBACK_MINUTE_BARS = 2_000  # ~130 completed 15-minute samples
 
 
 class ExternalEngineStartupNotCertifiedError(StartupNotCertifiedError):
@@ -537,8 +538,8 @@ class Revision2ExternalEngineOrchestrator:
                 for symbol in self.symbols:
                     bars = symbol_bars[symbol]
                     idx = min(event_ts, bars["timestamp"].max())
-                    window = bars[bars["timestamp"] <= idx].tail(500)
-                    if len(window) >= 30:
+                    window = bars[bars["timestamp"] <= idx].tail(PORTFOLIO_WEIGHT_LOOKBACK_MINUTE_BARS)
+                    if len(window) >= PORTFOLIO_WEIGHT_LOOKBACK_MINUTE_BARS:
                         price_history[symbol] = window.set_index("timestamp")["close"]
                 if len(price_history) >= 2:
                     self._portfolio_weights = compute_portfolio_weights(price_history)
@@ -666,6 +667,10 @@ class Revision2ExternalEngineOrchestrator:
                     symbol_positions_count=1 if symbol in self.open_trades else 0,
                 )
                 self._record(trace)
+                self._record_controller_event("POSITION_SIZING", timestamp, symbol, {
+                    "candidate_id": candidate_id,
+                    **self.position_manager.last_sizing_telemetry,
+                })
                 if quantity <= 0:
                     continue
 
