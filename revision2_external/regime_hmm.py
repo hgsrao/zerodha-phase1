@@ -50,12 +50,18 @@ class GaussianHMM:
     n_iter: int = 50
     tol: float = 1e-4
     random_state: int = 0
+    min_state_occupancy_fraction: float = 0.05
 
     def __post_init__(self) -> None:
         self.means_: Optional[np.ndarray] = None
         self.vars_: Optional[np.ndarray] = None
         self.transmat_: Optional[np.ndarray] = None
         self.startprob_: Optional[np.ndarray] = None
+        # Populated from a final forward/backward pass after fitting.  A
+        # state can be numerically valid while having too little posterior
+        # support to support a real calm/stressed interpretation.
+        self.state_occupancy_: Optional[np.ndarray] = None
+        self.valid_state_mask_: Optional[np.ndarray] = None
         self.monitor_: List[float] = []
 
     def _init_params(self, X: np.ndarray) -> None:
@@ -132,16 +138,32 @@ class GaussianHMM:
             self.transmat_ /= row_sums
 
             weights = gamma.sum(axis=0)
+            global_mean = X.mean(axis=0)
+            global_var = np.maximum(X.var(axis=0), 1e-8)
             for k in range(self.n_states):
+                # Do not convert a truly unoccupied state's emissions into
+                # a synthetic near-zero-variance cluster.  It is reset to
+                # global emissions for numerical stability and explicitly
+                # marked invalid below; it cannot become a regime label.
+                if weights[k] < 1e-12:
+                    self.means_[k] = global_mean
+                    self.vars_[k] = global_var
+                    continue
                 w = gamma[:, k][:, None]
-                self.means_[k] = (w * X).sum(axis=0) / max(weights[k], 1e-300)
+                self.means_[k] = (w * X).sum(axis=0) / weights[k]
                 diff = X - self.means_[k]
-                self.vars_[k] = (w * diff * diff).sum(axis=0) / max(weights[k], 1e-300)
+                self.vars_[k] = (w * diff * diff).sum(axis=0) / weights[k]
                 self.vars_[k] = np.maximum(self.vars_[k], 1e-8)
 
             if abs(ll - prev_ll) < self.tol:
                 break
             prev_ll = ll
+
+        # Assess support using the final emissions, rather than stale
+        # responsibilities from the iteration before the final M-step.
+        final_gamma, _, _ = self._forward_backward(self._log_emission(X))
+        self.state_occupancy_ = final_gamma.mean(axis=0)
+        self.valid_state_mask_ = self.state_occupancy_ >= self.min_state_occupancy_fraction
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:

@@ -56,3 +56,24 @@ def test_stressed_regime_vetoes_entry_even_with_a_strong_signal():
         decision, _ = box.evaluate(_signal(confidence=0.95, quality_band="green"), _config(), latest_close=close)
     assert not decision.approved
     assert "stressed" in decision.reason.lower()
+
+
+def test_invalid_hmm_state_cannot_create_a_stressed_regime_veto(monkeypatch):
+    """A variance floor from an unsupported state is not a market regime."""
+    import revision2_external.regime_id_box as module
+
+    class UnsupportedStateModel:
+        def __init__(self, **_kwargs):
+            self.vars_ = np.array([[1e-8, 1e-8], [1.0, 1.0]])
+            self.valid_state_mask_ = np.array([False, True])
+
+        def fit(self, _features):
+            return self
+
+        def predict(self, features):
+            return np.ones(len(features), dtype=int)
+
+    monkeypatch.setattr(module, "GaussianHMM", UnsupportedStateModel)
+    box = HMMIntelligentDiscriminationBox()
+    box._refit("TEST", np.ones((80, 2)))
+    assert box._cached_stressed_state["TEST"] is None

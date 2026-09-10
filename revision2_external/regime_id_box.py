@@ -69,6 +69,15 @@ class HMMIntelligentDiscriminationBox:
         random_state = zlib.crc32(symbol.encode("utf-8")) % (2 ** 31)
         model = GaussianHMM(n_states=self.hmm_states, n_iter=20, random_state=random_state)
         model.fit(features)
+        valid_states = model.valid_state_mask_
+        # An apparent two-state fit with a state supported by only a handful
+        # of bars is not evidence of a second market regime.  In particular,
+        # it must not use the variance floor of an unoccupied state to pass
+        # the 2.5x stressed/calm threshold and veto entries.
+        if valid_states is None or valid_states.sum() != self.hmm_states:
+            self._cached_model[symbol] = model
+            self._cached_stressed_state[symbol] = None
+            return
         variances = model.vars_.sum(axis=1)
         stressed, calm = int(np.argmax(variances)), int(np.argmin(variances))
         # On genuinely homogeneous data (no real second regime present),

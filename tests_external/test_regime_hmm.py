@@ -69,6 +69,8 @@ def test_real_market_returns_produce_a_stable_two_state_fit():
     states = model.predict(features)
 
     assert set(np.unique(states)) == {0, 1}, "expected both regimes to actually occur in real data"
+    assert model.valid_state_mask_.all(), "a regime label requires meaningful support for every state"
+    assert np.isclose(model.state_occupancy_.sum(), 1.0)
     # The two states should have genuinely different volatility profiles --
     # otherwise the model collapsed to one regime wearing two labels.
     vol_by_state = [features[states == s, 1].mean() for s in (0, 1)]
