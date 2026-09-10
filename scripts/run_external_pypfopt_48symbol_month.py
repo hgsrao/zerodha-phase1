@@ -37,7 +37,12 @@ def _month_bars(manifest: DatasetManifest, start: str) -> dict[str, pd.DataFrame
     for record in sorted(manifest.files, key=lambda item: item.symbol):
         frame = loader._load_symbol_csv(record.symbol)
         timezone = frame["timestamp"].dt.tz
-        interval_start = start_date.tz_localize(timezone)
+        if start_date.tzinfo is None:
+            interval_start = start_date.tz_localize(timezone) if timezone is not None else start_date
+        elif timezone is not None:
+            interval_start = start_date.tz_convert(timezone)
+        else:
+            interval_start = start_date.tz_localize(None)
         interval_end = interval_start + pd.DateOffset(months=1)
         bounded = frame[(frame["timestamp"] >= interval_start) & (frame["timestamp"] < interval_end)].reset_index(drop=True)
         if not bounded.empty:
