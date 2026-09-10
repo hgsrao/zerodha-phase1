@@ -14,7 +14,10 @@ import determinism_guard  # noqa: F401
 
 import argparse
 import json
+import signal
+import sys
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -27,6 +30,10 @@ from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = PROJECT_ROOT / "revision2" / "DATASET_MANIFEST_48SYMBOL_1MIN.json"
+
+
+def _write_run_state(path: Path, **payload: object) -> None:
+    path.write_text(json.dumps({"recorded_at": datetime.now(timezone.utc).isoformat(), **payload}, indent=2))
 
 
 def _bounded_bars(
@@ -105,6 +112,23 @@ def main() -> None:
         default=str(PROJECT_ROOT / "diagnostic_output" / "external_pypfopt_derater_20230703_1month.json"),
     )
     args = parser.parse_args()
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    state_path = output.with_suffix(".state.json")
+
+    def _terminated(signum: int, _frame: object) -> None:
+        _write_run_state(
+            state_path,
+            status="terminated_by_signal",
+            signal=signum,
+            output=str(output),
+        )
+        print(f"[STOP] Received signal {signum}; state saved to {state_path}", flush=True)
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, _terminated)
+    signal.signal(signal.SIGINT, _terminated)
+    _write_run_state(state_path, status="started", output=str(output))
 
     manifest = DatasetManifest.load(str(MANIFEST_PATH))
     print("[VERIFY] Re-hashing manifest-declared data files...", flush=True)
@@ -155,9 +179,8 @@ def main() -> None:
         "sizing": sizing,
         "report": report,
     }
-    output = Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(artifact, indent=2, default=str))
+    _write_run_state(state_path, status="completed", output=str(output))
     print(json.dumps({
         "output": str(output),
         **artifact["metrics"],
