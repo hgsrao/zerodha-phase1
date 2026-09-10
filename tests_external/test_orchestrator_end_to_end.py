@@ -49,6 +49,12 @@ def test_full_engine_runs_on_real_data_and_produces_real_trades():
             "planned_stop_price", "planned_target_price"} <= set(entry_events[0])
     assert {"entry_atr", "planned_entry_price", "planned_stop_price", "planned_target_price"} <= set(report["trades"][0])
 
+    sizing_events = [row for row in telemetry if row["event_type"] == "POSITION_SIZING"]
+    assert sizing_events
+    assert {"base_risk_budget", "derated_risk_budget", "risk_per_share", "symbol_weight",
+            "equal_weight", "conviction_derate", "safety_max_quantity", "final_quantity"} <= set(sizing_events[0])
+    assert all(row["derated_risk_budget"] <= row["base_risk_budget"] for row in sizing_events)
+
     # Every expected box actually ran and left a trace.
     assert report["pa_signals"] > 0
     assert report["id_approvals"] > 0
