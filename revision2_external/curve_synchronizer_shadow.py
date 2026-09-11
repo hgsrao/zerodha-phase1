@@ -16,6 +16,7 @@ import pandas as pd
 import talib
 
 from revision2_external.study_entry_shadow import StudyEntryShadowLedger
+from revision2_external.curve_entry_pid_shadow import CurveEntryPidShadow
 
 
 def _wrapped_delta_degrees(current: float, previous: float) -> float:
@@ -32,6 +33,7 @@ class CurveSynchronizerShadow:
         amplitude_range_atr: tuple[float, float] = (0.10, 2.00),
         phase_velocity_range: tuple[float, float] = (1.0, 20.0),
         minimum_volume_ratio: float = 1.0, admission_policy: Any | None = None,
+        entry_pid: CurveEntryPidShadow | None = None,
     ) -> None:
         self.ledger = ledger
         self.min_history = max(64, int(min_history))
@@ -41,6 +43,7 @@ class CurveSynchronizerShadow:
         self.phase_velocity_range = tuple(map(float, phase_velocity_range))
         self.minimum_volume_ratio = float(minimum_volume_ratio)
         self.admission_policy = admission_policy
+        self.entry_pid = entry_pid
 
     def observe(self, symbol: str, index: int, timestamp: object, bar: Any, history: pd.DataFrame, atr: float) -> Dict[str, Any]:
         close = history["close"].to_numpy(dtype=float)
@@ -97,6 +100,15 @@ class CurveSynchronizerShadow:
             "meaningful_amplitude": meaningful, "phase_in_band": phase_in_band,
             "daily_pnl_admission": admitted, "curve_reversal_side": side,
         })
+        if self.entry_pid is not None:
+            pid_state = self.entry_pid.evaluate(observation)
+            observation["entry_pid"] = pid_state
+            # In this shadow experiment a candidate must meet all three
+            # synchronizer ranges. The PID multiplier is logged, never used
+            # to size an order.
+            if not pid_state["synchronized"]:
+                side = None
+                observation["curve_reversal_side"] = None
         self.ledger.observations.append(observation)
         if side and setup_extreme is not None:
             self.ledger.schedule(

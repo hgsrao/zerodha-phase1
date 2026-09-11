@@ -4,6 +4,7 @@ import pandas as pd
 from revision2_external.curve_synchronizer_shadow import CurveSynchronizerShadow
 from revision2_external.study_entry_shadow import StudyEntryShadowLedger
 from revision2_external.intraday_pnl_setpoint_shadow import IntradayNetPnlBandShadow
+from revision2_external.curve_entry_pid_shadow import CurveEntryPidShadow
 
 
 def _bars() -> pd.DataFrame:
@@ -60,3 +61,13 @@ def test_daily_net_pnl_setpoint_includes_cost_net_and_never_chases_losses():
     controller.record_outcome({"candidate_id": "y", "resolution_timestamp": "t2", "net_pnl_per_share": -3.0})
     assert controller.state == "LOSS_LIMIT_HALTED"
     assert controller.allow_entry() is False
+
+
+def test_entry_pid_uses_prior_curve_baseline_and_cannot_boost_entry():
+    pid = CurveEntryPidShadow(phase_center=0, phase_tolerance=20, relative_tolerance=.10)
+    one = {"curve_ready": True, "phase_angle_degrees": 0., "phase_velocity_degrees_per_bar": 5., "cycle_amplitude_atr": 1.}
+    assert pid.evaluate(one)["entry_pid_ready"] is False
+    two = pid.evaluate(one)
+    assert two["entry_pid_ready"] is True
+    assert two["synchronized"] is True
+    assert .25 <= two["entry_timing_multiplier"] <= 1.0
