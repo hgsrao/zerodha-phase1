@@ -35,6 +35,9 @@ class _Candidate:
     stop_price: float | None = None
     target_price: float | None = None
     entry_timestamp: str | None = None
+    safe_mfe_r: float | None = None
+    safe_mae_r: float | None = None
+    safe_bars: int = 0
 
 
 class StudyEntryShadowLedger:
@@ -160,6 +163,18 @@ class StudyEntryShadowLedger:
             elif index >= candidate.expiry_index:
                 reason = "expiry"
             if reason is None:
+                # Use completed non-terminal bars only. The terminal OHLC bar
+                # has unknown intrabar order, so it cannot enter MFE/MAE.
+                risk = max(abs(candidate.entry_price - candidate.stop_price), 1e-12)
+                if candidate.side == "BUY":
+                    favorable = (high - candidate.entry_price) / risk
+                    adverse = (low - candidate.entry_price) / risk
+                else:
+                    favorable = (candidate.entry_price - low) / risk
+                    adverse = (candidate.entry_price - high) / risk
+                candidate.safe_mfe_r = max(candidate.safe_mfe_r, favorable) if candidate.safe_mfe_r is not None else favorable
+                candidate.safe_mae_r = min(candidate.safe_mae_r, adverse) if candidate.safe_mae_r is not None else adverse
+                candidate.safe_bars += 1
                 continue
             if reason.startswith("stop"):
                 market_exit = min(open_price, candidate.stop_price) if candidate.side == "BUY" else max(open_price, candidate.stop_price)
@@ -181,6 +196,9 @@ class StudyEntryShadowLedger:
                 "stop_price": candidate.stop_price, "target_price": candidate.target_price, "exit_price": exit_price,
                 "exit_reason": reason, "target_before_stop": reason == "target", "gross_pnl_per_share": gross,
                 "costs_per_share": costs, "net_pnl_per_share": gross - costs, "required_break_even_probability": required_probability,
+                "safe_mfe_r": candidate.safe_mfe_r, "safe_mae_r": candidate.safe_mae_r,
+                "safe_excursion_bars": candidate.safe_bars,
+                "terminal_bar_policy": "excluded_from_mfe_mae_intrabar_order_unknown",
                 "setup": candidate.studies,
             }
             self._outcomes[(symbol, "study_reversal")].append(outcome)
