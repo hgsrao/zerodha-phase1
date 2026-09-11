@@ -70,9 +70,11 @@ def main() -> None:
 
     low_index = int(day["low"].idxmin())
     low_time = str(day.iloc[low_index]["timestamp"])
+    low_timestamp = pd.Timestamp(low_time)
     neighborhood = [
         row for row in observations
-        if abs(pd.Timestamp(row["timestamp"]) - pd.Timestamp(low_time)) <= pd.Timedelta(minutes=5)
+        if low_timestamp - pd.Timedelta(minutes=5) <= pd.Timestamp(row["timestamp"])
+        <= low_timestamp + pd.Timedelta(minutes=5)
     ]
     direction_summary = {}
     for direction, label in ((1, "bullish"), (0, "neutral"), (-1, "bearish")):
