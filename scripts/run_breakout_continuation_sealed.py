@@ -11,6 +11,7 @@ from revision2_external.breakout_continuation_shadow import BreakoutContinuation
 from revision2_external.study_entry_shadow import StudyEntryShadowLedger
 from revision2_external.sealed_research_evaluator import evaluate_fixed_alpha
 from revision2_external.entry_path_diagnostic import diagnose
+from revision2_external.feature_separability_diagnostic import diagnose as feature_diagnose
 
 ROOT=Path(__file__).resolve().parents[1];MANIFEST=ROOT/'revision2'/'DATASET_MANIFEST_48SYMBOL_1MIN.json'
 def _period(frame,start,end):
@@ -47,6 +48,6 @@ def main():
   for name,(s,e) in windows.items():
    obs,rows=_run(r.symbol,_period(f,s,e));all_obs[name]+=obs;all_rows[name].extend(rows)
  results={k:_summary(all_rows[k],all_obs[k]) for k in windows}
- report={'run_type':'sealed_fixed_breakout_continuation_shadow','manifest_hash':m.manifest_hash,'windows':windows,'alpha_contract':'20-bar session breakout + EMA20 slope + session VWAP alignment + volume ratio >=1.2; no tuning','results':results,'path_diagnostics':{k:diagnose(all_rows[k]) for k in windows},'evaluation':evaluate_fixed_alpha(results),'note':'Shadow research only. The test window is not used to alter this hypothesis.'}
+ report={'run_type':'sealed_fixed_breakout_continuation_shadow','manifest_hash':m.manifest_hash,'windows':windows,'alpha_contract':'20-bar session breakout + EMA20 slope + session VWAP alignment + volume ratio >=1.2; no tuning','results':results,'path_diagnostics':{k:diagnose(all_rows[k]) for k in windows},'feature_separability':feature_diagnose(all_rows['train'],all_rows),'evaluation':evaluate_fixed_alpha(results),'note':'Shadow research only. The test window is not used to alter this hypothesis.'}
  out=Path(a.output or ROOT/'diagnostic_output'/'breakout_continuation_sealed_202309_202311.json');out.write_text(json.dumps(report,indent=2,default=str));print(json.dumps({'output':str(out),'results':report['results']},indent=2))
 if __name__=='__main__':main()

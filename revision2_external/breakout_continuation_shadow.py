@@ -23,7 +23,9 @@ class BreakoutContinuationShadow:
         elif close<prior_low and close<vwap and ema<ema_lag and vol_ratio>=1.2: side='SELL'
         if side is None:return
         scale=max(float(atr),1e-6); setup_extreme=float(close-.75*scale if side=='BUY' else close+.75*scale)
-        obs={'timestamp':str(timestamp),'symbol':symbol,'index':index,'alpha':'breakout_continuation_v1','side':side,'close':close,'prior_20_high':prior_high,'prior_20_low':prior_low,'session_vwap':vwap,'ema20':ema,'volume_ratio':vol_ratio}
+        direction = 1.0 if side == 'BUY' else -1.0
+        level = prior_high if side == 'BUY' else prior_low
+        obs={'timestamp':str(timestamp),'symbol':symbol,'index':index,'alpha':'breakout_continuation_v1','side':side,'close':close,'prior_20_high':prior_high,'prior_20_low':prior_low,'session_vwap':vwap,'ema20':ema,'volume_ratio':vol_ratio,'breakout_extension_atr':direction*(close-level)/scale,'vwap_distance_atr':direction*(close-vwap)/scale,'ema_slope_atr':direction*(ema-ema_lag)/scale}
         self.ledger.observations.append(obs);self.ledger.schedule(symbol=symbol,index=index,side=side,setup_extreme=setup_extreme,atr=scale,observation=obs)
     def observe(self, symbol:str,index:int,timestamp:object,bar:Any,history:pd.DataFrame,atr:float)->None:
         if len(history)<25:return
@@ -38,5 +40,7 @@ class BreakoutContinuationShadow:
         # stop geometry relative to the decision close, then records actual
         # next-open risk after conservative fill.
         scale=max(float(atr),1e-6); setup_extreme=float(close[-1]-.75*scale if side=='BUY' else close[-1]+.75*scale)
-        obs={'timestamp':str(timestamp),'symbol':symbol,'index':index,'alpha':'breakout_continuation_v1','side':side,'close':float(close[-1]),'prior_20_high':prior_high,'prior_20_low':prior_low,'session_vwap':vwap,'ema20':float(ema[-1]),'volume_ratio':vol_ratio}
+        direction = 1.0 if side == 'BUY' else -1.0
+        level = prior_high if side == 'BUY' else prior_low
+        obs={'timestamp':str(timestamp),'symbol':symbol,'index':index,'alpha':'breakout_continuation_v1','side':side,'close':float(close[-1]),'prior_20_high':prior_high,'prior_20_low':prior_low,'session_vwap':vwap,'ema20':float(ema[-1]),'volume_ratio':vol_ratio,'breakout_extension_atr':direction*(float(close[-1])-level)/scale,'vwap_distance_atr':direction*(float(close[-1])-vwap)/scale,'ema_slope_atr':direction*(float(ema[-1])-float(ema[-5]))/scale}
         self.ledger.observations.append(obs);self.ledger.schedule(symbol=symbol,index=index,side=side,setup_extreme=setup_extreme,atr=scale,observation=obs)
