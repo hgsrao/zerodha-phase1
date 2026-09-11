@@ -107,11 +107,26 @@ class StudyEntryShadowLedger:
         self.observations.append(observation)
         if side is None:
             return
+        self.schedule(
+            symbol=symbol, index=index, side=side, setup_extreme=float(extreme),
+            atr=atr, observation=observation,
+        )
+
+    def schedule(
+        self, *, symbol: str, index: int, side: str, setup_extreme: float,
+        atr: float, observation: Dict[str, Any],
+    ) -> None:
+        """Queue a generic causal shadow candidate for next-bar paper fill.
+
+        This deliberately does not know why the candidate was found.  It lets
+        independent research sensors use the same conservative fill, cost and
+        terminal-bar rules without touching the production order path.
+        """
         self._sequence += 1
         self._pending.append(_Candidate(
             candidate_id=f"study-shadow-{self._sequence}", symbol=symbol, side=side,
             signal_index=index, fill_index=index + 1, expiry_index=index + 1 + self.max_hold_bars,
-            setup_extreme=float(extreme), atr=max(float(atr), 1e-6), studies=observation,
+            setup_extreme=float(setup_extreme), atr=max(float(atr), 1e-6), studies=observation,
         ))
 
     def advance(self, symbol: str, index: int, timestamp: object, bar: Any) -> None:
