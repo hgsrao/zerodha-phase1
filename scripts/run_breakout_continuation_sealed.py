@@ -9,6 +9,7 @@ from market_data_loader import MarketDataLoader
 from revision2.dataset_manifest import DatasetManifest,verify_manifest
 from revision2_external.breakout_continuation_shadow import BreakoutContinuationShadow
 from revision2_external.study_entry_shadow import StudyEntryShadowLedger
+from revision2_external.sealed_research_evaluator import evaluate_fixed_alpha
 
 ROOT=Path(__file__).resolve().parents[1];MANIFEST=ROOT/'revision2'/'DATASET_MANIFEST_48SYMBOL_1MIN.json'
 def _period(frame,start,end):
@@ -38,6 +39,7 @@ def main():
   f=loader._load_symbol_csv(r.symbol);print(f'[LOAD {n:02d}/{len(m.files)}] {r.symbol}',flush=True)
   for name,(s,e) in windows.items():
    obs,rows=_run(r.symbol,_period(f,s,e));all_obs[name]+=obs;all_rows[name].extend(rows)
- report={'run_type':'sealed_fixed_breakout_continuation_shadow','manifest_hash':m.manifest_hash,'windows':windows,'alpha_contract':'20-bar session breakout + EMA20 slope + session VWAP alignment + volume ratio >=1.2; no tuning','results':{k:_summary(all_rows[k],all_obs[k]) for k in windows},'note':'Shadow research only. The test window is not used to alter this hypothesis.'}
+ results={k:_summary(all_rows[k],all_obs[k]) for k in windows}
+ report={'run_type':'sealed_fixed_breakout_continuation_shadow','manifest_hash':m.manifest_hash,'windows':windows,'alpha_contract':'20-bar session breakout + EMA20 slope + session VWAP alignment + volume ratio >=1.2; no tuning','results':results,'evaluation':evaluate_fixed_alpha(results),'note':'Shadow research only. The test window is not used to alter this hypothesis.'}
  out=Path(a.output or ROOT/'diagnostic_output'/'breakout_continuation_sealed_202309_202311.json');out.write_text(json.dumps(report,indent=2,default=str));print(json.dumps({'output':str(out),'results':report['results']},indent=2))
 if __name__=='__main__':main()
