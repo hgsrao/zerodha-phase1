@@ -62,3 +62,20 @@ No sensor, phase target, PID gain, or candidate rule is promoted into the
 paper execution path until it improves a sealed, time-separated test set on
 gross expectancy, cost-adjusted expectancy, and drawdown without violating
 the tester contract.
+
+## V3 dynamic-control contract
+
+V3 makes the closed loops executable and observable before connecting them to
+the order path.  For every controller decision the ledger records:
+
+| Loop | Setpoint | Measurement | Error | Bounded output | Feedback source |
+|---|---|---|---|---|---|
+| Entry quality | Cost-aware break-even target probability | Conservative symbol/side Beta-posterior probability | Posterior minus required probability | `entry_derate ∈ [0,1]` | Completed, timestamp-earlier trade outcomes |
+| Trade path | Frozen concave R-progress path | Current open-trade R | Current R minus expected R | One-way `stop_r` ratchet | The next completed bar of that position |
+| Portfolio risk | Heat and drawdown budgets | Current heat and drawdown | Budget minus measurement | `new_risk_derate ∈ [0,1]`, or halt | Current ledger/broker state |
+
+The dynamic values are **outputs**, not 48 hand-tuned parameter sets. A
+symbol gets a posterior derived from its own closed outcomes; sparse evidence
+falls back to side-wide outcomes with a conservative prior. Controller gains,
+safety caps, and transaction-cost assumptions remain versioned configuration,
+not self-modifying values.
