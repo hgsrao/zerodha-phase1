@@ -40,7 +40,7 @@ class _Candidate:
 class StudyEntryShadowLedger:
     """Outcome ledger for a conservative study-only reversal hypothesis."""
 
-    def __init__(self, max_hold_bars: int = 60, minimum_history: int = 20) -> None:
+    def __init__(self, max_hold_bars: int = 60, minimum_history: int = 20, outcome_listener: Any | None = None) -> None:
         self.max_hold_bars = int(max_hold_bars)
         self.minimum_history = int(minimum_history)
         self._sequence = 0
@@ -50,6 +50,7 @@ class StudyEntryShadowLedger:
         self.observations: List[Dict[str, Any]] = []
         self._outcomes: Dict[tuple[str, str], List[Dict[str, Any]]] = defaultdict(list)
         self._pids: Dict[tuple[str, str], PID] = {}
+        self._outcome_listener = outcome_listener
 
     @staticmethod
     def _leg_cost(price: float, side: str) -> float:
@@ -185,6 +186,8 @@ class StudyEntryShadowLedger:
             self._outcomes[(symbol, "study_reversal")].append(outcome)
             outcome["feedback"] = self._profile(symbol, "study_reversal", required_probability)
             self.resolved.append(outcome)
+            if self._outcome_listener is not None:
+                self._outcome_listener.record_outcome(outcome)
             self._open.remove(candidate)
 
     def finalize(self, symbol: str, timestamp: object, last_bar: Any) -> None:

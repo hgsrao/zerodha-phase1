@@ -3,6 +3,7 @@ import pandas as pd
 
 from revision2_external.curve_synchronizer_shadow import CurveSynchronizerShadow
 from revision2_external.study_entry_shadow import StudyEntryShadowLedger
+from revision2_external.intraday_pnl_setpoint_shadow import IntradayNetPnlBandShadow
 
 
 def _bars() -> pd.DataFrame:
@@ -48,3 +49,14 @@ def test_curve_observation_has_no_future_bar_fields():
     observation = ledger.observations[-1]
     assert "next_open" not in observation
     assert "future" not in " ".join(observation)
+
+
+def test_daily_net_pnl_setpoint_includes_cost_net_and_never_chases_losses():
+    controller = IntradayNetPnlBandShadow(50.0, 50.0, quantity=10)
+    controller.record_outcome({"candidate_id": "x", "resolution_timestamp": "t", "net_pnl_per_share": -3.0})
+    assert controller.net_pnl_rupees == -30.0
+    assert controller.allow_entry() is True
+    assert controller.throttle == 0.4
+    controller.record_outcome({"candidate_id": "y", "resolution_timestamp": "t2", "net_pnl_per_share": -3.0})
+    assert controller.state == "LOSS_LIMIT_HALTED"
+    assert controller.allow_entry() is False

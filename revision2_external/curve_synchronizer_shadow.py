@@ -26,9 +26,21 @@ def _wrapped_delta_degrees(current: float, previous: float) -> float:
 class CurveSynchronizerShadow:
     """Extract causal curve state and queue conservative reversal hypotheses."""
 
-    def __init__(self, ledger: StudyEntryShadowLedger, min_history: int = 64) -> None:
+    def __init__(
+        self, ledger: StudyEntryShadowLedger, min_history: int = 64,
+        phase_center_degrees: float = 0.0, phase_tolerance_degrees: float = 10.0,
+        amplitude_range_atr: tuple[float, float] = (0.10, 2.00),
+        phase_velocity_range: tuple[float, float] = (1.0, 20.0),
+        minimum_volume_ratio: float = 1.0, admission_policy: Any | None = None,
+    ) -> None:
         self.ledger = ledger
         self.min_history = max(64, int(min_history))
+        self.phase_center_degrees = float(phase_center_degrees)
+        self.phase_tolerance_degrees = abs(float(phase_tolerance_degrees))
+        self.amplitude_range_atr = tuple(map(float, amplitude_range_atr))
+        self.phase_velocity_range = tuple(map(float, phase_velocity_range))
+        self.minimum_volume_ratio = float(minimum_volume_ratio)
+        self.admission_policy = admission_policy
 
     def observe(self, symbol: str, index: int, timestamp: object, bar: Any, history: pd.DataFrame, atr: float) -> Dict[str, Any]:
         close = history["close"].to_numpy(dtype=float)
@@ -56,6 +68,7 @@ class CurveSynchronizerShadow:
         volume_mean = float(np.mean(volume[-21:-1])) if len(volume) > 21 else float(np.mean(volume[:-1]))
         volume_ratio = float(volume[-1] / max(volume_mean, 1e-12))
         phase_velocity = _wrapped_delta_degrees(phase, prior_phase)
+        phase_error = _wrapped_delta_degrees(phase, self.phase_center_degrees)
         valid_phase = bool(np.isfinite(phase) and np.isfinite(prior_phase))
 
         side = None
@@ -63,10 +76,12 @@ class CurveSynchronizerShadow:
         # "zero means reversal" rule.  Causal slope reversal is the actuator
         # candidate; a stable phase estimate, non-noise amplitude and normal
         # or greater participation are the shadow confirmation.
-        stable_cycle = valid_phase and 0.0 < abs(phase_velocity) <= 90.0
-        participating = volume_ratio >= 1.0
-        meaningful = amplitude_r >= 0.10
-        if stable_cycle and participating and meaningful:
+        stable_cycle = valid_phase and self.phase_velocity_range[0] <= abs(phase_velocity) <= self.phase_velocity_range[1]
+        phase_in_band = valid_phase and abs(phase_error) <= self.phase_tolerance_degrees
+        participating = volume_ratio >= self.minimum_volume_ratio
+        meaningful = self.amplitude_range_atr[0] <= amplitude_r <= self.amplitude_range_atr[1]
+        admitted = self.admission_policy.allow_entry() if self.admission_policy is not None else True
+        if stable_cycle and phase_in_band and participating and meaningful and admitted:
             if prior_slope_r <= 0.0 < slope_r:
                 side = "BUY"
             elif prior_slope_r >= 0.0 > slope_r:
@@ -74,11 +89,13 @@ class CurveSynchronizerShadow:
         setup_extreme = float(low[-1]) if side == "BUY" else (float(high[-1]) if side == "SELL" else None)
         observation.update({
             "curve_ready": valid_phase, "phase_angle_degrees": phase if valid_phase else None,
+            "phase_error_degrees": phase_error if valid_phase else None,
             "phase_velocity_degrees_per_bar": phase_velocity if valid_phase else None,
             "cycle_amplitude_atr": amplitude_r, "slope_r": slope_r,
             "prior_slope_r": prior_slope_r, "volume_ratio": volume_ratio,
             "stable_cycle": stable_cycle, "participating": participating,
-            "meaningful_amplitude": meaningful, "curve_reversal_side": side,
+            "meaningful_amplitude": meaningful, "phase_in_band": phase_in_band,
+            "daily_pnl_admission": admitted, "curve_reversal_side": side,
         })
         self.ledger.observations.append(observation)
         if side and setup_extreme is not None:
