@@ -22,10 +22,16 @@ def _run(symbol,frame):
  for _,day in frame.groupby(frame.timestamp.dt.date,sort=True):
   day=day.reset_index(drop=True)
   if len(day)<65:continue
-  atr=talib.ATR(day.high.to_numpy(float),day.low.to_numpy(float),day.close.to_numpy(float),timeperiod=14);ledger=StudyEntryShadowLedger(max_hold_bars=30);alpha=BreakoutContinuationShadow(ledger)
+  close=day.close.to_numpy(float);volume=day.volume.to_numpy(float)
+  atr=talib.ATR(day.high.to_numpy(float),day.low.to_numpy(float),close,timeperiod=14);ema=talib.EMA(close,timeperiod=20)
+  prior_high=day.high.shift(1).rolling(20,min_periods=20).max().to_numpy(float);prior_low=day.low.shift(1).rolling(20,min_periods=20).min().to_numpy(float)
+  prior_volume_median=day.volume.shift(1).rolling(20,min_periods=20).median().to_numpy(float);session_vwap=(day.close*day.volume).cumsum().div(day.volume.cumsum()).to_numpy(float)
+  ledger=StudyEntryShadowLedger(max_hold_bars=30);alpha=BreakoutContinuationShadow(ledger)
   for i in range(60,len(day)):
    b=day.iloc[i];ledger.advance(symbol,i,b.timestamp,b)
-   if i<len(day)-1:alpha.observe(symbol,i,b.timestamp,b,day.iloc[:i+1],float(atr[i]) if pd.notna(atr[i]) else max(float(b.high-b.low),.001))
+   if i<len(day)-1:
+    scale=float(atr[i]) if pd.notna(atr[i]) else max(float(b.high-b.low),.001)
+    alpha.observe_precomputed(symbol,i,b.timestamp,b,scale,{'close':close[i],'prior_high':prior_high[i],'prior_low':prior_low[i],'session_vwap':session_vwap[i],'ema20':ema[i],'ema20_lag4':ema[i-4],'volume_ratio':volume[i]/max(prior_volume_median[i],1e-12)})
   ledger.finalize(symbol,day.iloc[-1].timestamp,day.iloc[-1]);resolved.extend(ledger.resolved);observations+=len(ledger.observations)
  return observations,resolved
 def _summary(rows,observations):

@@ -14,6 +14,17 @@ from revision2_external.study_entry_shadow import StudyEntryShadowLedger
 
 class BreakoutContinuationShadow:
     def __init__(self, ledger: StudyEntryShadowLedger) -> None: self.ledger=ledger
+    def observe_precomputed(self, symbol:str,index:int,timestamp:object,bar:Any,atr:float,metrics:Dict[str,float])->None:
+        """Same rule as ``observe`` using causal per-session indicator arrays."""
+        close=float(metrics['close']);prior_high=float(metrics['prior_high']);prior_low=float(metrics['prior_low'])
+        vwap=float(metrics['session_vwap']);ema=float(metrics['ema20']);ema_lag=float(metrics['ema20_lag4']);vol_ratio=float(metrics['volume_ratio'])
+        side=None
+        if close>prior_high and close>vwap and ema>ema_lag and vol_ratio>=1.2: side='BUY'
+        elif close<prior_low and close<vwap and ema<ema_lag and vol_ratio>=1.2: side='SELL'
+        if side is None:return
+        scale=max(float(atr),1e-6); setup_extreme=float(close-.75*scale if side=='BUY' else close+.75*scale)
+        obs={'timestamp':str(timestamp),'symbol':symbol,'index':index,'alpha':'breakout_continuation_v1','side':side,'close':close,'prior_20_high':prior_high,'prior_20_low':prior_low,'session_vwap':vwap,'ema20':ema,'volume_ratio':vol_ratio}
+        self.ledger.observations.append(obs);self.ledger.schedule(symbol=symbol,index=index,side=side,setup_extreme=setup_extreme,atr=scale,observation=obs)
     def observe(self, symbol:str,index:int,timestamp:object,bar:Any,history:pd.DataFrame,atr:float)->None:
         if len(history)<25:return
         close=history.close.to_numpy(float);high=history.high.to_numpy(float);low=history.low.to_numpy(float);volume=history.volume.to_numpy(float)
