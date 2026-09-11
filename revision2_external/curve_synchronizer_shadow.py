@@ -33,7 +33,7 @@ class CurveSynchronizerShadow:
         amplitude_range_atr: tuple[float, float] = (0.10, 2.00),
         phase_velocity_range: tuple[float, float] = (1.0, 20.0),
         minimum_volume_ratio: float = 1.0, admission_policy: Any | None = None,
-        entry_pid: CurveEntryPidShadow | None = None,
+        entry_pid: CurveEntryPidShadow | None = None, phase_setpoints: Any | None = None,
     ) -> None:
         self.ledger = ledger
         self.min_history = max(64, int(min_history))
@@ -44,6 +44,7 @@ class CurveSynchronizerShadow:
         self.minimum_volume_ratio = float(minimum_volume_ratio)
         self.admission_policy = admission_policy
         self.entry_pid = entry_pid
+        self.phase_setpoints = phase_setpoints
 
     def observe(self, symbol: str, index: int, timestamp: object, bar: Any, history: pd.DataFrame, atr: float) -> Dict[str, Any]:
         close = history["close"].to_numpy(dtype=float)
@@ -84,11 +85,24 @@ class CurveSynchronizerShadow:
         participating = volume_ratio >= self.minimum_volume_ratio
         meaningful = self.amplitude_range_atr[0] <= amplitude_r <= self.amplitude_range_atr[1]
         admitted = self.admission_policy.allow_entry() if self.admission_policy is not None else True
-        if stable_cycle and phase_in_band and participating and meaningful and admitted:
+        if stable_cycle and participating and meaningful and admitted:
             if prior_slope_r <= 0.0 < slope_r:
                 side = "BUY"
             elif prior_slope_r >= 0.0 > slope_r:
                 side = "SELL"
+        newton_update = None
+        if self.phase_setpoints is not None and valid_phase:
+            # At this completed bar, the previous bar's turn is confirmed;
+            # update from that previous phase only, with no future bar.
+            if prior_slope_r <= 0.0 < slope_r:
+                newton_update = self.phase_setpoints.update(symbol, "BUY", prior_phase)
+            elif prior_slope_r >= 0.0 > slope_r:
+                newton_update = self.phase_setpoints.update(symbol, "SELL", prior_phase)
+            if side is not None:
+                target = self.phase_setpoints.target(symbol, side)
+                if target is not None:
+                    phase_error = _wrapped_delta_degrees(phase, target)
+                    phase_in_band = abs(phase_error) <= self.phase_tolerance_degrees
         setup_extreme = float(low[-1]) if side == "BUY" else (float(high[-1]) if side == "SELL" else None)
         observation.update({
             "curve_ready": valid_phase, "phase_angle_degrees": phase if valid_phase else None,
@@ -98,9 +112,15 @@ class CurveSynchronizerShadow:
             "prior_slope_r": prior_slope_r, "volume_ratio": volume_ratio,
             "stable_cycle": stable_cycle, "participating": participating,
             "meaningful_amplitude": meaningful, "phase_in_band": phase_in_band,
+            "newton_phase_update": newton_update,
+            "dynamic_phase_target_degrees": (self.phase_setpoints.target(symbol, side) if self.phase_setpoints is not None and side is not None else self.phase_center_degrees),
             "daily_pnl_admission": admitted, "curve_reversal_side": side,
         })
         if self.entry_pid is not None:
+            if side is not None and self.phase_setpoints is not None:
+                target = self.phase_setpoints.target(symbol, side)
+                if target is not None:
+                    self.entry_pid.phase_center = target
             pid_state = self.entry_pid.evaluate(observation)
             observation["entry_pid"] = pid_state
             # In this shadow experiment a candidate must meet all three
@@ -109,6 +129,9 @@ class CurveSynchronizerShadow:
             if not pid_state["synchronized"]:
                 side = None
                 observation["curve_reversal_side"] = None
+        elif not phase_in_band:
+            side = None
+            observation["curve_reversal_side"] = None
         self.ledger.observations.append(observation)
         if side and setup_extreme is not None:
             self.ledger.schedule(
