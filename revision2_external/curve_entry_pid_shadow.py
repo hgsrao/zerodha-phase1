@@ -22,10 +22,10 @@ class CurveEntryPidShadow:
         self.relative_tolerance = abs(float(relative_tolerance))
         self._amplitudes: deque[float] = deque(maxlen=int(baseline_bars))
         self._frequencies: deque[float] = deque(maxlen=int(baseline_bars))
-        # Error is setpoint - measurement. Negative-only output makes this a
-        # brake: poor synchronization reduces timing permission but cannot
-        # create an above-baseline entry multiplier.
-        self._pid = PID(Kp=0.35, Ki=0.02, Kd=0.05, setpoint=1.0, sample_time=None, output_limits=(-0.75, 0.0))
+        # simple_pid error = setpoint - measurement. A poor measurement thus
+        # produces a positive derate.  We subtract it below, making this a
+        # brake only: it can never create an above-baseline multiplier.
+        self._pid = PID(Kp=0.35, Ki=0.02, Kd=0.05, setpoint=1.0, sample_time=None, output_limits=(0.0, 0.75))
 
     @staticmethod
     def _wrap(angle: float) -> float:
@@ -51,7 +51,7 @@ class CurveEntryPidShadow:
         voltage_quality = max(0.0, 1.0 - (amp_error or 1.0) / max(self.relative_tolerance, 1e-9)) if ready else 0.0
         frequency_quality = max(0.0, 1.0 - (freq_error or 1.0) / max(self.relative_tolerance, 1e-9)) if ready else 0.0
         measurement = min(phase_quality, voltage_quality, frequency_quality)
-        output = float(self._pid(measurement, dt=1)) if ready else -0.75
+        derate = float(self._pid(measurement, dt=1)) if ready else 0.75
         result = {
             "entry_pid_ready": ready, "phase_center_degrees": self.phase_center,
             "phase_tolerance_degrees": self.phase_tolerance, "voltage_relative_tolerance": self.relative_tolerance,
@@ -60,7 +60,7 @@ class CurveEntryPidShadow:
             "voltage_relative_error": amp_error, "frequency_relative_error": freq_error,
             "phase_in_range": phase_ok, "voltage_in_range": voltage_ok,
             "frequency_in_range": frequency_ok, "entry_pid_measurement": measurement,
-            "entry_pid_output": output, "entry_timing_multiplier": 1.0 + output,
+            "entry_pid_derate": derate, "entry_timing_multiplier": 1.0 - derate,
             "synchronized": bool(phase_ok and voltage_ok and frequency_ok),
         }
         # Append only after evaluating; current bar is never in its own target.

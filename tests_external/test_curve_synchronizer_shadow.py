@@ -71,3 +71,5 @@ def test_entry_pid_uses_prior_curve_baseline_and_cannot_boost_entry():
     assert two["entry_pid_ready"] is True
     assert two["synchronized"] is True
     assert .25 <= two["entry_timing_multiplier"] <= 1.0
+    off_band = pid.evaluate({"curve_ready": True, "phase_angle_degrees": 90., "phase_velocity_degrees_per_bar": 40., "cycle_amplitude_atr": 4.})
+    assert off_band["entry_timing_multiplier"] < 1.0
