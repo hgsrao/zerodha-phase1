@@ -13,7 +13,7 @@ import json
 import zlib
 from pathlib import Path
 
-import matplotlib.pyplot as plt
+import altair as alt
 import numpy as np
 import pandas as pd
 
@@ -47,35 +47,32 @@ def _halt_intervals(frame: pd.DataFrame) -> list[tuple[pd.Timestamp, pd.Timestam
 
 
 def _plot(frame: pd.DataFrame, output: Path, symbol: str, controller: HMMRiskHysteresis) -> None:
-    fig, (price_axis, control_axis) = plt.subplots(
-        2, 1, figsize=(15, 8), sharex=True, gridspec_kw={"height_ratios": [2, 1]},
+    """Write an inspectable HTML chart without adding a plotting dependency."""
+    # Two months of one-minute bars are dense.  Keep every fifth bar in the
+    # view; all events remain in the JSON ledger at full resolution.
+    view = frame.iloc[::5].copy()
+    alt.data_transformers.disable_max_rows()
+    base = alt.Chart(view).encode(x=alt.X("timestamp:T", title="Time"))
+    price = base.mark_line(color="#222", strokeWidth=1).encode(
+        y=alt.Y("close:Q", title="Close"), tooltip=["timestamp:T", "close:Q", "stressed_latched:N"],
+    ).properties(title=f"{symbol}: price with HMM hysteresis shadow state", height=260)
+    halts = base.transform_filter(alt.datum.stressed_latched).mark_point(color="#c62828", opacity=0.35, size=10).encode(
+        y="close:Q",
     )
-    price_axis.plot(frame.timestamp, frame.close, color="black", linewidth=0.8, label="Close")
-    for start, end in _halt_intervals(frame):
-        price_axis.axvspan(start, end, color="tab:red", alpha=0.18)
-    price_axis.set_title(f"{symbol}: price and HMM hysteresis shadow halts")
-    price_axis.set_ylabel("Price")
-    price_axis.grid(alpha=0.25)
-
-    control_axis.plot(frame.timestamp, frame.raw_stress_probability, color="tab:blue", alpha=0.45,
-                      linewidth=0.7, label="Raw P(stress)")
-    control_axis.plot(frame.timestamp, frame.filtered_stress_probability, color="tab:purple", linewidth=1.0,
-                      label="Filtered P(stress)")
-    control_axis.step(frame.timestamp, frame.applied_derate, where="post", color="tab:orange", linewidth=1.4,
-                      label="Applied shadow risk derate")
-    control_axis.axhline(controller.enter_stress_probability, color="tab:red", linestyle="--", linewidth=0.8,
-                         label=f"Latch {controller.enter_stress_probability:.2f}")
-    control_axis.axhline(controller.exit_stress_probability, color="tab:green", linestyle="--", linewidth=0.8,
-                         label=f"Release {controller.exit_stress_probability:.2f}")
-    control_axis.set_title("Causal posterior, deadband, and step-buffered derate")
-    control_axis.set_ylabel("Probability / derate")
-    control_axis.set_ylim(-0.05, 1.05)
-    control_axis.grid(alpha=0.25)
-    control_axis.legend(loc="upper right", ncol=2, fontsize=8)
-    fig.tight_layout()
+    probability = base.transform_fold(
+        ["raw_stress_probability", "filtered_stress_probability", "applied_derate"],
+        as_=["series", "value"],
+    ).mark_line().encode(
+        y=alt.Y("value:Q", title="Probability / applied derate", scale=alt.Scale(domain=[0, 1])),
+        color=alt.Color("series:N", title="Series"),
+        tooltip=["timestamp:T", "series:N", alt.Tooltip("value:Q", format=".3f")],
+    ).properties(title="Causal HMM posterior and step-buffered risk derate", height=220)
+    rules = alt.Chart(pd.DataFrame({"level": [controller.enter_stress_probability, controller.exit_stress_probability],
+                                    "label": ["Latch", "Release"]})).mark_rule(strokeDash=[5, 4]).encode(
+        y="level:Q", color="label:N", tooltip=["label:N", alt.Tooltip("level:Q", format=".2f")],
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, dpi=160)
-    plt.close(fig)
+    ((price + halts) & (probability + rules)).save(output)
 
 
 def main() -> None:
@@ -85,7 +82,7 @@ def main() -> None:
     parser.add_argument("--plot", default=None)
     args = parser.parse_args()
     output = Path(args.output or ROOT / "diagnostic_output" / f"hmm_risk_hysteresis_{args.symbol}_2025_janmar.json")
-    plot = Path(args.plot or ROOT / "diagnostic_output" / f"hmm_risk_hysteresis_{args.symbol}_2025_janmar.png")
+    plot = Path(args.plot or ROOT / "diagnostic_output" / f"hmm_risk_hysteresis_{args.symbol}_2025_janmar.html")
 
     manifest = DatasetManifest.load(str(MANIFEST))
     verified = verify_manifest(manifest)
