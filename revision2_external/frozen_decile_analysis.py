@@ -4,7 +4,7 @@ from typing import Any, Dict
 import numpy as np
 import pandas as pd
 
-FEATURES=("realized_vol_20","return_autocorr_20","body_fraction","close_location","gap_atr","range_atr")
+FEATURES=("realized_vol_20","return_autocorr_20","body_fraction","close_location","gap_atr","range_atr","fib_impulse_atr","fib_nearest_distance_atr","fib_bars_since_confirmation")
 
 def _stats(frame: pd.DataFrame, group: str) -> list[Dict[str,Any]]:
     out=[]
