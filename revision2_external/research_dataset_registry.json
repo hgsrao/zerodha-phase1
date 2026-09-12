@@ -1,0 +1,29 @@
+{
+  "research_family": "2026_mtf_causal_feature_discovery",
+  "dataset_manifest_hash": "f724074ca45eb9380ba6e7cf18ae1da4d9c9d48be0cf78ca51b0faa8d8d8ff16",
+  "dataset_manifest_path": "revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json",
+  "train": [
+    "2026-01-01",
+    "2026-03-31"
+  ],
+  "validation": [
+    "2026-04-01",
+    "2026-04-30"
+  ],
+  "test": [
+    "2026-05-01",
+    "2026-05-31"
+  ],
+  "sealed_confirmation": [
+    "2026-06-01",
+    "2026-06-30"
+  ],
+  "higher_timeframe_contract": {
+    "five_minute": "last completed bar only",
+    "fifteen_minute": "last completed bar only",
+    "partial_bar_features": "forbidden",
+    "decision_time_rule": "A one-minute decision may consume only higher-timeframe bars completed strictly before that decision timestamp."
+  },
+  "permitted_use": "Causal multi-timeframe feature discovery only; no execution rule, controller actuation, calibration, or live-trading decision.",
+  "status": "RESERVED_NOT_YET_RUN"
+}
