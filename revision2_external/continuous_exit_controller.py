@@ -162,6 +162,9 @@ class ExitControllerState:
     entry_price: float
     initial_stop_price: float
     original_target_distance: float
+    # Stop armed before the current bar.  ``update`` may ratchet it using
+    # the current close, but the orchestrator can only test that new level
+    # from the next bar onward.
     current_stop_price: float
     current_target_price: float
     favorable_extreme: float  # real price-curve high-water-mark (input #3)

@@ -4,6 +4,7 @@ sys.path.insert(0, ".")
 from canonical_parameter_registry import CanonicalParameterRegistry
 from market_data_loader import MarketDataLoader
 from revision2.dataset_manifest import DatasetManifest
+from revision2.contracts import PASignal
 from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
 
 
@@ -122,6 +123,47 @@ def test_startup_certification_rejects_an_invalid_override():
         Revision2ExternalEngineOrchestrator(
             ["INFY"], registry, calibration_overrides={"momentum_weight": 999.0},
         )
+
+
+def test_exit_stop_ratchet_armed_from_a_close_is_not_retroactively_checked_inside_that_bar():
+    """A close-derived stop is valid only on the next OHLC bar.
+
+    The bar's low deliberately lies below the newly ratcheted stop but above
+    the pre-existing stop.  Exiting here would silently assume that the close
+    happened before the low, which one-minute OHLCV cannot establish.
+    """
+    registry = CanonicalParameterRegistry()
+    orch = Revision2ExternalEngineOrchestrator(
+        ["INFY"], registry, starting_equity=1_000_000.0, closed_loop_mode="active_paper",
+    )
+    orch.exit_controller.atr_droop_mult = 1.0
+    orch.id_box._current_regime = lambda symbol, latest_close: "calm"
+    state = orch.exit_controller.open_position("BUY", 100.0, 95.0, 150.0, 60)
+    orch._exit_controller_states["INFY"] = state
+    orch.open_trades["INFY"] = {
+        "side": "BUY", "entry_price": 100.0, "quantity": 10,
+        "stop_price": 95.0, "target_price": 150.0,
+        "minimum_hold_bars": 2, "maximum_hold_bars": 60,
+        "entry_timestamp": "2024-01-02 09:20:00", "trade_id": "trade-1",
+        "candidate_id": "candidate-1", "entry_atr": 1.0,
+        "planned_entry_price": 100.0, "planned_stop_price": 95.0,
+        "planned_target_price": 150.0,
+    }
+    signal = PASignal(
+        symbol="INFY", timestamp="2024-01-02 09:21:00", direction=1,
+        confidence=0.6, momentum=0.1, volatility=0.01, vwap_deviation=0.0,
+        volume_confirmation=0.0, exit_confidence=0.6,
+    )
+    bar = {"open": 100.0, "high": 110.0, "low": 99.0, "close": 110.0}
+
+    orch._maybe_exit("INFY", "2024-01-02 09:21:00", bar, signal, held_bars=1,
+                     session_last_bar=False, chart_studies_confidence=0.6)
+
+    # The update did arm a materially tighter stop for the following bar.
+    assert orch._exit_controller_states["INFY"].current_stop_price > bar["low"]
+    # But it must not be applied to the same bar's already-observed low.
+    assert "INFY" in orch.open_trades
+    assert not orch.completed_trades
 
 
 def test_daily_unrealized_loss_reflects_real_mark_to_market_not_a_frozen_zero():

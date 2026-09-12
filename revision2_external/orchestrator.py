@@ -105,8 +105,9 @@ class Revision2ExternalEngineOrchestrator:
         # cannot alter quantity, stops, targets, or safety policy.
         self.grid_context_provider = grid_context_provider
         self.grid_shadow_observations: List[Dict[str, Any]] = []
-        # Observation-only controller ledger. It is never consulted by
-        # order, sizing, stop, target, or safety code.
+        # Audit ledger for controller comparators and, in ``active_paper``
+        # mode, their bounded paper-only actuations.  It is never a safety
+        # override and is not connected to a live broker.
         self.controller_telemetry: List[Dict[str, Any]] = []
         self._controller_sequence = 0
         self._trade_sequence = 0
@@ -169,9 +170,10 @@ class Revision2ExternalEngineOrchestrator:
             "pid_integral_window_bars", "trailing_stop_atr_mult", "saturation_exit_bars",
         })
         self._exit_controller_states: Dict[str, ExitControllerState] = {}
-        # Three-loop supervisory layer. Its first release is deliberately
-        # observation-only: every proposed adjustment is recorded, but no
-        # entry, size or stop is changed until sealed shadow evidence exists.
+        # Three-loop supervisory layer. ``shadow`` records comparators only;
+        # ``active_paper`` permits bounded, one-way paper actuations only:
+        # entry/portfolio loops can reduce size, and the path loop can only
+        # tighten a stop. Neither mode can weaken a safety constraint.
         self.closed_loop = ClosedLoopSupervisor()
 
         self.startup_certificate = self._issue_startup_certificate()
@@ -331,7 +333,7 @@ class Revision2ExternalEngineOrchestrator:
             self._exit_controller_states.pop(symbol, None)
 
     def _record_controller_event(self, event_type: str, timestamp: object, symbol: str, payload: Dict[str, Any]) -> None:
-        """Record controller state without introducing a feedback path."""
+        """Record controller state and any bounded paper-only actuation."""
         self.controller_telemetry.append({
             "event_type": event_type, "timestamp": str(timestamp), "symbol": symbol, **payload,
         })
@@ -354,8 +356,10 @@ class Revision2ExternalEngineOrchestrator:
         # confidence) AND the chart-studies composite confidence (Box 4b,
         # computed above, never blended into `signal`) as two fully
         # separate PID tracks, before checking anything else. current_stop
-        # is a ratcheted stop that only ever tightens; the frozen
-        # trade["stop_price"] is no longer what's actually checked below.
+        # is a ratcheted stop that only ever tightens.  Critically, an update
+        # calculated from THIS bar's close is armed for the NEXT bar.  The
+        # OHLC order inside the current bar is unknown, so testing a freshly
+        # calculated stop against this bar's high/low would be look-ahead.
         state = self._exit_controller_states.get(symbol)
         current_stop = trade["stop_price"]
         if state is not None:
@@ -373,7 +377,6 @@ class Revision2ExternalEngineOrchestrator:
                 float(bar["close"]), current_atr,
             )
             self._exit_controller_states[symbol] = state
-            current_stop = state.current_stop_price
             closed_loop_snapshot = trade.get("closed_loop")
             if closed_loop_snapshot is not None:
                 path_observation = self.closed_loop.observe_trade_path(
@@ -398,7 +401,6 @@ class Revision2ExternalEngineOrchestrator:
                         state.current_stop_price = max(state.current_stop_price, proposed_stop)
                     else:
                         state.current_stop_price = min(state.current_stop_price, proposed_stop)
-                    current_stop = state.current_stop_price
                     self._record_controller_event("TRADE_PATH_STOP_ACTUATION", timestamp, symbol, {
                         "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
                         "stop_before": before_path_actuation, "proposed_stop": proposed_stop,
