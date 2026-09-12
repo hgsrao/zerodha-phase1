@@ -105,6 +105,13 @@ class FrozenJointModel:
     train_score: np.ndarray
 
 
+def predict_frozen(frozen: FrozenJointModel, frame: pd.DataFrame) -> pd.Series:
+    """Return frozen target-first probabilities indexed to eligible source rows."""
+    design = _design_rows(frame)
+    score = frozen.model.predict_proba(design.loc[:, MODEL_FEATURES])[:, 1]
+    return pd.Series(score, index=design.index, name="frozen_probability")
+
+
 def fit_train_only(train: pd.DataFrame) -> FrozenJointModel:
     """Fit once on the chronological train period and freeze the result."""
     fitted_train = _design_rows(train)
