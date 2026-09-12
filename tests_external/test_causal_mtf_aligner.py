@@ -38,3 +38,21 @@ def test_mtf_features_are_calculated_from_completed_bars_then_joined():
     result = extractor.extract_features(_minute_frame())
     assert {"5m_trend", "15m_trend", "htf_5min_available_at", "htf_15min_available_at"} <= set(result.columns)
     assert pd.isna(result.loc["2026-01-02 09:30", "htf_15min_available_at"])
+    # The 09:15--10:15 opening range is complete at 10:15 but cannot be
+    # consumed until the next one-minute decision timestamp.
+    assert pd.isna(result.loc["2026-01-02 10:15", "5m_opening_range_high"])
+    assert result.loc["2026-01-02 10:16", "5m_opening_range_high"] == 59.2
+
+
+def test_session_vwap_resets_instead_of_carrying_prior_day_volume():
+    script = Path("scripts/extract_mtf_causal_features_2026.py")
+    spec = importlib.util.spec_from_file_location("mtf_extract_vwap", script)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    index = pd.DatetimeIndex(["2026-01-02 09:30", "2026-01-02 09:45", "2026-01-03 09:30"])
+    frame = pd.DataFrame({"high": [101.0, 103.0, 201.0], "low": [99.0, 101.0, 199.0], "close": [100.0, 102.0, 200.0], "volume": [10.0, 10.0, 10.0]}, index=index)
+    vwap = module.MTFFeatureExtractor._session_vwap(frame)
+    assert vwap.iloc[0] == 100.0
+    assert vwap.iloc[1] == 101.0
+    assert vwap.iloc[2] == 200.0

@@ -25,5 +25,13 @@
     "decision_time_rule": "A one-minute decision may consume only higher-timeframe bars completed strictly before that decision timestamp."
   },
   "permitted_use": "Causal multi-timeframe feature discovery only; no execution rule, controller actuation, calibration, or live-trading decision.",
-  "status": "RESERVED_NOT_YET_RUN"
+  "status": "RESERVED_NOT_YET_RUN",
+  "quarantine_history": [
+    {
+      "recorded_at": "2026-09-12",
+      "event": "INVALID_FULL_EXTRACTION_QUARANTINED",
+      "reason": "An unreviewed 8-feature extraction read all four windows before session-reset VWAP, unit-consistent volatility normalization, and completed opening-range safeguards were implemented.",
+      "action": "Generated Parquet outputs, runner, and generated reports were moved outside the project. They are prohibited from analysis, model selection, validation, or confirmation use."
+    }
+  ]
 }

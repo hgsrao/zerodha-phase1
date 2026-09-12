@@ -47,6 +47,7 @@ KITE_*
 
 # Large data files and research outputs (version via CSV snapshots with hashes instead)
 *.parquet
+revision2_external/extracted_features_2026/
 data/large_*.csv
 backtest_output/
 *.pickle
