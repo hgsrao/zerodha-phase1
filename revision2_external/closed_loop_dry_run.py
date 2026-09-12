@@ -115,3 +115,82 @@ def build_closed_loop_cascade_dry_run() -> Dict[str, Any]:
         "hmm_execution_status": "SHADOW_ONLY",
         "events": events,
     }
+
+
+def build_stress_test_dry_run() -> Dict[str, Any]:
+    """Exercise fail-closed boundaries using deterministic controller inputs.
+
+    Every result is a recommendation or a paper-execution *would* outcome.
+    This function intentionally has no broker, market-data, or order side
+    effects.
+    """
+    events: List[Dict[str, Any]] = []
+    supervisor = ClosedLoopSupervisor()
+
+    hard_limit = supervisor.observe_portfolio_risk(100_000.0, 100_000.0, 0.50)
+    events.append({"scenario": "PORTFOLIO_HARD_LIMIT", "observation": hard_limit})
+
+    # First two observations establish the required three-bar evidence, then
+    # a third latches. A subsequent 0.65 reading is deliberately inside the
+    # hysteresis deadband: it must not release the brake.
+    hysteresis = HMMRiskHysteresis(smoothing_alpha=1.0, confirmation_bars=3)
+    latch_trace = [hysteresis.update({"available": True, "stress_probability": 0.76}) for _ in range(3)]
+    deadband = hysteresis.update({"available": True, "stress_probability": 0.65})
+    events.append({
+        "scenario": "HMM_HYSTERESIS_DEADBAND_SHADOW", "latch_trace": latch_trace,
+        "deadband_observation": deadband, "execution_affected": False,
+    })
+
+    # Two losses are intentionally insufficient to dominate the neutral
+    # partial-pooling prior used by the entry-quality loop.
+    before = supervisor.entry_snapshot("NEW", "BUY", 100.0, 95.0, 110.0, 20)["entry_quality"]
+    for number in range(2):
+        supervisor.record_outcome({
+            "symbol": "NEW", "side": "BUY", "net_pnl": -10.0,
+            "trade_id": f"new-{number}", "reason": "stop",
+        })
+    after_two_losses = supervisor.entry_snapshot("NEW", "BUY", 100.0, 95.0, 110.0, 20)["entry_quality"]
+    events.append({
+        "scenario": "ENTRY_QUALITY_PARTIAL_POOLING", "before": before,
+        "after_two_losses": after_two_losses, "execution_affected": False,
+    })
+
+    # This calls the production controller's causally safe stop checker. It
+    # models a stop armed on an earlier bar and an adverse next-bar gap.
+    controller = ContinuousExitController(
+        kp=0.12, ki=0.04, kd=0.06, clamp=0.10, atr_droop_mult=1.0, baseline_window=5,
+    )
+    state = controller.open_position("BUY", 105.0, 100.0, 115.0, max_hold_bars=20)
+    state.shadow_stop_price = 100.0
+    gap = controller.check_shadow_stop(
+        state, {"open": 98.0, "high": 99.0, "low": 97.0, "close": 98.0}, "dry-run-next-bar",
+    )
+    events.append({"scenario": "NEXT_BAR_STOP_GAP", "result": gap, "execution_affected": False})
+
+    # This is the exact final integer boundary used by the production sizing
+    # module (max(0, int(quantity))). It demonstrates that a fractional
+    # proposal cannot be rounded up into an unauthorised minimum order.
+    base_quantity = 1
+    combined_derate = 0.40
+    final_quantity = max(0, int(base_quantity * combined_derate))
+    events.append({
+        "scenario": "MINIMUM_SIZE_REJECTION", "base_quantity": base_quantity,
+        "combined_derate": combined_derate, "final_quantity": final_quantity,
+        "would_submit_order": final_quantity > 0,
+    })
+
+    contradiction = min(1.0, 1.0 * hard_limit["suggested_new_risk_derate"] * deadband["suggested_hysteresis_derate"])
+    events.append({
+        "scenario": "CONTRADICTORY_SIGNALS", "strong_entry_derate": 1.0,
+        "portfolio_derate": hard_limit["suggested_new_risk_derate"],
+        "hmm_derate": deadband["suggested_hysteresis_derate"],
+        "combined_proposed_risk_multiplier": contradiction,
+        "execution_affected": False,
+    })
+
+    return {
+        "status": "STRESS_DRY_RUN_COMPLETE",
+        "purpose": "fail-closed controller-boundary proof; not market validation",
+        "hmm_execution_status": "SHADOW_ONLY",
+        "events": events,
+    }

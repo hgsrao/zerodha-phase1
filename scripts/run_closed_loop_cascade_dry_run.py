@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from revision2_external.closed_loop_dry_run import build_closed_loop_cascade_dry_run
+from revision2_external.closed_loop_dry_run import build_closed_loop_cascade_dry_run, build_stress_test_dry_run
 
 
 def main() -> None:
@@ -15,8 +15,9 @@ def main() -> None:
         "--output", type=Path,
         default=Path("diagnostic_output/closed_loop_cascade_dry_run.json"),
     )
+    parser.add_argument("--stress", action="store_true", help="run the deterministic fail-closed stress trace")
     args = parser.parse_args()
-    report = build_closed_loop_cascade_dry_run()
+    report = build_stress_test_dry_run() if args.stress else build_closed_loop_cascade_dry_run()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps({"output": str(args.output), "status": report["status"], "events": len(report["events"])}, indent=2))
