@@ -207,6 +207,25 @@ class GaussianHMM:
             log_alpha[t] -= self._logsumexp(log_alpha[t], axis=0)
         return np.exp(log_alpha)
 
+    def filter_step(self, observation: np.ndarray, prior: np.ndarray | None = None) -> np.ndarray:
+        """Advance a causal HMM filter by one observation.
+
+        ``prior`` is the posterior from the preceding completed bar.  This
+        avoids recomputing a full history on every bar and, more importantly,
+        makes the information boundary explicit for replay and live use.
+        """
+        x = np.asarray(observation, dtype=float).reshape(1, -1)
+        if prior is None:
+            predicted = np.asarray(self.startprob_, dtype=float)
+        else:
+            prior = np.asarray(prior, dtype=float)
+            if prior.shape != (self.n_states,):
+                raise ValueError("filter prior must have one probability per state")
+            predicted = prior @ self.transmat_
+        log_weight = np.log(np.maximum(predicted, 1e-300)) + self._log_emission(x)[0]
+        log_weight -= self._logsumexp(log_weight, axis=0)
+        return np.exp(log_weight)
+
     def score(self, X: np.ndarray) -> float:
         X = np.asarray(X, dtype=float)
         if X.ndim == 1:

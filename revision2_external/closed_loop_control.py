@@ -37,6 +37,87 @@ def regime_risk_derate(observation: Dict[str, Any]) -> Dict[str, Any]:
             "suggested_regime_derate": 1.0 - stress, "reason": "POSTERIOR_SHADOW"}
 
 
+@dataclass
+class HMMRiskHysteresis:
+    """Causal anti-whipsaw state for an HMM stress posterior.
+
+    The constants are disclosed research settings, not calibrated trading
+    parameters.  They require a sustained filtered posterior to latch a
+    *shadow* halt recommendation, and a lower sustained posterior to release
+    it.  The output is always a one-way brake in the inclusive [0, 1] range.
+    """
+    enter_stress_probability: float = 0.75
+    exit_stress_probability: float = 0.55
+    confirmation_bars: int = 3
+    smoothing_alpha: float = 0.25
+    minimum_derate_step: float = 0.15
+    filtered_probability: float | None = None
+    stressed_latched: bool = False
+    enter_count: int = 0
+    exit_count: int = 0
+    applied_derate: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.exit_stress_probability < self.enter_stress_probability <= 1.0:
+            raise ValueError("hysteresis requires 0 <= exit < enter <= 1")
+        if (self.confirmation_bars < 1 or not 0.0 < self.smoothing_alpha <= 1.0
+                or not 0.0 < self.minimum_derate_step <= 1.0):
+            raise ValueError("invalid hysteresis confirmation or smoothing")
+
+    def update(self, observation: Dict[str, Any]) -> Dict[str, Any]:
+        probability = observation.get("stress_probability")
+        if not observation.get("available") or probability is None:
+            return {
+                "available": False, "raw_stress_probability": None,
+                "filtered_stress_probability": self.filtered_probability,
+                "stressed_latched": self.stressed_latched,
+                "suggested_hysteresis_derate": self.applied_derate,
+                "reason": observation.get("reason", "UNAVAILABLE"),
+            }
+        raw = _clip(float(probability), 0.0, 1.0)
+        if self.filtered_probability is None:
+            self.filtered_probability = raw
+        else:
+            self.filtered_probability = (
+                self.smoothing_alpha * raw + (1.0 - self.smoothing_alpha) * self.filtered_probability
+            )
+        filtered = self.filtered_probability
+        if not self.stressed_latched:
+            self.enter_count = self.enter_count + 1 if filtered >= self.enter_stress_probability else 0
+            self.exit_count = 0
+            if self.enter_count >= self.confirmation_bars:
+                self.stressed_latched = True
+        else:
+            self.exit_count = self.exit_count + 1 if filtered <= self.exit_stress_probability else 0
+            self.enter_count = 0
+            if self.exit_count >= self.confirmation_bars:
+                self.stressed_latched = False
+        raw_derate = 1.0 - filtered
+        # Snap insignificant stress to the normal baseline, avoiding a
+        # stream of pointless 0.97/0.95 resize proposals.
+        if raw_derate >= 0.90:
+            raw_derate = 1.0
+        if self.stressed_latched:
+            self.applied_derate = 0.0
+        elif abs(raw_derate - self.applied_derate) >= self.minimum_derate_step:
+            self.applied_derate = raw_derate
+        return {
+            "available": True, "raw_stress_probability": raw,
+            "filtered_stress_probability": filtered,
+            "stressed_latched": self.stressed_latched,
+            # Latching is the shadow hard-brake recommendation. Before it
+            # latches, smoothed linear derating avoids bar-to-bar jumps.
+            "raw_hysteresis_derate": raw_derate,
+            "suggested_hysteresis_derate": self.applied_derate,
+            "enter_count": self.enter_count, "exit_count": self.exit_count,
+            "enter_stress_probability": self.enter_stress_probability,
+            "exit_stress_probability": self.exit_stress_probability,
+            "confirmation_bars": self.confirmation_bars,
+            "minimum_derate_step": self.minimum_derate_step,
+            "reason": "LATCHED_STRESS" if self.stressed_latched else "SMOOTH_DERATE_SHADOW",
+        }
+
+
 @dataclass(frozen=True)
 class TradeReferencePath:
     """An entry-time MPC path expressed in invariant R units.

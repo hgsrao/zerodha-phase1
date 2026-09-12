@@ -61,6 +61,17 @@ def test_filter_posterior_is_normalized_and_unchanged_by_future_rows():
     assert np.isclose(prefix.sum(), 1.0)
 
 
+def test_streaming_filter_steps_match_batch_causal_filter():
+    X, _ = _two_regime_data()
+    model = GaussianHMM(n_states=2, n_iter=30, random_state=1).fit(X)
+    prior = None
+    stream = []
+    for row in X:
+        prior = model.filter_step(row, prior)
+        stream.append(prior)
+    assert np.allclose(np.asarray(stream), model.filter_proba(X))
+
+
 def test_real_market_returns_produce_a_stable_two_state_fit():
     import pandas as pd
     from market_data_loader import MarketDataLoader

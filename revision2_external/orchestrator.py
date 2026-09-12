@@ -40,7 +40,7 @@ from revision2.boxes import DataIngestionBox, P01DBox, SafetyGatesTargetBox
 from revision2.contracts import EffectiveConfig, MarketSnapshot, SafetyContract, StartupCertificate, StartupNotCertifiedError
 from revision2.portfolio_orchestrator import SECTOR_MAP, _ClockEvent
 from revision2_external.composite_study_signal import CompositeStudySignal
-from revision2_external.closed_loop_control import ClosedLoopSupervisor, regime_risk_derate
+from revision2_external.closed_loop_control import ClosedLoopSupervisor, HMMRiskHysteresis, regime_risk_derate
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars
 from revision2_external.grid_context import SealedGridContextProvider
@@ -175,6 +175,7 @@ class Revision2ExternalEngineOrchestrator:
         # entry/portfolio loops can reduce size, and the path loop can only
         # tighten a stop. Neither mode can weaken a safety constraint.
         self.closed_loop = ClosedLoopSupervisor()
+        self._hmm_risk_hysteresis: Dict[str, HMMRiskHysteresis] = {}
 
         self.startup_certificate = self._issue_startup_certificate()
 
@@ -658,11 +659,13 @@ class Revision2ExternalEngineOrchestrator:
                 # order, size, safety state, or existing HMM ID veto until
                 # its own sealed out-of-sample study earns that authority.
                 regime_observation = self.id_box.latest_regime_observation(symbol)
+                hysteresis = self._hmm_risk_hysteresis.setdefault(symbol, HMMRiskHysteresis())
                 self._record_controller_event("HMM_REGIME_RISK_SHADOW", timestamp, symbol, {
                     "candidate_id": f"candidate-preview-{self._controller_sequence + 1}",
                     "id_approved": decision.approved, "id_reason": decision.reason,
                     "hmm_observation": regime_observation,
                     **regime_risk_derate(regime_observation),
+                    "hysteresis": hysteresis.update(regime_observation),
                 })
                 if not decision.approved:
                     funnel["id_rejections"] += 1
