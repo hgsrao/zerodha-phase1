@@ -22,6 +22,21 @@ def _clip(value: float, low: float, high: float) -> float:
     return max(low, min(high, float(value)))
 
 
+def regime_risk_derate(observation: Dict[str, Any]) -> Dict[str, Any]:
+    """Turn a causal HMM posterior into a bounded shadow risk recommendation.
+
+    It cannot create a risk increase or override an existing safety gate.
+    Unavailable/unsupported state splits honestly contribute no signal.
+    """
+    probability = observation.get("stress_probability")
+    if not observation.get("available") or probability is None:
+        return {"available": False, "stress_probability": None, "suggested_regime_derate": 1.0,
+                "reason": observation.get("reason", "UNAVAILABLE")}
+    stress = _clip(float(probability), 0.0, 1.0)
+    return {"available": True, "stress_probability": stress,
+            "suggested_regime_derate": 1.0 - stress, "reason": "POSTERIOR_SHADOW"}
+
+
 @dataclass(frozen=True)
 class TradeReferencePath:
     """An entry-time MPC path expressed in invariant R units.

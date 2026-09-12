@@ -35,6 +35,7 @@ class HMMIntelligentDiscriminationBox:
         self._cached_model: Dict[str, GaussianHMM] = {}
         self._cached_stressed_state: Dict[str, Optional[int]] = {}
         self._bars_since_refit: Dict[str, int] = {}
+        self._last_regime_observation: Dict[str, Dict[str, Any]] = {}
 
     def calibrate(self, symbol: str, warmup_bars: pd.DataFrame) -> None:
         closes = warmup_bars["close"].to_numpy(dtype=float)
@@ -120,10 +121,30 @@ class HMMIntelligentDiscriminationBox:
 
         stressed_state = self._cached_stressed_state.get(symbol)
         if stressed_state is None:
+            self._last_regime_observation[symbol] = {
+                "available": False, "reason": "NO_DISTINCT_STRESSED_STATE",
+                "stress_probability": None, "stressed_state": None,
+            }
             return "calm"
         model = self._cached_model[symbol]
         state = int(model.predict(features)[-1])
-        return "stressed" if state == stressed_state else "calm"
+        posterior = model.filter_proba(features)[-1]
+        stress_probability = float(posterior[stressed_state])
+        regime = "stressed" if state == stressed_state else "calm"
+        self._last_regime_observation[symbol] = {
+            "available": True, "reason": "OK", "state": state,
+            "stressed_state": stressed_state, "stress_probability": stress_probability,
+            "posterior": [float(value) for value in posterior], "regime": regime,
+            "state_variances": [float(value) for value in model.vars_.sum(axis=1)],
+            "state_occupancy": [float(value) for value in model.state_occupancy_],
+        }
+        return regime
+
+    def latest_regime_observation(self, symbol: str) -> Dict[str, Any]:
+        """Most recent causal HMM posterior; read-only and telemetry-safe."""
+        return dict(self._last_regime_observation.get(symbol, {
+            "available": False, "reason": "NOT_EVALUATED", "stress_probability": None,
+        }))
 
     def evaluate(self, signal: PASignal, config: EffectiveConfig, latest_close: float) -> Tuple[IDDecision, List[ParameterUse]]:
         trace: List[ParameterUse] = []

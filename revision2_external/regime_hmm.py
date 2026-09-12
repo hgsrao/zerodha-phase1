@@ -190,6 +190,23 @@ class GaussianHMM:
             path[t] = psi[t + 1, path[t + 1]]
         return path
 
+    def filter_proba(self, X: np.ndarray) -> np.ndarray:
+        """Causal posterior probabilities, using observations through each row only."""
+        X = np.asarray(X, dtype=float)
+        if X.ndim == 1:
+            X = X[:, None]
+        log_b = self._log_emission(X)
+        n, k = log_b.shape
+        log_pi = np.log(np.maximum(self.startprob_, 1e-300))
+        log_A = np.log(np.maximum(self.transmat_, 1e-300))
+        log_alpha = np.zeros((n, k))
+        log_alpha[0] = log_pi + log_b[0]
+        log_alpha[0] -= self._logsumexp(log_alpha[0], axis=0)
+        for t in range(1, n):
+            log_alpha[t] = self._logsumexp(log_alpha[t - 1][:, None] + log_A, axis=0) + log_b[t]
+            log_alpha[t] -= self._logsumexp(log_alpha[t], axis=0)
+        return np.exp(log_alpha)
+
     def score(self, X: np.ndarray) -> float:
         X = np.asarray(X, dtype=float)
         if X.ndim == 1:

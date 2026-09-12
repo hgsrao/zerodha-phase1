@@ -40,7 +40,7 @@ from revision2.boxes import DataIngestionBox, P01DBox, SafetyGatesTargetBox
 from revision2.contracts import EffectiveConfig, MarketSnapshot, SafetyContract, StartupCertificate, StartupNotCertifiedError
 from revision2.portfolio_orchestrator import SECTOR_MAP, _ClockEvent
 from revision2_external.composite_study_signal import CompositeStudySignal
-from revision2_external.closed_loop_control import ClosedLoopSupervisor
+from revision2_external.closed_loop_control import ClosedLoopSupervisor, regime_risk_derate
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars
 from revision2_external.grid_context import SealedGridContextProvider
@@ -651,6 +651,19 @@ class Revision2ExternalEngineOrchestrator:
 
                 decision, trace = self.id_box.evaluate(signal, self.config, latest_close=float(bars.iloc[bar_idx]["close"]))
                 self._record(trace)
+                # HMM posterior -> portfolio-risk input is deliberately
+                # shadow-only.  The posterior is causal (filtering, not a
+                # future-smoothed state estimate) and the adapter can only
+                # recommend a derate.  It cannot change this candidate's
+                # order, size, safety state, or existing HMM ID veto until
+                # its own sealed out-of-sample study earns that authority.
+                regime_observation = self.id_box.latest_regime_observation(symbol)
+                self._record_controller_event("HMM_REGIME_RISK_SHADOW", timestamp, symbol, {
+                    "candidate_id": f"candidate-preview-{self._controller_sequence + 1}",
+                    "id_approved": decision.approved, "id_reason": decision.reason,
+                    "hmm_observation": regime_observation,
+                    **regime_risk_derate(regime_observation),
+                })
                 if not decision.approved:
                     funnel["id_rejections"] += 1
                     continue
@@ -966,6 +979,7 @@ class Revision2ExternalEngineOrchestrator:
                 "entry_quality_comparisons": sum(1 for row in self.controller_telemetry if row["event_type"] == "ENTRY_QUALITY_COMPARATOR"),
                 "dynamic_size_actuations": sum(1 for row in self.controller_telemetry if row["event_type"] == "DYNAMIC_SIZE_ACTUATION"),
                 "trade_path_stop_actuations": sum(1 for row in self.controller_telemetry if row["event_type"] == "TRADE_PATH_STOP_ACTUATION"),
+                "hmm_regime_risk_shadow_observations": sum(1 for row in self.controller_telemetry if row["event_type"] == "HMM_REGIME_RISK_SHADOW"),
             },
             "grid_shadow": {
                 "enabled": self.grid_context_provider is not None,

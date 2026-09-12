@@ -51,6 +51,16 @@ def test_recovers_the_two_true_regimes_from_synthetic_data():
     assert fitted_means[1] > 3.5
 
 
+def test_filter_posterior_is_normalized_and_unchanged_by_future_rows():
+    X, _ = _two_regime_data()
+    model = GaussianHMM(n_states=2, n_iter=30, random_state=1).fit(X)
+    prefix = model.filter_proba(X[:200])[-1]
+    altered = X.copy()
+    altered[200:] *= 100.0
+    assert np.allclose(prefix, model.filter_proba(altered[:200])[-1])
+    assert np.isclose(prefix.sum(), 1.0)
+
+
 def test_real_market_returns_produce_a_stable_two_state_fit():
     import pandas as pd
     from market_data_loader import MarketDataLoader
