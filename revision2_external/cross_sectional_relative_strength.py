@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Dict
 
 import numpy as np
 import pandas as pd
 
 
-def _exact_bar_return(close: pd.Series, lookback_bars: int, interval: pd.Timedelta) -> pd.Series:
+def _exact_bar_return(close: pd.Series, lookback_bars: int, interval: timedelta) -> pd.Series:
     """Return only when the prior observation is exactly N completed bars back."""
     close = close.sort_index()
     prior_close = close.shift(lookback_bars)
     prior_timestamp = pd.Series(close.index, index=close.index).shift(lookback_bars)
-    expected_timestamp = pd.Series(close.index, index=close.index) - lookback_bars * interval
+    expected_timestamp = pd.Series(close.index, index=close.index) - interval * int(lookback_bars)
     valid = prior_timestamp == expected_timestamp
     return np.log(close / prior_close).where(valid)
 
@@ -30,7 +31,10 @@ def calculate_cross_sectional_features(
     """
     if min_coverage < 2 or min_coverage > len(completed_by_symbol):
         raise ValueError("min_coverage must be between 2 and universe size")
-    delta = pd.to_timedelta(interval)
+    interval_deltas = {"15min": timedelta(minutes=15)}
+    if interval not in interval_deltas:
+        raise ValueError("only the causal 15min completed-bar grid is supported")
+    delta = interval_deltas[interval]
     returns = {}
     for symbol, frame in completed_by_symbol.items():
         if "close" not in frame or not isinstance(frame.index, pd.DatetimeIndex):

@@ -25,7 +25,7 @@
     "decision_time_rule": "A one-minute decision may consume only higher-timeframe bars completed strictly before that decision timestamp."
   },
   "permitted_use": "Causal multi-timeframe feature discovery only; no execution rule, controller actuation, calibration, or live-trading decision.",
-  "status": "RESERVED_NOT_YET_RUN",
+  "status": "KILL_SWITCH_TERMINATED",
   "quarantine_history": [
     {
       "recorded_at": "2026-09-12",
@@ -33,5 +33,15 @@
       "reason": "An unreviewed 8-feature extraction read all four windows before session-reset VWAP, unit-consistent volatility normalization, and completed opening-range safeguards were implemented.",
       "action": "Generated Parquet outputs, runner, and generated reports were moved outside the project. They are prohibited from analysis, model selection, validation, or confirmation use."
     }
-  ]
+  ],
+  "termination_reason": "This block was exposed by unreviewed all-split runs with invalid feature and label contracts. Their metrics are non-evidence. The entire Jan-Jun 2026 block is retired from selection, validation, test, and confirmation use.",
+  "retired_windows": [
+    "2026-01-01 through 2026-06-30"
+  ],
+  "next_valid_run_requirements": {
+    "status": "AWAITING_NEW_UNREAD_DATA",
+    "manifest_current_last_timestamp": "2026-08-24T15:14:00+05:30",
+    "requirement": "Provide a later, complete chronological block with train, validation, test, and sealed-confirmation windows before creating a new registry.",
+    "prohibited": "Do not reuse any retired 2026 window or any quarantined output for model fitting, feature selection, calibration, or performance claims."
+  }
 }

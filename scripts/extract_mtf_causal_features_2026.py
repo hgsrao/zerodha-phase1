@@ -24,8 +24,13 @@ class MTFFeatureExtractor:
             raise ValueError("wrong MTF research registry")
         # Preserve a future state-machine transition while keeping the
         # registry as the authority over when a full extraction can run.
-        if self.registry.get("status") not in {"RESERVED_NOT_YET_RUN", "EXTRACTION_IN_PROGRESS", "EXTRACTION_COMPLETE"}:
-            raise ValueError("MTF registry is unavailable for extraction")
+        status = self.registry.get("status")
+        if status != "RESERVED_NOT_YET_RUN":
+            raise ValueError(
+                "MTF registry is not extractable: "
+                f"status={status!r}. Only a newly reserved, unread research block "
+                "may enter the extractor."
+            )
         if self.registry.get("higher_timeframe_contract", {}).get("partial_bar_features") != "forbidden":
             raise ValueError("registry does not forbid partial higher-timeframe bars")
 
