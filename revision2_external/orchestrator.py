@@ -46,6 +46,7 @@ from revision2_external.closed_loop_control import ClosedLoopSupervisor, HMMRisk
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars
 from revision2_external.dynamic_target_setpoint import FrozenTargetSetpointProvider
+from revision2_external.entry_expectancy_evidence import CausalEntryExpectancyLedger
 from revision2_external.final_execution_controller import FinalExecutionController
 from revision2_external.grid_context import SealedGridContextProvider
 from revision2_external.indicators_talib import TALibPredictiveAnalyticsBox
@@ -129,6 +130,10 @@ class Revision2ExternalEngineOrchestrator:
         self.controller_telemetry: List[Dict[str, Any]] = []
         self._controller_event_counts: Counter[str] = Counter()
         self._position_sizing_events: List[Dict[str, Any]] = []
+        # Entry research telemetry. It is a strictly causal ledger: a
+        # pre-entry observation is paired only when that filled trade later
+        # completes. No current execution decision reads this ledger.
+        self.entry_expectancy_ledger = CausalEntryExpectancyLedger()
         self._controller_sequence = 0
         self._trade_sequence = 0
 
@@ -349,6 +354,16 @@ class Revision2ExternalEngineOrchestrator:
                 }
                 completed["shadow_r_trajectory"] = shadow
             self.completed_trades.append(completed)
+            entry_evidence = self.entry_expectancy_ledger.record_outcome({
+                "candidate_id": completed["candidate_id"], "trade_id": completed["trade_id"],
+                "exit_timestamp": completed["exit_timestamp"], "exit_reason": reason,
+                "bars_held": completed["bars_held"], "pnl": completed["pnl"],
+                "costs": completed["costs"], "net_pnl": completed["net_pnl"],
+                "mfe_r": completed.get("mfe_r"), "mae_r": completed.get("mae_r"),
+                "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
+            })
+            if entry_evidence is not None:
+                self._record_controller_event("ENTRY_EXPECTANCY_OUTCOME", timestamp, symbol, entry_evidence)
             closed_loop_profile = self.closed_loop.record_outcome(
                 completed, regime=trade.get("closed_loop", {}).get("regime", "unknown"),
             )
@@ -1044,6 +1059,24 @@ class Revision2ExternalEngineOrchestrator:
                 if fill["passed"]:
                     funnel["fills"] += 1
                     self._trade_sequence += 1
+                    risk = abs(float(plan.entry_price) - float(plan.stop_price))
+                    target_r = abs(float(plan.target_price) - float(plan.entry_price)) / risk if risk > 0.0 else 0.0
+                    entry_evidence = self.entry_expectancy_ledger.observe_fill({
+                        "candidate_id": candidate_id,
+                        "symbol": symbol,
+                        "side": plan.side,
+                        "timestamp": str(timestamp),
+                        "fill_timestamp": str(next_ts),
+                        "pa_confidence": float(signal.confidence),
+                        "id_confidence": float(decision.confidence),
+                        "studies_confidence": chart_studies_confidence,
+                        "studies_direction": int(composite_result["direction"]),
+                        "atr_fraction": float(atr) / max(abs(float(plan.entry_price)), 1e-12),
+                        "target_r": target_r,
+                        "maximum_hold_bars": int(plan.maximum_hold_bars),
+                        "session_minute": int(next_ts.hour * 60 + next_ts.minute),
+                    })
+                    self._record_controller_event("ENTRY_EXPECTANCY_CANDIDATE", timestamp, symbol, entry_evidence)
                     # Causal plant/dynamics estimate: this slice ends at
                     # the decision bar. It cannot see the fill bar or any
                     # subsequent held-position price action.
@@ -1119,6 +1152,10 @@ class Revision2ExternalEngineOrchestrator:
                 "hmm_regime_risk_shadow_observations": self._controller_event_counts["HMM_REGIME_RISK_SHADOW"],
             },
             "position_sizing_events": self._position_sizing_events,
+            "entry_expectancy_evidence": {
+                **self.entry_expectancy_ledger.summary(),
+                "resolved": self.entry_expectancy_ledger.resolved if self.telemetry_mode == "full" else [],
+            },
             "grid_shadow": {
                 "enabled": self.grid_context_provider is not None,
                 "observations": self.grid_shadow_observations,
