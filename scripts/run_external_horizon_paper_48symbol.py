@@ -45,7 +45,7 @@ def _funnel(report: dict) -> dict:
 def _artifact(report: dict, *, start: str, end_exclusive: str, max_hold_bars: int,
               manifest: DatasetManifest, verification: object, symbols: list[str]) -> dict:
     trades = report["trades"]
-    holds = [int(trade["bars_held"]) for trade in trades]
+    holds = [int(trade["bars_held"]) for trade in trades if trade.get("bars_held") is not None]
     return {
         "run_type": "fixed_horizon_external_48symbol_paper_replay",
         "status": "EXECUTION_OBSERVED" if trades else "NO_EXECUTION",

@@ -289,6 +289,7 @@ class Revision2ExternalEngineOrchestrator:
                 "entry_timestamp": trade["entry_timestamp"], "exit_timestamp": str(timestamp),
                 "reason": reason, "pnl": pnl, "costs": trade_costs, "net_pnl": pnl - trade_costs,
                 "trade_id": trade.get("trade_id"), "candidate_id": trade.get("candidate_id"),
+                "bars_held": int(state.bars_held) if state is not None else None,
                 "entry_atr": trade.get("entry_atr"),
                 "planned_entry_price": trade.get("planned_entry_price"),
                 "planned_stop_price": trade.get("planned_stop_price"),
