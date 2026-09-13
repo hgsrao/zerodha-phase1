@@ -44,6 +44,7 @@ from revision2_external.composite_study_signal import CompositeStudySignal
 from revision2_external.closed_loop_control import ClosedLoopSupervisor, HMMRiskHysteresis, regime_risk_derate
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars
+from revision2_external.final_execution_controller import FinalExecutionController
 from revision2_external.grid_context import SealedGridContextProvider
 from revision2_external.indicators_talib import TALibPredictiveAnalyticsBox
 from revision2_external.pid_controller import SimplePIDModelPredictiveControlBox
@@ -131,6 +132,7 @@ class Revision2ExternalEngineOrchestrator:
         # (same "disclosed first cut, not swept" discipline this
         # project's own prior chart-studies work used for its thresholds).
         self.chart_studies = CompositeStudySignal()
+        self.final_execution_controller = FinalExecutionController()
         self.id_box = HMMIntelligentDiscriminationBox()
         self.mpc = SimplePIDModelPredictiveControlBox(pid_enabled=pid_mode == "enabled")
         self.safety_gates_target = SafetyGatesTargetBox()
@@ -509,6 +511,15 @@ class Revision2ExternalEngineOrchestrator:
                 "study_weights_clamped": study_weights_clamped,
                 **state.last_telemetry,
             })
+            final_exit = self.final_execution_controller.exit_decision(
+                path=path_observation.to_dict() if closed_loop_snapshot is not None else None,
+                exit_pid=state.last_telemetry, held_bars=held_bars,
+                minimum_hold_bars=int(trade["minimum_hold_bars"]),
+                maximum_hold_bars=int(trade["maximum_hold_bars"]),
+            )
+            self._record_controller_event("FINAL_EXECUTION_EXIT_DECISION", timestamp, symbol, {
+                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"), **final_exit,
+            })
 
         exit_price, reason = None, None
         if trade["side"] == "BUY":
@@ -799,6 +810,25 @@ class Revision2ExternalEngineOrchestrator:
                 if not approved:
                     funnel["safety_rejections"] += 1
                     continue
+                symbol_dynamics = self.closed_loop.dynamics_profiler.estimate(bars.iloc[:bar_idx + 1])
+                final_entry = self.final_execution_controller.entry_decision(
+                    side=plan.side, pa_confidence=float(signal.confidence), id_approved=bool(decision.approved),
+                    studies_direction=int(composite_result["direction"]), studies_confidence=chart_studies_confidence,
+                    entry_price=float(plan.entry_price), stop_price=float(plan.stop_price), target_price=float(plan.target_price),
+                    maximum_hold_bars=int(plan.maximum_hold_bars), entry_quality=entry_quality,
+                    dynamics=symbol_dynamics,
+                )
+                self._record_controller_event("FINAL_EXECUTION_ENTRY_DECISION", timestamp, symbol, {
+                    "candidate_id": candidate_id, **final_entry,
+                })
+                # The unified decision is an actual paper-only entry veto in
+                # active mode. Shadow mode records the identical decision
+                # but leaves the existing baseline execution untouched.
+                if self.closed_loop_mode == "active_paper" and final_entry["action"] != "ADMIT":
+                    self._record_controller_event("FINAL_EXECUTION_ENTRY_VETO", timestamp, symbol, {
+                        "candidate_id": candidate_id, **final_entry,
+                    })
+                    continue
                 size_mult *= pid_info["entry_timing_multiplier"]
                 if (
                     self.closed_loop_mode == "active_paper"
@@ -986,7 +1016,6 @@ class Revision2ExternalEngineOrchestrator:
                     # Causal plant/dynamics estimate: this slice ends at
                     # the decision bar. It cannot see the fill bar or any
                     # subsequent held-position price action.
-                    symbol_dynamics = self.closed_loop.dynamics_profiler.estimate(bars.iloc[:bar_idx + 1])
                     closed_loop_snapshot = self.closed_loop.entry_snapshot(
                         symbol=symbol, side=plan.side, entry_price=float(fill["filled_price"]),
                         stop_price=float(plan.stop_price), target_price=float(plan.target_price),
