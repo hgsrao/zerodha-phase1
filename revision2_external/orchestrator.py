@@ -1154,7 +1154,11 @@ class Revision2ExternalEngineOrchestrator:
             "position_sizing_events": self._position_sizing_events,
             "entry_expectancy_evidence": {
                 **self.entry_expectancy_ledger.summary(),
-                "resolved": self.entry_expectancy_ledger.resolved if self.telemetry_mode == "full" else [],
+                # Resolved entry/outcome rows are trade-level evidence, not
+                # per-bar telemetry.  Retain them in compact mode so a
+                # research replay can be small without losing the causal
+                # pairs needed for a later, frozen entry-quality study.
+                "resolved": self.entry_expectancy_ledger.resolved,
             },
             "grid_shadow": {
                 "enabled": self.grid_context_provider is not None,
