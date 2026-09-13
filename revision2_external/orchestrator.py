@@ -74,14 +74,18 @@ class Revision2ExternalEngineOrchestrator:
         grid_context_provider: Optional[SealedGridContextProvider] = None,
         closed_loop_mode: str = "shadow",
         telemetry_mode: str = "full",
+        pid_mode: str = "enabled",
     ) -> None:
         if closed_loop_mode not in {"shadow", "active_paper"}:
             raise ValueError("closed_loop_mode must be 'shadow' or 'active_paper'")
         if telemetry_mode not in {"full", "compact"}:
             raise ValueError("telemetry_mode must be 'full' or 'compact'")
+        if pid_mode not in {"enabled", "disabled"}:
+            raise ValueError("pid_mode must be 'enabled' or 'disabled'")
         self.symbols = list(symbols)
         self.closed_loop_mode = closed_loop_mode
         self.telemetry_mode = telemetry_mode
+        self.pid_mode = pid_mode
         self.registry = registry or CanonicalParameterRegistry()
         overrides = calibration_overrides or {}
         errors = self.registry.validate_calibration_payload(overrides)
@@ -128,7 +132,7 @@ class Revision2ExternalEngineOrchestrator:
         # project's own prior chart-studies work used for its thresholds).
         self.chart_studies = CompositeStudySignal()
         self.id_box = HMMIntelligentDiscriminationBox()
-        self.mpc = SimplePIDModelPredictiveControlBox()
+        self.mpc = SimplePIDModelPredictiveControlBox(pid_enabled=pid_mode == "enabled")
         self.safety_gates_target = SafetyGatesTargetBox()
         self.position_manager = PyPortfolioOptPositionManagerBox()
         self.p01d = P01DBox()
@@ -976,6 +980,7 @@ class Revision2ExternalEngineOrchestrator:
             "ending_equity": self.starting_equity + sum(t["net_pnl"] for t in self.completed_trades),
             "config_hash": self.config.config_hash, "safety_contract_hash": self.safety_contract.contract_hash,
             "closed_loop_mode": self.closed_loop_mode,
+            "pid_mode": self.pid_mode,
             "certification_audit": certification_audit,
             "final_portfolio_weights": self._portfolio_weights,
             "parameter_coverage": {

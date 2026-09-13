@@ -56,7 +56,16 @@ def _np_clip(value: float, lo: float, hi: float) -> float:
 
 
 class SimplePIDModelPredictiveControlBox:
-    def __init__(self) -> None:
+    def __init__(self, *, pid_enabled: bool = True) -> None:
+        """Build ATR/RR plans, optionally with the legacy PID modifiers.
+
+        ``pid_enabled=False`` is an explicit research ablation.  It keeps
+        admission, ATR, target/stop multipliers and all downstream safety and
+        sizing logic unchanged while making the three PID-derived plan
+        transformations identities.  It is deliberately not a configuration
+        parameter: a run must declare which architecture it is testing.
+        """
+        self.pid_enabled = bool(pid_enabled)
         self._entry_pids: Dict[str, PID] = {}
         self._exit_pids: Dict[str, PID] = {}
         # Rolling per-symbol confidence history backing BOTH PIDs' adaptive
@@ -162,19 +171,29 @@ class SimplePIDModelPredictiveControlBox:
 
         # Computed ONCE per call and shared by both PIDs -- see
         # _confidence_baseline's docstring for why neither PID keeps a fixed
-        # absolute target any more.
+        # absolute target any more.  The ablation path intentionally retains
+        # the same ATR/RR plan but applies no PID transformation at all.
         confidence_baseline = self._confidence_baseline(signal.symbol, decision.confidence, pid_window)
+        if self.pid_enabled:
+            entry_pid = self._get_pid(self._entry_pids, signal.symbol, kp_entry, ki_entry, kd_entry, target=confidence_baseline, clamp=integral_clamp)
+            entry_pid.setpoint = confidence_baseline  # keep in sync on every call, not just at first construction
+            entry_adjustment = entry_pid(decision.confidence, dt=1)
+            entry_timing_multiplier = _np_clip(1.0 - abs(entry_adjustment), 0.3, 1.0)
+            effective_entry *= (1 + entry_adjustment * 0.001)
 
-        entry_pid = self._get_pid(self._entry_pids, signal.symbol, kp_entry, ki_entry, kd_entry, target=confidence_baseline, clamp=integral_clamp)
-        entry_pid.setpoint = confidence_baseline  # keep in sync on every call, not just at first construction
-        entry_adjustment = entry_pid(decision.confidence, dt=1)
-        entry_timing_multiplier = _np_clip(1.0 - abs(entry_adjustment), 0.3, 1.0)
-        effective_entry *= (1 + entry_adjustment * 0.001)
-
-        exit_pid = self._get_pid(self._exit_pids, signal.symbol, kp_exit, ki_exit, kd_exit, target=confidence_baseline, clamp=integral_clamp)
-        exit_pid.setpoint = confidence_baseline  # keep in sync on every call, not just at first construction
-        exit_adjustment = exit_pid(decision.confidence, dt=1)
-        exit_tightness = _np_clip(1.0 - abs(exit_adjustment), 0.5, 1.0)
+            exit_pid = self._get_pid(self._exit_pids, signal.symbol, kp_exit, ki_exit, kd_exit, target=confidence_baseline, clamp=integral_clamp)
+            exit_pid.setpoint = confidence_baseline  # keep in sync on every call, not just at first construction
+            exit_adjustment = exit_pid(decision.confidence, dt=1)
+            exit_tightness = _np_clip(1.0 - abs(exit_adjustment), 0.5, 1.0)
+            entry_p, entry_i, entry_d = entry_pid.components
+            exit_p, exit_i, exit_d = exit_pid.components
+        else:
+            entry_adjustment = 0.0
+            exit_adjustment = 0.0
+            entry_timing_multiplier = 1.0
+            exit_tightness = 1.0
+            entry_p = entry_i = entry_d = 0.0
+            exit_p = exit_i = exit_d = 0.0
         stop_distance *= exit_tightness
         target_distance *= exit_tightness
 
@@ -193,11 +212,10 @@ class SimplePIDModelPredictiveControlBox:
             side=side, entry_price=float(effective_entry), stop_price=float(stop_price),
             target_price=float(target_price), minimum_hold_bars=min_hold, maximum_hold_bars=max_hold,
         )
-        entry_p, entry_i, entry_d = entry_pid.components
-        exit_p, exit_i, exit_d = exit_pid.components
         # Observation-only detail for the telemetry ledger.  None of these
         # fields participates in the plan calculations above.
         pid_info = {
+            "pid_enabled": self.pid_enabled,
             "entry_adjustment": entry_adjustment, "exit_adjustment": exit_adjustment,
             "entry_timing_multiplier": entry_timing_multiplier,
             "entry_setpoint": confidence_baseline,

@@ -31,6 +31,22 @@ def test_plan_is_produced_for_a_real_approved_decision():
     assert len(trace) > 0
 
 
+def test_no_pid_ablation_keeps_atr_geometry_and_emits_identity_controller_outputs():
+    box = SimplePIDModelPredictiveControlBox(pid_enabled=False)
+    plan, pid_info, _ = box.build_plan(_signal(), _decision(), entry_price=1000.0, atr=8.0, config=_config())
+
+    assert plan is not None
+    assert pid_info["pid_enabled"] is False
+    assert pid_info["entry_adjustment"] == 0.0
+    assert pid_info["exit_adjustment"] == 0.0
+    assert pid_info["entry_timing_multiplier"] == 1.0
+    assert pid_info["exit_tightness"] == 1.0
+    # The no-PID baseline retains modeled adverse entry slippage, but no
+    # additional PID price nudge or PID tightening of the 1.2 ATR stop.
+    assert plan.entry_price == 1000.5
+    assert plan.stop_price == 1000.5 - 8.0 * 1.2
+
+
 def test_pid_gains_causally_move_the_plan_not_just_a_diagnostic():
     # The exact bug class this project already found and fixed once for
     # BoundedPID -- proving the swap didn't quietly reintroduce it.
