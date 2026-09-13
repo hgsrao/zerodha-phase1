@@ -69,6 +69,7 @@ def main() -> None:
                         help="inclusive pre-test date for frozen dynamic-target shadow seed")
     parser.add_argument("--dynamic-target-seed-end-exclusive", default=None,
                         help="exclusive pre-test date for frozen dynamic-target shadow seed")
+    parser.add_argument("--dynamic-target-mode", choices=("shadow", "paper_apply"), default="shadow")
     args = parser.parse_args()
 
     manifest = DatasetManifest.load(str(MANIFEST_PATH))
@@ -88,6 +89,11 @@ def main() -> None:
         seed_bars = _interval(all_bars, args.dynamic_target_seed_start, args.dynamic_target_seed_end_exclusive)
         if len(seed_bars) <= 60:
             raise RuntimeError("dynamic-target seed has insufficient bars")
+        print(
+            f"[SEED] {args.symbol}: {args.dynamic_target_seed_start} through "
+            f"{args.dynamic_target_seed_end_exclusive} ({len(seed_bars):,} bars)",
+            flush=True,
+        )
         seed_engine = Revision2ExternalEngineOrchestrator(
             [args.symbol], CanonicalParameterRegistry(), starting_equity=1_000_000.0,
             closed_loop_mode="shadow", telemetry_mode="compact", pid_mode=args.pid_mode,
@@ -97,10 +103,16 @@ def main() -> None:
             seed_report["trades"], seed_start=args.dynamic_target_seed_start,
             seed_end_exclusive=args.dynamic_target_seed_end_exclusive,
         )
+        print(
+            f"[SEED] completed={seed_report['completed_trades']} "
+            f"usable_cost_positive_paths={provider.usable_samples}/" f"{provider.minimum_samples}",
+            flush=True,
+        )
     engine = Revision2ExternalEngineOrchestrator(
         [args.symbol], CanonicalParameterRegistry(), starting_equity=1_000_000.0,
         closed_loop_mode=args.closed_loop_mode, telemetry_mode="full", pid_mode=args.pid_mode,
         dynamic_target_setpoint_provider=provider,
+        dynamic_target_setpoint_mode=args.dynamic_target_mode,
     )
     candidates: list[dict[str, Any]] = []
     latest: dict[str, Any] = {}
@@ -190,6 +202,7 @@ def main() -> None:
         "pid_mode": args.pid_mode,
         "closed_loop_mode": args.closed_loop_mode,
         "dynamic_target_setpoint_provider": dataclasses.asdict(provider) if provider is not None else None,
+        "dynamic_target_setpoint_mode": args.dynamic_target_mode,
         "manifest_hash": manifest.manifest_hash,
         "config_hash": report["config_hash"],
         "safety_contract_hash": report["safety_contract_hash"],

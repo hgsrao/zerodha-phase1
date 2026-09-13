@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import itertools
 import math
+from dataclasses import replace
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
@@ -78,6 +79,7 @@ class Revision2ExternalEngineOrchestrator:
         telemetry_mode: str = "full",
         pid_mode: str = "enabled",
         dynamic_target_setpoint_provider: Optional[FrozenTargetSetpointProvider] = None,
+        dynamic_target_setpoint_mode: str = "shadow",
     ) -> None:
         if closed_loop_mode not in {"shadow", "active_paper"}:
             raise ValueError("closed_loop_mode must be 'shadow' or 'active_paper'")
@@ -85,11 +87,14 @@ class Revision2ExternalEngineOrchestrator:
             raise ValueError("telemetry_mode must be 'full' or 'compact'")
         if pid_mode not in {"enabled", "disabled"}:
             raise ValueError("pid_mode must be 'enabled' or 'disabled'")
+        if dynamic_target_setpoint_mode not in {"shadow", "paper_apply"}:
+            raise ValueError("dynamic_target_setpoint_mode must be 'shadow' or 'paper_apply'")
         self.symbols = list(symbols)
         self.closed_loop_mode = closed_loop_mode
         self.telemetry_mode = telemetry_mode
         self.pid_mode = pid_mode
         self.dynamic_target_setpoint_provider = dynamic_target_setpoint_provider
+        self.dynamic_target_setpoint_mode = dynamic_target_setpoint_mode
         self.registry = registry or CanonicalParameterRegistry()
         overrides = calibration_overrides or {}
         errors = self.registry.validate_calibration_payload(overrides)
@@ -815,6 +820,21 @@ class Revision2ExternalEngineOrchestrator:
                     self._record_controller_event("DYNAMIC_TARGET_SETPOINT_SHADOW", timestamp, symbol, {
                         "candidate_id": candidate_id, **proposal,
                     })
+                    if self.dynamic_target_setpoint_mode == "paper_apply" and proposal["available"]:
+                        risk = abs(float(plan.entry_price) - float(plan.stop_price))
+                        signed_target = risk * float(proposal["proposed_target_r"])
+                        target_price = (
+                            float(plan.entry_price) + signed_target if plan.side == "BUY"
+                            else float(plan.entry_price) - signed_target
+                        )
+                        plan = replace(
+                            plan, target_price=target_price,
+                            maximum_hold_bars=int(proposal["proposed_maximum_hold_bars"]),
+                        )
+                        self._record_controller_event("DYNAMIC_TARGET_SETPOINT_PAPER_APPLIED", timestamp, symbol, {
+                            "candidate_id": candidate_id, "target_price": target_price,
+                            "maximum_hold_bars": plan.maximum_hold_bars, **proposal,
+                        })
 
                 approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(self._equity_curve, self.config)
                 self._record(trace)
