@@ -59,13 +59,14 @@ def main() -> None:
         "safety_contract_hash": report["safety_contract_hash"],
         "metrics": {key: report[key] for key in ("orders_submitted", "fills", "completed_trades", "net_pnl", "gross_pnl", "ending_equity", "mtm_max_drawdown_fraction")},
         "controller_event_counts": dict(Counter(row["event_type"] for row in events)),
+        "entry_expectancy_evidence": report["entry_expectancy_evidence"],
         "trades": report["trades"],
         "control_trace_events": [
             row for row in events if row["event_type"] in {
                 "ENTRY_CONFIDENCE_THROTTLE", "EXIT_PROTECTION_UPDATE", "CONTROLLER_OUTCOME",
                 "ENTRY_QUALITY_COMPARATOR", "PORTFOLIO_RISK_COMPARATOR", "DYNAMIC_SIZE_ACTUATION",
                 "CLOSED_LOOP_ENTRY_SNAPSHOT", "TRADE_PATH_COMPARATOR", "TRADE_PATH_STOP_ACTUATION",
-                "OUTCOME_LEDGER_UPDATE",
+                "OUTCOME_LEDGER_UPDATE", "ENTRY_EXPECTANCY_CANDIDATE", "ENTRY_EXPECTANCY_OUTCOME",
             }
         ],
         "note": "Paper replay only. Dynamic controls are bounded: entry/portfolio only reduce size; path loop only tightens stops.",
