@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import itertools
 import math
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -72,11 +73,15 @@ class Revision2ExternalEngineOrchestrator:
         sector_map: Optional[Dict[str, str]] = None,
         grid_context_provider: Optional[SealedGridContextProvider] = None,
         closed_loop_mode: str = "shadow",
+        telemetry_mode: str = "full",
     ) -> None:
         if closed_loop_mode not in {"shadow", "active_paper"}:
             raise ValueError("closed_loop_mode must be 'shadow' or 'active_paper'")
+        if telemetry_mode not in {"full", "compact"}:
+            raise ValueError("telemetry_mode must be 'full' or 'compact'")
         self.symbols = list(symbols)
         self.closed_loop_mode = closed_loop_mode
+        self.telemetry_mode = telemetry_mode
         self.registry = registry or CanonicalParameterRegistry()
         overrides = calibration_overrides or {}
         errors = self.registry.validate_calibration_payload(overrides)
@@ -109,6 +114,8 @@ class Revision2ExternalEngineOrchestrator:
         # mode, their bounded paper-only actuations.  It is never a safety
         # override and is not connected to a live broker.
         self.controller_telemetry: List[Dict[str, Any]] = []
+        self._controller_event_counts: Counter[str] = Counter()
+        self._position_sizing_events: List[Dict[str, Any]] = []
         self._controller_sequence = 0
         self._trade_sequence = 0
 
@@ -135,6 +142,8 @@ class Revision2ExternalEngineOrchestrator:
         self._equity_curve: List[float] = [starting_equity]
         self._last_close: Dict[str, float] = {}
         self._mtm_equity_curve: List[Tuple[str, float]] = [("", starting_equity)]
+        self._mtm_peak = starting_equity
+        self._mtm_max_drawdown_fraction = 0.0
         self._active_trading_date = None
         self._day_start_equity = starting_equity
         self._portfolio_weights: Dict[str, float] = {s: 1.0 / len(symbols) for s in symbols}
@@ -232,6 +241,18 @@ class Revision2ExternalEngineOrchestrator:
 
     def _gross_exposure_notional(self) -> float:
         return sum(t["quantity"] * t["entry_price"] for t in self.open_trades.values())
+
+    def _record_mtm(self, timestamp: object) -> None:
+        """Update drawdown online; retain the full curve only for full telemetry."""
+        equity = self._mark_to_market_equity()
+        self._mtm_peak = max(self._mtm_peak, equity)
+        if self._mtm_peak > 0.0:
+            self._mtm_max_drawdown_fraction = max(
+                self._mtm_max_drawdown_fraction,
+                (self._mtm_peak - equity) / self._mtm_peak,
+            )
+        if self.telemetry_mode == "full":
+            self._mtm_equity_curve.append((str(timestamp), equity))
 
     @staticmethod
     def _leg_cost(price: float, quantity: int, side: str) -> float:
@@ -335,9 +356,14 @@ class Revision2ExternalEngineOrchestrator:
 
     def _record_controller_event(self, event_type: str, timestamp: object, symbol: str, payload: Dict[str, Any]) -> None:
         """Record controller state and any bounded paper-only actuation."""
-        self.controller_telemetry.append({
-            "event_type": event_type, "timestamp": str(timestamp), "symbol": symbol, **payload,
-        })
+        event = {"event_type": event_type, "timestamp": str(timestamp), "symbol": symbol, **payload}
+        self._controller_event_counts[event_type] += 1
+        if event_type == "POSITION_SIZING":
+            # Compact mode retains only the small, decision-level sizing
+            # stream. Per-bar controller observations remain aggregate-only.
+            self._position_sizing_events.append(event)
+        if self.telemetry_mode == "full":
+            self.controller_telemetry.append(event)
 
     def _maybe_exit(
         self, symbol: str, timestamp, bar, signal, held_bars: int, session_last_bar: bool,
@@ -574,7 +600,7 @@ class Revision2ExternalEngineOrchestrator:
 
             for event in tick_events:
                 self._last_close[event.symbol] = float(symbol_bars[event.symbol].iloc[event.bar_idx]["close"])
-            self._mtm_equity_curve.append((str(timestamp), self._mark_to_market_equity()))
+            self._record_mtm(timestamp)
 
             # Box 8: refit PyPortfolioOpt weights periodically from real
             # trailing prices across the universe -- not every tick (that
@@ -943,14 +969,6 @@ class Revision2ExternalEngineOrchestrator:
         safety_names = set(self.registry.safety_params)
         coverage_target = sorted(target_names & self.consumed_parameters)
 
-        mtm_values = [e for _, e in self._mtm_equity_curve]
-        mtm_peak = mtm_values[0]
-        mtm_max_drawdown_fraction = 0.0
-        for v in mtm_values:
-            mtm_peak = max(mtm_peak, v)
-            if mtm_peak > 0:
-                mtm_max_drawdown_fraction = max(mtm_max_drawdown_fraction, (mtm_peak - v) / mtm_peak)
-
         return {
             **funnel, "symbols": self.symbols, "completed_trades": len(self.completed_trades),
             "gross_pnl": gross_pnl, "net_pnl": sum(t["net_pnl"] for t in self.completed_trades),
@@ -965,25 +983,26 @@ class Revision2ExternalEngineOrchestrator:
                 "safety_total": len(safety_names),
             },
             "trades": self.completed_trades,
-            "mtm_equity_curve": self._mtm_equity_curve,
-            "mtm_max_drawdown_fraction": mtm_max_drawdown_fraction,
+            "mtm_equity_curve": self._mtm_equity_curve if self.telemetry_mode == "full" else [],
+            "mtm_max_drawdown_fraction": self._mtm_max_drawdown_fraction,
             "controller_telemetry": self.controller_telemetry,
             "controller_telemetry_summary": {
-                "events": len(self.controller_telemetry),
-                "entry_throttle_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "ENTRY_CONFIDENCE_THROTTLE"),
-                "exit_protection_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "EXIT_PROTECTION_UPDATE"),
-                "shadow_r_trajectory_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "SHADOW_R_TRAJECTORY_UPDATE"),
-                "shadow_r_trajectory_exits": sum(1 for row in self.controller_telemetry if row["event_type"] == "SHADOW_R_TRAJECTORY_EXIT"),
-                "outcomes": sum(1 for row in self.controller_telemetry if row["event_type"] == "CONTROLLER_OUTCOME"),
-                "closed_loop_entry_snapshots": sum(1 for row in self.controller_telemetry if row["event_type"] == "CLOSED_LOOP_ENTRY_SNAPSHOT"),
-                "trade_path_comparisons": sum(1 for row in self.controller_telemetry if row["event_type"] == "TRADE_PATH_COMPARATOR"),
-                "portfolio_risk_comparisons": sum(1 for row in self.controller_telemetry if row["event_type"] == "PORTFOLIO_RISK_COMPARATOR"),
-                "outcome_ledger_updates": sum(1 for row in self.controller_telemetry if row["event_type"] == "OUTCOME_LEDGER_UPDATE"),
-                "entry_quality_comparisons": sum(1 for row in self.controller_telemetry if row["event_type"] == "ENTRY_QUALITY_COMPARATOR"),
-                "dynamic_size_actuations": sum(1 for row in self.controller_telemetry if row["event_type"] == "DYNAMIC_SIZE_ACTUATION"),
-                "trade_path_stop_actuations": sum(1 for row in self.controller_telemetry if row["event_type"] == "TRADE_PATH_STOP_ACTUATION"),
-                "hmm_regime_risk_shadow_observations": sum(1 for row in self.controller_telemetry if row["event_type"] == "HMM_REGIME_RISK_SHADOW"),
+                "events": sum(self._controller_event_counts.values()),
+                "entry_throttle_updates": self._controller_event_counts["ENTRY_CONFIDENCE_THROTTLE"],
+                "exit_protection_updates": self._controller_event_counts["EXIT_PROTECTION_UPDATE"],
+                "shadow_r_trajectory_updates": self._controller_event_counts["SHADOW_R_TRAJECTORY_UPDATE"],
+                "shadow_r_trajectory_exits": self._controller_event_counts["SHADOW_R_TRAJECTORY_EXIT"],
+                "outcomes": self._controller_event_counts["CONTROLLER_OUTCOME"],
+                "closed_loop_entry_snapshots": self._controller_event_counts["CLOSED_LOOP_ENTRY_SNAPSHOT"],
+                "trade_path_comparisons": self._controller_event_counts["TRADE_PATH_COMPARATOR"],
+                "portfolio_risk_comparisons": self._controller_event_counts["PORTFOLIO_RISK_COMPARATOR"],
+                "outcome_ledger_updates": self._controller_event_counts["OUTCOME_LEDGER_UPDATE"],
+                "entry_quality_comparisons": self._controller_event_counts["ENTRY_QUALITY_COMPARATOR"],
+                "dynamic_size_actuations": self._controller_event_counts["DYNAMIC_SIZE_ACTUATION"],
+                "trade_path_stop_actuations": self._controller_event_counts["TRADE_PATH_STOP_ACTUATION"],
+                "hmm_regime_risk_shadow_observations": self._controller_event_counts["HMM_REGIME_RISK_SHADOW"],
             },
+            "position_sizing_events": self._position_sizing_events,
             "grid_shadow": {
                 "enabled": self.grid_context_provider is not None,
                 "observations": self.grid_shadow_observations,

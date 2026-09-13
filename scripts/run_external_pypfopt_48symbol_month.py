@@ -72,7 +72,7 @@ def _bounded_bars(
 
 
 def _sizing_summary(report: dict) -> dict:
-    events = [
+    events = report.get("position_sizing_events", []) or [
         row for row in report.get("controller_telemetry", [])
         if row.get("event_type") == "POSITION_SIZING"
     ]
@@ -115,6 +115,10 @@ def main() -> None:
     parser.add_argument("--end-exclusive", default=None, help="Optional exclusive end date; overrides the one-month default")
     parser.add_argument("--symbols", nargs="+", default=None, help="Optional symbol subset for a fixed-parameter smoke replay")
     parser.add_argument(
+        "--telemetry-mode", choices=("compact", "full"), default="compact",
+        help="compact retains the trade ledger and sizing decisions, not millions of per-bar events",
+    )
+    parser.add_argument(
         "--output",
         default=str(PROJECT_ROOT / "diagnostic_output" / "external_pypfopt_derater_20230703_1month.json"),
     )
@@ -151,6 +155,7 @@ def main() -> None:
     registry = CanonicalParameterRegistry()
     orchestrator = Revision2ExternalEngineOrchestrator(
         sorted(bars), registry, starting_equity=1_000_000.0,
+        telemetry_mode=args.telemetry_mode,
     )
     print(
         f"[RUN] Chronological shared-portfolio replay: {len(bars)} symbols, "
@@ -184,7 +189,16 @@ def main() -> None:
             "mtm_max_drawdown_fraction": report["mtm_max_drawdown_fraction"],
         },
         "sizing": sizing,
-        "report": report,
+        "funnel": {
+            key: value for key, value in report.items()
+            if key.endswith("_approvals") or key.endswith("_rejections")
+            or key in {"bars_processed", "pa_signals", "mpc_plans", "gates_evaluated", "gates_passed", "gates_rejected"}
+        },
+        "controller_telemetry_mode": args.telemetry_mode,
+        "controller_telemetry_summary": report["controller_telemetry_summary"],
+        "trade_ledger": report["trades"],
+        "final_portfolio_weights": report["final_portfolio_weights"],
+        "parameter_coverage": report["parameter_coverage"],
     }
     output.write_text(json.dumps(artifact, indent=2, default=str))
     _write_run_state(state_path, status="completed", output=str(output))
