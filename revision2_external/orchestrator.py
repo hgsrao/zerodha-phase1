@@ -44,6 +44,7 @@ from revision2_external.composite_study_signal import CompositeStudySignal
 from revision2_external.closed_loop_control import ClosedLoopSupervisor, HMMRiskHysteresis, regime_risk_derate
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars
+from revision2_external.dynamic_target_setpoint import FrozenTargetSetpointProvider
 from revision2_external.final_execution_controller import FinalExecutionController
 from revision2_external.grid_context import SealedGridContextProvider
 from revision2_external.indicators_talib import TALibPredictiveAnalyticsBox
@@ -76,6 +77,7 @@ class Revision2ExternalEngineOrchestrator:
         closed_loop_mode: str = "shadow",
         telemetry_mode: str = "full",
         pid_mode: str = "enabled",
+        dynamic_target_setpoint_provider: Optional[FrozenTargetSetpointProvider] = None,
     ) -> None:
         if closed_loop_mode not in {"shadow", "active_paper"}:
             raise ValueError("closed_loop_mode must be 'shadow' or 'active_paper'")
@@ -87,6 +89,7 @@ class Revision2ExternalEngineOrchestrator:
         self.closed_loop_mode = closed_loop_mode
         self.telemetry_mode = telemetry_mode
         self.pid_mode = pid_mode
+        self.dynamic_target_setpoint_provider = dynamic_target_setpoint_provider
         self.registry = registry or CanonicalParameterRegistry()
         overrides = calibration_overrides or {}
         errors = self.registry.validate_calibration_payload(overrides)
@@ -804,6 +807,14 @@ class Revision2ExternalEngineOrchestrator:
                     "planned_maximum_hold_bars": int(plan.maximum_hold_bars),
                     **pid_info,
                 })
+                if self.dynamic_target_setpoint_provider is not None:
+                    proposal = self.dynamic_target_setpoint_provider.propose(
+                        entry_price=float(plan.entry_price), stop_price=float(plan.stop_price),
+                        target_price=float(plan.target_price), maximum_hold_bars=int(plan.maximum_hold_bars),
+                    )
+                    self._record_controller_event("DYNAMIC_TARGET_SETPOINT_SHADOW", timestamp, symbol, {
+                        "candidate_id": candidate_id, **proposal,
+                    })
 
                 approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(self._equity_curve, self.config)
                 self._record(trace)
