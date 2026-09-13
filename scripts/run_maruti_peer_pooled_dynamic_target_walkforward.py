@@ -67,6 +67,75 @@ def run_arm(bars: pd.DataFrame, provider: FrozenTargetSetpointProvider | None) -
     ).run({LOCAL: bars}, warmup=60)
 
 
+def run_month(raw: dict[str, pd.DataFrame], test_start: str, test_end: str) -> dict[str, Any]:
+    """Run one self-contained causal baseline/dynamic pair.
+
+    Kept independent of the command-line entry point so a Ray worker can
+    reproduce a month without receiving a preloaded data dictionary.
+    """
+    seed_trades: dict[str, list[dict[str, Any]]] = {}
+    for symbol in (LOCAL, *PEERS):
+        seed_bars = interval(raw[symbol], SEED_START, test_start)
+        print(f"  [SEED] {symbol}: {len(seed_bars):,} bars", flush=True)
+        seed_report = Revision2ExternalEngineOrchestrator(
+            [symbol], CanonicalParameterRegistry(), telemetry_mode="compact",
+        ).run({symbol: seed_bars}, warmup=60)
+        seed_trades[symbol] = seed_report["trades"]
+
+    local_seed = seed_trades[LOCAL]
+    peer_seed = [trade for symbol in PEERS for trade in seed_trades[symbol]]
+    provider = FrozenTargetSetpointProvider.fit(
+        local_seed + peer_seed,
+        seed_start=SEED_START,
+        seed_end_exclusive=test_start,
+    )
+    test_bars = interval(raw[LOCAL], test_start, test_end)
+    baseline = run_arm(test_bars, None)
+    dynamic = run_arm(test_bars, provider)
+    baseline_metrics, dynamic_metrics = compact(baseline), compact(dynamic)
+    delta = {
+        "net_pnl": dynamic_metrics["net_pnl"] - baseline_metrics["net_pnl"],
+        "gross_pnl": dynamic_metrics["gross_pnl"] - baseline_metrics["gross_pnl"],
+        "mtm_max_drawdown_fraction": dynamic_metrics["mtm_max_drawdown_fraction"] - baseline_metrics["mtm_max_drawdown_fraction"],
+        "completed_trades": dynamic_metrics["completed_trades"] - baseline_metrics["completed_trades"],
+    }
+    return {
+        "test": [test_start, test_end],
+        "seed": [SEED_START, test_start],
+        "local_usable_cost_positive_paths": usable_count(local_seed),
+        "peer_usable_cost_positive_paths": usable_count(peer_seed),
+        "provider": provider.__dict__,
+        "baseline": baseline_metrics,
+        "dynamic": dynamic_metrics,
+        "delta_dynamic_minus_baseline": delta,
+        "dynamic_setpoint_event_count": sum(
+            event["event_type"].startswith("DYNAMIC_TARGET_SETPOINT")
+            for event in dynamic["controller_telemetry"]
+        ),
+    }
+
+
+def build_artifact(rows: list[dict[str, Any]], months: int) -> dict[str, Any]:
+    """Construct the common, order-stable artifact for any scheduler."""
+    total = {
+        arm: {metric: sum(row[arm][metric] for row in rows) for metric in ("completed_trades", "gross_pnl", "net_pnl")}
+        for arm in ("baseline", "dynamic")
+    }
+    total["delta_dynamic_minus_baseline"] = {
+        metric: total["dynamic"][metric] - total["baseline"][metric]
+        for metric in total["baseline"]
+    }
+    return {
+        "research_boundary": "Paired causal walk-forward research. Dynamic geometry is unvalidated and cannot be promoted from this artifact.",
+        "local": LOCAL,
+        "peers": list(PEERS),
+        "schedule": [{"seed_start": SEED_START, "test_start": start, "test_end_exclusive": end} for start, end in SCHEDULE[:months]],
+        "months": rows,
+        "aggregate": total,
+        "decision_rule": "Require a favourable aggregate post-cost delta and stable month-level behaviour before a separately sealed confirmation run.",
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="diagnostic_output/maruti_peer_pooled_dynamic_target_walkforward_202309_202401.json")
@@ -83,69 +152,15 @@ def main() -> None:
 
     for index, (test_start, test_end) in enumerate(SCHEDULE[:args.months], start=1):
         print(f"[MONTH {index}/{args.months}] seed={SEED_START}..{test_start}; test={test_start}..{test_end}", flush=True)
-        seed_trades: dict[str, list[dict[str, Any]]] = {}
-        for symbol in (LOCAL, *PEERS):
-            seed_bars = interval(raw[symbol], SEED_START, test_start)
-            print(f"  [SEED] {symbol}: {len(seed_bars):,} bars", flush=True)
-            seed_report = Revision2ExternalEngineOrchestrator(
-                [symbol], CanonicalParameterRegistry(), telemetry_mode="compact",
-            ).run({symbol: seed_bars}, warmup=60)
-            seed_trades[symbol] = seed_report["trades"]
+        row = run_month(raw, test_start, test_end)
+        rows.append(row)
+        print(json.dumps({"test": test_start, "provider_available": row["provider"]["target_r_quantile"] is not None, "delta": row["delta_dynamic_minus_baseline"]}, indent=2), flush=True)
 
-        local_seed = seed_trades[LOCAL]
-        peer_seed = [trade for symbol in PEERS for trade in seed_trades[symbol]]
-        provider = FrozenTargetSetpointProvider.fit(
-            local_seed + peer_seed,
-            seed_start=SEED_START,
-            seed_end_exclusive=test_start,
-        )
-        test_bars = interval(raw[LOCAL], test_start, test_end)
-        baseline = run_arm(test_bars, None)
-        dynamic = run_arm(test_bars, provider)
-        baseline_metrics, dynamic_metrics = compact(baseline), compact(dynamic)
-        delta = {
-            "net_pnl": dynamic_metrics["net_pnl"] - baseline_metrics["net_pnl"],
-            "gross_pnl": dynamic_metrics["gross_pnl"] - baseline_metrics["gross_pnl"],
-            "mtm_max_drawdown_fraction": dynamic_metrics["mtm_max_drawdown_fraction"] - baseline_metrics["mtm_max_drawdown_fraction"],
-            "completed_trades": dynamic_metrics["completed_trades"] - baseline_metrics["completed_trades"],
-        }
-        rows.append({
-            "test": [test_start, test_end],
-            "seed": [SEED_START, test_start],
-            "local_usable_cost_positive_paths": usable_count(local_seed),
-            "peer_usable_cost_positive_paths": usable_count(peer_seed),
-            "provider": provider.__dict__,
-            "baseline": baseline_metrics,
-            "dynamic": dynamic_metrics,
-            "delta_dynamic_minus_baseline": delta,
-            "dynamic_setpoint_event_count": sum(
-                event["event_type"].startswith("DYNAMIC_TARGET_SETPOINT")
-                for event in dynamic["controller_telemetry"]
-            ),
-        })
-        print(json.dumps({"test": test_start, "provider_available": provider.target_r_quantile is not None, "delta": delta}, indent=2), flush=True)
-
-    total = {
-        arm: {metric: sum(row[arm][metric] for row in rows) for metric in ("completed_trades", "gross_pnl", "net_pnl")}
-        for arm in ("baseline", "dynamic")
-    }
-    total["delta_dynamic_minus_baseline"] = {
-        metric: total["dynamic"][metric] - total["baseline"][metric]
-        for metric in total["baseline"]
-    }
-    artifact = {
-        "research_boundary": "Paired causal walk-forward research. Dynamic geometry is unvalidated and cannot be promoted from this artifact.",
-        "local": LOCAL,
-        "peers": list(PEERS),
-        "schedule": [{"seed_start": SEED_START, "test_start": start, "test_end_exclusive": end} for start, end in SCHEDULE[:args.months]],
-        "months": rows,
-        "aggregate": total,
-        "decision_rule": "Require a favourable aggregate post-cost delta and stable month-level behaviour before a separately sealed confirmation run."
-    }
+    artifact = build_artifact(rows, args.months)
     output = ROOT / args.output
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(artifact, indent=2, default=str))
-    print(json.dumps({"output": str(output), "aggregate": total}, indent=2), flush=True)
+    print(json.dumps({"output": str(output), "aggregate": artifact["aggregate"]}, indent=2), flush=True)
 
 
 if __name__ == "__main__":
