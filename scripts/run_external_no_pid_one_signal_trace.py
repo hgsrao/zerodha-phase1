@@ -180,7 +180,30 @@ def main() -> None:
 
     report = engine.run({args.symbol: bars}, warmup=60)
     if not report["trades"]:
-        raise RuntimeError("No completed trade for this symbol/day under the no-PID baseline")
+        # A no-trade day is a legitimate outcome for a frozen validation.
+        # Preserve the provider state and every candidate decision instead
+        # of disguising it as a runner failure.
+        artifact = {
+            "run_type": "one_signal_external_paper_trace",
+            "status": "NO_COMPLETED_TRADE",
+            "research_boundary": "Diagnostic ablation only; no live trading or strategy promotion.",
+            "symbol": args.symbol, "date": args.date, "pid_mode": args.pid_mode,
+            "closed_loop_mode": args.closed_loop_mode,
+            "dynamic_target_setpoint_provider": dataclasses.asdict(provider) if provider is not None else None,
+            "dynamic_target_setpoint_mode": args.dynamic_target_mode,
+            "manifest_hash": manifest.manifest_hash, "config_hash": report["config_hash"],
+            "safety_contract_hash": report["safety_contract_hash"],
+            "candidate_traces": candidates,
+            "controller_telemetry": report["controller_telemetry"],
+            "day_summary": {key: report[key] for key in (
+                "completed_trades", "gross_pnl", "net_pnl", "ending_equity", "mtm_max_drawdown_fraction"
+            )},
+        }
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(artifact, indent=2, default=str), encoding="utf-8")
+        print(json.dumps({"output": str(output), "status": artifact["status"], **artifact["day_summary"]}, indent=2))
+        return
     trade = next((row for row in report["trades"] if row["reason"] == args.select_reason), None) if args.select_reason else report["trades"][0]
     if trade is None:
         raise RuntimeError(f"No completed trade with reason={args.select_reason!r}")
