@@ -35,6 +35,7 @@ class HMMIntelligentDiscriminationBox:
         self._cached_model: Dict[str, GaussianHMM] = {}
         self._cached_stressed_state: Dict[str, Optional[int]] = {}
         self._bars_since_refit: Dict[str, int] = {}
+        self._cached_posterior: Dict[str, np.ndarray] = {}
         self._last_regime_observation: Dict[str, Dict[str, Any]] = {}
 
     def calibrate(self, symbol: str, warmup_bars: pd.DataFrame) -> None:
@@ -109,16 +110,27 @@ class HMMIntelligentDiscriminationBox:
         # Baum-Welch EM (_refit) is real, iterative optimization -- too
         # expensive to rerun on every single bar at backtest scale (proven
         # by this module's own first full-orchestrator run timing out).
-        # Reuse the cached model's cheap Viterbi predict() between refits;
-        # the regime classification only needs to be approximately current,
-        # not recomputed from scratch every bar.
+        # Reuse the cached model's one-step causal filter between refits;
+        # classification stays current without recomputing history each bar.
         due = self._bars_since_refit.get(symbol, _REFIT_EVERY_BARS) >= _REFIT_EVERY_BARS
         if due or symbol not in self._cached_model:
             self._refit(symbol, features)
             self._bars_since_refit[symbol] = 0
+            # A refit changes emission and transition parameters, so restart
+            # the causal filter from this model's completed history.
+            posterior = self._cached_model[symbol].filter_proba(features)[-1]
+            self._cached_posterior[symbol] = posterior
         else:
             self._bars_since_refit[symbol] = self._bars_since_refit.get(symbol, 0) + 1
+            # Do not recompute Viterbi and forward filtering across the
+            # entire 200-bar window on every minute. The one-step filter is
+            # the exact causal recurrence for the fixed model between
+            # scheduled refits and reduces this path from O(window) to O(1).
+            model = self._cached_model[symbol]
+            posterior = model.filter_step(features[-1], self._cached_posterior.get(symbol))
+            self._cached_posterior[symbol] = posterior
 
+        model = self._cached_model[symbol]
         stressed_state = self._cached_stressed_state.get(symbol)
         if stressed_state is None:
             self._last_regime_observation[symbol] = {
@@ -126,9 +138,10 @@ class HMMIntelligentDiscriminationBox:
                 "stress_probability": None, "stressed_state": None,
             }
             return "calm"
-        model = self._cached_model[symbol]
-        state = int(model.predict(features)[-1])
-        posterior = model.filter_proba(features)[-1]
+        # In live/replay operation the filtered MAP state is causal. Unlike
+        # a full Viterbi path, it does not repeatedly recompute history and
+        # cannot revise earlier state assignments.
+        state = int(np.argmax(posterior))
         stress_probability = float(posterior[stressed_state])
         regime = "stressed" if state == stressed_state else "calm"
         self._last_regime_observation[symbol] = {

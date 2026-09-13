@@ -77,3 +77,15 @@ def test_invalid_hmm_state_cannot_create_a_stressed_regime_veto(monkeypatch):
     box = HMMIntelligentDiscriminationBox()
     box._refit("TEST", np.ones((80, 2)))
     assert box._cached_stressed_state["TEST"] is None
+
+
+def test_non_refit_regime_update_uses_the_single_step_causal_filter(monkeypatch):
+    box = HMMIntelligentDiscriminationBox()
+    bars = _calm_then_shock_bars()
+    box.calibrate("TEST", bars.iloc[:120])
+    # First evaluation fits the model; the second must advance only one
+    # posterior step rather than invoke the O(window) Viterbi path.
+    box.evaluate(_signal(), _config(), latest_close=float(bars["close"].iloc[120]))
+    model = box._cached_model["TEST"]
+    monkeypatch.setattr(model, "predict", lambda _features: (_ for _ in ()).throw(AssertionError("unexpected Viterbi replay")))
+    box.evaluate(_signal(), _config(), latest_close=float(bars["close"].iloc[121]))
