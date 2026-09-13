@@ -52,6 +52,7 @@ def main() -> None:
     parser.add_argument("--symbol", default="INFY")
     parser.add_argument("--date", default="2023-09-01")
     parser.add_argument("--pid-mode", choices=("enabled", "disabled"), default="disabled")
+    parser.add_argument("--closed-loop-mode", choices=("shadow", "active_paper"), default="shadow")
     parser.add_argument("--select-reason", default=None,
                         help="select the first completed trade with this exit reason, e.g. target")
     parser.add_argument("--output", default="diagnostic_output/no_pid_one_signal_trace_INFY_20230901.json")
@@ -68,7 +69,7 @@ def main() -> None:
 
     engine = Revision2ExternalEngineOrchestrator(
         [args.symbol], CanonicalParameterRegistry(), starting_equity=1_000_000.0,
-        closed_loop_mode="shadow", telemetry_mode="full", pid_mode=args.pid_mode,
+        closed_loop_mode=args.closed_loop_mode, telemetry_mode="full", pid_mode=args.pid_mode,
     )
     candidates: list[dict[str, Any]] = []
     latest: dict[str, Any] = {}
@@ -156,7 +157,7 @@ def main() -> None:
         "symbol": args.symbol,
         "date": args.date,
         "pid_mode": args.pid_mode,
-        "closed_loop_mode": "shadow",
+        "closed_loop_mode": args.closed_loop_mode,
         "manifest_hash": manifest.manifest_hash,
         "config_hash": report["config_hash"],
         "safety_contract_hash": report["safety_contract_hash"],

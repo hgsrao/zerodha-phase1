@@ -162,7 +162,6 @@ class SimplePIDModelPredictiveControlBox:
             return None, {}, trace
 
         side = "BUY" if signal.direction > 0 else "SELL"
-        effective_entry = entry_price * (1 + slippage_cost_mult * 0.0005 * (1 if side == "BUY" else -1))
 
         stop_distance = atr * stop_mult
         target_distance = atr * profit_mult * (1 + margin_buffer)
@@ -179,7 +178,6 @@ class SimplePIDModelPredictiveControlBox:
             entry_pid.setpoint = confidence_baseline  # keep in sync on every call, not just at first construction
             entry_adjustment = entry_pid(decision.confidence, dt=1)
             entry_timing_multiplier = _np_clip(1.0 - abs(entry_adjustment), 0.3, 1.0)
-            effective_entry *= (1 + entry_adjustment * 0.001)
 
             exit_pid = self._get_pid(self._exit_pids, signal.symbol, kp_exit, ki_exit, kd_exit, target=confidence_baseline, clamp=integral_clamp)
             exit_pid.setpoint = confidence_baseline  # keep in sync on every call, not just at first construction
@@ -194,6 +192,14 @@ class SimplePIDModelPredictiveControlBox:
             exit_tightness = 1.0
             entry_p = entry_i = entry_d = 0.0
             exit_p = exit_i = exit_d = 0.0
+        # The controller adjusts the submitted paper-market reference, not
+        # merely an internal plan field.  The broker subsequently applies
+        # its normal adverse fill exactly once.  This keeps planned entry
+        # and expected paper fill aligned in both PID modes.
+        execution_market_price = float(entry_price) * (1.0 + entry_adjustment * 0.001)
+        effective_entry = execution_market_price * (
+            1.0 + slippage_cost_mult * 0.0005 * (1 if side == "BUY" else -1)
+        )
         stop_distance *= exit_tightness
         target_distance *= exit_tightness
 
@@ -216,6 +222,7 @@ class SimplePIDModelPredictiveControlBox:
         # fields participates in the plan calculations above.
         pid_info = {
             "pid_enabled": self.pid_enabled,
+            "execution_market_price": float(execution_market_price),
             "entry_adjustment": entry_adjustment, "exit_adjustment": exit_adjustment,
             "entry_timing_multiplier": entry_timing_multiplier,
             "entry_setpoint": confidence_baseline,

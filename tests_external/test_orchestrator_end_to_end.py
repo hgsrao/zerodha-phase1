@@ -165,6 +165,16 @@ def test_exit_stop_ratchet_armed_from_a_close_is_not_retroactively_checked_insid
     assert "INFY" in orch.open_trades
     assert not orch.completed_trades
 
+    # On the following bar, the stop armed from the completed prior close is
+    # now live.  This proves the controller's ratchet controls a real paper
+    # exit rather than remaining telemetry-only state forever.
+    armed_stop = orch._exit_controller_states["INFY"].current_stop_price
+    next_bar = {"open": armed_stop - 0.1, "high": armed_stop, "low": armed_stop - 0.2, "close": armed_stop - 0.1}
+    orch._maybe_exit("INFY", "2024-01-02 09:22:00", next_bar, signal, held_bars=2,
+                     session_last_bar=False, chart_studies_confidence=0.6)
+    assert "INFY" not in orch.open_trades
+    assert orch.completed_trades[-1]["reason"] == "stop_gap"
+
 
 def test_daily_unrealized_loss_reflects_real_mark_to_market_not_a_frozen_zero():
     # Real bug found and fixed this session: SystemState.daily_unrealized_loss

@@ -393,7 +393,34 @@ class Revision2ExternalEngineOrchestrator:
         # OHLC order inside the current bar is unknown, so testing a freshly
         # calculated stop against this bar's high/low would be look-ahead.
         state = self._exit_controller_states.get(symbol)
-        current_stop = trade["stop_price"]
+        # In shadow mode the controller is strictly observational.  In
+        # active-paper mode a stop ratchet computed from a completed prior
+        # bar becomes the protective stop for this bar.
+        current_stop = (
+            float(state.current_stop_price)
+            if state is not None and self.closed_loop_mode == "active_paper"
+            else float(trade["stop_price"])
+        )
+        pending_exit = trade.get("controller_exit_pending")
+        if pending_exit is not None:
+            # The exit was armed using only the preceding completed bar.
+            # Preserve a hard-stop or target gap's precedence at this open;
+            # otherwise the controller has direct paper-only exit authority.
+            if trade["side"] == "BUY" and float(bar["open"]) <= current_stop:
+                self._execute_exit(symbol, timestamp, trade, float(bar["open"]), "stop_gap")
+            elif trade["side"] == "SELL" and float(bar["open"]) >= current_stop:
+                self._execute_exit(symbol, timestamp, trade, float(bar["open"]), "stop_gap")
+            elif trade["side"] == "BUY" and float(bar["open"]) >= float(trade["target_price"]):
+                self._execute_exit(symbol, timestamp, trade, float(bar["open"]), "target_gap")
+            elif trade["side"] == "SELL" and float(bar["open"]) <= float(trade["target_price"]):
+                self._execute_exit(symbol, timestamp, trade, float(bar["open"]), "target_gap")
+            else:
+                self._record_controller_event("CONTROLLER_PATH_EXIT", timestamp, symbol, {
+                    "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+                    **pending_exit,
+                })
+                self._execute_exit(symbol, timestamp, trade, float(bar["open"]), "controller_path_exit")
+            return
         if state is not None:
             shadow_exit = self.exit_controller.check_shadow_stop(state, bar, timestamp)
             if shadow_exit is not None:
@@ -438,6 +465,22 @@ class Revision2ExternalEngineOrchestrator:
                         "stop_before": before_path_actuation, "proposed_stop": proposed_stop,
                         "stop_after": state.current_stop_price,
                     })
+                    if held_bars >= trade["minimum_hold_bars"]:
+                        # Do not retroactively execute on this bar: its
+                        # OHLC sequence is unknown.  Arm a market exit for
+                        # the next bar's open, shortening (never extending)
+                        # the holding period if the path remains breached.
+                        trade["controller_exit_pending"] = {
+                            "armed_timestamp": str(timestamp),
+                            "actual_r": path_observation.actual_r,
+                            "expected_r": path_observation.expected_r,
+                            "error_r": path_observation.error_r,
+                            "reason": "behind_reference_path",
+                        }
+                        self._record_controller_event("CONTROLLER_PATH_EXIT_ARMED", timestamp, symbol, {
+                            "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+                            **trade["controller_exit_pending"],
+                        })
             entry_atr = trade.get("entry_atr")
             atr_drift_fraction = None
             if entry_atr is not None and float(entry_atr) > 0.0:
@@ -928,7 +971,8 @@ class Revision2ExternalEngineOrchestrator:
 
                 fill = self.broker.place_order(
                     symbol=symbol, side=order.side, quantity=quantity, order_type=order.order_type,
-                    market_price=next_open, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+                    market_price=float(pid_info["execution_market_price"]),
+                    config=self.safety_contract.as_dict(), parameter_registry=self.registry,
                 )
                 funnel["orders_submitted"] += 1
                 if fill["passed"]:
@@ -955,6 +999,7 @@ class Revision2ExternalEngineOrchestrator:
                         "entry_atr": float(atr), "planned_entry_price": float(plan.entry_price),
                         "planned_stop_price": float(plan.stop_price), "planned_target_price": float(plan.target_price),
                         "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
+                        "controller_exit_pending": None,
                         "closed_loop": closed_loop_snapshot,
                     }
                     entry_bar_index[symbol] = bar_idx + 1
