@@ -60,6 +60,23 @@ def test_weights_sum_and_stay_within_bounds():
         assert set(result["weights"]) == set(STUDY_NAMES)
 
 
+def test_audit_exposes_causal_study_inputs_and_each_weight_pid_output():
+    bars = _trending_bars(n=120, drift=0.001, seed=21)
+    engine = CompositeStudySignal()
+    for i in range(80, len(bars)):
+        result = engine.evaluate(SYMBOL, bars.iloc[:i + 1])
+
+    assert set(result["indicator_inputs"]) == set(STUDY_NAMES)
+    assert set(result["weight_pid_audit"]) == set(STUDY_NAMES)
+    for name in STUDY_NAMES:
+        inputs = result["indicator_inputs"][name]
+        pid = result["weight_pid_audit"][name]
+        assert inputs["close"] == bars.iloc[-1]["close"]
+        assert {"setpoint", "measurement_hit_rate", "error", "p", "i", "d", "raw_output",
+                "applied_adjustment", "weight_before", "weight_after", "graded_vote_count"} <= set(pid)
+        assert pid["weight_after"] == result["weights"][name]
+
+
 def test_a_consistently_wrong_study_gets_down_weighted_relative_to_a_correct_one():
     # Real, direct proof of the actual point of this module: feed a real
     # uptrend (so a real "always bullish" reading is genuinely correct

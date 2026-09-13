@@ -501,6 +501,11 @@ class Revision2ExternalEngineOrchestrator:
                 "study_weights": study_weights,
                 "study_hit_rates": study_hit_rates,
                 "study_votes": dict((chart_studies_audit or {}).get("votes", {})),
+                # Raw causal study measurements and the four independent
+                # study-weight PID outputs.  Audit only: neither field is an
+                # additional execution input at this layer.
+                "study_indicator_inputs": dict((chart_studies_audit or {}).get("indicator_inputs", {})),
+                "study_weight_pid_audit": dict((chart_studies_audit or {}).get("weight_pid_audit", {})),
                 "study_weights_clamped": study_weights_clamped,
                 **state.last_telemetry,
             })

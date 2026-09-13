@@ -132,13 +132,59 @@ def _stochastic_vote(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> in
 
 
 def _session_vwap_vote(timestamps: pd.Series, close: np.ndarray, volume: np.ndarray) -> int:
+    vwap = _session_vwap_value(timestamps, close, volume)
+    return 1 if close[-1] > vwap else (-1 if close[-1] < vwap else 0)
+
+
+def _session_vwap_value(timestamps: pd.Series, close: np.ndarray, volume: np.ndarray) -> float:
+    """Return the causal, current-session VWAP used by the VWAP vote."""
     dates = pd.to_datetime(timestamps).dt.date
     today = dates.iloc[-1]
     mask = (dates == today).to_numpy()
     session_close = close[mask]
     session_volume = np.maximum(volume[mask], 1e-9)  # real volume is never negative; guards a real zero-volume bar
-    vwap = float(np.sum(session_close * session_volume) / np.sum(session_volume))
-    return 1 if close[-1] > vwap else (-1 if close[-1] < vwap else 0)
+    return float(np.sum(session_close * session_volume) / np.sum(session_volume))
+
+
+def _indicator_inputs(timestamps: pd.Series, high: np.ndarray, low: np.ndarray,
+                      close: np.ndarray, volume: np.ndarray) -> Dict[str, Dict[str, float | bool | None]]:
+    """Expose the exact causal inputs behind each study vote for audit only.
+
+    This deliberately duplicates no decision logic: the votes themselves still
+    come from the established helpers above.  The values below make a replay
+    trace explainable without allowing telemetry to alter a trade.
+    """
+    current_close = float(close[-1])
+    ichimoku: Dict[str, float | bool | None] = {"close": current_close, "ready": False}
+    if len(close) >= 78:
+        tenkan = (pd.Series(high).rolling(9).max() + pd.Series(low).rolling(9).min()) / 2
+        kijun = (pd.Series(high).rolling(26).max() + pd.Series(low).rolling(26).min()) / 2
+        span_a = ((tenkan + kijun) / 2).shift(26)
+        span_b = ((pd.Series(high).rolling(52).max() + pd.Series(low).rolling(52).min()) / 2).shift(26)
+        values = {"tenkan": tenkan.iloc[-1], "kijun": kijun.iloc[-1],
+                  "span_a": span_a.iloc[-1], "span_b": span_b.iloc[-1]}
+        if not any(pd.isna(value) for value in values.values()):
+            ichimoku.update({key: float(value) for key, value in values.items()})
+            ichimoku["ready"] = True
+
+    bollinger: Dict[str, float | bool | None] = {"close": current_close, "ready": False}
+    if len(close) >= 20:
+        upper, middle, lower = talib.BBANDS(close, timeperiod=20, nbdevup=2.0, nbdevdn=2.0)
+        if not any(pd.isna(value) for value in (upper[-1], middle[-1], lower[-1])):
+            bollinger.update({"upper": float(upper[-1]), "middle": float(middle[-1]), "lower": float(lower[-1]), "ready": True})
+
+    stochastic: Dict[str, float | bool | None] = {"close": current_close, "ready": False}
+    if len(close) >= 11:
+        slowk, slowd = talib.STOCH(high, low, close, fastk_period=5, slowk_period=3, slowd_period=3)
+        if not any(pd.isna(value) for value in (slowk[-1], slowd[-1])):
+            stochastic.update({"slowk": float(slowk[-1]), "slowd": float(slowd[-1]), "ready": True})
+
+    return {
+        "ichimoku": ichimoku,
+        "bollinger": bollinger,
+        "stochastic": stochastic,
+        "session_vwap": {"close": current_close, "vwap": _session_vwap_value(timestamps, close, volume), "ready": True},
+    }
 
 
 @dataclass
@@ -191,6 +237,7 @@ class CompositeStudySignal:
             "session_vwap": _session_vwap_vote(bars["timestamp"], close, volume),
         }
         current_close = float(close[-1])
+        indicator_inputs = _indicator_inputs(bars["timestamp"], high, low, close, volume)
 
         # Grade each study's vote from _GRADING_HORIZON bars ago, now that
         # horizon has genuinely elapsed -- no lookahead: only ever compares
@@ -211,6 +258,7 @@ class CompositeStudySignal:
         cross_study_baseline = sum(s.hit_rate for s in states.values()) / len(states)
 
         weights = {}
+        weight_pid_audit: Dict[str, Dict[str, float | int]] = {}
         for name, state in states.items():
             state.pid.setpoint = cross_study_baseline
             # simple_pid computes error = setpoint - input: a study doing
@@ -221,10 +269,25 @@ class CompositeStudySignal:
             # hit rate ended up at the weight FLOOR, not the ceiling).
             # Negate before applying: a study outperforming its peers must
             # gain weight, not lose it.
-            adjustment = -state.pid(state.hit_rate, dt=1)
+            weight_before = state.weight
+            raw_output = float(state.pid(state.hit_rate, dt=1))
+            adjustment = -raw_output
             base = 1.0 / len(STUDY_NAMES)
             state.weight = _clip(base + adjustment, _MIN_WEIGHT, _MAX_WEIGHT)
             weights[name] = state.weight
+            weight_pid_audit[name] = {
+                "setpoint": float(cross_study_baseline),
+                "measurement_hit_rate": float(state.hit_rate),
+                "error": float(cross_study_baseline - state.hit_rate),
+                "p": float(state.pid.components[0]),
+                "i": float(state.pid.components[1]),
+                "d": float(state.pid.components[2]),
+                "raw_output": raw_output,
+                "applied_adjustment": float(adjustment),
+                "weight_before": float(weight_before),
+                "weight_after": float(state.weight),
+                "graded_vote_count": len(state.hit_history),
+            }
 
         total_weight = sum(weights.values()) or 1.0
         weighted_score = sum(current_votes[n] * weights[n] for n in STUDY_NAMES) / total_weight  # in [-1, 1]
@@ -235,4 +298,6 @@ class CompositeStudySignal:
             "confidence": confidence, "direction": direction, "weighted_score": weighted_score,
             "votes": dict(current_votes), "weights": dict(weights),
             "hit_rates": {n: states[n].hit_rate for n in STUDY_NAMES},
+            "indicator_inputs": indicator_inputs,
+            "weight_pid_audit": weight_pid_audit,
         }
