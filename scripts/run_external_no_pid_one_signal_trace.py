@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Trace the first completed external-engine paper trade with PID disabled.
+"""Trace one completed external-engine paper trade with PID enabled/disabled.
 
 This is a diagnostic ablation, not a strategy run.  The only architectural
 change is that MPC's entry/exit PID transformations are identities.  The
@@ -51,6 +51,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--symbol", default="INFY")
     parser.add_argument("--date", default="2023-09-01")
+    parser.add_argument("--pid-mode", choices=("enabled", "disabled"), default="disabled")
+    parser.add_argument("--select-reason", default=None,
+                        help="select the first completed trade with this exit reason, e.g. target")
     parser.add_argument("--output", default="diagnostic_output/no_pid_one_signal_trace_INFY_20230901.json")
     args = parser.parse_args()
 
@@ -65,7 +68,7 @@ def main() -> None:
 
     engine = Revision2ExternalEngineOrchestrator(
         [args.symbol], CanonicalParameterRegistry(), starting_equity=1_000_000.0,
-        closed_loop_mode="shadow", telemetry_mode="full", pid_mode="disabled",
+        closed_loop_mode="shadow", telemetry_mode="full", pid_mode=args.pid_mode,
     )
     candidates: list[dict[str, Any]] = []
     latest: dict[str, Any] = {}
@@ -103,7 +106,7 @@ def main() -> None:
                 "pa_signal": latest.get("signal"),
                 "chart_studies": latest.get("chart_studies"),
                 "id_decision": latest.get("id_decision"),
-                "mpc_inputs": {"next_open": entry_price, "atr": atr, "pid_mode": "disabled"},
+                "mpc_inputs": {"next_open": entry_price, "atr": atr, "pid_mode": args.pid_mode},
                 "mpc_plan": _as_dict(plan),
                 "pid_output": _as_dict(pid_info),
             })
@@ -134,7 +137,9 @@ def main() -> None:
     report = engine.run({args.symbol: bars}, warmup=60)
     if not report["trades"]:
         raise RuntimeError("No completed trade for this symbol/day under the no-PID baseline")
-    trade = report["trades"][0]
+    trade = next((row for row in report["trades"] if row["reason"] == args.select_reason), None) if args.select_reason else report["trades"][0]
+    if trade is None:
+        raise RuntimeError(f"No completed trade with reason={args.select_reason!r}")
     candidate = next(
         (row for row in candidates if row["candidate_id"] == trade.get("candidate_id")), None,
     )
@@ -146,11 +151,11 @@ def main() -> None:
         if event.get("candidate_id") == trade.get("candidate_id") or event.get("trade_id") == trade.get("trade_id")
     ]
     artifact = {
-        "run_type": "one_signal_external_no_pid_paper_trace",
+        "run_type": "one_signal_external_paper_trace",
         "research_boundary": "Diagnostic ablation only; no live trading or strategy promotion.",
         "symbol": args.symbol,
         "date": args.date,
-        "pid_mode": "disabled",
+        "pid_mode": args.pid_mode,
         "closed_loop_mode": "shadow",
         "manifest_hash": manifest.manifest_hash,
         "config_hash": report["config_hash"],
