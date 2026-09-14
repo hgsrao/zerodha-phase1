@@ -47,6 +47,7 @@ from revision2_external.continuous_exit_controller import ContinuousExitControll
 from revision2_external.data_certification_pandera import certify_bars
 from revision2_external.dynamic_target_setpoint import FrozenTargetSetpointProvider
 from revision2_external.entry_expectancy_evidence import CausalEntryExpectancyLedger
+from revision2_external.entry_candidate_observations import EntryCandidateObservationLedger
 from revision2_external.final_execution_controller import FinalExecutionController
 from revision2_external.grid_context import SealedGridContextProvider
 from revision2_external.indicators_talib import TALibPredictiveAnalyticsBox
@@ -134,6 +135,7 @@ class Revision2ExternalEngineOrchestrator:
         # pre-entry observation is paired only when that filled trade later
         # completes. No current execution decision reads this ledger.
         self.entry_expectancy_ledger = CausalEntryExpectancyLedger()
+        self.entry_candidate_observations = EntryCandidateObservationLedger()
         self._controller_sequence = 0
         self._trade_sequence = 0
 
@@ -803,6 +805,14 @@ class Revision2ExternalEngineOrchestrator:
                 funnel["mpc_plans"] += 1
                 self._controller_sequence += 1
                 candidate_id = f"candidate-{self._controller_sequence}"
+                self.entry_candidate_observations.observe({
+                    "candidate_id": candidate_id, "symbol": symbol, "side": plan.side,
+                    "timestamp": str(timestamp), "planned_fill_timestamp": str(next_ts),
+                    "pa_confidence": float(signal.confidence), "id_confidence": float(decision.confidence),
+                    "studies_confidence": float(chart_studies_confidence),
+                    "planned_entry_price": float(plan.entry_price), "planned_stop_price": float(plan.stop_price),
+                    "planned_target_price": float(plan.target_price), "planned_maximum_hold_bars": int(plan.maximum_hold_bars),
+                })
                 entry_quality = self.closed_loop.outcomes.profile(symbol, plan.side)
                 self._record_controller_event("ENTRY_QUALITY_COMPARATOR", timestamp, symbol, {
                     "candidate_id": candidate_id, "id_confidence": float(decision.confidence),
@@ -854,6 +864,7 @@ class Revision2ExternalEngineOrchestrator:
                 approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(self._equity_curve, self.config)
                 self._record(trace)
                 if not approved:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "pre_sizing_safety")
                     funnel["safety_rejections"] += 1
                     continue
                 symbol_dynamics = self.closed_loop.dynamics_profiler.estimate(bars.iloc[:bar_idx + 1])
@@ -871,6 +882,7 @@ class Revision2ExternalEngineOrchestrator:
                 # active mode. Shadow mode records the identical decision
                 # but leaves the existing baseline execution untouched.
                 if self.closed_loop_mode == "active_paper" and final_entry["action"] != "ADMIT":
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "final_execution_entry_veto")
                     self._record_controller_event("FINAL_EXECUTION_ENTRY_VETO", timestamp, symbol, {
                         "candidate_id": candidate_id, **final_entry,
                     })
@@ -882,6 +894,7 @@ class Revision2ExternalEngineOrchestrator:
                     and float(decision.confidence) < float(self.config.require("entry_confidence_threshold"))
                     + float(entry_quality["suggested_confidence_offset"])
                 ):
+                    self.entry_candidate_observations.dispose(candidate_id, "DEFERRED", "entry_quality_hold")
                     self._record_controller_event("ENTRY_QUALITY_HOLD", timestamp, symbol, {
                         "candidate_id": candidate_id,
                         "effective_confidence_floor": float(self.config.require("entry_confidence_threshold"))
@@ -891,6 +904,7 @@ class Revision2ExternalEngineOrchestrator:
                     continue
 
                 if len(self.open_trades) >= max_concurrent:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "max_concurrent_positions")
                     funnel["portfolio_cap_rejections"] += 1
                     continue
                 equity_now = self._equity()
@@ -924,10 +938,12 @@ class Revision2ExternalEngineOrchestrator:
                     **self.position_manager.last_sizing_telemetry,
                 })
                 if quantity <= 0:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "position_sizing_zero")
                     continue
 
                 real_notional = plan.entry_price * quantity
                 if self._gross_exposure_notional() + real_notional > equity_now * max_gross_fraction:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "gross_exposure_cap")
                     funnel["portfolio_cap_rejections"] += 1
                     continue
                 sector_notional = sum(
@@ -935,12 +951,14 @@ class Revision2ExternalEngineOrchestrator:
                     if self.sector_map.get(s, "Unclassified") == sector
                 )
                 if sector_notional + real_notional > equity_now * sector_cap_fraction:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "sector_exposure_cap")
                     funnel["portfolio_cap_rejections"] += 1
                     continue
 
                 post_ok, _, trace = self.safety_gates_target.evaluate_post_sizing(self._equity_curve, plan, quantity, self.config)
                 self._record(trace)
                 if not post_ok:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "post_sizing_safety")
                     funnel["safety_rejections"] += 1
                     continue
                 funnel["safety_approvals"] += 1
@@ -948,6 +966,7 @@ class Revision2ExternalEngineOrchestrator:
                 order, trace = self.p01d.create_order(symbol, plan, quantity, self.config)
                 self._record(trace)
                 if order is None:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "order_construction")
                     continue
 
                 state = SystemState(
@@ -1034,11 +1053,13 @@ class Revision2ExternalEngineOrchestrator:
                         continue
                 funnel["gates_evaluated"] += 1
                 if not gate_result["passed"]:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_gate")
                     funnel["gates_rejected"] += 1
                     continue
                 funnel["gates_passed"] += 1
                 quantity = max(0, int(gate_result["adjusted_quantity"]))
                 if quantity <= 0:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_quantity_zero")
                     continue
 
                 gate2 = ExecutionGate().validate_pre_submit(
@@ -1047,6 +1068,7 @@ class Revision2ExternalEngineOrchestrator:
                     parameter_registry=self.registry,
                 )
                 if not gate2["passed"]:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "execution_gate")
                     funnel["safety_rejections"] += 1
                     continue
 
@@ -1057,6 +1079,7 @@ class Revision2ExternalEngineOrchestrator:
                 )
                 funnel["orders_submitted"] += 1
                 if fill["passed"]:
+                    self.entry_candidate_observations.dispose(candidate_id, "FILLED", "paper_fill")
                     funnel["fills"] += 1
                     self._trade_sequence += 1
                     risk = abs(float(plan.entry_price) - float(plan.stop_price))
@@ -1104,12 +1127,15 @@ class Revision2ExternalEngineOrchestrator:
                     self._exit_controller_states[symbol] = self.exit_controller.open_position(
                         plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
                     )
+                else:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "paper_fill_rejected")
 
         for symbol in list(self.open_trades.keys()):
             bars = symbol_bars[symbol]
             final_close = float(bars.iloc[len(bars) - 1]["close"])
             self._execute_exit(symbol, bars.iloc[len(bars) - 1].get("timestamp", ""), self.open_trades[symbol], final_close, "end_of_run_reconciliation")
 
+        self.entry_candidate_observations.finalize_pending()
         gross_pnl = self.broker.realized_pnl
         assert abs(gross_pnl - sum(t["pnl"] for t in self.completed_trades)) < 1e-6
 
@@ -1160,6 +1186,7 @@ class Revision2ExternalEngineOrchestrator:
                 # pairs needed for a later, frozen entry-quality study.
                 "resolved": self.entry_expectancy_ledger.resolved,
             },
+            "entry_candidate_observations": self.entry_candidate_observations.report(),
             "grid_shadow": {
                 "enabled": self.grid_context_provider is not None,
                 "observations": self.grid_shadow_observations,

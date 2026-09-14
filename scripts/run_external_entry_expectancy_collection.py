@@ -63,6 +63,7 @@ def _artifact(report: dict, *, start: str, end_exclusive: str, manifest: Dataset
         )},
         "exit_reasons": dict(sorted(Counter(str(trade["reason"]) for trade in trades).items())),
         "entry_expectancy_evidence": evidence,
+        "entry_candidate_observations": report["entry_candidate_observations"],
         "trade_ledger": trades,
     }
 
