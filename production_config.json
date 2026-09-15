@@ -1,0 +1,25 @@
+{
+  "strategy_name": "Welford_MeanReversion_Production_v1",
+  "data_universe_size": 17,
+  "symbols": [
+    "AXISBANK", "ULTRACEMCO", "M&M", "JSWSTEEL", "BAJAJ-AUTO",
+    "EICHERMOT", "HINDUNILVR", "BAJFINANCE", "ITC", "GRASIM",
+    "MARUTI", "COALINDIA", "SBILIFE", "NTPC", "HDFCLIFE", "CIPLA", "ETERNAL"
+  ],
+  "breadth_gate_z_mean": -0.45,
+  "entry_triggers": {
+    "vwap_zscore_arm": -2.5,
+    "rsi_14_arm": 28.0,
+    "session_gap_down_max_pct": 1.25,
+    "variance_ratio_max": 1.05
+  },
+  "risk_and_execution": {
+    "slot_capital_inr": 100000.0,
+    "max_concurrent_positions": 4,
+    "target_r_multiple": 1.80,
+    "min_harvest_r": 1.40,
+    "trailing_lock_activation_r": 1.20,
+    "trailing_lock_retention_pct": 0.40,
+    "session_exit_time": "15:15:00"
+  }
+}

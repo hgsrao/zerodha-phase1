@@ -1,0 +1,15 @@
+*.csv
+*.parquet
+*.npy
+*.gz
+*.json
+!production_config.json
+diagnostic_output/
+revision8_pairs/
+__pycache__/
+*.pyc
+venv/
+env/
+.env
+credentials.json
+token.json
