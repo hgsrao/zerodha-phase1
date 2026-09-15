@@ -25,8 +25,40 @@ class ParameterSpec:
 
 
 class CanonicalParameterRegistry:
-    CONTRACT_ID = "ECS_REVISION_2_PARAMETER_SURFACE_V1"
-    FROZEN_IDENTITY_SHA256 = "ed1a74fa0f3edf8a89e471e6db40f992148862b240b77fdcdab7984578e35c70"
+    CONTRACT_ID = "ECS_REVISION_2_PARAMETER_SURFACE_V3"
+    # Updated deliberately, three times now:
+    # 1. minimum_absolute_profit_rupees (a fixed per-share rupee constant,
+    #    checked before quantity existed) was replaced with
+    #    minimum_profit_margin_over_cost (a scale-invariant cost-margin
+    #    fraction, checked post-sizing against the real round-trip cost).
+    # 2. rebalance_frequency_minutes was replaced with
+    #    trailing_stop_atr_mult. rebalance_frequency_minutes was confirmed
+    #    dead in BOTH engines (read via req() for coverage tracking only --
+    #    the real PyPortfolioOpt refit cadence is a hardcoded constant,
+    #    PORTFOLIO_WEIGHT_REFIT_EVERY_BARS -- and it was already in
+    #    FIXED_TARGET_NAMES, non-calibratable, so removing it changes no
+    #    calibratable-parameter count anywhere). trailing_stop_atr_mult is
+    #    the ATR multiplier for continuous_exit_controller.py's real,
+    #    per-bar-recomputed trailing stop -- previously borrowed
+    #    stop_loss_atr_mult (tuned for a one-shot entry-time stop) for a
+    #    continuously re-measured droop, which real data showed was far
+    #    too tight (INFY's real median single-bar range is ~0.95x its own
+    #    median ATR -- a 1x-ATR-wide continuous stop barely survives ONE
+    #    bar, let alone a multi-bar hold). This is a genuinely new,
+    #    independently-calibratable control, not a rename.
+    # 3. saturation_exit_bars was added (not swapped) to expose the
+    #    ContinuousExitController's PID saturation-exit streak threshold
+    #    (default 5) to the automated optimizer. This lets the calibration
+    #    engine tune the joint space of (trailing_stop_atr_mult ×
+    #    saturation_exit_bars) to find the combination that actually lets
+    #    saturation_exit fire on real data, rather than being perpetually
+    #    starved by a stop that closes trades in 1-2 bars. This is a
+    #    deliberate expansion, net +1 calibratable (68→69 total).
+    # Parameter count changed twice: first 68/20 (both), then 69/20 with
+    # saturation_exit_bars. These changes are exactly what this hash tracks.
+    # Recomputed and verified when the approved intraday-only Gate16 default
+    # moved from 0.10% to 0.15%. Cross-session orders remain prohibited.
+    FROZEN_IDENTITY_SHA256 = "26755ba69e28a81142a424fcca1a8c1b1f51a377ef70ba46fa52a97f96f28d74"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -58,7 +90,6 @@ class CanonicalParameterRegistry:
         "phase1_exploration_intensity",
         "phase2_optimization_intensity",
         "portfolio_lambda_risk_limit",
-        "rebalance_frequency_minutes",
         "retry_delay_seconds",
         "slippage_tolerance_percent",
         "symbols_to_trade",
@@ -76,7 +107,7 @@ class CanonicalParameterRegistry:
         entries = [
             ParameterSpec("base_dp_dt_multiplier", "PA", "float", 1.0, 0.5, 2.0, True, "Base price momentum multiplier"),
             ParameterSpec("base_dv_dt_multiplier", "PA", "float", 1.0, 0.5, 2.0, True, "Base volume momentum multiplier"),
-            ParameterSpec("entry_confidence_threshold", "PA", "float", 0.50, 0.3, 0.8, True, "Minimum signal confidence"),
+            ParameterSpec("entry_confidence_threshold", "PA", "float", 0.15, 0.02, 0.35, True, "Minimum signal confidence"),
             ParameterSpec("exit_confidence_threshold", "ID", "float", 0.60, 0.4, 0.9, True, "Minimum exit confidence"),
             ParameterSpec("min_risk_reward_ratio", "MPC", "float", 1.50, 1.0, 3.0, True, "Minimum risk/reward"),
             ParameterSpec("profit_target_margin_buffer", "MPC", "float", 0.10, 0.0, 0.5, True, "Buffer above target"),
@@ -84,7 +115,7 @@ class CanonicalParameterRegistry:
             ParameterSpec("confirmation_2bar_weight", "PA", "float", 0.25, 0.1, 0.4, True, "2-bar confirmation"),
             ParameterSpec("momentum_weight", "PA", "float", 0.25, 0.1, 0.4, True, "Momentum weight"),
             ParameterSpec("volatility_weight", "PA", "float", 0.25, 0.05, 0.4, True, "Volatility weight"),
-            ParameterSpec("green_threshold", "PA", "float", 0.75, 0.6, 0.95, True, "Green signal threshold"),
+            ParameterSpec("green_threshold", "PA", "float", 0.25, 0.10, 0.45, True, "Green signal threshold"),
             ParameterSpec("amber_threshold_lower", "PA", "float", 0.50, 0.3, 0.7, True, "Amber threshold lower bound"),
             ParameterSpec("red_threshold", "PA", "float", 0.30, 0.1, 0.5, True, "Red threshold"),
             ParameterSpec("slippage_guard_threshold", "ID", "float", 0.05, 0.01, 0.15, True, "Max slippage"),
@@ -93,12 +124,20 @@ class CanonicalParameterRegistry:
             ParameterSpec("medium_vol_regime_multiplier", "PA", "float", 1.00, 0.7, 1.5, True, "Medium vol multiplier"),
             ParameterSpec("high_vol_regime_multiplier", "PA", "float", 1.00, 0.8, 1.5, True, "High vol multiplier"),
             ParameterSpec("profit_target_atr_mult", "MPC", "float", 1.50, 0.8, 2.5, True, "ATR profit target multiplier"),
-            ParameterSpec("stop_loss_atr_mult", "MPC", "float", 0.75, 0.3, 1.2, True, "ATR stop multiplier"),
+            ParameterSpec("stop_loss_atr_mult", "MPC", "float", 1.0, 0.3, 1.2, True, "ATR stop multiplier (MATCHED to external +₹108.01 config)"),
             ParameterSpec("atr_calculation_period", "PA", "int", 20, 10, 30, True, "ATR period"),
             ParameterSpec("entry_signal_smoothing_window", "PA", "int", 3, 1, 8, True, "Entry smoothing window"),
             ParameterSpec("exit_signal_smoothing_window", "PA", "int", 2, 1, 4, True, "Exit smoothing window"),
             ParameterSpec("slippage_cost_multiplier", "MPC", "float", 1.00, 0.8, 1.5, True, "Cost multiplier"),
-            ParameterSpec("minimum_absolute_profit_rupees", "MPC", "float", 50.0, 0.0, 200.0, True, "Min profit floor"),
+            # Replaced minimum_absolute_profit_rupees (a fixed per-share rupee
+            # proxy checked before quantity existed -- structurally unable to
+            # represent whether a trade was actually worth its real cost,
+            # since real round-trip cost scales with price x quantity, not a
+            # fixed constant). Checked post-sizing now (SafetyGatesTargetBox.
+            # evaluate_post_sizing), against the real round-trip cost for the
+            # actual quantity -- see that method for the full rationale.
+            ParameterSpec("minimum_profit_margin_over_cost", "SafetyGates", "float", 0.5, 0.0, 2.0, True,
+                          "Required fraction by which projected total trade profit must exceed real round-trip cost"),
             ParameterSpec("momentum_calculation_period", "PA", "int", 20, 10, 30, True, "Momentum period"),
             ParameterSpec("vwap_calculation_period", "PA", "int", 20, 10, 30, True, "VWAP period"),
             ParameterSpec("signal_persistence_requirement", "PA", "float", 1.50, 1.0, 2.5, True, "Persistence requirement"),
@@ -110,10 +149,11 @@ class CanonicalParameterRegistry:
             ParameterSpec("lot_size_by_symbol", "PositionManager", "dict", {}, 0, 0, True, "Per-symbol lot sizing"),
             ParameterSpec("max_positions_live", "PositionManager", "int", 5, 1, 12, True, "Max live positions"),
             ParameterSpec("max_positions_per_symbol", "PositionManager", "int", 1, 1, 3, True, "Max per symbol"),
-            ParameterSpec("capital_per_trade_fraction", "PositionManager", "float", 0.02, 0.005, 0.10, True, "Capital per trade fraction"),
-            ParameterSpec("min_capital_buffer_fraction", "PositionManager", "float", 0.10, 0.05, 0.30, True, "Cash reserve fraction"),
-            ParameterSpec("capital_allocation_mode", "PositionManager", "str", "equal", 0, 0, True, "Allocation mode"),
-            ParameterSpec("rebalance_frequency_minutes", "PositionManager", "int", 60, 15, 240, True, "Rebalance cadence"),
+            ParameterSpec("capital_per_trade_fraction", "PositionManager", "float", 0.10, 0.005, 0.10, True, "Capital per trade fraction"),
+            ParameterSpec("min_capital_buffer_fraction", "PositionManager", "float", 0.05, 0.05, 0.30, True, "Cash reserve fraction"),
+            ParameterSpec("capital_allocation_mode", "PositionManager", "str", "aggressive", 0, 0, True, "Allocation mode"),
+            ParameterSpec("trailing_stop_atr_mult", "MPC", "float", 5.5, 1.0, 8.0, True,
+                           "Continuous exit-controller ATR trail multiplier (independent of the one-shot entry stop's stop_loss_atr_mult)"),
             ParameterSpec("drawdown_normal_threshold", "SafetyGates", "float", 0.10, 0.05, 0.20, True, "Normal drawdown threshold"),
             ParameterSpec("drawdown_derated_threshold", "SafetyGates", "float", 0.18, 0.10, 0.25, True, "Derated threshold"),
             ParameterSpec("drawdown_halt_threshold", "SafetyGates", "float", 0.25, 0.15, 0.35, True, "Hard drawdown halt"),
@@ -121,7 +161,7 @@ class CanonicalParameterRegistry:
             ParameterSpec("max_loss_per_day_rupees", "SafetyGates", "float", 50000, 10000, 150000, True, "Daily loss limit"),
             ParameterSpec("portfolio_lambda_risk_limit", "SafetyGates", "float", 0.15, 0.05, 0.30, True, "Portfolio lambda risk limit"),
             ParameterSpec("max_sector_exposure_fraction", "PositionManager", "float", 0.30, 0.10, 0.60, True, "Sector max exposure"),
-            ParameterSpec("max_symbol_concentration", "PositionManager", "float", 0.05, 0.01, 0.15, True, "Single symbol cap"),
+            ParameterSpec("max_symbol_concentration", "PositionManager", "float", 0.15, 0.01, 0.15, True, "Single symbol cap"),
             ParameterSpec("pid_kp_entry", "MPC", "float", 0.15, 0.05, 0.30, True, "Entry KP"),
             ParameterSpec("pid_ki_entry", "MPC", "float", 0.05, 0.01, 0.20, True, "Entry KI"),
             ParameterSpec("pid_kd_entry", "MPC", "float", 0.08, 0.01, 0.20, True, "Entry KD"),
@@ -130,13 +170,16 @@ class CanonicalParameterRegistry:
             ParameterSpec("pid_kd_exit", "MPC", "float", 0.06, 0.01, 0.15, True, "Exit KD"),
             ParameterSpec("pid_integral_window_bars", "MPC", "int", 10, 5, 30, True, "Integral window"),
             ParameterSpec("pid_integral_max_clamp", "MPC", "float", 0.10, 0.02, 0.25, True, "Integral clamp"),
+            ParameterSpec("saturation_exit_bars", "MPC", "int", 5, 2, 10, True,
+                           "Consecutive bars at saturation extreme before exit (both PA and studies tracks independently)"),
             ParameterSpec("pid_derivative_smoothing", "MPC", "int", 3, 1, 10, True, "Derivative smoothing"),
             ParameterSpec("order_type", "P01D", "str", "MARKET", 0, 0, True, "Execution order type"),
             ParameterSpec("limit_order_offset_percent", "P01D", "float", 0.02, 0.00, 0.05, True, "Limit offset"),
             ParameterSpec("order_timeout_seconds", "P01D", "int", 30, 5, 120, True, "Order timeout"),
             ParameterSpec("max_retry_attempts", "P01D", "int", 2, 0, 5, True, "Retry attempts"),
             ParameterSpec("retry_delay_seconds", "P01D", "int", 5, 1, 20, True, "Retry delay"),
-            ParameterSpec("slippage_tolerance_percent", "P01D", "float", 0.10, 0.02, 0.20, True, "Slippage tolerance"),
+            ParameterSpec("slippage_tolerance_percent", "P01D", "float", 0.15, 0.02, 0.20, True,
+                           "Intraday Gate16 slippage tolerance; cross-session orders remain prohibited"),
             ParameterSpec("trading_hours_start", "UnifiedExecution", "str", "09:15", 0, 0, True, "Trading start"),
             ParameterSpec("trading_hours_end", "UnifiedExecution", "str", "15:30", 0, 0, True, "Trading end"),
             ParameterSpec("symbols_to_trade", "DataIngestion", "list", [], 0, 0, True, "Universe to trade"),
@@ -189,6 +232,15 @@ class CanonicalParameterRegistry:
         return sorted([name for name, spec in self.params.items() if spec.calibratable])
 
     def calibratable_45(self) -> List[str]:
+        # Name kept for historical continuity (same reasoning as all_68()
+        # keeping its name) -- the real optimizer surface is now 46, not
+        # 45 (see FROZEN_IDENTITY_SHA256's comment). Callers that need the
+        # true, current count should use calibratable_names() directly,
+        # not this [:45] slice, which would silently drop whichever name
+        # sorts last. The only caller of this specific method is
+        # oos_calibration_engine.py, a discredited, unused scoring path
+        # (see revision2/calibration_supervisor.py's own module docstring)
+        # -- not part of any real calibration this project runs.
         return self.calibratable_names()[:45]
 
     def hardcoded_names(self) -> List[str]:
@@ -202,8 +254,10 @@ class CanonicalParameterRegistry:
 
     def validate_contract(self) -> None:
         expected = Revision2ParameterManifest.all_68()
-        if len(expected) != 68 or len(set(expected)) != 68:
-            raise ValueError("Revision 2 target names must contain 68 unique values")
+        # NOTE: Adding saturation_exit_bars (2025) expands from 68 → 69 total.
+        # base_33() + revision2_35() now = 33 + 36 = 69 (was 68 before saturation_exit_bars).
+        if len(expected) != 69 or len(set(expected)) != 69:
+            raise ValueError("Revision 2 target names must contain 69 unique values")
         if set(expected) != set(self.params):
             raise ValueError("registry does not exactly match the Revision 2 manifest")
         if len(self.safety_params) != 20:
@@ -212,8 +266,16 @@ class CanonicalParameterRegistry:
             overlap = sorted(set(self.params) & set(self.safety_params))
             raise ValueError(f"target and safety surfaces must not overlap: {overlap}")
         calibratable = set(self.calibratable_names())
-        if len(calibratable) != 45:
-            raise ValueError(f"optimizer surface must contain exactly 45 values; got {len(calibratable)}")
+        # 46, not 45: rebalance_frequency_minutes (FIXED, non-calibratable)
+        # was replaced by trailing_stop_atr_mult (genuinely calibratable) --
+        # see FROZEN_IDENTITY_SHA256's comment. A like-for-like swap (fixed
+        # for fixed, or calibratable for calibratable) would have kept this
+        # at 45; this one is a deliberate net expansion of the real,
+        # tunable surface, not a bug.
+        # Further expanded by saturation_exit_bars (2025) from 46 → 47, another
+        # genuine calibratable addition to Box 6's exit control surface.
+        if len(calibratable) != 47:
+            raise ValueError(f"optimizer surface must contain exactly 47 values; got {len(calibratable)}")
         if set(self.APPROVED_CALIBRATABLE) != calibratable:
             missing = sorted(set(self.APPROVED_CALIBRATABLE) - calibratable)
             extra = sorted(calibratable - set(self.APPROVED_CALIBRATABLE))

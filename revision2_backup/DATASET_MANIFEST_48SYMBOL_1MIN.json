@@ -1,0 +1,440 @@
+{
+  "built_at": "2026-09-02T14:30:34.060099+00:00",
+  "data_dir": "/home/shrinivas/ECS_Complete/P01D_CHART_STUDIES_V10_HISTORICAL_REPLAY_20260825/DATA_1MIN_48_20230703_20260824",
+  "files": [
+    {
+      "filename": "NSE_ADANIENT_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "a40f917b8c823bbc545562a7ff700a46e8b2c78645318a5629b51b15e9fc2800",
+      "size_bytes": 17113012,
+      "symbol": "ADANIENT"
+    },
+    {
+      "filename": "NSE_ADANIPORTS_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "899ea920ee73c6c44a9704a3676720ca71433419360e6ac9e8b16236a8c6156d",
+      "size_bytes": 17269669,
+      "symbol": "ADANIPORTS"
+    },
+    {
+      "filename": "NSE_APOLLOHOSP_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291136,
+      "sha256": "4b8bf264803efcffd3437e63633363c50b5881b7c52ea9660b4eff40ff6bde5b",
+      "size_bytes": 16645385,
+      "symbol": "APOLLOHOSP"
+    },
+    {
+      "filename": "NSE_ASIANPAINT_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291139,
+      "sha256": "a64e56630608c86ed8b41b76aa82ccceeeef66a8d8b7649f0e1822777ec8d9c3",
+      "size_bytes": 17171223,
+      "symbol": "ASIANPAINT"
+    },
+    {
+      "filename": "NSE_AXISBANK_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "19ffff7becdb42a8749dfd4c5cb674f5b2a2b6ee99f33dc3208b33600515cf71",
+      "size_bytes": 17524700,
+      "symbol": "AXISBANK"
+    },
+    {
+      "filename": "NSE_BAJAJ-AUTO_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "abf32d6eb21c77cdaf2622670f3798b57715be5def553a9bd9a7ba55cca527ef",
+      "size_bytes": 16119339,
+      "symbol": "BAJAJ-AUTO"
+    },
+    {
+      "filename": "NSE_BAJAJFINSV_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "3f3f66908a86e08fcb8b2765864a69f78e0f49b9a34d04a97d7c869ea3057e4d",
+      "size_bytes": 17265559,
+      "symbol": "BAJAJFINSV"
+    },
+    {
+      "filename": "NSE_BAJFINANCE_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "d4a80eb0be6f77fba0845b3f22a92ba89f3ef62e4d76d7e256d86b9efa4c7e37",
+      "size_bytes": 15629211,
+      "symbol": "BAJFINANCE"
+    },
+    {
+      "filename": "NSE_BEL_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "03ee7546b0097189e952621cd90d81b0864fbe5b4ed606fef1663dd17e83f173",
+      "size_bytes": 16952305,
+      "symbol": "BEL"
+    },
+    {
+      "filename": "NSE_BHARTIARTL_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291139,
+      "sha256": "9a32ca39301437fe4a323c52f44a48bcc63d03b3296f0e8124328d502a4b75a1",
+      "size_bytes": 17406130,
+      "symbol": "BHARTIARTL"
+    },
+    {
+      "filename": "NSE_CIPLA_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "b5c64f9e05e86acda060e71a81bd62572a911a4e29ec0a9b43592a955339218a",
+      "size_bytes": 17354730,
+      "symbol": "CIPLA"
+    },
+    {
+      "filename": "NSE_COALINDIA_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "593ecf68adce0443f8e3f7a7ef780f8478f8f0f660fa85a4a163b29ff2783662",
+      "size_bytes": 16901451,
+      "symbol": "COALINDIA"
+    },
+    {
+      "filename": "NSE_DRREDDY_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291139,
+      "sha256": "50b5242201250a6d4953f438e21cd12c8510ba095c63268c1893524dbfa94f29",
+      "size_bytes": 17319348,
+      "symbol": "DRREDDY"
+    },
+    {
+      "filename": "NSE_EICHERMOT_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "48a1b5207f8e51498d3079721a15a5b5879049099ad8246f644724874b945834",
+      "size_bytes": 16707146,
+      "symbol": "EICHERMOT"
+    },
+    {
+      "filename": "NSE_ETERNAL_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291136,
+      "sha256": "146d2b9c289984dc28423b1454eba14112c087b84eb67ff0ce75acd726a8051c",
+      "size_bytes": 17105633,
+      "symbol": "ETERNAL"
+    },
+    {
+      "filename": "NSE_GRASIM_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "dfbcd26a7b623db43bfc8359752c9a76ca9840cff701735fac17406f42cd6b8e",
+      "size_bytes": 17203458,
+      "symbol": "GRASIM"
+    },
+    {
+      "filename": "NSE_HCLTECH_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "86672666f7a9add62c138f80ba4e9397e23daf92ed927cf979d8959dad00cf9f",
+      "size_bytes": 17460118,
+      "symbol": "HCLTECH"
+    },
+    {
+      "filename": "NSE_HDFCBANK_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291140,
+      "sha256": "c4edb5f299695136e1f90fd01df14fb7f24ec5e0cc45d83bc271e8e34bfcf8d9",
+      "size_bytes": 16512635,
+      "symbol": "HDFCBANK"
+    },
+    {
+      "filename": "NSE_HDFCLIFE_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "9596004e87084c3a727bac28352c55cffc4572deb35bfcc66d89c70cb585a9cc",
+      "size_bytes": 16655733,
+      "symbol": "HDFCLIFE"
+    },
+    {
+      "filename": "NSE_HINDALCO_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "e2d61b10dc77c5e2fd7fdc3a4b7487cfdf1583dc811b4da14f9c9934fe6cbac3",
+      "size_bytes": 16787498,
+      "symbol": "HINDALCO"
+    },
+    {
+      "filename": "NSE_HINDUNILVR_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291108,
+      "sha256": "4e7ef313b2bf2475ce1c38488f21286128c23cfafc30516f00af1754c99869c7",
+      "size_bytes": 17270930,
+      "symbol": "HINDUNILVR"
+    },
+    {
+      "filename": "NSE_ICICIBANK_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "a892ff9c3c2279f9b8d5643f04e70aa80db912350df13ac56b04a438512e8fe0",
+      "size_bytes": 17553547,
+      "symbol": "ICICIBANK"
+    },
+    {
+      "filename": "NSE_INDIGO_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "c3cb6348d247fe6efb0b0661097d82c1be86336a78470ddb59c4aa87e8ff83c0",
+      "size_bytes": 16908085,
+      "symbol": "INDIGO"
+    },
+    {
+      "filename": "NSE_INFY_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291140,
+      "sha256": "4c6a3c9ca2dcc60c40aa221833424f706fa6b44a9d86258040bf2e00eb4e15b1",
+      "size_bytes": 17396180,
+      "symbol": "INFY"
+    },
+    {
+      "filename": "NSE_ITC_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291116,
+      "sha256": "3d3ddcda7b6369a17c00b3b500f50714629b0f81284e0ce7d4a598f5edd44477",
+      "size_bytes": 17017076,
+      "symbol": "ITC"
+    },
+    {
+      "filename": "NSE_JIOFIN_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-08-21T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 278356,
+      "sha256": "882c6f52f922da4ce328c5ac52bb3282b79902baa68a2039649a643e2fd2f680",
+      "size_bytes": 16241789,
+      "symbol": "JIOFIN"
+    },
+    {
+      "filename": "NSE_JSWSTEEL_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "c18d15960704305fb0d5023319dde0cb6ed59229d5a541538dc66711497aa765",
+      "size_bytes": 16822838,
+      "symbol": "JSWSTEEL"
+    },
+    {
+      "filename": "NSE_KOTAKBANK_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "532f6d2503fa3033ca3bb96248405c3ce6f926d48d741994a1aea64703ad6f66",
+      "size_bytes": 16389802,
+      "symbol": "KOTAKBANK"
+    },
+    {
+      "filename": "NSE_LT_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291139,
+      "sha256": "c3f0dcad3c0069d88afdf9c2de75bf1e4ec3e5dc019a5495abe9476d4529db38",
+      "size_bytes": 17229979,
+      "symbol": "LT"
+    },
+    {
+      "filename": "NSE_M&M_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291139,
+      "sha256": "3846ac14098924dd5bb09084163aba2ffce27058073c57fdf2a6b555e4157931",
+      "size_bytes": 17333517,
+      "symbol": "M&M"
+    },
+    {
+      "filename": "NSE_MARUTI_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "d19cb85736026a644bb496c2ce2ae9792f8561b5334f8deea168a3018c3cc07d",
+      "size_bytes": 17276054,
+      "symbol": "MARUTI"
+    },
+    {
+      "filename": "NSE_MAXHEALTH_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291136,
+      "sha256": "f2717e479737e48ea3b4f1d3251c262ce6e2c3f084c500653c0b2cd342332156",
+      "size_bytes": 16884527,
+      "symbol": "MAXHEALTH"
+    },
+    {
+      "filename": "NSE_NTPC_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "7a884fa2aecb552716edef13e1360db917d809efc7f0c37b5db122a1b79198e3",
+      "size_bytes": 16893364,
+      "symbol": "NTPC"
+    },
+    {
+      "filename": "NSE_ONGC_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "9d11435db7b696a1632e6ac0b57f9f9d9c38f28b9956b86517ae0afa9b7762a5",
+      "size_bytes": 17032836,
+      "symbol": "ONGC"
+    },
+    {
+      "filename": "NSE_POWERGRID_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291138,
+      "sha256": "a3e2022fad22fd9e6ee805604937a03d74be0f62b1234f4a40ea17620f9693fa",
+      "size_bytes": 16926940,
+      "symbol": "POWERGRID"
+    },
+    {
+      "filename": "NSE_RELIANCE_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291092,
+      "sha256": "6c1bcb1e4d53ac0716f6b07b5053dff8c974de2297982f13e9aa65715acf9276",
+      "size_bytes": 17558675,
+      "symbol": "RELIANCE"
+    },
+    {
+      "filename": "NSE_SBILIFE_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291139,
+      "sha256": "3dc390b2a2a151ea54782ee5e9aad45db281b77618c36a93cfbe51a2ff984de8",
+      "size_bytes": 17316790,
+      "symbol": "SBILIFE"
+    },
+    {
+      "filename": "NSE_SBIN_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291140,
+      "sha256": "4dfe72accbfa1d9295b378b1a1cd88aabb043557ef9bee7060e2245b74dd7e85",
+      "size_bytes": 16944918,
+      "symbol": "SBIN"
+    },
+    {
+      "filename": "NSE_SHRIRAMFIN_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291140,
+      "sha256": "b30bf48d42a5306a4ad983a9df69ef1704280c4d52db852b279fdde522a964a6",
+      "size_bytes": 16783130,
+      "symbol": "SHRIRAMFIN"
+    },
+    {
+      "filename": "NSE_SUNPHARMA_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291136,
+      "sha256": "110250a031422ade68408cb261ed04263a8e33fdd2ccf640e4ffd1c652997bc6",
+      "size_bytes": 17423815,
+      "symbol": "SUNPHARMA"
+    },
+    {
+      "filename": "NSE_TATACONSUM_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "c8ec13b701b4967e1a023db613830cf7a5704563381809f98feecac55ae35410",
+      "size_bytes": 17151102,
+      "symbol": "TATACONSUM"
+    },
+    {
+      "filename": "NSE_TATASTEEL_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291139,
+      "sha256": "2cf2d043f9031d8ed8270921e753211c5758158d097d05309c05bc38b708f286",
+      "size_bytes": 17627416,
+      "symbol": "TATASTEEL"
+    },
+    {
+      "filename": "NSE_TCS_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "8c247c182d2da35ba77430c28352be1319d6d26b6e2ed695573dbed919f8b917",
+      "size_bytes": 17301943,
+      "symbol": "TCS"
+    },
+    {
+      "filename": "NSE_TECHM_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "5f7672fb0786c8207ad5826763f41f568c5e1f6ac80e3df642a25df6d7dc1b5c",
+      "size_bytes": 17221461,
+      "symbol": "TECHM"
+    },
+    {
+      "filename": "NSE_TITAN_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291139,
+      "sha256": "f9b34afbceee6fc7269255fc4d2363a057d1ec5b8921e75b729b440b14533a1e",
+      "size_bytes": 17139548,
+      "symbol": "TITAN"
+    },
+    {
+      "filename": "NSE_TRENT_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291139,
+      "sha256": "881c7ceda9e8634748b2af9a6c3078a8353303210ba508e5f1ac2473be5a6be2",
+      "size_bytes": 16975225,
+      "symbol": "TRENT"
+    },
+    {
+      "filename": "NSE_ULTRACEMCO_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "971825d9a27cdd0d12287f379b189980379a30047d114a4ef1c7b0e5ae73cce1",
+      "size_bytes": 15717622,
+      "symbol": "ULTRACEMCO"
+    },
+    {
+      "filename": "NSE_WIPRO_minute_2023-07-03_2026-08-24.csv",
+      "first_timestamp": "2023-07-03T09:15:00+05:30",
+      "last_timestamp": "2026-08-24T15:14:00+05:30",
+      "row_count": 291137,
+      "sha256": "16f95629e96c17e8e785fb6b6e49c14004c09b437692dfe772dab504b394a000",
+      "size_bytes": 17075664,
+      "symbol": "WIPRO"
+    }
+  ],
+  "manifest_hash": "f724074ca45eb9380ba6e7cf18ae1da4d9c9d48be0cf78ca51b0faa8d8d8ff16",
+  "symbol_count": 48
+}

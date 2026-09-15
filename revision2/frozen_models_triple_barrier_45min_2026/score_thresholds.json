@@ -1,0 +1,21 @@
+{
+  "training_split": "TRAIN (Jan-Mar 2026)",
+  "model_auc": 0.5989,
+  "n_train_samples": 1075632,
+  "score_thresholds": {
+    "top_0_5_pct": {
+      "percentile": 99.5,
+      "threshold_probability": 0.5733843568418403,
+      "n_samples_train": 5379,
+      "expected_samples_per_split": "~5,200 (VALIDATION), ~5,200 (TEST), ~5,200 (SEALED)"
+    },
+    "top_1_0_pct": {
+      "percentile": 99.0,
+      "threshold_probability": 0.5538501877520919,
+      "n_samples_train": 10757,
+      "expected_samples_per_split": "~10,700 (VALIDATION), ~10,700 (TEST), ~10,700 (SEALED)"
+    }
+  },
+  "validation_protocol": "Use these FROZEN thresholds for validation/test/sealed. Do NOT compute percentiles on holdout splits.",
+  "generated_at": "2026-09-12T13:15:00Z"
+}

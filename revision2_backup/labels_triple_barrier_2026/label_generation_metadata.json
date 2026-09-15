@@ -1,0 +1,500 @@
+{
+  "generator_config": {
+    "holding_bars": 45,
+    "atr_lookback": 14,
+    "target_atr_multiple": 1.5,
+    "stop_atr_multiple": 1.0,
+    "entry_mechanics": "Open of bar t+1"
+  },
+  "aggregate_stats": {
+    "total_labeled_bars": 1077792,
+    "target_first_count": 413809,
+    "target_first_rate_pct": 38.394142840176954,
+    "stop_first_count": 661240,
+    "timeout_count": 2743,
+    "binary_positive_rate_pct": 38.394142840176954
+  },
+  "symbol_stats": [
+    {
+      "symbol": "ADANIENT",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8230,
+      "stop_first": 14178,
+      "timeout": 46,
+      "target_first_rate": 36.65271221163267,
+      "binary_positive_rate": 36.65271221163267
+    },
+    {
+      "symbol": "ADANIPORTS",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8462,
+      "stop_first": 13948,
+      "timeout": 44,
+      "target_first_rate": 37.685935690745524,
+      "binary_positive_rate": 37.685935690745524
+    },
+    {
+      "symbol": "APOLLOHOSP",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8785,
+      "stop_first": 13614,
+      "timeout": 55,
+      "target_first_rate": 39.12443217244144,
+      "binary_positive_rate": 39.12443217244144
+    },
+    {
+      "symbol": "ASIANPAINT",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8778,
+      "stop_first": 13603,
+      "timeout": 73,
+      "target_first_rate": 39.093257326088896,
+      "binary_positive_rate": 39.093257326088896
+    },
+    {
+      "symbol": "AXISBANK",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8461,
+      "stop_first": 13916,
+      "timeout": 77,
+      "target_first_rate": 37.681482141266585,
+      "binary_positive_rate": 37.681482141266585
+    },
+    {
+      "symbol": "BAJAJ-AUTO",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 9112,
+      "stop_first": 13325,
+      "timeout": 17,
+      "target_first_rate": 40.580742852053085,
+      "binary_positive_rate": 40.580742852053085
+    },
+    {
+      "symbol": "BAJAJFINSV",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8609,
+      "stop_first": 13786,
+      "timeout": 59,
+      "target_first_rate": 38.34060746414893,
+      "binary_positive_rate": 38.34060746414893
+    },
+    {
+      "symbol": "BAJFINANCE",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8826,
+      "stop_first": 13568,
+      "timeout": 60,
+      "target_first_rate": 39.30702770107776,
+      "binary_positive_rate": 39.30702770107776
+    },
+    {
+      "symbol": "BEL",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8665,
+      "stop_first": 13749,
+      "timeout": 40,
+      "target_first_rate": 38.59000623496927,
+      "binary_positive_rate": 38.59000623496927
+    },
+    {
+      "symbol": "BHARTIARTL",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8902,
+      "stop_first": 13497,
+      "timeout": 55,
+      "target_first_rate": 39.6454974614768,
+      "binary_positive_rate": 39.6454974614768
+    },
+    {
+      "symbol": "CIPLA",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8796,
+      "stop_first": 13557,
+      "timeout": 101,
+      "target_first_rate": 39.17342121670972,
+      "binary_positive_rate": 39.17342121670972
+    },
+    {
+      "symbol": "COALINDIA",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8867,
+      "stop_first": 13554,
+      "timeout": 33,
+      "target_first_rate": 39.489623229714084,
+      "binary_positive_rate": 39.489623229714084
+    },
+    {
+      "symbol": "DRREDDY",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8800,
+      "stop_first": 13589,
+      "timeout": 65,
+      "target_first_rate": 39.19123541462546,
+      "binary_positive_rate": 39.19123541462546
+    },
+    {
+      "symbol": "EICHERMOT",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 9178,
+      "stop_first": 13235,
+      "timeout": 41,
+      "target_first_rate": 40.87467711766278,
+      "binary_positive_rate": 40.87467711766278
+    },
+    {
+      "symbol": "ETERNAL",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8583,
+      "stop_first": 13834,
+      "timeout": 37,
+      "target_first_rate": 38.22481517769663,
+      "binary_positive_rate": 38.22481517769663
+    },
+    {
+      "symbol": "GRASIM",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8364,
+      "stop_first": 14044,
+      "timeout": 46,
+      "target_first_rate": 37.24948784180992,
+      "binary_positive_rate": 37.24948784180992
+    },
+    {
+      "symbol": "HCLTECH",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8607,
+      "stop_first": 13818,
+      "timeout": 29,
+      "target_first_rate": 38.331700365191054,
+      "binary_positive_rate": 38.331700365191054
+    },
+    {
+      "symbol": "HDFCBANK",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8087,
+      "stop_first": 14242,
+      "timeout": 125,
+      "target_first_rate": 36.01585463614501,
+      "binary_positive_rate": 36.01585463614501
+    },
+    {
+      "symbol": "HDFCLIFE",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8528,
+      "stop_first": 13886,
+      "timeout": 40,
+      "target_first_rate": 37.979869956355216,
+      "binary_positive_rate": 37.979869956355216
+    },
+    {
+      "symbol": "HINDALCO",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 9022,
+      "stop_first": 13376,
+      "timeout": 56,
+      "target_first_rate": 40.179923398948965,
+      "binary_positive_rate": 40.179923398948965
+    },
+    {
+      "symbol": "HINDUNILVR",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8679,
+      "stop_first": 13699,
+      "timeout": 76,
+      "target_first_rate": 38.65235592767436,
+      "binary_positive_rate": 38.65235592767436
+    },
+    {
+      "symbol": "ICICIBANK",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8883,
+      "stop_first": 13485,
+      "timeout": 86,
+      "target_first_rate": 39.56088002137704,
+      "binary_positive_rate": 39.56088002137704
+    },
+    {
+      "symbol": "INDIGO",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8555,
+      "stop_first": 13810,
+      "timeout": 89,
+      "target_first_rate": 38.10011579228645,
+      "binary_positive_rate": 38.10011579228645
+    },
+    {
+      "symbol": "INFY",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8512,
+      "stop_first": 13872,
+      "timeout": 70,
+      "target_first_rate": 37.90861316469226,
+      "binary_positive_rate": 37.90861316469226
+    },
+    {
+      "symbol": "ITC",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 7863,
+      "stop_first": 14540,
+      "timeout": 51,
+      "target_first_rate": 35.01825955286363,
+      "binary_positive_rate": 35.01825955286363
+    },
+    {
+      "symbol": "JIOFIN",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 7734,
+      "stop_first": 14690,
+      "timeout": 30,
+      "target_first_rate": 34.44375167008105,
+      "binary_positive_rate": 34.44375167008105
+    },
+    {
+      "symbol": "JSWSTEEL",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8371,
+      "stop_first": 14054,
+      "timeout": 29,
+      "target_first_rate": 37.280662688162465,
+      "binary_positive_rate": 37.280662688162465
+    },
+    {
+      "symbol": "KOTAKBANK",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 7990,
+      "stop_first": 14391,
+      "timeout": 73,
+      "target_first_rate": 35.58386033668834,
+      "binary_positive_rate": 35.58386033668834
+    },
+    {
+      "symbol": "LT",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8677,
+      "stop_first": 13697,
+      "timeout": 80,
+      "target_first_rate": 38.64344882871649,
+      "binary_positive_rate": 38.64344882871649
+    },
+    {
+      "symbol": "M&M",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8720,
+      "stop_first": 13677,
+      "timeout": 57,
+      "target_first_rate": 38.83495145631068,
+      "binary_positive_rate": 38.83495145631068
+    },
+    {
+      "symbol": "MARUTI",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8860,
+      "stop_first": 13517,
+      "timeout": 77,
+      "target_first_rate": 39.458448383361535,
+      "binary_positive_rate": 39.458448383361535
+    },
+    {
+      "symbol": "MAXHEALTH",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 9124,
+      "stop_first": 13283,
+      "timeout": 47,
+      "target_first_rate": 40.634185445800306,
+      "binary_positive_rate": 40.634185445800306
+    },
+    {
+      "symbol": "NTPC",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 9188,
+      "stop_first": 13211,
+      "timeout": 55,
+      "target_first_rate": 40.91921261245212,
+      "binary_positive_rate": 40.91921261245212
+    },
+    {
+      "symbol": "ONGC",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 9050,
+      "stop_first": 13344,
+      "timeout": 60,
+      "target_first_rate": 40.30462278435913,
+      "binary_positive_rate": 40.30462278435913
+    },
+    {
+      "symbol": "POWERGRID",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8758,
+      "stop_first": 13645,
+      "timeout": 51,
+      "target_first_rate": 39.0041863365102,
+      "binary_positive_rate": 39.0041863365102
+    },
+    {
+      "symbol": "RELIANCE",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8356,
+      "stop_first": 14029,
+      "timeout": 69,
+      "target_first_rate": 37.21385944597844,
+      "binary_positive_rate": 37.21385944597844
+    },
+    {
+      "symbol": "SBILIFE",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8864,
+      "stop_first": 13527,
+      "timeout": 63,
+      "target_first_rate": 39.476262581277275,
+      "binary_positive_rate": 39.476262581277275
+    },
+    {
+      "symbol": "SBIN",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8715,
+      "stop_first": 13710,
+      "timeout": 29,
+      "target_first_rate": 38.812683708916005,
+      "binary_positive_rate": 38.812683708916005
+    },
+    {
+      "symbol": "SHRIRAMFIN",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8662,
+      "stop_first": 13751,
+      "timeout": 41,
+      "target_first_rate": 38.576645586532464,
+      "binary_positive_rate": 38.576645586532464
+    },
+    {
+      "symbol": "SUNPHARMA",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8505,
+      "stop_first": 13874,
+      "timeout": 75,
+      "target_first_rate": 37.87743831833972,
+      "binary_positive_rate": 37.87743831833972
+    },
+    {
+      "symbol": "TATACONSUM",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8590,
+      "stop_first": 13823,
+      "timeout": 41,
+      "target_first_rate": 38.25599002404917,
+      "binary_positive_rate": 38.25599002404917
+    },
+    {
+      "symbol": "TATASTEEL",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8762,
+      "stop_first": 13648,
+      "timeout": 44,
+      "target_first_rate": 39.022000534425935,
+      "binary_positive_rate": 39.022000534425935
+    },
+    {
+      "symbol": "TCS",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8391,
+      "stop_first": 14006,
+      "timeout": 57,
+      "target_first_rate": 37.36973367774116,
+      "binary_positive_rate": 37.36973367774116
+    },
+    {
+      "symbol": "TECHM",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8439,
+      "stop_first": 13986,
+      "timeout": 29,
+      "target_first_rate": 37.58350405273003,
+      "binary_positive_rate": 37.58350405273003
+    },
+    {
+      "symbol": "TITAN",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8466,
+      "stop_first": 13912,
+      "timeout": 76,
+      "target_first_rate": 37.703749888661264,
+      "binary_positive_rate": 37.703749888661264
+    },
+    {
+      "symbol": "TRENT",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8463,
+      "stop_first": 13941,
+      "timeout": 50,
+      "target_first_rate": 37.69038924022446,
+      "binary_positive_rate": 37.69038924022446
+    },
+    {
+      "symbol": "ULTRACEMCO",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 8974,
+      "stop_first": 13397,
+      "timeout": 83,
+      "target_first_rate": 39.966153023960096,
+      "binary_positive_rate": 39.966153023960096
+    },
+    {
+      "symbol": "WIPRO",
+      "total_bars": 22500,
+      "labeled_bars": 22454,
+      "target_first": 7996,
+      "stop_first": 14402,
+      "timeout": 56,
+      "target_first_rate": 35.61058163356195,
+      "binary_positive_rate": 35.61058163356195
+    }
+  ],
+  "generated_at": "2026-09-12T07:35:13.096770"
+}

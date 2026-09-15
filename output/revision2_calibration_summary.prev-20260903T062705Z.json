@@ -1,0 +1,21 @@
+{
+  "profile": "smoke",
+  "manifest_hash": "f724074ca45eb9380ba6e7cf18ae1da4d9c9d48be0cf78ca51b0faa8d8d8ff16",
+  "verified_files": 48,
+  "symbols": 6,
+  "bars_per_symbol": {
+    "ADANIENT": 600,
+    "ADANIPORTS": 600,
+    "APOLLOHOSP": 600,
+    "ASIANPAINT": 600,
+    "AXISBANK": 600,
+    "BAJAJ-AUTO": 600
+  },
+  "estimated_candidates": 3,
+  "checkpoint": "/home/shrinivas/ECS_Project/output/revision2_calibration_checkpoint.json",
+  "stopped_reason": "completed",
+  "candidates_completed": 3,
+  "accepted_candidates": 0,
+  "best_score": null,
+  "best_params": null
+}

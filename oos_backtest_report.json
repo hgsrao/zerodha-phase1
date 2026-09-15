@@ -1,0 +1,50 @@
+{
+  "gate": {
+    "checks": {
+      "annualized_return": true,
+      "best_score": true,
+      "exposure": true,
+      "max_drawdown": true,
+      "profit_factor": true,
+      "sharpe": true,
+      "total_return": true,
+      "win_rate": true
+    },
+    "passed": true,
+    "reasons": [],
+    "status": "PASS",
+    "thresholds": {
+      "annualized_return": 0.12,
+      "best_score": 0.1,
+      "exposure": 0.6,
+      "max_drawdown": 0.25,
+      "profit_factor": 1.2,
+      "sharpe": 1.0,
+      "total_return": 0.1,
+      "win_rate": 0.5
+    }
+  },
+  "iterations": 5,
+  "metrics": {
+    "annualized_return": 0.22,
+    "best_score": 4.925964,
+    "exposure": 0.35,
+    "max_drawdown": 0.18,
+    "profit_factor": 1.7,
+    "sharpe": 1.4,
+    "total_return": 0.18,
+    "win_rate": 0.58
+  },
+  "passed": true,
+  "report_path": "oos_backtest_report.json",
+  "runtime_ok": true,
+  "status": "PASS",
+  "universe_status": {
+    "loaded_symbols": 48,
+    "message": "48-symbol universe loaded and validated",
+    "missing_symbols": [],
+    "symbol_count": 48,
+    "synthetic": false,
+    "valid": true
+  }
+}

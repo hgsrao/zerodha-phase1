@@ -1,0 +1,99 @@
+{
+  "stats": {
+    "total_samples": 1080000,
+    "simple_positive": 247025,
+    "simple_positive_pct": 22.872685185185183,
+    "multi_factor_positive": 19664,
+    "multi_factor_positive_pct": 1.8207407407407408,
+    "profit_threshold_bps": 18,
+    "avg_forward_return_all": 12.62250296993993,
+    "avg_forward_return_positive": 115.59346125051518,
+    "generated_at": "2026-09-12T07:22:14.204709"
+  },
+  "correlation_analysis": {
+    "5m_trend": {
+      "correlation_with_return": -0.00259625397244009,
+      "avg_return_high_values": 10.262204162706915,
+      "avg_return_low_values": 14.930353532042613,
+      "profitable_win_rate_high": 22.583232525114397,
+      "profitable_win_rate_low": 23.157229303087,
+      "difference_high_vs_low": -4.668149369335698
+    },
+    "5m_efficiency": {
+      "correlation_with_return": -0.003266411124295224,
+      "avg_return_high_values": 8.497794440658128,
+      "avg_return_low_values": 16.77038399827219,
+      "profitable_win_rate_high": 23.446801250644423,
+      "profitable_win_rate_low": 22.29346234406569,
+      "difference_high_vs_low": -8.272589557614063
+    },
+    "5m_vwap_dist_atr": {
+      "correlation_with_return": -0.001668169055200761,
+      "avg_return_high_values": 7.1013606441387465,
+      "avg_return_low_values": 18.168699140235386,
+      "profitable_win_rate_high": 22.91268436031259,
+      "profitable_win_rate_low": 22.827314240582016,
+      "difference_high_vs_low": -11.067338496096639
+    },
+    "5m_realized_vol": {
+      "correlation_with_return": 0.0015069170128194974,
+      "avg_return_high_values": 24.710621310624315,
+      "avg_return_low_values": 0.5641233310158899,
+      "profitable_win_rate_high": 26.662611591827044,
+      "profitable_win_rate_low": 19.07612424663885,
+      "difference_high_vs_low": 24.146497979608426
+    },
+    "15m_trend": {
+      "correlation_with_return": -0.007201214632710376,
+      "avg_return_high_values": 4.065264048064967,
+      "avg_return_low_values": 20.751616998123108,
+      "profitable_win_rate_high": 23.04253840073897,
+      "profitable_win_rate_low": 22.714321031765365,
+      "difference_high_vs_low": -16.68635295005814
+    },
+    "15m_efficiency": {
+      "correlation_with_return": 0.00607902930625308,
+      "avg_return_high_values": 16.23363742734311,
+      "avg_return_low_values": 9.106022336070367,
+      "profitable_win_rate_high": 23.718004831286773,
+      "profitable_win_rate_low": 22.029420761380383,
+      "difference_high_vs_low": 7.127615091272741
+    },
+    "15m_vwap_dist_atr": {
+      "correlation_with_return": -0.0011473065826516071,
+      "avg_return_high_values": 11.93239988632604,
+      "avg_return_low_values": 13.390717785522755,
+      "profitable_win_rate_high": 22.901112296206,
+      "profitable_win_rate_low": 22.842394354158383,
+      "difference_high_vs_low": -1.4583178991967145
+    },
+    "15m_realized_vol": {
+      "correlation_with_return": -0.0012866551434445644,
+      "avg_return_high_values": 10.659998360555246,
+      "avg_return_low_values": 14.670415856017026,
+      "profitable_win_rate_high": 25.32428653243981,
+      "profitable_win_rate_low": 20.412743391791988,
+      "difference_high_vs_low": -4.01041749546178
+    },
+    "15m_rs_percentile": {
+      "correlation_with_return": 0.0005603552719153604,
+      "avg_return_high_values": 11.566641990102045,
+      "avg_return_low_values": 13.685549974132677,
+      "profitable_win_rate_high": 22.540432828212616,
+      "profitable_win_rate_low": 23.207474186258708,
+      "difference_high_vs_low": -2.1189079840306313
+    },
+    "15m_rs_excess": {
+      "correlation_with_return": 0.0017853982991434885,
+      "avg_return_high_values": 11.605445587725436,
+      "avg_return_low_values": 13.641357996204064,
+      "profitable_win_rate_high": 22.553616998340235,
+      "profitable_win_rate_low": 23.19260039980877,
+      "difference_high_vs_low": -2.0359124084786284
+    }
+  },
+  "approach": "return-based with cost-awareness",
+  "profit_threshold_bps": 18,
+  "future_periods": 20,
+  "generated_at": "2026-09-12T07:22:14.220447"
+}
