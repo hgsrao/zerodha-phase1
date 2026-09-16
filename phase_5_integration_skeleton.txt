@@ -1,0 +1,155 @@
+
+# Phase 5D Integration Pseudocode (Ready for Discussion)
+
+class ThreeHeadAssembly:
+    '''
+    Wires Model 0/1 → PA → ID → MPC → P01D
+    Frozen architecture with configuration points for discussion
+    '''
+
+    def __init__(self, config):
+        # Load frozen components
+        self.model_0 = load_pickle("model_0_108symbols_trained.pkl")
+        self.model_1 = load_pickle("model_1_108symbols_trained.pkl")
+
+        # Import existing PA/ID/MPC (NOT REWRITTEN)
+        self.pa_input_block = PAInputBlock()
+        self.pa = PA_Architecture(config["pa"])
+
+        self.id_input_block = IDInputBlock()
+        self.id = ID_Architecture(config["id"])
+        self.id_to_mpc_packet = IDToMPCPacket()
+
+        self.mpc_constraint_input = MPCConstraintInputBlock()
+        self.mpc_constraint_state = MPCConstraintStateSnapshot()
+        self.mpc_controller = MPCController(config["mpc"])
+        self.mpc_core = MPCCoreSolver(config["mpc"])
+        self.mpc_to_p01d = MPCToPOIDHandoff()
+
+        self.config = config
+
+    def predict(self, features_df, timestamp):
+        '''
+        Execute full serial pipeline: Model 0/1 → PA → ID → MPC → P01D
+        Returns: execution recommendation (ready for P01D sovereign review)
+        '''
+
+        # STEP 1: Model predictions (frozen)
+        pred_0 = self.model_0.predict(features_df)  # Ridge output
+        pred_1 = self.model_1.predict(features_df)  # XGBoost output
+
+        # STEP 2: PA - Validate + convert to probabilities
+        pa_input = self.pa_input_block.validate(
+            model_0_pred=pred_0,
+            model_1_pred=pred_1,
+            timestamp=timestamp
+        )
+
+        if not pa_input.is_valid:
+            return {"status": "NO_TRADE", "reason": "PA input validation failed"}
+
+        pa_output = self.pa.predict(
+            pred_0=pred_0,
+            pred_1=pred_1,
+            config=self.config["pa"]  # Unfrozen: calibration, horizons
+        )
+        # Output: P(DOWN), P(FLAT), P(UP), confidence
+
+        # STEP 3: ID - Assess PA reliability + decide TAKE/PASS
+        id_input = self.id_input_block.validate(
+            pa_output=pa_output,
+            current_state=self.get_current_state(),
+            timestamp=timestamp
+        )
+
+        if not id_input.is_valid:
+            return {"status": "NO_TRADE", "reason": "ID input validation failed"}
+
+        id_output = self.id.assess(
+            pa_output=pa_output,
+            state=self.get_current_state(),
+            config=self.config["id"]  # Unfrozen: threshold, barriers, calibration
+        )
+        # Output: TAKE/PASS decision, reliability score
+
+        if id_output.decision == "PASS":
+            return {"status": "NO_TRADE", "reason": "ID reliability check failed"}
+
+        # STEP 4: Bridge - Convert PA/ID forecast to expected return
+        expected_return = self.compute_expected_return(
+            pa_output=pa_output,
+            id_output=id_output,
+            config=self.config["expected_return_bridge"]  # Unfrozen: formula
+        )
+        # Output: Economic quantity (bps or price units)
+
+        # STEP 5: MPC - Constrained optimization
+        id_mpc_packet = self.id_to_mpc_packet.serialize(
+            pa_output=pa_output,
+            id_output=id_output,
+            expected_return=expected_return,
+            timestamp=timestamp
+        )  # Immutable provenance
+
+        constraint_state = self.mpc_constraint_state.snapshot(
+            current_positions=self.get_positions(),
+            cash=self.get_cash(),
+            halt_status=self.get_halt_status(),
+            risk_limits=self.config["mpc"]["risk_limits"],
+            position_limits=self.config["mpc"]["position_limits"],
+            turnover_limits=self.config["mpc"]["turnover_limits"]
+        )
+
+        mpc_input = self.mpc_constraint_input.validate(
+            id_packet=id_mpc_packet,
+            constraint_state=constraint_state
+        )
+
+        if not mpc_input.is_valid:
+            return {"status": "NO_TRADE", "reason": "MPC constraint validation failed"}
+
+        mpc_output = self.mpc_controller.solve(
+            id_packet=id_mpc_packet,
+            constraint_state=constraint_state,
+            solver_config=self.config["mpc"]["solver"],  # OSQP/CLARABEL backend
+            cost_model=self.config["cost_model"]  # Unfrozen: NSE-specific
+        )
+        # Output: Optimal position, trading action (BUY/SELL/HOLD)
+
+        # STEP 6: P01D handoff (mechanical normalization)
+        p01d_packet = self.mpc_to_p01d.normalize(
+            mpc_output=mpc_output,
+            constraint_state=constraint_state,
+            timestamp=timestamp
+        )  # Ready for P01D sovereign review
+
+        return p01d_packet
+
+    def get_current_state(self):
+        '''Fetch current market state, position state, regime context'''
+        return {
+            "timestamp": datetime.now(),
+            "positions": self.get_positions(),
+            "cash": self.get_cash(),
+            "regime": self.get_market_regime(),
+            "volatility": self.get_volatility(),
+            "spread": self.get_spread()
+        }
+
+    def compute_expected_return(self, pa_output, id_output, config):
+        '''
+        Convert calibrated PA + ID assessment to economic quantity.
+        UNFROZEN: Must be preregistered + validated before deployment.
+        '''
+        # Candidates:
+        # 1. Simple: return = pa_output.p_up - pa_output.p_down
+        # 2. Magnitude: return = pa_output.p_up * magnitude - pa_output.p_down * magnitude
+        # 3. Regime-conditional: return = regime_model[market_regime](pa_output)
+        # 4. Cost-adjusted: return = gross_return - expected_cost
+
+        # PLACEHOLDER: To be discussed with user
+        return {
+            "expected_return_bps": 5.0,  # PLACEHOLDER
+            "return_horizon": "1-minute",  # PLACEHOLDER
+            "return_confidence": id_output.reliability_score
+        }

@@ -1,0 +1,47 @@
+2026-09-12 15:08:48,446 | INFO | 
+RETRAINING FROZEN MODEL ON GATE-FILTERED LABELS
+2026-09-12 15:08:48,446 | INFO | 
+Loading gate-filtered labels...
+2026-09-12 15:08:48,446 | INFO |   ✅ Gate-filtered labels from TRAIN:
+2026-09-12 15:08:48,446 | INFO |      Total: 262,608
+2026-09-12 15:08:48,446 | INFO |      Positive rate: 37.94%
+2026-09-12 15:08:48,446 | INFO | 
+Loading TRAIN features...
+2026-09-12 15:08:48,841 | INFO |   ✅ Loaded features: (1080000, 10)
+2026-09-12 15:08:48,865 | INFO |   ✅ Synthetic labels: 408,503 positive, 671,497 negative
+2026-09-12 15:08:49,302 | INFO | 
+TRAIN-VALIDATION SPLIT (within TRAIN period):
+2026-09-12 15:08:49,302 | INFO |   Training set: 864,000 samples
+2026-09-12 15:08:49,302 | INFO |   Validation set: 216,000 samples
+2026-09-12 15:08:49,302 | INFO | 
+Scaling features...
+2026-09-12 15:08:49,493 | INFO |   ✅ Scaler fitted on TRAIN subset
+2026-09-12 15:08:49,493 | INFO | 
+Training logistic regression (frozen model)...
+2026-09-12 15:09:07,950 | INFO | RETRAINING FROZEN MODEL ON GATE-FILTERED LABELS
+2026-09-12 15:09:07,950 | INFO | 
+Loading TRAIN features...
+2026-09-12 15:09:08,365 | INFO |   ✅ Loaded features: (1080000, 10)
+2026-09-12 15:09:08,388 | INFO |   ✅ Created labels: 410,527 positive (37.94%)
+2026-09-12 15:09:08,449 | INFO |   ✅ After NaN removal: 1,075,632 samples
+2026-09-12 15:09:08,872 | INFO | 
+TRAIN-VALIDATION SPLIT:
+2026-09-12 15:09:08,872 | INFO |   Training set: 860,505 samples
+2026-09-12 15:09:08,872 | INFO |   Validation set: 215,127 samples
+2026-09-12 15:09:08,872 | INFO | 
+Scaling features...
+2026-09-12 15:09:08,977 | INFO |   ✅ Scaler fitted on TRAIN subset
+2026-09-12 15:09:08,977 | INFO | 
+Training logistic regression (frozen model)...
+2026-09-12 15:09:10,198 | INFO | 
+📊 MODEL PERFORMANCE:
+2026-09-12 15:09:10,198 | INFO |   Training accuracy: 50.37%
+2026-09-12 15:09:10,198 | INFO |   Training AUC: 0.5022
+2026-09-12 15:09:10,198 | INFO |   Validation accuracy: 50.10%
+2026-09-12 15:09:10,198 | INFO |   Validation AUC: 0.4991
+2026-09-12 15:09:10,199 | INFO | 
+✅ Model saved: revision2/frozen_models_triple_barrier_45min_2026_macro_gate/logistic_regression.pkl
+2026-09-12 15:09:10,199 | INFO | ✅ Scaler saved: revision2/frozen_models_triple_barrier_45min_2026_macro_gate/feature_scaler.pkl
+2026-09-12 15:09:10,262 | INFO | ✅ Thresholds saved: revision2/frozen_models_triple_barrier_45min_2026_macro_gate/score_thresholds.json
+2026-09-12 15:09:10,262 | INFO |    Top 1.0%: 0.505007
+2026-09-12 15:09:10,262 | INFO |    Top 0.5%: 0.505917

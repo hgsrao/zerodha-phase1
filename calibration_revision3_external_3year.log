@@ -1,0 +1,24 @@
+====================================================================================================
+REVISION 3 EXTERNAL ENGINE (HMM + ANSI PROTECTION RELAY): FULL 3-YEAR CALIBRATION
+====================================================================================================
+
+48 symbols, 13,961,740 TOTAL bars (full 3-year dataset)
+Date range: 2023-07-03 09:15:00+05:30 to 2026-08-24 15:14:00+05:30 (1148 days)
+Protection Relays: ANSI 81 (frequency), 63 (thermal), 27/59 (voltage), 87 (differential), 50/51 (overcurrent)
+
+Starting calibration supervisor (Revision3 + Protection Relay)...
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/scripts/run_revision3_external_48symbol_FULL_3YEAR_calibration.py", line 136, in <module>
+    main()
+    ~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/scripts/run_revision3_external_48symbol_FULL_3YEAR_calibration.py", line 107, in main
+    result = supervisor.run()
+  File "/home/shrinivas/ECS_Project_external_engine/revision2/calibration_supervisor.py", line 601, in run
+    phase1_random = random_search.run(self._objective("phase1_random"), cfg.phase1_trials // 2)
+  File "/home/shrinivas/ECS_Project_external_engine/revision2/optimizer.py", line 134, in run
+    score, metrics = objective(params)
+                     ~~~~~~~~~^^^^^^^^
+  File "/home/shrinivas/ECS_Project_external_engine/revision2/calibration_supervisor.py", line 520, in run
+    self._clock = self.orchestrator_class.build_clock(self.symbol_bars, self.warmup)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'Revision3ExternalEngineOrchestrator' has no attribute 'build_clock'

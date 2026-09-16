@@ -1,0 +1,115 @@
+{
+  "bars_processed": 299,
+  "pa_signals": 299,
+  "id_approvals": 0,
+  "id_rejections": 299,
+  "mpc_plans": 0,
+  "safety_approvals": 0,
+  "safety_rejections": 0,
+  "gates_evaluated": 0,
+  "gates_passed": 0,
+  "gates_rejected": 0,
+  "orders_submitted": 0,
+  "exit_orders_submitted": 0,
+  "fills": 0,
+  "portfolio_cap_rejections": 0,
+  "symbols": [
+    "INFY"
+  ],
+  "completed_trades": 0,
+  "gross_pnl": 0.0,
+  "net_pnl": 0,
+  "ending_equity": 1000000,
+  "config_hash": "abb8bab3d9f885102844fd7264b5a0fba70d666db75e50df221036760978d660",
+  "safety_contract_hash": "6814e216760477a13428eb574bb5ee6edb01929ba2466c016a9360e476135dd2",
+  "certification_audit": {
+    "INFY": {
+      "input_rows": 360,
+      "output_rows": 360,
+      "exact_duplicates_removed": 0
+    }
+  },
+  "final_portfolio_weights": {
+    "INFY": 1.0
+  },
+  "parameter_coverage": {
+    "target_total": 68,
+    "target_consumed": 27,
+    "target_missing": [
+      "capital_allocation_mode",
+      "capital_per_trade_fraction",
+      "data_validation_mode",
+      "drawdown_derated_threshold",
+      "drawdown_halt_threshold",
+      "drawdown_normal_threshold",
+      "learning_rate_exploration_factor",
+      "limit_order_offset_percent",
+      "lot_size_by_symbol",
+      "max_hold_bars",
+      "max_loss_per_day_rupees",
+      "max_loss_per_trade_rupees",
+      "max_positions_live",
+      "max_positions_per_symbol",
+      "max_retry_attempts",
+      "max_sector_exposure_fraction",
+      "max_symbol_concentration",
+      "min_capital_buffer_fraction",
+      "min_hold_bars",
+      "minimum_absolute_profit_rupees",
+      "order_timeout_seconds",
+      "order_type",
+      "phase1_exploration_intensity",
+      "phase2_optimization_intensity",
+      "pid_derivative_smoothing",
+      "pid_integral_max_clamp",
+      "pid_integral_window_bars",
+      "pid_kd_entry",
+      "pid_kd_exit",
+      "pid_ki_entry",
+      "pid_ki_exit",
+      "pid_kp_entry",
+      "pid_kp_exit",
+      "portfolio_lambda_risk_limit",
+      "profit_target_atr_mult",
+      "profit_target_margin_buffer",
+      "rebalance_frequency_minutes",
+      "retry_delay_seconds",
+      "slippage_cost_multiplier",
+      "slippage_tolerance_percent",
+      "stop_loss_atr_mult"
+    ],
+    "safety_total": 20
+  },
+  "trades": [],
+  "mtm_max_drawdown_fraction": 0.0,
+  "run_metadata": {
+    "day": "2026-08-24",
+    "first_bar": "2026-08-24 09:15:00+05:30",
+    "last_bar": "2026-08-24 15:14:00+05:30",
+    "input_rows": 360,
+    "warmup_bars": 60,
+    "first_evaluation": "2026-08-24 10:15:00+05:30",
+    "starting_equity": 1000000,
+    "source": "/home/shrinivas/ECS_Complete/P01D_CHART_STUDIES_V10_HISTORICAL_REPLAY_20260825/DATA_1MIN_48_20230703_20260824/NSE_INFY_minute_2023-07-03_2026-08-24.csv",
+    "source_sha256": "4c6a3c9ca2dcc60c40aa221833424f706fa6b44a9d86258040bf2e00eb4e15b1",
+    "commit": "96917bc",
+    "pythonhashseed": "0",
+    "arctic_ingestion": {
+      "ingested": true,
+      "rows": 360,
+      "write_seconds": 0.022537621996889357,
+      "input_rows": 360,
+      "output_rows": 360,
+      "exact_duplicates_removed": 0
+    },
+    "open_positions_at_end": 0,
+    "stage_calls": {
+      "2_admission": 299,
+      "4_signal": 299,
+      "5_decision": 299,
+      "5_regime": 152
+    }
+  }
+}
+ID reasons: Counter({'no directional signal': 147, 'PA quality band is red': 112, 'HMM regime: stressed': 26, 'confidence 0.3014 below entry threshold 0.5000': 1, 'confidence 0.3228 below entry threshold 0.5000': 1, 'confidence 0.3628 below entry threshold 0.5000': 1, 'confidence 0.3765 below entry threshold 0.5000': 1, 'confidence 0.3592 below entry threshold 0.5000': 1, 'confidence 0.3164 below entry threshold 0.5000': 1, 'confidence 0.3062 below entry threshold 0.5000': 1, 'confidence 0.3246 below entry threshold 0.5000': 1, 'confidence 0.3828 below entry threshold 0.5000': 1, 'confidence 0.3556 below entry threshold 0.5000': 1, 'confidence 0.3357 below entry threshold 0.5000': 1, 'confidence 0.3121 below entry threshold 0.5000': 1, 'confidence 0.3563 below entry threshold 0.5000': 1, 'confidence 0.3384 below entry threshold 0.5000': 1})
+Regimes: Counter({'calm': 126, 'stressed': 26})

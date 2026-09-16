@@ -1,0 +1,6 @@
+{"t": 1788581752.8623953, "event": "start"}
+{"t": 1788581752.8698142, "event": "box1_done", "passed": true}
+{"t": 1788581758.729267, "event": "box2_done", "rows": 291140, "ingest_seconds": 5.8177666664123535}
+{"t": 1788581758.7376823, "event": "instrumentation_attached"}
+{"t": 1788582149.0076258, "event": "run_complete", "elapsed": 390.2698509693146, "trades": 0}
+{"t": 1788582149.0080428, "event": "saved_results", "stats_path": "/home/shrinivas/ECS_Project_external_engine/output_external_engine/infy_3year_box_stats.json", "summary_path": "/home/shrinivas/ECS_Project_external_engine/output_external_engine/infy_3year_summary.json"}

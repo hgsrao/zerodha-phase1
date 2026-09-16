@@ -1,0 +1,291 @@
+{
+  "bars_processed": 7810,
+  "pa_signals": 7810,
+  "id_approvals": 141,
+  "id_rejections": 7439,
+  "mpc_plans": 0,
+  "safety_approvals": 0,
+  "safety_rejections": 0,
+  "gates_evaluated": 0,
+  "gates_passed": 0,
+  "gates_rejected": 0,
+  "orders_submitted": 0,
+  "exit_orders_submitted": 0,
+  "fills": 0,
+  "portfolio_cap_rejections": 0,
+  "symbols": [
+    "INFY"
+  ],
+  "completed_trades": 0,
+  "gross_pnl": 0.0,
+  "net_pnl": 0,
+  "ending_equity": 1000000,
+  "config_hash": "abb8bab3d9f885102844fd7264b5a0fba70d666db75e50df221036760978d660",
+  "safety_contract_hash": "6814e216760477a13428eb574bb5ee6edb01929ba2466c016a9360e476135dd2",
+  "certification_audit": {
+    "INFY": {
+      "input_rows": 7871,
+      "output_rows": 7871,
+      "exact_duplicates_removed": 0
+    }
+  },
+  "final_portfolio_weights": {
+    "INFY": 1.0
+  },
+  "parameter_coverage": {
+    "target_total": 68,
+    "target_consumed": 43,
+    "target_missing": [
+      "capital_allocation_mode",
+      "capital_per_trade_fraction",
+      "data_validation_mode",
+      "drawdown_derated_threshold",
+      "drawdown_halt_threshold",
+      "drawdown_normal_threshold",
+      "learning_rate_exploration_factor",
+      "limit_order_offset_percent",
+      "lot_size_by_symbol",
+      "max_loss_per_day_rupees",
+      "max_loss_per_trade_rupees",
+      "max_positions_live",
+      "max_positions_per_symbol",
+      "max_retry_attempts",
+      "max_sector_exposure_fraction",
+      "max_symbol_concentration",
+      "min_capital_buffer_fraction",
+      "order_timeout_seconds",
+      "order_type",
+      "phase1_exploration_intensity",
+      "phase2_optimization_intensity",
+      "portfolio_lambda_risk_limit",
+      "rebalance_frequency_minutes",
+      "retry_delay_seconds",
+      "slippage_tolerance_percent"
+    ],
+    "safety_total": 20
+  },
+  "trades": [],
+  "mtm_max_drawdown_fraction": 0.0,
+  "run_metadata": {
+    "day": "2023-07-03 through 2023-07-31",
+    "first_bar": "2023-07-03 09:15:00+05:30",
+    "last_bar": "2023-07-31 15:29:00+05:30",
+    "input_rows": 7871,
+    "warmup_bars": 60,
+    "first_evaluation": "2023-07-03 10:15:00+05:30",
+    "starting_equity": 1000000,
+    "source": "/home/shrinivas/ECS_Complete/P01D_CHART_STUDIES_V10_HISTORICAL_REPLAY_20260825/DATA_1MIN_48_20230703_20260824/NSE_INFY_minute_2023-07-03_2026-08-24.csv",
+    "source_sha256": "4c6a3c9ca2dcc60c40aa221833424f706fa6b44a9d86258040bf2e00eb4e15b1",
+    "commit": "96917bc",
+    "pythonhashseed": "0",
+    "arctic_ingestion": {
+      "ingested": true,
+      "rows": 7871,
+      "write_seconds": 0.03830043900234159,
+      "input_rows": 7871,
+      "output_rows": 7871,
+      "exact_duplicates_removed": 0
+    },
+    "open_positions_at_end": 0,
+    "stage_calls": {
+      "2_admission": 7810,
+      "4_signal": 7810,
+      "5_decision": 7580,
+      "5_regime": 5078,
+      "6_plan": 141
+    }
+  }
+}
+ID reasons: Counter({'no directional signal': 2502, 'PA quality band is red': 2455, 'HMM regime: stressed': 1489, 'approved': 141, 'confidence 0.3215 below entry threshold 0.5000': 4, 'confidence 0.4727 below entry threshold 0.5000': 4, 'confidence 0.4479 below entry threshold 0.5000': 4, 'confidence 0.4442 below entry threshold 0.5000': 4, 'confidence 0.4615 below entry threshold 0.5000': 4, 'confidence 0.4593 below entry threshold 0.5000': 4, 'confidence 0.4968 below entry threshold 0.5000': 4, 'confidence 0.3958 below entry threshold 0.5000': 4, 'confidence 0.4154 below entry threshold 0.5000': 4, 'confidence 0.3166 below entry threshold 0.5000': 3, 'confidence 0.3145 below entry threshold 0.5000': 3, 'confidence 0.4540 below entry threshold 0.5000': 3, 'confidence 0.3774 below entry threshold 0.5000': 3, 'confidence 0.3138 below entry threshold 0.5000': 3, 'confidence 0.3427 below entry threshold 0.5000': 3, 'confidence 0.4715 below entry threshold 0.5000': 3, 'confidence 0.3174 below entry threshold 0.5000': 3, 'confidence 0.3168 below entry threshold 0.5000': 3, 'confidence 0.3112 below entry threshold 0.5000': 3, 'confidence 0.4335 below entry threshold 0.5000': 3, 'confidence 0.4663 below entry threshold 0.5000': 3, 'confidence 0.3310 below entry threshold 0.5000': 3, 'confidence 0.3074 below entry threshold 0.5000': 3, 'confidence 0.3709 below entry threshold 0.5000': 3, 'confidence 0.4170 below entry threshold 0.5000': 3, 'confidence 0.3077 below entry threshold 0.5000': 3, 'confidence 0.4455 below entry threshold 0.5000': 3, 'confidence 0.3081 below entry threshold 0.5000': 3, 'confidence 0.3639 below entry threshold 0.5000': 3, 'confidence 0.4044 below entry threshold 0.5000': 3, 'confidence 0.3337 below entry threshold 0.5000': 3, 'confidence 0.3049 below entry threshold 0.5000': 2, 'confidence 0.3149 below entry threshold 0.5000': 2, 'confidence 0.3070 below entry threshold 0.5000': 2, 'confidence 0.3906 below entry threshold 0.5000': 2, 'confidence 0.3762 below entry threshold 0.5000': 2, 'confidence 0.3992 below entry threshold 0.5000': 2, 'confidence 0.3102 below entry threshold 0.5000': 2, 'confidence 0.3401 below entry threshold 0.5000': 2, 'confidence 0.3507 below entry threshold 0.5000': 2, 'confidence 0.3028 below entry threshold 0.5000': 2, 'confidence 0.4466 below entry threshold 0.5000': 2, 'confidence 0.4782 below entry threshold 0.5000': 2, 'confidence 0.4318 below entry threshold 0.5000': 2, 'confidence 0.3304 below entry threshold 0.5000': 2, 'confidence 0.4459 below entry threshold 0.5000': 2, 'confidence 0.4219 below entry threshold 0.5000': 2, 'confidence 0.4312 below entry threshold 0.5000': 2, 'confidence 0.4521 below entry threshold 0.5000': 2, 'confidence 0.4052 below entry threshold 0.5000': 2, 'confidence 0.3004 below entry threshold 0.5000': 2, 'confidence 0.3919 below entry threshold 0.5000': 2, 'confidence 0.4260 below entry threshold 0.5000': 2, 'confidence 0.3237 below entry threshold 0.5000': 2, 'confidence 0.4652 below entry threshold 0.5000': 2, 'confidence 0.4596 below entry threshold 0.5000': 2, 'confidence 0.4436 below entry threshold 0.5000': 2, 'confidence 0.3277 below entry threshold 0.5000': 2, 'confidence 0.3096 below entry threshold 0.5000': 2, 'confidence 0.4030 below entry threshold 0.5000': 2, 'confidence 0.4162 below entry threshold 0.5000': 2, 'confidence 0.4851 below entry threshold 0.5000': 2, 'confidence 0.4786 below entry threshold 0.5000': 2, 'confidence 0.4680 below entry threshold 0.5000': 2, 'confidence 0.3780 below entry threshold 0.5000': 2, 'confidence 0.4689 below entry threshold 0.5000': 2, 'confidence 0.4740 below entry threshold 0.5000': 2, 'confidence 0.3755 below entry threshold 0.5000': 2, 'confidence 0.4621 below entry threshold 0.5000': 2, 'confidence 0.4549 below entry threshold 0.5000': 2, 'confidence 0.3426 below entry threshold 0.5000': 2, 'confidence 0.3768 below entry threshold 0.5000': 2, 'confidence 0.4066 below entry threshold 0.5000': 2, 'confidence 0.4791 below entry threshold 0.5000': 2, 'confidence 0.4496 below entry threshold 0.5000': 2, 'confidence 0.4446 below entry threshold 0.5000': 2, 'confidence 0.4405 below entry threshold 0.5000': 2, 'confidence 0.3244 below entry threshold 0.5000': 2, 'confidence 0.3203 below entry threshold 0.5000': 2, 'confidence 0.3653 below entry threshold 0.5000': 2, 'confidence 0.4654 below entry threshold 0.5000': 2, 'confidence 0.3239 below entry threshold 0.5000': 2, 'confidence 0.3637 below entry threshold 0.5000': 2, 'confidence 0.3845 below entry threshold 0.5000': 2, 'confidence 0.4849 below entry threshold 0.5000': 2, 'confidence 0.4670 below entry threshold 0.5000': 2, 'confidence 0.4624 below entry threshold 0.5000': 2, 'confidence 0.4375 below entry threshold 0.5000': 2, 'confidence 0.4324 below entry threshold 0.5000': 2, 'confidence 0.4301 below entry threshold 0.5000': 2, 'confidence 0.3468 below entry threshold 0.5000': 2, 'confidence 0.3062 below entry threshold 0.5000': 2, 'confidence 0.3267 below entry threshold 0.5000': 2, 'confidence 0.3179 below entry threshold 0.5000': 2, 'confidence 0.4387 below entry threshold 0.5000': 2, 'confidence 0.4679 below entry threshold 0.5000': 2, 'confidence 0.4728 below entry threshold 0.5000': 2, 'confidence 0.4214 below entry threshold 0.5000': 2, 'confidence 0.3376 below entry threshold 0.5000': 2, 'confidence 0.4536 below entry threshold 0.5000': 2, 'confidence 0.4427 below entry threshold 0.5000': 2, 'confidence 0.4884 below entry threshold 0.5000': 2, 'confidence 0.4539 below entry threshold 0.5000': 2, 'confidence 0.4527 below entry threshold 0.5000': 2, 'confidence 0.3669 below entry threshold 0.5000': 2, 'confidence 0.4553 below entry threshold 0.5000': 2, 'confidence 0.3456 below entry threshold 0.5000': 2, 'confidence 0.3195 below entry threshold 0.5000': 2, 'confidence 0.3663 below entry threshold 0.5000': 2, 'confidence 0.3226 below entry threshold 0.5000': 2, 'confidence 0.4502 below entry threshold 0.5000': 2, 'confidence 0.3402 below entry threshold 0.5000': 2, 'confidence 0.3525 below entry threshold 0.5000': 2, 'confidence 0.3693 below entry threshold 0.5000': 2, 'confidence 0.3436 below entry threshold 0.5000': 2, 'confidence 0.3850 below entry threshold 0.5000': 2, 'confidence 0.4397 below entry threshold 0.5000': 2, 'confidence 0.4546 below entry threshold 0.5000': 2, 'confidence 0.4551 below entry threshold 0.5000': 2, 'confidence 0.3504 below entry threshold 0.5000': 2, 'confidence 0.3042 below entry threshold 0.5000': 2, 'confidence 0.3331 below entry threshold 0.5000': 2, 'confidence 0.3274 below entry threshold 0.5000': 2, 'confidence 0.4341 below entry threshold 0.5000': 2, 'confidence 0.4307 below entry threshold 0.5000': 2, 'confidence 0.3117 below entry threshold 0.5000': 2, 'confidence 0.3668 below entry threshold 0.5000': 2, 'confidence 0.3522 below entry threshold 0.5000': 2, 'confidence 0.4355 below entry threshold 0.5000': 2, 'confidence 0.4569 below entry threshold 0.5000': 2, 'confidence 0.4574 below entry threshold 0.5000': 2, 'confidence 0.3935 below entry threshold 0.5000': 2, 'confidence 0.3347 below entry threshold 0.5000': 2, 'confidence 0.3967 below entry threshold 0.5000': 2, 'confidence 0.3563 below entry threshold 0.5000': 2, 'confidence 0.3840 below entry threshold 0.5000': 2, 'confidence 0.4906 below entry threshold 0.5000': 2, 'confidence 0.4065 below entry threshold 0.5000': 2, 'confidence 0.3432 below entry threshold 0.5000': 2, 'confidence 0.4613 below entry threshold 0.5000': 2, 'confidence 0.4408 below entry threshold 0.5000': 2, 'confidence 0.3375 below entry threshold 0.5000': 2, 'confidence 0.4299 below entry threshold 0.5000': 2, 'confidence 0.3263 below entry threshold 0.5000': 2, 'confidence 0.4658 below entry threshold 0.5000': 2, 'confidence 0.3429 below entry threshold 0.5000': 2, 'confidence 0.4735 below entry threshold 0.5000': 2, 'confidence 0.4971 below entry threshold 0.5000': 2, 'confidence 0.4017 below entry threshold 0.5000': 2, 'confidence 0.4292 below entry threshold 0.5000': 2, 'confidence 0.4474 below entry threshold 0.5000': 2, 'confidence 0.4584 below entry threshold 0.5000': 2, 'confidence 0.4560 below entry threshold 0.5000': 2, 'confidence 0.4610 below entry threshold 0.5000': 2, 'confidence 0.3072 below entry threshold 0.5000': 2, 'confidence 0.3612 below entry threshold 0.5000': 2, 'confidence 0.4417 below entry threshold 0.5000': 2, 'confidence 0.4893 below entry threshold 0.5000': 2, 'confidence 0.3290 below entry threshold 0.5000': 2, 'confidence 0.3999 below entry threshold 0.5000': 2, 'confidence 0.4395 below entry threshold 0.5000': 2, 'confidence 0.4210 below entry threshold 0.5000': 2, 'confidence 0.4768 below entry threshold 0.5000': 2, 'confidence 0.3009 below entry threshold 0.5000': 2, 'confidence 0.4559 below entry threshold 0.5000': 2, 'confidence 0.4385 below entry threshold 0.5000': 2, 'confidence 0.4801 below entry threshold 0.5000': 2, 'confidence 0.3616 below entry threshold 0.5000': 2, 'confidence 0.4121 below entry threshold 0.5000': 2, 'confidence 0.3657 below entry threshold 0.5000': 2, 'confidence 0.3164 below entry threshold 0.5000': 2, 'confidence 0.3358 below entry threshold 0.5000': 2, 'confidence 0.4178 below entry threshold 0.5000': 2, 'confidence 0.3875 below entry threshold 0.5000': 2, 'confidence 0.4049 below entry threshold 0.5000': 2, 'confidence 0.3687 below entry threshold 0.5000': 2, 'confidence 0.4167 below entry threshold 0.5000': 2, 'confidence 0.3094 below entry threshold 0.5000': 2, 'confidence 0.3266 below entry threshold 0.5000': 2, 'confidence 0.4430 below entry threshold 0.5000': 2, 'confidence 0.3113 below entry threshold 0.5000': 2, 'confidence 0.3491 below entry threshold 0.5000': 1, 'confidence 0.3796 below entry threshold 0.5000': 1, 'confidence 0.4488 below entry threshold 0.5000': 1, 'confidence 0.4218 below entry threshold 0.5000': 1, 'confidence 0.3711 below entry threshold 0.5000': 1, 'confidence 0.3564 below entry threshold 0.5000': 1, 'confidence 0.3201 below entry threshold 0.5000': 1, 'confidence 0.4626 below entry threshold 0.5000': 1, 'confidence 0.4925 below entry threshold 0.5000': 1, 'confidence 0.4562 below entry threshold 0.5000': 1, 'confidence 0.4581 below entry threshold 0.5000': 1, 'confidence 0.4725 below entry threshold 0.5000': 1, 'confidence 0.4350 below entry threshold 0.5000': 1, 'confidence 0.4710 below entry threshold 0.5000': 1, 'confidence 0.4592 below entry threshold 0.5000': 1, 'confidence 0.4423 below entry threshold 0.5000': 1, 'confidence 0.3247 below entry threshold 0.5000': 1, 'confidence 0.4079 below entry threshold 0.5000': 1, 'confidence 0.3793 below entry threshold 0.5000': 1, 'confidence 0.3327 below entry threshold 0.5000': 1, 'confidence 0.3073 below entry threshold 0.5000': 1, 'confidence 0.4146 below entry threshold 0.5000': 1, 'confidence 0.4354 below entry threshold 0.5000': 1, 'confidence 0.4935 below entry threshold 0.5000': 1, 'confidence 0.4881 below entry threshold 0.5000': 1, 'confidence 0.3962 below entry threshold 0.5000': 1, 'confidence 0.4027 below entry threshold 0.5000': 1, 'confidence 0.4909 below entry threshold 0.5000': 1, 'confidence 0.4993 below entry threshold 0.5000': 1, 'confidence 0.4823 below entry threshold 0.5000': 1, 'confidence 0.4587 below entry threshold 0.5000': 1, 'confidence 0.4494 below entry threshold 0.5000': 1, 'confidence 0.3187 below entry threshold 0.5000': 1, 'confidence 0.3987 below entry threshold 0.5000': 1, 'confidence 0.4394 below entry threshold 0.5000': 1, 'confidence 0.4061 below entry threshold 0.5000': 1, 'confidence 0.3579 below entry threshold 0.5000': 1, 'confidence 0.3602 below entry threshold 0.5000': 1, 'confidence 0.3902 below entry threshold 0.5000': 1, 'confidence 0.3626 below entry threshold 0.5000': 1, 'confidence 0.3430 below entry threshold 0.5000': 1, 'confidence 0.3533 below entry threshold 0.5000': 1, 'confidence 0.4665 below entry threshold 0.5000': 1, 'confidence 0.4879 below entry threshold 0.5000': 1, 'confidence 0.4212 below entry threshold 0.5000': 1, 'confidence 0.3134 below entry threshold 0.5000': 1, 'confidence 0.4181 below entry threshold 0.5000': 1, 'confidence 0.4330 below entry threshold 0.5000': 1, 'confidence 0.4810 below entry threshold 0.5000': 1, 'confidence 0.4750 below entry threshold 0.5000': 1, 'confidence 0.3802 below entry threshold 0.5000': 1, 'confidence 0.3926 below entry threshold 0.5000': 1, 'confidence 0.4136 below entry threshold 0.5000': 1, 'confidence 0.4062 below entry threshold 0.5000': 1, 'confidence 0.4021 below entry threshold 0.5000': 1, 'confidence 0.3990 below entry threshold 0.5000': 1, 'confidence 0.4734 below entry threshold 0.5000': 1, 'confidence 0.4932 below entry threshold 0.5000': 1, 'confidence 0.4904 below entry threshold 0.5000': 1, 'confidence 0.3510 below entry threshold 0.5000': 1, 'confidence 0.3428 below entry threshold 0.5000': 1, 'confidence 0.3641 below entry threshold 0.5000': 1, 'confidence 0.4607 below entry threshold 0.5000': 1, 'confidence 0.4986 below entry threshold 0.5000': 1, 'confidence 0.4252 below entry threshold 0.5000': 1, 'confidence 0.4268 below entry threshold 0.5000': 1, 'confidence 0.4966 below entry threshold 0.5000': 1, 'confidence 0.4685 below entry threshold 0.5000': 1, 'confidence 0.4013 below entry threshold 0.5000': 1, 'confidence 0.3251 below entry threshold 0.5000': 1, 'confidence 0.3501 below entry threshold 0.5000': 1, 'confidence 0.3403 below entry threshold 0.5000': 1, 'confidence 0.3178 below entry threshold 0.5000': 1, 'confidence 0.3666 below entry threshold 0.5000': 1, 'confidence 0.3312 below entry threshold 0.5000': 1, 'confidence 0.3408 below entry threshold 0.5000': 1, 'confidence 0.4083 below entry threshold 0.5000': 1, 'confidence 0.4128 below entry threshold 0.5000': 1, 'confidence 0.4700 below entry threshold 0.5000': 1, 'confidence 0.4638 below entry threshold 0.5000': 1, 'confidence 0.4329 below entry threshold 0.5000': 1, 'confidence 0.4241 below entry threshold 0.5000': 1, 'confidence 0.3519 below entry threshold 0.5000': 1, 'confidence 0.3781 below entry threshold 0.5000': 1, 'confidence 0.3536 below entry threshold 0.5000': 1, 'confidence 0.3406 below entry threshold 0.5000': 1, 'confidence 0.3136 below entry threshold 0.5000': 1, 'confidence 0.3087 below entry threshold 0.5000': 1, 'confidence 0.3065 below entry threshold 0.5000': 1, 'confidence 0.3238 below entry threshold 0.5000': 1, 'confidence 0.3082 below entry threshold 0.5000': 1, 'confidence 0.3690 below entry threshold 0.5000': 1, 'confidence 0.3921 below entry threshold 0.5000': 1, 'confidence 0.3010 below entry threshold 0.5000': 1, 'confidence 0.3173 below entry threshold 0.5000': 1, 'confidence 0.3895 below entry threshold 0.5000': 1, 'confidence 0.4192 below entry threshold 0.5000': 1, 'confidence 0.4448 below entry threshold 0.5000': 1, 'confidence 0.4623 below entry threshold 0.5000': 1, 'confidence 0.4762 below entry threshold 0.5000': 1, 'confidence 0.4603 below entry threshold 0.5000': 1, 'confidence 0.3633 below entry threshold 0.5000': 1, 'confidence 0.3716 below entry threshold 0.5000': 1, 'confidence 0.4256 below entry threshold 0.5000': 1, 'confidence 0.4853 below entry threshold 0.5000': 1, 'confidence 0.3744 below entry threshold 0.5000': 1, 'confidence 0.3839 below entry threshold 0.5000': 1, 'confidence 0.3981 below entry threshold 0.5000': 1, 'confidence 0.3326 below entry threshold 0.5000': 1, 'confidence 0.3447 below entry threshold 0.5000': 1, 'confidence 0.3053 below entry threshold 0.5000': 1, 'confidence 0.3678 below entry threshold 0.5000': 1, 'confidence 0.4123 below entry threshold 0.5000': 1, 'confidence 0.3944 below entry threshold 0.5000': 1, 'confidence 0.3942 below entry threshold 0.5000': 1, 'confidence 0.3598 below entry threshold 0.5000': 1, 'confidence 0.4834 below entry threshold 0.5000': 1, 'confidence 0.4722 below entry threshold 0.5000': 1, 'confidence 0.4598 below entry threshold 0.5000': 1, 'confidence 0.3613 below entry threshold 0.5000': 1, 'confidence 0.3707 below entry threshold 0.5000': 1, 'confidence 0.4203 below entry threshold 0.5000': 1, 'confidence 0.3951 below entry threshold 0.5000': 1, 'confidence 0.3190 below entry threshold 0.5000': 1, 'confidence 0.3039 below entry threshold 0.5000': 1, 'confidence 0.3216 below entry threshold 0.5000': 1, 'confidence 0.3252 below entry threshold 0.5000': 1, 'confidence 0.4189 below entry threshold 0.5000': 1, 'confidence 0.4285 below entry threshold 0.5000': 1, 'confidence 0.4661 below entry threshold 0.5000': 1, 'confidence 0.3381 below entry threshold 0.5000': 1, 'confidence 0.3064 below entry threshold 0.5000': 1, 'confidence 0.3090 below entry threshold 0.5000': 1, 'confidence 0.3089 below entry threshold 0.5000': 1, 'confidence 0.3055 below entry threshold 0.5000': 1, 'confidence 0.3170 below entry threshold 0.5000': 1, 'confidence 0.3386 below entry threshold 0.5000': 1, 'confidence 0.4517 below entry threshold 0.5000': 1, 'confidence 0.3412 below entry threshold 0.5000': 1, 'confidence 0.4014 below entry threshold 0.5000': 1, 'confidence 0.3577 below entry threshold 0.5000': 1, 'confidence 0.3591 below entry threshold 0.5000': 1, 'confidence 0.3236 below entry threshold 0.5000': 1, 'confidence 0.3580 below entry threshold 0.5000': 1, 'confidence 0.3943 below entry threshold 0.5000': 1, 'confidence 0.4891 below entry threshold 0.5000': 1, 'confidence 0.4866 below entry threshold 0.5000': 1, 'confidence 0.4820 below entry threshold 0.5000': 1, 'confidence 0.4933 below entry threshold 0.5000': 1, 'confidence 0.4861 below entry threshold 0.5000': 1, 'confidence 0.3446 below entry threshold 0.5000': 1, 'confidence 0.3521 below entry threshold 0.5000': 1, 'confidence 0.3746 below entry threshold 0.5000': 1, 'confidence 0.4505 below entry threshold 0.5000': 1, 'confidence 0.4811 below entry threshold 0.5000': 1, 'confidence 0.4970 below entry threshold 0.5000': 1, 'confidence 0.4706 below entry threshold 0.5000': 1, 'confidence 0.4452 below entry threshold 0.5000': 1, 'confidence 0.3472 below entry threshold 0.5000': 1, 'confidence 0.3466 below entry threshold 0.5000': 1, 'confidence 0.3946 below entry threshold 0.5000': 1, 'confidence 0.3635 below entry threshold 0.5000': 1, 'confidence 0.4972 below entry threshold 0.5000': 1, 'confidence 0.3530 below entry threshold 0.5000': 1, 'confidence 0.4487 below entry threshold 0.5000': 1, 'confidence 0.4965 below entry threshold 0.5000': 1, 'confidence 0.4892 below entry threshold 0.5000': 1, 'confidence 0.4512 below entry threshold 0.5000': 1, 'confidence 0.3038 below entry threshold 0.5000': 1, 'confidence 0.3995 below entry threshold 0.5000': 1, 'confidence 0.3157 below entry threshold 0.5000': 1, 'confidence 0.3393 below entry threshold 0.5000': 1, 'confidence 0.3418 below entry threshold 0.5000': 1, 'confidence 0.3425 below entry threshold 0.5000': 1, 'confidence 0.4575 below entry threshold 0.5000': 1, 'confidence 0.4172 below entry threshold 0.5000': 1, 'confidence 0.4927 below entry threshold 0.5000': 1, 'confidence 0.4773 below entry threshold 0.5000': 1, 'confidence 0.3918 below entry threshold 0.5000': 1, 'confidence 0.3228 below entry threshold 0.5000': 1, 'confidence 0.3296 below entry threshold 0.5000': 1, 'confidence 0.3057 below entry threshold 0.5000': 1, 'confidence 0.3158 below entry threshold 0.5000': 1, 'confidence 0.3111 below entry threshold 0.5000': 1, 'confidence 0.3364 below entry threshold 0.5000': 1, 'confidence 0.4357 below entry threshold 0.5000': 1, 'confidence 0.3725 below entry threshold 0.5000': 1, 'confidence 0.3450 below entry threshold 0.5000': 1, 'confidence 0.3948 below entry threshold 0.5000': 1, 'confidence 0.4852 below entry threshold 0.5000': 1, 'confidence 0.4687 below entry threshold 0.5000': 1, 'confidence 0.4695 below entry threshold 0.5000': 1, 'confidence 0.4392 below entry threshold 0.5000': 1, 'confidence 0.3024 below entry threshold 0.5000': 1, 'confidence 0.4373 below entry threshold 0.5000': 1, 'confidence 0.4371 below entry threshold 0.5000': 1, 'confidence 0.4464 below entry threshold 0.5000': 1, 'confidence 0.3960 below entry threshold 0.5000': 1, 'confidence 0.3559 below entry threshold 0.5000': 1, 'confidence 0.3769 below entry threshold 0.5000': 1, 'confidence 0.4211 below entry threshold 0.5000': 1, 'confidence 0.4011 below entry threshold 0.5000': 1, 'confidence 0.3380 below entry threshold 0.5000': 1, 'confidence 0.3632 below entry threshold 0.5000': 1, 'confidence 0.3101 below entry threshold 0.5000': 1, 'confidence 0.3255 below entry threshold 0.5000': 1, 'confidence 0.3114 below entry threshold 0.5000': 1, 'confidence 0.3209 below entry threshold 0.5000': 1, 'confidence 0.3249 below entry threshold 0.5000': 1, 'confidence 0.4101 below entry threshold 0.5000': 1, 'confidence 0.4531 below entry threshold 0.5000': 1, 'confidence 0.3301 below entry threshold 0.5000': 1, 'confidence 0.3079 below entry threshold 0.5000': 1, 'confidence 0.3479 below entry threshold 0.5000': 1, 'confidence 0.3125 below entry threshold 0.5000': 1, 'confidence 0.3169 below entry threshold 0.5000': 1, 'confidence 0.3757 below entry threshold 0.5000': 1, 'confidence 0.4495 below entry threshold 0.5000': 1, 'confidence 0.4714 below entry threshold 0.5000': 1, 'confidence 0.4650 below entry threshold 0.5000': 1, 'confidence 0.4828 below entry threshold 0.5000': 1, 'confidence 0.3354 below entry threshold 0.5000': 1, 'confidence 0.3421 below entry threshold 0.5000': 1, 'confidence 0.3258 below entry threshold 0.5000': 1, 'confidence 0.3470 below entry threshold 0.5000': 1, 'confidence 0.3420 below entry threshold 0.5000': 1, 'confidence 0.4223 below entry threshold 0.5000': 1, 'confidence 0.3868 below entry threshold 0.5000': 1, 'confidence 0.3629 below entry threshold 0.5000': 1, 'confidence 0.3199 below entry threshold 0.5000': 1, 'confidence 0.3224 below entry threshold 0.5000': 1, 'confidence 0.3172 below entry threshold 0.5000': 1, 'confidence 0.4153 below entry threshold 0.5000': 1, 'confidence 0.4323 below entry threshold 0.5000': 1, 'confidence 0.4561 below entry threshold 0.5000': 1, 'confidence 0.3821 below entry threshold 0.5000': 1, 'confidence 0.4367 below entry threshold 0.5000': 1, 'confidence 0.4279 below entry threshold 0.5000': 1, 'confidence 0.3610 below entry threshold 0.5000': 1, 'confidence 0.3269 below entry threshold 0.5000': 1, 'confidence 0.3394 below entry threshold 0.5000': 1, 'confidence 0.4655 below entry threshold 0.5000': 1, 'confidence 0.3899 below entry threshold 0.5000': 1, 'confidence 0.4484 below entry threshold 0.5000': 1, 'confidence 0.4802 below entry threshold 0.5000': 1, 'confidence 0.4179 below entry threshold 0.5000': 1, 'confidence 0.3399 below entry threshold 0.5000': 1, 'confidence 0.3454 below entry threshold 0.5000': 1, 'confidence 0.4915 below entry threshold 0.5000': 1, 'confidence 0.4822 below entry threshold 0.5000': 1, 'confidence 0.4554 below entry threshold 0.5000': 1, 'confidence 0.4460 below entry threshold 0.5000': 1, 'confidence 0.4465 below entry threshold 0.5000': 1, 'confidence 0.4034 below entry threshold 0.5000': 1, 'confidence 0.3281 below entry threshold 0.5000': 1, 'confidence 0.3006 below entry threshold 0.5000': 1, 'confidence 0.3200 below entry threshold 0.5000': 1, 'confidence 0.3293 below entry threshold 0.5000': 1, 'confidence 0.4844 below entry threshold 0.5000': 1, 'confidence 0.3022 below entry threshold 0.5000': 1, 'confidence 0.3011 below entry threshold 0.5000': 1, 'confidence 0.3692 below entry threshold 0.5000': 1, 'confidence 0.3177 below entry threshold 0.5000': 1, 'confidence 0.3630 below entry threshold 0.5000': 1, 'confidence 0.4240 below entry threshold 0.5000': 1, 'confidence 0.3611 below entry threshold 0.5000': 1, 'confidence 0.3459 below entry threshold 0.5000': 1, 'confidence 0.3369 below entry threshold 0.5000': 1, 'confidence 0.3294 below entry threshold 0.5000': 1, 'confidence 0.3729 below entry threshold 0.5000': 1, 'confidence 0.4247 below entry threshold 0.5000': 1, 'confidence 0.3572 below entry threshold 0.5000': 1, 'confidence 0.3939 below entry threshold 0.5000': 1, 'confidence 0.3305 below entry threshold 0.5000': 1, 'confidence 0.3185 below entry threshold 0.5000': 1, 'confidence 0.3040 below entry threshold 0.5000': 1, 'confidence 0.3413 below entry threshold 0.5000': 1, 'confidence 0.3656 below entry threshold 0.5000': 1, 'confidence 0.4407 below entry threshold 0.5000': 1, 'confidence 0.4413 below entry threshold 0.5000': 1, 'confidence 0.4666 below entry threshold 0.5000': 1, 'confidence 0.4271 below entry threshold 0.5000': 1, 'confidence 0.4441 below entry threshold 0.5000': 1, 'confidence 0.4486 below entry threshold 0.5000': 1, 'confidence 0.4720 below entry threshold 0.5000': 1, 'confidence 0.4601 below entry threshold 0.5000': 1, 'confidence 0.4229 below entry threshold 0.5000': 1, 'confidence 0.3835 below entry threshold 0.5000': 1, 'confidence 0.3245 below entry threshold 0.5000': 1, 'confidence 0.3108 below entry threshold 0.5000': 1, 'confidence 0.3357 below entry threshold 0.5000': 1, 'confidence 0.4631 below entry threshold 0.5000': 1, 'confidence 0.4827 below entry threshold 0.5000': 1, 'confidence 0.4583 below entry threshold 0.5000': 1, 'confidence 0.4548 below entry threshold 0.5000': 1, 'confidence 0.4411 below entry threshold 0.5000': 1, 'confidence 0.4777 below entry threshold 0.5000': 1, 'confidence 0.4534 below entry threshold 0.5000': 1, 'confidence 0.4369 below entry threshold 0.5000': 1, 'confidence 0.4504 below entry threshold 0.5000': 1, 'confidence 0.4675 below entry threshold 0.5000': 1, 'confidence 0.4701 below entry threshold 0.5000': 1, 'confidence 0.4507 below entry threshold 0.5000': 1, 'confidence 0.4585 below entry threshold 0.5000': 1, 'confidence 0.4391 below entry threshold 0.5000': 1, 'confidence 0.4513 below entry threshold 0.5000': 1, 'confidence 0.4962 below entry threshold 0.5000': 1, 'confidence 0.4746 below entry threshold 0.5000': 1, 'confidence 0.3829 below entry threshold 0.5000': 1, 'confidence 0.3473 below entry threshold 0.5000': 1, 'confidence 0.3097 below entry threshold 0.5000': 1, 'confidence 0.3957 below entry threshold 0.5000': 1, 'confidence 0.4202 below entry threshold 0.5000': 1, 'confidence 0.3261 below entry threshold 0.5000': 1, 'confidence 0.3208 below entry threshold 0.5000': 1, 'confidence 0.4688 below entry threshold 0.5000': 1, 'confidence 0.4668 below entry threshold 0.5000': 1, 'confidence 0.4831 below entry threshold 0.5000': 1, 'confidence 0.4850 below entry threshold 0.5000': 1, 'confidence 0.4470 below entry threshold 0.5000': 1, 'confidence 0.4150 below entry threshold 0.5000': 1, 'confidence 0.3933 below entry threshold 0.5000': 1, 'confidence 0.3135 below entry threshold 0.5000': 1, 'confidence 0.4402 below entry threshold 0.5000': 1, 'confidence 0.4975 below entry threshold 0.5000': 1, 'confidence 0.4917 below entry threshold 0.5000': 1, 'confidence 0.4393 below entry threshold 0.5000': 1, 'confidence 0.3460 below entry threshold 0.5000': 1, 'confidence 0.3751 below entry threshold 0.5000': 1, 'confidence 0.3988 below entry threshold 0.5000': 1, 'confidence 0.3126 below entry threshold 0.5000': 1, 'confidence 0.3124 below entry threshold 0.5000': 1, 'confidence 0.4854 below entry threshold 0.5000': 1, 'confidence 0.4396 below entry threshold 0.5000': 1, 'confidence 0.4633 below entry threshold 0.5000': 1, 'confidence 0.3576 below entry threshold 0.5000': 1, 'confidence 0.3734 below entry threshold 0.5000': 1, 'confidence 0.4376 below entry threshold 0.5000': 1, 'confidence 0.4243 below entry threshold 0.5000': 1, 'confidence 0.4129 below entry threshold 0.5000': 1, 'confidence 0.3979 below entry threshold 0.5000': 1, 'confidence 0.4485 below entry threshold 0.5000': 1, 'confidence 0.4501 below entry threshold 0.5000': 1, 'confidence 0.3093 below entry threshold 0.5000': 1, 'confidence 0.4269 below entry threshold 0.5000': 1, 'confidence 0.4796 below entry threshold 0.5000': 1, 'confidence 0.4711 below entry threshold 0.5000': 1, 'confidence 0.4489 below entry threshold 0.5000': 1, 'confidence 0.3227 below entry threshold 0.5000': 1, 'confidence 0.3130 below entry threshold 0.5000': 1, 'confidence 0.3452 below entry threshold 0.5000': 1, 'confidence 0.3760 below entry threshold 0.5000': 1, 'confidence 0.3877 below entry threshold 0.5000': 1, 'confidence 0.4204 below entry threshold 0.5000': 1, 'confidence 0.4095 below entry threshold 0.5000': 1, 'confidence 0.3996 below entry threshold 0.5000': 1, 'confidence 0.3922 below entry threshold 0.5000': 1, 'confidence 0.4321 below entry threshold 0.5000': 1, 'confidence 0.3253 below entry threshold 0.5000': 1, 'confidence 0.3030 below entry threshold 0.5000': 1, 'confidence 0.3783 below entry threshold 0.5000': 1, 'confidence 0.3571 below entry threshold 0.5000': 1, 'confidence 0.3141 below entry threshold 0.5000': 1, 'confidence 0.3900 below entry threshold 0.5000': 1, 'confidence 0.4929 below entry threshold 0.5000': 1, 'confidence 0.4265 below entry threshold 0.5000': 1, 'confidence 0.4577 below entry threshold 0.5000': 1, 'confidence 0.4736 below entry threshold 0.5000': 1, 'confidence 0.4718 below entry threshold 0.5000': 1, 'confidence 0.4926 below entry threshold 0.5000': 1, 'confidence 0.4266 below entry threshold 0.5000': 1, 'confidence 0.4313 below entry threshold 0.5000': 1, 'confidence 0.4642 below entry threshold 0.5000': 1, 'confidence 0.4913 below entry threshold 0.5000': 1, 'confidence 0.4890 below entry threshold 0.5000': 1, 'confidence 0.4898 below entry threshold 0.5000': 1, 'confidence 0.4458 below entry threshold 0.5000': 1, 'confidence 0.3891 below entry threshold 0.5000': 1, 'confidence 0.4053 below entry threshold 0.5000': 1, 'confidence 0.4467 below entry threshold 0.5000': 1, 'confidence 0.3681 below entry threshold 0.5000': 1, 'confidence 0.3647 below entry threshold 0.5000': 1, 'confidence 0.4520 below entry threshold 0.5000': 1, 'confidence 0.3445 below entry threshold 0.5000': 1, 'confidence 0.3532 below entry threshold 0.5000': 1, 'confidence 0.4856 below entry threshold 0.5000': 1, 'confidence 0.4000 below entry threshold 0.5000': 1, 'confidence 0.3058 below entry threshold 0.5000': 1, 'confidence 0.3488 below entry threshold 0.5000': 1, 'confidence 0.3366 below entry threshold 0.5000': 1, 'confidence 0.3405 below entry threshold 0.5000': 1, 'confidence 0.3229 below entry threshold 0.5000': 1, 'confidence 0.3180 below entry threshold 0.5000': 1, 'confidence 0.3411 below entry threshold 0.5000': 1, 'confidence 0.3670 below entry threshold 0.5000': 1, 'confidence 0.3344 below entry threshold 0.5000': 1, 'confidence 0.3148 below entry threshold 0.5000': 1, 'confidence 0.3658 below entry threshold 0.5000': 1, 'confidence 0.4253 below entry threshold 0.5000': 1, 'confidence 0.4311 below entry threshold 0.5000': 1, 'confidence 0.4340 below entry threshold 0.5000': 1, 'confidence 0.4310 below entry threshold 0.5000': 1, 'confidence 0.4091 below entry threshold 0.5000': 1, 'confidence 0.4291 below entry threshold 0.5000': 1, 'confidence 0.4664 below entry threshold 0.5000': 1, 'confidence 0.4152 below entry threshold 0.5000': 1, 'confidence 0.3278 below entry threshold 0.5000': 1, 'confidence 0.3029 below entry threshold 0.5000': 1, 'confidence 0.3044 below entry threshold 0.5000': 1, 'confidence 0.3069 below entry threshold 0.5000': 1, 'confidence 0.3336 below entry threshold 0.5000': 1, 'confidence 0.3923 below entry threshold 0.5000': 1, 'confidence 0.4047 below entry threshold 0.5000': 1, 'confidence 0.4449 below entry threshold 0.5000': 1, 'confidence 0.4165 below entry threshold 0.5000': 1, 'confidence 0.3566 below entry threshold 0.5000': 1, 'confidence 0.3184 below entry threshold 0.5000': 1, 'confidence 0.3197 below entry threshold 0.5000': 1, 'confidence 0.3410 below entry threshold 0.5000': 1, 'confidence 0.4132 below entry threshold 0.5000': 1, 'confidence 0.4989 below entry threshold 0.5000': 1, 'confidence 0.4765 below entry threshold 0.5000': 1, 'confidence 0.4566 below entry threshold 0.5000': 1, 'confidence 0.4067 below entry threshold 0.5000': 1, 'confidence 0.4438 below entry threshold 0.5000': 1, 'confidence 0.4368 below entry threshold 0.5000': 1, 'confidence 0.3665 below entry threshold 0.5000': 1, 'confidence 0.3147 below entry threshold 0.5000': 1, 'confidence 0.3556 below entry threshold 0.5000': 1, 'confidence 0.3810 below entry threshold 0.5000': 1, 'confidence 0.4019 below entry threshold 0.5000': 1, 'confidence 0.4115 below entry threshold 0.5000': 1, 'confidence 0.3443 below entry threshold 0.5000': 1, 'confidence 0.3268 below entry threshold 0.5000': 1, 'confidence 0.3873 below entry threshold 0.5000': 1, 'confidence 0.3234 below entry threshold 0.5000': 1, 'confidence 0.4908 below entry threshold 0.5000': 1, 'confidence 0.3018 below entry threshold 0.5000': 1, 'confidence 0.3015 below entry threshold 0.5000': 1, 'confidence 0.3127 below entry threshold 0.5000': 1, 'confidence 0.4516 below entry threshold 0.5000': 1, 'confidence 0.4733 below entry threshold 0.5000': 1, 'confidence 0.4492 below entry threshold 0.5000': 1, 'confidence 0.3054 below entry threshold 0.5000': 1, 'confidence 0.4649 below entry threshold 0.5000': 1, 'confidence 0.4819 below entry threshold 0.5000': 1, 'confidence 0.4837 below entry threshold 0.5000': 1, 'confidence 0.4004 below entry threshold 0.5000': 1, 'confidence 0.4069 below entry threshold 0.5000': 1, 'confidence 0.4580 below entry threshold 0.5000': 1, 'confidence 0.4628 below entry threshold 0.5000': 1, 'confidence 0.3908 below entry threshold 0.5000': 1, 'confidence 0.4936 below entry threshold 0.5000': 1, 'confidence 0.4491 below entry threshold 0.5000': 1, 'confidence 0.4774 below entry threshold 0.5000': 1, 'confidence 0.3625 below entry threshold 0.5000': 1, 'confidence 0.4073 below entry threshold 0.5000': 1, 'confidence 0.4535 below entry threshold 0.5000': 1, 'confidence 0.4692 below entry threshold 0.5000': 1, 'confidence 0.3509 below entry threshold 0.5000': 1, 'confidence 0.3272 below entry threshold 0.5000': 1, 'confidence 0.3299 below entry threshold 0.5000': 1, 'confidence 0.3219 below entry threshold 0.5000': 1, 'confidence 0.3155 below entry threshold 0.5000': 1, 'confidence 0.3254 below entry threshold 0.5000': 1, 'confidence 0.3609 below entry threshold 0.5000': 1, 'confidence 0.3651 below entry threshold 0.5000': 1, 'confidence 0.3330 below entry threshold 0.5000': 1, 'confidence 0.3787 below entry threshold 0.5000': 1, 'confidence 0.3465 below entry threshold 0.5000': 1, 'confidence 0.3264 below entry threshold 0.5000': 1, 'confidence 0.3297 below entry threshold 0.5000': 1, 'confidence 0.3083 below entry threshold 0.5000': 1, 'confidence 0.3099 below entry threshold 0.5000': 1, 'confidence 0.3359 below entry threshold 0.5000': 1, 'confidence 0.3139 below entry threshold 0.5000': 1, 'confidence 0.3131 below entry threshold 0.5000': 1, 'confidence 0.3355 below entry threshold 0.5000': 1, 'confidence 0.3382 below entry threshold 0.5000': 1, 'confidence 0.3808 below entry threshold 0.5000': 1, 'confidence 0.4143 below entry threshold 0.5000': 1, 'confidence 0.3387 below entry threshold 0.5000': 1, 'confidence 0.4591 below entry threshold 0.5000': 1, 'confidence 0.4835 below entry threshold 0.5000': 1, 'confidence 0.4276 below entry threshold 0.5000': 1, 'confidence 0.4428 below entry threshold 0.5000': 1, 'confidence 0.4275 below entry threshold 0.5000': 1, 'confidence 0.3474 below entry threshold 0.5000': 1, 'confidence 0.3032 below entry threshold 0.5000': 1, 'confidence 0.3183 below entry threshold 0.5000': 1, 'confidence 0.3031 below entry threshold 0.5000': 1, 'confidence 0.3271 below entry threshold 0.5000': 1, 'confidence 0.3540 below entry threshold 0.5000': 1, 'confidence 0.3192 below entry threshold 0.5000': 1, 'confidence 0.3231 below entry threshold 0.5000': 1, 'confidence 0.3316 below entry threshold 0.5000': 1, 'confidence 0.3476 below entry threshold 0.5000': 1, 'confidence 0.3416 below entry threshold 0.5000': 1, 'confidence 0.3976 below entry threshold 0.5000': 1, 'confidence 0.3989 below entry threshold 0.5000': 1, 'confidence 0.4020 below entry threshold 0.5000': 1, 'confidence 0.3372 below entry threshold 0.5000': 1, 'confidence 0.3824 below entry threshold 0.5000': 1, 'confidence 0.3834 below entry threshold 0.5000': 1, 'confidence 0.3782 below entry threshold 0.5000': 1, 'confidence 0.3132 below entry threshold 0.5000': 1, 'confidence 0.3444 below entry threshold 0.5000': 1, 'confidence 0.3882 below entry threshold 0.5000': 1, 'confidence 0.3434 below entry threshold 0.5000': 1, 'confidence 0.3550 below entry threshold 0.5000': 1, 'confidence 0.4526 below entry threshold 0.5000': 1, 'confidence 0.3159 below entry threshold 0.5000': 1, 'confidence 0.3800 below entry threshold 0.5000': 1, 'confidence 0.4637 below entry threshold 0.5000': 1, 'confidence 0.3367 below entry threshold 0.5000': 1, 'confidence 0.3350 below entry threshold 0.5000': 1, 'confidence 0.3071 below entry threshold 0.5000': 1, 'confidence 0.3017 below entry threshold 0.5000': 1, 'confidence 0.3023 below entry threshold 0.5000': 1, 'confidence 0.3025 below entry threshold 0.5000': 1, 'confidence 0.4609 below entry threshold 0.5000': 1, 'confidence 0.4772 below entry threshold 0.5000': 1, 'confidence 0.3546 below entry threshold 0.5000': 1, 'confidence 0.3920 below entry threshold 0.5000': 1, 'confidence 0.3542 below entry threshold 0.5000': 1, 'confidence 0.3291 below entry threshold 0.5000': 1, 'confidence 0.4864 below entry threshold 0.5000': 1, 'confidence 0.4414 below entry threshold 0.5000': 1, 'confidence 0.4557 below entry threshold 0.5000': 1, 'confidence 0.4264 below entry threshold 0.5000': 1, 'confidence 0.3235 below entry threshold 0.5000': 1, 'confidence 0.3300 below entry threshold 0.5000': 1, 'confidence 0.3289 below entry threshold 0.5000': 1, 'confidence 0.3171 below entry threshold 0.5000': 1, 'confidence 0.3320 below entry threshold 0.5000': 1, 'confidence 0.3338 below entry threshold 0.5000': 1, 'confidence 0.3103 below entry threshold 0.5000': 1, 'confidence 0.3107 below entry threshold 0.5000': 1, 'confidence 0.3679 below entry threshold 0.5000': 1, 'confidence 0.3823 below entry threshold 0.5000': 1, 'confidence 0.3084 below entry threshold 0.5000': 1, 'confidence 0.4943 below entry threshold 0.5000': 1, 'confidence 0.4522 below entry threshold 0.5000': 1, 'confidence 0.4295 below entry threshold 0.5000': 1, 'confidence 0.3605 below entry threshold 0.5000': 1, 'confidence 0.3424 below entry threshold 0.5000': 1, 'confidence 0.4620 below entry threshold 0.5000': 1, 'confidence 0.4669 below entry threshold 0.5000': 1, 'confidence 0.4751 below entry threshold 0.5000': 1, 'confidence 0.4662 below entry threshold 0.5000': 1, 'confidence 0.4697 below entry threshold 0.5000': 1, 'confidence 0.4987 below entry threshold 0.5000': 1, 'confidence 0.4897 below entry threshold 0.5000': 1, 'confidence 0.4404 below entry threshold 0.5000': 1, 'confidence 0.4490 below entry threshold 0.5000': 1, 'confidence 0.4683 below entry threshold 0.5000': 1, 'confidence 0.3980 below entry threshold 0.5000': 1, 'confidence 0.3752 below entry threshold 0.5000': 1, 'confidence 0.3815 below entry threshold 0.5000': 1, 'confidence 0.3677 below entry threshold 0.5000': 1, 'confidence 0.3001 below entry threshold 0.5000': 1, 'confidence 0.3280 below entry threshold 0.5000': 1, 'confidence 0.3309 below entry threshold 0.5000': 1, 'confidence 0.3505 below entry threshold 0.5000': 1, 'confidence 0.3175 below entry threshold 0.5000': 1, 'confidence 0.3165 below entry threshold 0.5000': 1, 'confidence 0.4274 below entry threshold 0.5000': 1, 'confidence 0.3315 below entry threshold 0.5000': 1, 'confidence 0.4824 below entry threshold 0.5000': 1, 'confidence 0.4602 below entry threshold 0.5000': 1, 'confidence 0.4199 below entry threshold 0.5000': 1, 'confidence 0.4200 below entry threshold 0.5000': 1, 'confidence 0.3091 below entry threshold 0.5000': 1, 'confidence 0.3714 below entry threshold 0.5000': 1, 'confidence 0.4119 below entry threshold 0.5000': 1, 'confidence 0.3490 below entry threshold 0.5000': 1, 'confidence 0.4201 below entry threshold 0.5000': 1, 'confidence 0.3795 below entry threshold 0.5000': 1, 'confidence 0.3123 below entry threshold 0.5000': 1, 'confidence 0.4959 below entry threshold 0.5000': 1, 'confidence 0.4779 below entry threshold 0.5000': 1, 'confidence 0.4547 below entry threshold 0.5000': 1, 'confidence 0.4618 below entry threshold 0.5000': 1, 'confidence 0.4468 below entry threshold 0.5000': 1, 'confidence 0.4558 below entry threshold 0.5000': 1, 'confidence 0.4282 below entry threshold 0.5000': 1, 'confidence 0.4950 below entry threshold 0.5000': 1, 'confidence 0.4432 below entry threshold 0.5000': 1, 'confidence 0.4120 below entry threshold 0.5000': 1, 'confidence 0.4424 below entry threshold 0.5000': 1, 'confidence 0.4503 below entry threshold 0.5000': 1})
+Regimes: Counter({'calm': 3589, 'stressed': 1489})
+DAILY SUMMARY [
+  {
+    "date": "2023-07-03",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-04",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-05",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-06",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-07",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-10",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-11",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-12",
+    "bars": 374,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-13",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-14",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-17",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-18",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-19",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-20",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-21",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-24",
+    "bars": 372,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-25",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-26",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-27",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-28",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  },
+  {
+    "date": "2023-07-31",
+    "bars": 375,
+    "entries": 0,
+    "exits": 0,
+    "gross_pnl": 0,
+    "costs": 0,
+    "net_pnl": 0
+  }
+]

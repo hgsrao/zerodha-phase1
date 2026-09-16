@@ -1,0 +1,117 @@
+2026-09-12 13:31:38,231 | INFO | ✅ Registry latch UNLOCKED for VALIDATION extraction
+2026-09-12 13:31:38,231 | INFO | CrossSectionalRanking: min_coverage=45, lookback=4 bars
+2026-09-12 13:31:38,231 | INFO | ✅ ValidationMTFExtractor initialized for VALIDATION split
+2026-09-12 13:31:38,231 | INFO | 
+================================================================================
+2026-09-12 13:31:38,231 | INFO | EXTRACTING MTF FEATURES FOR VALIDATION SPLIT (APRIL 2026)
+2026-09-12 13:31:38,231 | INFO | ================================================================================
+
+2026-09-12 13:31:38,257 | INFO |   ADANIENT: 7125 rows loaded
+2026-09-12 13:31:38,300 | INFO | [1/48] ADANIENT        ✅ (7125 rows)
+2026-09-12 13:31:38,303 | INFO |   ADANIPORTS: 7125 rows loaded
+2026-09-12 13:31:38,343 | INFO | [2/48] ADANIPORTS      ✅ (7125 rows)
+2026-09-12 13:31:38,346 | INFO |   APOLLOHOSP: 7124 rows loaded
+2026-09-12 13:31:38,385 | INFO | [3/48] APOLLOHOSP      ✅ (7124 rows)
+2026-09-12 13:31:38,389 | INFO |   ASIANPAINT: 7125 rows loaded
+2026-09-12 13:31:38,429 | INFO | [4/48] ASIANPAINT      ✅ (7125 rows)
+2026-09-12 13:31:38,433 | INFO |   AXISBANK: 7125 rows loaded
+2026-09-12 13:31:38,471 | INFO | [5/48] AXISBANK        ✅ (7125 rows)
+2026-09-12 13:31:38,474 | INFO |   BAJAJ-AUTO: 7125 rows loaded
+2026-09-12 13:31:38,514 | INFO | [6/48] BAJAJ-AUTO      ✅ (7125 rows)
+2026-09-12 13:31:38,517 | INFO |   BAJAJFINSV: 7125 rows loaded
+2026-09-12 13:31:38,557 | INFO | [7/48] BAJAJFINSV      ✅ (7125 rows)
+2026-09-12 13:31:38,559 | INFO |   BAJFINANCE: 7125 rows loaded
+2026-09-12 13:31:38,599 | INFO | [8/48] BAJFINANCE      ✅ (7125 rows)
+2026-09-12 13:31:38,602 | INFO |   BEL: 7125 rows loaded
+2026-09-12 13:31:38,641 | INFO | [9/48] BEL             ✅ (7125 rows)
+2026-09-12 13:31:38,644 | INFO |   BHARTIARTL: 7125 rows loaded
+2026-09-12 13:31:38,682 | INFO | [10/48] BHARTIARTL      ✅ (7125 rows)
+2026-09-12 13:31:38,685 | INFO |   CIPLA: 7125 rows loaded
+2026-09-12 13:31:38,724 | INFO | [11/48] CIPLA           ✅ (7125 rows)
+2026-09-12 13:31:38,727 | INFO |   COALINDIA: 7125 rows loaded
+2026-09-12 13:31:38,767 | INFO | [12/48] COALINDIA       ✅ (7125 rows)
+2026-09-12 13:31:38,770 | INFO |   DRREDDY: 7125 rows loaded
+2026-09-12 13:31:38,812 | INFO | [13/48] DRREDDY         ✅ (7125 rows)
+2026-09-12 13:31:38,815 | INFO |   EICHERMOT: 7125 rows loaded
+2026-09-12 13:31:38,856 | INFO | [14/48] EICHERMOT       ✅ (7125 rows)
+2026-09-12 13:31:38,860 | INFO |   ETERNAL: 7125 rows loaded
+2026-09-12 13:31:38,901 | INFO | [15/48] ETERNAL         ✅ (7125 rows)
+2026-09-12 13:31:38,905 | INFO |   GRASIM: 7125 rows loaded
+2026-09-12 13:31:38,946 | INFO | [16/48] GRASIM          ✅ (7125 rows)
+2026-09-12 13:31:38,949 | INFO |   HCLTECH: 7125 rows loaded
+2026-09-12 13:31:38,989 | INFO | [17/48] HCLTECH         ✅ (7125 rows)
+2026-09-12 13:31:38,993 | INFO |   HDFCBANK: 7125 rows loaded
+2026-09-12 13:31:39,031 | INFO | [18/48] HDFCBANK        ✅ (7125 rows)
+2026-09-12 13:31:39,035 | INFO |   HDFCLIFE: 7124 rows loaded
+2026-09-12 13:31:39,075 | INFO | [19/48] HDFCLIFE        ✅ (7124 rows)
+2026-09-12 13:31:39,078 | INFO |   HINDALCO: 7125 rows loaded
+2026-09-12 13:31:39,117 | INFO | [20/48] HINDALCO        ✅ (7125 rows)
+2026-09-12 13:31:39,120 | INFO |   HINDUNILVR: 7125 rows loaded
+2026-09-12 13:31:39,159 | INFO | [21/48] HINDUNILVR      ✅ (7125 rows)
+2026-09-12 13:31:39,162 | INFO |   ICICIBANK: 7125 rows loaded
+2026-09-12 13:31:39,202 | INFO | [22/48] ICICIBANK       ✅ (7125 rows)
+2026-09-12 13:31:39,204 | INFO |   INDIGO: 7124 rows loaded
+2026-09-12 13:31:39,244 | INFO | [23/48] INDIGO          ✅ (7124 rows)
+2026-09-12 13:31:39,247 | INFO |   INFY: 7125 rows loaded
+2026-09-12 13:31:39,287 | INFO | [24/48] INFY            ✅ (7125 rows)
+2026-09-12 13:31:39,290 | INFO |   ITC: 7125 rows loaded
+2026-09-12 13:31:39,330 | INFO | [25/48] ITC             ✅ (7125 rows)
+2026-09-12 13:31:39,334 | INFO |   JIOFIN: 7125 rows loaded
+2026-09-12 13:31:39,374 | INFO | [26/48] JIOFIN          ✅ (7125 rows)
+2026-09-12 13:31:39,377 | INFO |   JSWSTEEL: 7125 rows loaded
+2026-09-12 13:31:39,415 | INFO | [27/48] JSWSTEEL        ✅ (7125 rows)
+2026-09-12 13:31:39,418 | INFO |   KOTAKBANK: 7124 rows loaded
+2026-09-12 13:31:39,456 | INFO | [28/48] KOTAKBANK       ✅ (7124 rows)
+2026-09-12 13:31:39,460 | INFO |   LT: 7125 rows loaded
+2026-09-12 13:31:39,498 | INFO | [29/48] LT              ✅ (7125 rows)
+2026-09-12 13:31:39,501 | INFO |   M&M: 7125 rows loaded
+2026-09-12 13:31:39,540 | INFO | [30/48] M&M             ✅ (7125 rows)
+2026-09-12 13:31:39,543 | INFO |   MARUTI: 7125 rows loaded
+2026-09-12 13:31:39,581 | INFO | [31/48] MARUTI          ✅ (7125 rows)
+2026-09-12 13:31:39,584 | INFO |   MAXHEALTH: 7125 rows loaded
+2026-09-12 13:31:39,622 | INFO | [32/48] MAXHEALTH       ✅ (7125 rows)
+2026-09-12 13:31:39,626 | INFO |   NTPC: 7125 rows loaded
+2026-09-12 13:31:39,663 | INFO | [33/48] NTPC            ✅ (7125 rows)
+2026-09-12 13:31:39,667 | INFO |   ONGC: 7125 rows loaded
+2026-09-12 13:31:39,704 | INFO | [34/48] ONGC            ✅ (7125 rows)
+2026-09-12 13:31:39,708 | INFO |   POWERGRID: 7125 rows loaded
+2026-09-12 13:31:39,748 | INFO | [35/48] POWERGRID       ✅ (7125 rows)
+2026-09-12 13:31:39,751 | INFO |   RELIANCE: 7125 rows loaded
+2026-09-12 13:31:39,794 | INFO | [36/48] RELIANCE        ✅ (7125 rows)
+2026-09-12 13:31:39,796 | INFO |   SBILIFE: 7125 rows loaded
+2026-09-12 13:31:39,836 | INFO | [37/48] SBILIFE         ✅ (7125 rows)
+2026-09-12 13:31:39,840 | INFO |   SBIN: 7125 rows loaded
+2026-09-12 13:31:39,880 | INFO | [38/48] SBIN            ✅ (7125 rows)
+2026-09-12 13:31:39,883 | INFO |   SHRIRAMFIN: 7125 rows loaded
+2026-09-12 13:31:39,922 | INFO | [39/48] SHRIRAMFIN      ✅ (7125 rows)
+2026-09-12 13:31:39,925 | INFO |   SUNPHARMA: 7125 rows loaded
+2026-09-12 13:31:39,963 | INFO | [40/48] SUNPHARMA       ✅ (7125 rows)
+2026-09-12 13:31:39,966 | INFO |   TATACONSUM: 7125 rows loaded
+2026-09-12 13:31:40,004 | INFO | [41/48] TATACONSUM      ✅ (7125 rows)
+2026-09-12 13:31:40,007 | INFO |   TATASTEEL: 7125 rows loaded
+2026-09-12 13:31:40,046 | INFO | [42/48] TATASTEEL       ✅ (7125 rows)
+2026-09-12 13:31:40,050 | INFO |   TCS: 7125 rows loaded
+2026-09-12 13:31:40,088 | INFO | [43/48] TCS             ✅ (7125 rows)
+2026-09-12 13:31:40,092 | INFO |   TECHM: 7125 rows loaded
+2026-09-12 13:31:40,129 | INFO | [44/48] TECHM           ✅ (7125 rows)
+2026-09-12 13:31:40,132 | INFO |   TITAN: 7125 rows loaded
+2026-09-12 13:31:40,169 | INFO | [45/48] TITAN           ✅ (7125 rows)
+2026-09-12 13:31:40,173 | INFO |   TRENT: 7125 rows loaded
+2026-09-12 13:31:40,216 | INFO | [46/48] TRENT           ✅ (7125 rows)
+2026-09-12 13:31:40,219 | INFO |   ULTRACEMCO: 7125 rows loaded
+2026-09-12 13:31:40,257 | INFO | [47/48] ULTRACEMCO      ✅ (7125 rows)
+2026-09-12 13:31:40,261 | INFO |   WIPRO: 7125 rows loaded
+2026-09-12 13:31:40,300 | INFO | [48/48] WIPRO           ✅ (7125 rows)
+2026-09-12 13:31:40,301 | INFO | 
+✅ Extracted 48/48 symbols
+2026-09-12 13:31:40,301 | INFO | 
+Calculating cross-sectional rankings...
+2026-09-12 13:31:40,301 | INFO | Starting cross-sectional ranking for 48 symbols
+2026-09-12 13:31:40,326 | INFO | Universe matrix shape: (7125, 48)
+2026-09-12 13:31:40,330 | INFO | Per-timestamp symbol count: min=0, max=48, mean=48.0
+2026-09-12 13:31:40,335 | INFO | Coverage filter: 7121/7125 timestamps meet min_coverage=45
+2026-09-12 13:31:40,467 | INFO | Attached cross-sectional features to 48 symbols
+2026-09-12 13:31:40,467 | INFO | ✅ Cross-sectional ranking complete
+2026-09-12 13:31:40,468 | INFO | 
+Saving features to revision2/features_2026/validation/
+2026-09-12 13:31:40,942 | INFO | ✅ Saved 48 symbol feature matrices

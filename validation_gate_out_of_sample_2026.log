@@ -1,0 +1,227 @@
+2026-09-12 13:21:50,964 | INFO | ✅ ValidationGateOutOfSample initialized
+2026-09-12 13:21:50,965 | INFO |    Kill-switch hurdle rate: 50.8%
+2026-09-12 13:21:50,965 | INFO |    Min net P&L threshold: 0.0 bps
+2026-09-12 13:21:50,965 | INFO | 
+================================================================================
+2026-09-12 13:21:50,965 | INFO | VALIDATION GATE: OUT-OF-SAMPLE TEST (APRIL 2026)
+2026-09-12 13:21:50,965 | INFO | ================================================================================
+
+2026-09-12 13:21:50,965 | INFO | 
+Loading VALIDATION split (April 2026) from quarantine...
+2026-09-12 13:21:50,965 | INFO |   Found 48 symbol files
+2026-09-12 13:21:51,254 | INFO |   ✅ Loaded features: (341996, 6)
+2026-09-12 13:21:51,254 | INFO |   ✅ Loaded OHLCV: (341996, 4)
+2026-09-12 13:21:51,254 | INFO | 
+Generating triple-barrier labels (45-bar horizon, validation)...
+2026-09-12 13:22:15,663 | INFO |   ✅ Generated 341,950 labels
+2026-09-12 13:22:15,716 | INFO | 
+Scoring validation data with FROZEN model...
+2026-09-12 13:31:55,727 | INFO | ✅ ValidationGateOutOfSample initialized
+2026-09-12 13:31:55,727 | INFO |    Kill-switch hurdle rate: 50.8%
+2026-09-12 13:31:55,727 | INFO |    Min net P&L threshold: 0.0 bps
+2026-09-12 13:31:55,727 | INFO | 
+================================================================================
+2026-09-12 13:31:55,727 | INFO | VALIDATION GATE: OUT-OF-SAMPLE TEST (APRIL 2026)
+2026-09-12 13:31:55,727 | INFO | ================================================================================
+
+2026-09-12 13:31:55,727 | INFO | 
+Loading VALIDATION split (April 2026) from quarantine...
+2026-09-12 13:31:55,728 | INFO |   Found 48 symbol files
+2026-09-12 13:31:55,975 | INFO |   ✅ Loaded features: (341996, 6)
+2026-09-12 13:31:55,975 | INFO |   ✅ Loaded OHLCV: (341996, 4)
+2026-09-12 13:31:55,976 | INFO | 
+Generating triple-barrier labels (45-bar horizon, validation)...
+2026-09-12 13:32:21,881 | INFO |   ✅ Generated 341,950 labels
+2026-09-12 13:32:21,935 | INFO | 
+Scoring validation data with FROZEN model...
+2026-09-12 13:32:26,174 | INFO | ✅ ValidationGateOutOfSample initialized
+2026-09-12 13:32:26,174 | INFO |    Kill-switch hurdle rate: 50.8%
+2026-09-12 13:32:26,174 | INFO |    Min net P&L threshold: 0.0 bps
+2026-09-12 13:32:26,174 | INFO | 
+================================================================================
+2026-09-12 13:32:26,174 | INFO | VALIDATION GATE: OUT-OF-SAMPLE TEST (APRIL 2026)
+2026-09-12 13:32:26,174 | INFO | ================================================================================
+
+2026-09-12 13:32:26,174 | INFO | 
+Loading VALIDATION split (April 2026) from quarantine...
+2026-09-12 13:32:26,174 | INFO |   Found 48 symbol files
+2026-09-12 13:32:26,424 | INFO |   ✅ Loaded features: (341996, 6)
+2026-09-12 13:32:26,424 | INFO |   ✅ Loaded OHLCV: (341996, 4)
+2026-09-12 13:32:26,424 | INFO | 
+Generating triple-barrier labels (45-bar horizon, validation)...
+2026-09-12 13:32:52,589 | INFO |   ✅ Generated 341,950 labels
+2026-09-12 13:32:52,647 | INFO | 
+Scoring validation data with FROZEN model...
+2026-09-12 13:33:19,685 | INFO | ✅ ValidationGateOutOfSample initialized
+2026-09-12 13:33:19,685 | INFO |    Kill-switch hurdle rate: 50.8%
+2026-09-12 13:33:19,691 | INFO |    Min net P&L threshold: 0.0 bps
+2026-09-12 13:33:19,691 | INFO | 
+================================================================================
+2026-09-12 13:33:19,691 | INFO | VALIDATION GATE: OUT-OF-SAMPLE TEST (APRIL 2026)
+2026-09-12 13:33:19,691 | INFO | ================================================================================
+
+2026-09-12 13:33:19,691 | INFO | 
+Loading VALIDATION split (April 2026) from quarantine...
+2026-09-12 13:33:19,692 | INFO |   Found 48 symbol files
+2026-09-12 13:33:19,939 | INFO |   ✅ Loaded features: (341996, 6)
+2026-09-12 13:33:19,939 | INFO |   ✅ Loaded OHLCV: (341996, 4)
+2026-09-12 13:33:19,939 | INFO | 
+Generating triple-barrier labels (45-bar horizon, validation)...
+2026-09-12 13:33:45,207 | INFO |   ✅ Generated 341,950 labels
+2026-09-12 13:33:45,259 | INFO | 
+Scoring validation data with FROZEN model...
+2026-09-12 13:36:18,846 | INFO | ✅ ValidationGateOutOfSample initialized
+2026-09-12 13:36:18,846 | INFO |    Kill-switch hurdle rate: 50.8%
+2026-09-12 13:36:18,846 | INFO |    Min net P&L threshold: 0.0 bps
+2026-09-12 13:36:18,846 | INFO | 
+================================================================================
+2026-09-12 13:36:18,847 | INFO | VALIDATION GATE: OUT-OF-SAMPLE TEST (APRIL 2026)
+2026-09-12 13:36:18,847 | INFO | ================================================================================
+
+2026-09-12 13:36:18,847 | INFO | 
+Loading VALIDATION split (April 2026) from quarantine...
+2026-09-12 13:36:18,847 | INFO |   Found 0 symbol files
+2026-09-12 13:36:29,023 | INFO | ✅ ValidationGateOutOfSample initialized
+2026-09-12 13:36:29,023 | INFO |    Kill-switch hurdle rate: 50.8%
+2026-09-12 13:36:29,023 | INFO |    Min net P&L threshold: 0.0 bps
+2026-09-12 13:36:29,024 | INFO | 
+================================================================================
+2026-09-12 13:36:29,024 | INFO | VALIDATION GATE: OUT-OF-SAMPLE TEST (APRIL 2026)
+2026-09-12 13:36:29,024 | INFO | ================================================================================
+
+2026-09-12 13:36:29,024 | INFO | 
+Loading VALIDATION split (April 2026) from quarantine...
+2026-09-12 13:36:29,024 | INFO |   Found 48 symbol files
+2026-09-12 13:36:29,294 | INFO |   ✅ Loaded features: (341996, 10)
+2026-09-12 13:36:29,295 | INFO |   ✅ Loaded OHLCV: (341996, 4)
+2026-09-12 13:36:29,295 | INFO | 
+Generating triple-barrier labels (45-bar horizon, validation)...
+2026-09-12 13:36:52,988 | INFO |   ✅ Generated 341,950 labels
+2026-09-12 13:36:53,048 | INFO | 
+Scoring validation data with FROZEN model...
+2026-09-12 13:36:53,103 | INFO |   ✅ Scored 337,628 samples
+2026-09-12 13:36:53,119 | INFO | 
+Total audit samples: 337,583
+2026-09-12 13:36:53,121 | INFO | Base win rate (validation): 39.53%
+2026-09-12 13:36:53,127 | INFO | Intrabar ambiguity: 461 (0.14%)
+2026-09-12 13:36:53,127 | INFO | 
+================================================================================
+2026-09-12 13:36:53,127 | INFO | KILL-SWITCH TEST: TOP 1.0% COHORT
+2026-09-12 13:36:53,127 | INFO | ================================================================================
+
+2026-09-12 13:36:53,133 | INFO | Top 1.0% Cohort (Validation):
+2026-09-12 13:36:53,133 | INFO |   N samples: 3,376
+2026-09-12 13:36:53,133 | INFO |   N resolved: 3,315
+2026-09-12 13:36:53,133 | INFO |   Intrabar ambiguous: 61
+2026-09-12 13:36:53,133 | INFO |   Win rate: 64.86%
+2026-09-12 13:36:53,133 | INFO |   Gross P&L: 0.6214R
+2026-09-12 13:36:53,134 | INFO |   Friction: 0.2700R
+2026-09-12 13:36:53,134 | INFO |   Net P&L: 1.66 bps
+2026-09-12 13:36:53,134 | INFO | 
+KILL-SWITCH VERDICT                     
+2026-09-12 13:36:53,134 | INFO | ------------------------------------------------------------
+2026-09-12 13:36:53,134 | INFO | Hurdle rate:    50.8%   |  Achieved: 64.86%   |  ✅ PASS
+2026-09-12 13:36:53,134 | INFO | Min net P&L:    0.0 bps   |  Achieved: 1.66 bps   |  ✅ PASS
+2026-09-12 13:36:53,134 | INFO | ------------------------------------------------------------
+2026-09-12 13:36:53,134 | WARNING | 
+================================================================================
+2026-09-12 13:36:53,134 | WARNING | ✅ VALIDATION GATE PASSED - HYPOTHESIS SURVIVES OUT-OF-SAMPLE TEST
+2026-09-12 13:36:53,134 | WARNING | ================================================================================
+2026-09-12 13:36:53,134 | WARNING | 
+Proceed to TEST split (May 2026) evaluation
+2026-09-12 13:42:27,897 | INFO | ✅ ValidationGateOutOfSample initialized
+2026-09-12 13:42:27,897 | INFO |    Kill-switch hurdle rate: 50.8%
+2026-09-12 13:42:27,897 | INFO |    Min net P&L threshold: 0.0 bps
+2026-09-12 13:42:27,897 | INFO | 
+================================================================================
+2026-09-12 13:42:27,897 | INFO | VALIDATION GATE: OUT-OF-SAMPLE TEST (APRIL 2026)
+2026-09-12 13:42:27,897 | INFO | ================================================================================
+
+2026-09-12 13:42:27,897 | INFO | 
+Loading VALIDATION split (April 2026) from quarantine...
+2026-09-12 13:42:27,898 | INFO |   Found 48 symbol files
+2026-09-12 13:42:28,141 | INFO |   ✅ Loaded features: (341996, 10)
+2026-09-12 13:42:28,142 | INFO |   ✅ Loaded OHLCV: (341996, 4)
+2026-09-12 13:42:28,142 | INFO | 
+Generating triple-barrier labels (45-bar horizon, validation)...
+2026-09-12 13:42:51,419 | INFO |   ✅ Generated 341,950 labels
+2026-09-12 13:42:51,473 | INFO | 
+Scoring validation data with FROZEN model...
+2026-09-12 13:42:51,526 | INFO |   ✅ Scored 337,628 samples
+2026-09-12 13:42:51,540 | INFO | 
+Total audit samples: 337,583
+2026-09-12 13:42:51,541 | INFO | Base win rate (validation): 39.53%
+2026-09-12 13:42:51,546 | INFO | Intrabar ambiguity: 461 (0.14%)
+2026-09-12 13:42:51,546 | INFO | 
+================================================================================
+2026-09-12 13:42:51,546 | INFO | KILL-SWITCH TEST: TOP 1.0% COHORT
+2026-09-12 13:42:51,546 | INFO | ================================================================================
+
+2026-09-12 13:42:51,549 | INFO | Top 1.0% Cohort (Validation):
+2026-09-12 13:42:51,549 | INFO |   N samples: 3,900
+2026-09-12 13:42:51,549 | INFO |   N resolved: 3,836
+2026-09-12 13:42:51,549 | INFO |   Intrabar ambiguous: 64
+2026-09-12 13:42:51,549 | INFO |   Win rate: 64.44%
+2026-09-12 13:42:51,549 | INFO |   Gross P&L: 0.6111R
+2026-09-12 13:42:51,549 | INFO |   Friction: 0.2700R
+2026-09-12 13:42:51,549 | INFO |   Net P&L: 1.56 bps
+2026-09-12 13:42:51,549 | INFO | 
+KILL-SWITCH VERDICT                     
+2026-09-12 13:42:51,549 | INFO | ------------------------------------------------------------
+2026-09-12 13:42:51,549 | INFO | Hurdle rate:    50.8%   |  Achieved: 64.44%   |  ✅ PASS
+2026-09-12 13:42:51,549 | INFO | Min net P&L:    0.0 bps   |  Achieved: 1.56 bps   |  ✅ PASS
+2026-09-12 13:42:51,549 | INFO | ------------------------------------------------------------
+2026-09-12 13:42:51,550 | WARNING | 
+================================================================================
+2026-09-12 13:42:51,550 | WARNING | ✅ VALIDATION GATE PASSED - HYPOTHESIS SURVIVES OUT-OF-SAMPLE TEST
+2026-09-12 13:42:51,550 | WARNING | ================================================================================
+2026-09-12 13:42:51,550 | WARNING | 
+Proceed to TEST split (May 2026) evaluation
+2026-09-12 13:44:52,698 | INFO | ✅ ValidationGateOutOfSample initialized
+2026-09-12 13:44:52,698 | INFO |    Kill-switch hurdle rate: 50.8%
+2026-09-12 13:44:52,699 | INFO |    Min net P&L threshold: 0.0 bps
+2026-09-12 13:44:52,699 | INFO | 
+================================================================================
+2026-09-12 13:44:52,699 | INFO | VALIDATION GATE: OUT-OF-SAMPLE TEST (APRIL 2026)
+2026-09-12 13:44:52,699 | INFO | ================================================================================
+
+2026-09-12 13:44:52,699 | INFO | 
+Loading VALIDATION split (April 2026) from quarantine...
+2026-09-12 13:44:52,699 | INFO |   Found 48 symbol files
+2026-09-12 13:44:52,962 | INFO |   ✅ Loaded features: (341996, 10)
+2026-09-12 13:44:52,962 | INFO |   ✅ Loaded OHLCV: (341996, 4)
+2026-09-12 13:44:52,968 | INFO | 
+Generating triple-barrier labels (45-bar horizon, validation)...
+2026-09-12 13:45:15,819 | INFO |   ✅ Generated 341,950 labels
+2026-09-12 13:45:15,873 | INFO | 
+Scoring validation data with FROZEN model...
+2026-09-12 13:45:15,925 | INFO |   ✅ Scored 337,628 samples
+2026-09-12 13:45:15,939 | INFO | 
+Total audit samples: 337,583
+2026-09-12 13:45:15,940 | INFO | Base win rate (validation): 39.53%
+2026-09-12 13:45:15,945 | INFO | Intrabar ambiguity: 461 (0.14%)
+2026-09-12 13:45:15,946 | INFO | 
+================================================================================
+2026-09-12 13:45:15,946 | INFO | KILL-SWITCH TEST: TOP 1.0% COHORT
+2026-09-12 13:45:15,946 | INFO | ================================================================================
+
+2026-09-12 13:45:15,948 | INFO | Top 1.0% Cohort (Validation):
+2026-09-12 13:45:15,948 | INFO |   N samples: 3,900
+2026-09-12 13:45:15,948 | INFO |   N resolved: 3,836
+2026-09-12 13:45:15,949 | INFO |   Intrabar ambiguous: 64
+2026-09-12 13:45:15,949 | INFO |   Win rate: 64.44%
+2026-09-12 13:45:15,949 | INFO |   Gross P&L: 0.6111R
+2026-09-12 13:45:15,949 | INFO |   Friction: 0.2700R
+2026-09-12 13:45:15,949 | INFO |   Net P&L: 1.56 bps
+2026-09-12 13:45:15,949 | INFO | 
+KILL-SWITCH VERDICT                     
+2026-09-12 13:45:15,949 | INFO | ------------------------------------------------------------
+2026-09-12 13:45:15,949 | INFO | Hurdle rate:    50.8%   |  Achieved: 64.44%   |  ✅ PASS
+2026-09-12 13:45:15,949 | INFO | Min net P&L:    0.0 bps   |  Achieved: 1.56 bps   |  ✅ PASS
+2026-09-12 13:45:15,949 | INFO | ------------------------------------------------------------
+2026-09-12 13:45:15,949 | WARNING | 
+================================================================================
+2026-09-12 13:45:15,949 | WARNING | ✅ VALIDATION GATE PASSED - HYPOTHESIS SURVIVES OUT-OF-SAMPLE TEST
+2026-09-12 13:45:15,949 | WARNING | ================================================================================
+2026-09-12 13:45:15,949 | WARNING | 
+Proceed to TEST split (May 2026) evaluation

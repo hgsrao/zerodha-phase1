@@ -1,0 +1,15 @@
+==========================================================================================
+LOADING FULL 3-YEAR DATASET (vs. 1-month smoke test)
+==========================================================================================
+
+48 symbols, 13,961,740 TOTAL bars (full dataset)
+Date range: 2023-07-03 09:15:00+05:30 to 2026-08-24 15:14:00+05:30 (1148 days)
+Average bars per symbol: 290,869
+
+Comparison to 1-month smoke test:
+  1-month: ~8,600 bars/symbol, 60-bar warmup (1 hour)
+  3-year:  ~290,869 bars/symbol, 60-bar warmup still tiny fraction
+
+Starting calibration supervisor (RandomSearch → TPE → CMA-ES → fine-tune)...
+/home/shrinivas/.local/lib/python3.14/site-packages/pypfopt/base_optimizer.py:307: UserWarning: Solution may be inaccurate. Try another solver, adjusting the solver settings, or solve with verbose=True for more information.
+  self._opt.solve(

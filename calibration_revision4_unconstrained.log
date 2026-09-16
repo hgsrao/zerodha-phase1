@@ -1,0 +1,69 @@
+
+================================================================================================================================================================
+REVISION 04: 48-SYMBOL PORTFOLIO CALIBRATION TEST
+================================================================================================================================================================
+
+[LOAD] Loading 48-symbol dataset...
+  ✓ ADANIENT: 8,580 bars
+  ✓ ADANIPORTS: 8,580 bars
+  ✓ APOLLOHOSP: 8,580 bars
+  ✓ ASIANPAINT: 8,580 bars
+  ✓ AXISBANK: 8,580 bars
+  ✓ BAJAJ-AUTO: 8,580 bars
+  ✓ BAJAJFINSV: 8,580 bars
+  ✓ BAJFINANCE: 8,580 bars
+  ✓ BEL     : 8,580 bars
+  ✓ BHARTIARTL: 8,580 bars
+  ✓ CIPLA   : 8,580 bars
+  ✓ COALINDIA: 8,580 bars
+  ✓ DRREDDY : 8,580 bars
+  ✓ EICHERMOT: 8,580 bars
+  ✓ ETERNAL : 8,580 bars
+  ✓ GRASIM  : 8,580 bars
+  ✓ HCLTECH : 8,580 bars
+  ✓ HDFCBANK: 8,580 bars
+  ✓ HDFCLIFE: 8,580 bars
+  ✓ HINDALCO: 8,580 bars
+  ✓ HINDUNILVR: 8,580 bars
+  ✓ ICICIBANK: 8,580 bars
+  ✓ INDIGO  : 8,580 bars
+  ✓ INFY    : 8,580 bars
+  ✓ ITC     : 8,580 bars
+  ✓ JIOFIN  : 8,580 bars
+  ✓ JSWSTEEL: 8,580 bars
+  ✓ KOTAKBANK: 8,580 bars
+  ✓ LT      : 8,580 bars
+  ✓ M&M     : 8,580 bars
+  ✓ MARUTI  : 8,580 bars
+  ✓ MAXHEALTH: 8,580 bars
+  ✓ NTPC    : 8,580 bars
+  ✓ ONGC    : 8,580 bars
+  ✓ POWERGRID: 8,580 bars
+  ✓ RELIANCE: 8,580 bars
+  ✓ SBILIFE : 8,580 bars
+  ✓ SBIN    : 8,580 bars
+  ✓ SHRIRAMFIN: 8,580 bars
+  ✓ SUNPHARMA: 8,580 bars
+  ✓ TATACONSUM: 8,580 bars
+  ✓ TATASTEEL: 8,580 bars
+  ✓ TCS     : 8,580 bars
+  ✓ TECHM   : 8,580 bars
+  ✓ TITAN   : 8,580 bars
+  ✓ TRENT   : 8,580 bars
+  ✓ ULTRACEMCO: 8,580 bars
+  ✓ WIPRO   : 8,580 bars
+
+Total symbols loaded: 48
+
+[BACKTEST] Initializing calibration engine...
+  Starting equity: ₹100,000.00
+  Max positions: 5 concurrent
+  Max hold time: 60 minutes
+
+[SYNC] Synchronizing timestamps across all symbols...
+  Found 0 synchronized timestamps
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/scripts/test_48symbol_calibration.py", line 74, in <module>
+    print(f'  Date range: {common_timestamps[0]} to {common_timestamps[-1]}\n')
+                           ~~~~~~~~~~~~~~~~~^^^
+IndexError: list index out of range

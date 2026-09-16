@@ -1,0 +1,293 @@
+2026-09-12 11:41:24,371 | INFO | ✅ FrozenModelTrainer initialized
+2026-09-12 11:41:24,371 | INFO | 
+================================================================================
+2026-09-12 11:41:24,371 | INFO | FROZEN MODEL TRAINING PIPELINE - 2026 MTF FEATURES
+2026-09-12 11:41:24,371 | INFO | ================================================================================
+
+2026-09-12 11:41:24,371 | INFO | PHASE 1: TRAINING
+2026-09-12 11:41:24,371 | INFO | --------------------------------------------------------------------------------
+2026-09-12 11:41:24,372 | INFO | Loading train split...
+2026-09-12 11:41:24,660 | INFO |   Loaded 48 symbols, shape: (1080000, 8)
+2026-09-12 11:41:24,661 | INFO | Generating labels for train...
+2026-09-12 11:41:24,666 | INFO | Generated labels: 10498 positive, 12002 negative
+2026-09-12 11:41:24,670 | INFO | Generated labels: 10598 positive, 11902 negative
+2026-09-12 11:41:24,674 | INFO | Generated labels: 10752 positive, 11748 negative
+2026-09-12 11:41:24,679 | INFO | Generated labels: 10855 positive, 11645 negative
+2026-09-12 11:41:24,683 | INFO | Generated labels: 10518 positive, 11982 negative
+2026-09-12 11:41:24,687 | INFO | Generated labels: 11046 positive, 11454 negative
+2026-09-12 11:41:24,691 | INFO | Generated labels: 10815 positive, 11685 negative
+2026-09-12 11:41:24,696 | INFO | Generated labels: 10758 positive, 11742 negative
+2026-09-12 11:41:24,700 | INFO | Generated labels: 10752 positive, 11748 negative
+2026-09-12 11:41:24,705 | INFO | Generated labels: 10753 positive, 11747 negative
+2026-09-12 11:41:24,710 | INFO | Generated labels: 10714 positive, 11786 negative
+2026-09-12 11:41:24,714 | INFO | Generated labels: 10495 positive, 12005 negative
+2026-09-12 11:41:24,719 | INFO | Generated labels: 10859 positive, 11641 negative
+2026-09-12 11:41:24,723 | INFO | Generated labels: 10915 positive, 11585 negative
+2026-09-12 11:41:24,727 | INFO | Generated labels: 10519 positive, 11981 negative
+2026-09-12 11:41:24,732 | INFO | Generated labels: 10848 positive, 11652 negative
+2026-09-12 11:41:24,736 | INFO | Generated labels: 10650 positive, 11850 negative
+2026-09-12 11:41:24,740 | INFO | Generated labels: 10514 positive, 11986 negative
+2026-09-12 11:41:24,744 | INFO | Generated labels: 10512 positive, 11988 negative
+2026-09-12 11:41:24,749 | INFO | Generated labels: 11165 positive, 11335 negative
+2026-09-12 11:41:24,753 | INFO | Generated labels: 10834 positive, 11666 negative
+2026-09-12 11:41:24,757 | INFO | Generated labels: 10618 positive, 11882 negative
+2026-09-12 11:41:24,762 | INFO | Generated labels: 10700 positive, 11800 negative
+2026-09-12 11:41:24,767 | INFO | Generated labels: 10605 positive, 11895 negative
+2026-09-12 11:41:24,772 | INFO | Generated labels: 9837 positive, 12663 negative
+2026-09-12 11:41:24,776 | INFO | Generated labels: 9959 positive, 12541 negative
+2026-09-12 11:41:24,780 | INFO | Generated labels: 10742 positive, 11758 negative
+2026-09-12 11:41:24,785 | INFO | Generated labels: 10156 positive, 12344 negative
+2026-09-12 11:41:24,789 | INFO | Generated labels: 11001 positive, 11499 negative
+2026-09-12 11:41:24,794 | INFO | Generated labels: 10960 positive, 11540 negative
+2026-09-12 11:41:24,798 | INFO | Generated labels: 10823 positive, 11677 negative
+2026-09-12 11:41:24,802 | INFO | Generated labels: 11030 positive, 11470 negative
+2026-09-12 11:41:24,807 | INFO | Generated labels: 10526 positive, 11974 negative
+2026-09-12 11:41:24,811 | INFO | Generated labels: 10461 positive, 12039 negative
+2026-09-12 11:41:24,815 | INFO | Generated labels: 10372 positive, 12128 negative
+2026-09-12 11:41:24,819 | INFO | Generated labels: 10624 positive, 11876 negative
+2026-09-12 11:41:24,824 | INFO | Generated labels: 10896 positive, 11604 negative
+2026-09-12 11:41:24,828 | INFO | Generated labels: 10734 positive, 11766 negative
+2026-09-12 11:41:24,832 | INFO | Generated labels: 10833 positive, 11667 negative
+2026-09-12 11:41:24,836 | INFO | Generated labels: 10878 positive, 11622 negative
+2026-09-12 11:41:24,841 | INFO | Generated labels: 10775 positive, 11725 negative
+2026-09-12 11:41:24,845 | INFO | Generated labels: 10907 positive, 11593 negative
+2026-09-12 11:41:24,849 | INFO | Generated labels: 10470 positive, 12030 negative
+2026-09-12 11:41:24,854 | INFO | Generated labels: 10644 positive, 11856 negative
+2026-09-12 11:41:24,858 | INFO | Generated labels: 10936 positive, 11564 negative
+2026-09-12 11:41:24,862 | INFO | Generated labels: 10712 positive, 11788 negative
+2026-09-12 11:41:24,867 | INFO | Generated labels: 10738 positive, 11762 negative
+2026-09-12 11:41:24,871 | INFO | Generated labels: 10305 positive, 12195 negative
+2026-09-12 11:41:24,879 | INFO |   Labels shape: (1080000,), Positive: 512612, Negative: 567388
+2026-09-12 11:41:24,880 | INFO | 
+Training Frozen Logistic Regression
+2026-09-12 11:41:24,880 | INFO |   Input shape: (1080000, 8)
+2026-09-12 11:41:24,892 | INFO |   Label distribution: {0: 567388, 1: 512612}
+2026-09-12 11:41:24,928 | INFO |   After NaN removal: (1064832, 8) (15168 rows removed)
+2026-09-12 11:41:25,038 | INFO |   Feature scaling: mean=0.0000, std=1.0000
+2026-09-12 11:41:25,038 | INFO |   Training LogisticRegression (fit_intercept=True, solver='lbfgs')...
+2026-09-12 11:41:26,768 | INFO | ✅ Training complete:
+2026-09-12 11:41:26,768 | INFO |    Accuracy:  0.5254
+2026-09-12 11:41:26,768 | INFO |    Precision: 0.5115
+2026-09-12 11:41:26,768 | INFO |    Recall:    0.0053
+2026-09-12 11:41:26,768 | INFO |    F1:        0.0104
+2026-09-12 11:41:26,768 | INFO |    AUC:       0.5096
+2026-09-12 11:41:26,770 | INFO | 
+
+PHASE 2: VALIDATION HOLDOUT
+2026-09-12 11:41:26,770 | INFO | --------------------------------------------------------------------------------
+2026-09-12 11:41:26,770 | INFO | Loading validation split...
+2026-09-12 11:41:26,940 | INFO |   Loaded 48 symbols, shape: (341996, 8)
+2026-09-12 11:41:26,941 | INFO | Generating labels for validation...
+2026-09-12 11:41:26,945 | INFO | Generated labels: 3649 positive, 3476 negative
+2026-09-12 11:41:26,948 | INFO | Generated labels: 3674 positive, 3451 negative
+2026-09-12 11:41:26,952 | INFO | Generated labels: 3575 positive, 3549 negative
+2026-09-12 11:41:26,955 | INFO | Generated labels: 3547 positive, 3578 negative
+2026-09-12 11:41:26,959 | INFO | Generated labels: 3586 positive, 3539 negative
+2026-09-12 11:41:26,962 | INFO | Generated labels: 3434 positive, 3691 negative
+2026-09-12 11:41:26,966 | INFO | Generated labels: 3554 positive, 3571 negative
+2026-09-12 11:41:26,969 | INFO | Generated labels: 3557 positive, 3568 negative
+2026-09-12 11:41:26,973 | INFO | Generated labels: 3337 positive, 3788 negative
+2026-09-12 11:41:26,976 | INFO | Generated labels: 3497 positive, 3628 negative
+2026-09-12 11:41:26,980 | INFO | Generated labels: 3498 positive, 3627 negative
+2026-09-12 11:41:26,983 | INFO | Generated labels: 3433 positive, 3692 negative
+2026-09-12 11:41:26,987 | INFO | Generated labels: 3540 positive, 3585 negative
+2026-09-12 11:41:26,990 | INFO | Generated labels: 3541 positive, 3584 negative
+2026-09-12 11:41:26,994 | INFO | Generated labels: 3532 positive, 3593 negative
+2026-09-12 11:41:26,997 | INFO | Generated labels: 3494 positive, 3631 negative
+2026-09-12 11:41:27,001 | INFO | Generated labels: 3410 positive, 3715 negative
+2026-09-12 11:41:27,005 | INFO | Generated labels: 3512 positive, 3613 negative
+2026-09-12 11:41:27,008 | INFO | Generated labels: 3445 positive, 3679 negative
+2026-09-12 11:41:27,012 | INFO | Generated labels: 3732 positive, 3393 negative
+2026-09-12 11:41:27,016 | INFO | Generated labels: 3477 positive, 3648 negative
+2026-09-12 11:41:27,020 | INFO | Generated labels: 3449 positive, 3676 negative
+2026-09-12 11:41:27,024 | INFO | Generated labels: 3625 positive, 3499 negative
+2026-09-12 11:41:27,027 | INFO | Generated labels: 3365 positive, 3760 negative
+2026-09-12 11:41:27,031 | INFO | Generated labels: 3272 positive, 3853 negative
+2026-09-12 11:41:27,035 | INFO | Generated labels: 3596 positive, 3529 negative
+2026-09-12 11:41:27,040 | INFO | Generated labels: 3529 positive, 3596 negative
+2026-09-12 11:41:27,045 | INFO | Generated labels: 3405 positive, 3719 negative
+2026-09-12 11:41:27,050 | INFO | Generated labels: 3547 positive, 3578 negative
+2026-09-12 11:41:27,054 | INFO | Generated labels: 3491 positive, 3634 negative
+2026-09-12 11:41:27,058 | INFO | Generated labels: 3383 positive, 3742 negative
+2026-09-12 11:41:27,062 | INFO | Generated labels: 3489 positive, 3636 negative
+2026-09-12 11:41:27,066 | INFO | Generated labels: 3481 positive, 3644 negative
+2026-09-12 11:41:27,071 | INFO | Generated labels: 3370 positive, 3755 negative
+2026-09-12 11:41:27,074 | INFO | Generated labels: 3468 positive, 3657 negative
+2026-09-12 11:41:27,079 | INFO | Generated labels: 3537 positive, 3588 negative
+2026-09-12 11:41:27,084 | INFO | Generated labels: 3521 positive, 3604 negative
+2026-09-12 11:41:27,088 | INFO | Generated labels: 3479 positive, 3646 negative
+2026-09-12 11:41:27,092 | INFO | Generated labels: 3496 positive, 3629 negative
+2026-09-12 11:41:27,096 | INFO | Generated labels: 3552 positive, 3573 negative
+2026-09-12 11:41:27,100 | INFO | Generated labels: 3547 positive, 3578 negative
+2026-09-12 11:41:27,104 | INFO | Generated labels: 3537 positive, 3588 negative
+2026-09-12 11:41:27,108 | INFO | Generated labels: 3521 positive, 3604 negative
+2026-09-12 11:41:27,112 | INFO | Generated labels: 3553 positive, 3572 negative
+2026-09-12 11:41:27,115 | INFO | Generated labels: 3546 positive, 3579 negative
+2026-09-12 11:41:27,120 | INFO | Generated labels: 3534 positive, 3591 negative
+2026-09-12 11:41:27,124 | INFO | Generated labels: 3513 positive, 3612 negative
+2026-09-12 11:41:27,128 | INFO | Generated labels: 3528 positive, 3597 negative
+2026-09-12 11:41:27,130 | INFO |   Labels shape: (341996,), Positive: 168358, Negative: 173638
+2026-09-12 11:41:27,130 | INFO | 
+Evaluating on VALIDATION split
+2026-09-12 11:41:27,130 | INFO |   Input shape: (341996, 8)
+2026-09-12 11:41:27,142 | INFO |   After NaN removal: (326828, 8) (15168 rows removed)
+2026-09-12 11:41:27,543 | INFO | ✅ VALIDATION Results:
+2026-09-12 11:41:27,543 | INFO |    Accuracy:  0.5063
+2026-09-12 11:41:27,543 | INFO |    Precision: 0.5154
+2026-09-12 11:41:27,543 | INFO |    Recall:    0.0109
+2026-09-12 11:41:27,543 | INFO |    F1:        0.0213
+2026-09-12 11:41:27,543 | INFO |    AUC:       0.5085
+2026-09-12 11:41:27,544 | INFO | 
+
+PHASE 3: TEST HOLDOUT
+2026-09-12 11:41:27,544 | INFO | --------------------------------------------------------------------------------
+2026-09-12 11:41:27,544 | INFO | Loading test split...
+2026-09-12 11:41:27,799 | INFO |   Loaded 48 symbols, shape: (342000, 8)
+2026-09-12 11:41:27,800 | INFO | Generating labels for test...
+2026-09-12 11:41:27,806 | INFO | Generated labels: 3481 positive, 3644 negative
+2026-09-12 11:41:27,811 | INFO | Generated labels: 3433 positive, 3692 negative
+2026-09-12 11:41:27,816 | INFO | Generated labels: 3433 positive, 3692 negative
+2026-09-12 11:41:27,822 | INFO | Generated labels: 3379 positive, 3746 negative
+2026-09-12 11:41:27,826 | INFO | Generated labels: 3512 positive, 3613 negative
+2026-09-12 11:41:27,831 | INFO | Generated labels: 3461 positive, 3664 negative
+2026-09-12 11:41:27,836 | INFO | Generated labels: 3520 positive, 3605 negative
+2026-09-12 11:41:27,841 | INFO | Generated labels: 3401 positive, 3724 negative
+2026-09-12 11:41:27,846 | INFO | Generated labels: 3274 positive, 3851 negative
+2026-09-12 11:41:27,851 | INFO | Generated labels: 3372 positive, 3753 negative
+2026-09-12 11:41:27,857 | INFO | Generated labels: 3342 positive, 3783 negative
+2026-09-12 11:41:27,863 | INFO | Generated labels: 3360 positive, 3765 negative
+2026-09-12 11:41:27,870 | INFO | Generated labels: 3368 positive, 3757 negative
+2026-09-12 11:41:27,876 | INFO | Generated labels: 3441 positive, 3684 negative
+2026-09-12 11:41:27,882 | INFO | Generated labels: 3422 positive, 3703 negative
+2026-09-12 11:41:27,888 | INFO | Generated labels: 3484 positive, 3641 negative
+2026-09-12 11:41:27,894 | INFO | Generated labels: 3202 positive, 3923 negative
+2026-09-12 11:41:27,900 | INFO | Generated labels: 3345 positive, 3780 negative
+2026-09-12 11:41:27,905 | INFO | Generated labels: 3416 positive, 3709 negative
+2026-09-12 11:41:27,911 | INFO | Generated labels: 3504 positive, 3621 negative
+2026-09-12 11:41:27,917 | INFO | Generated labels: 3377 positive, 3748 negative
+2026-09-12 11:41:27,923 | INFO | Generated labels: 3363 positive, 3762 negative
+2026-09-12 11:41:27,928 | INFO | Generated labels: 3490 positive, 3635 negative
+2026-09-12 11:41:27,934 | INFO | Generated labels: 3266 positive, 3859 negative
+2026-09-12 11:41:27,939 | INFO | Generated labels: 3062 positive, 4063 negative
+2026-09-12 11:41:27,945 | INFO | Generated labels: 3414 positive, 3711 negative
+2026-09-12 11:41:27,954 | INFO | Generated labels: 3395 positive, 3730 negative
+2026-09-12 11:41:27,964 | INFO | Generated labels: 3355 positive, 3770 negative
+2026-09-12 11:41:27,973 | INFO | Generated labels: 3449 positive, 3676 negative
+2026-09-12 11:41:27,984 | INFO | Generated labels: 3382 positive, 3743 negative
+2026-09-12 11:41:27,997 | INFO | Generated labels: 3434 positive, 3691 negative
+2026-09-12 11:41:28,008 | INFO | Generated labels: 3444 positive, 3681 negative
+2026-09-12 11:41:28,023 | INFO | Generated labels: 3221 positive, 3904 negative
+2026-09-12 11:41:28,031 | INFO | Generated labels: 3095 positive, 4030 negative
+2026-09-12 11:41:28,042 | INFO | Generated labels: 3188 positive, 3937 negative
+2026-09-12 11:41:28,057 | INFO | Generated labels: 3296 positive, 3829 negative
+2026-09-12 11:41:28,063 | INFO | Generated labels: 3403 positive, 3722 negative
+2026-09-12 11:41:28,070 | INFO | Generated labels: 3303 positive, 3822 negative
+2026-09-12 11:41:28,076 | INFO | Generated labels: 3426 positive, 3699 negative
+2026-09-12 11:41:28,082 | INFO | Generated labels: 3395 positive, 3730 negative
+2026-09-12 11:41:28,092 | INFO | Generated labels: 3361 positive, 3764 negative
+2026-09-12 11:41:28,104 | INFO | Generated labels: 3381 positive, 3744 negative
+2026-09-12 11:41:28,110 | INFO | Generated labels: 3292 positive, 3833 negative
+2026-09-12 11:41:28,116 | INFO | Generated labels: 3256 positive, 3869 negative
+2026-09-12 11:41:28,122 | INFO | Generated labels: 3449 positive, 3676 negative
+2026-09-12 11:41:28,127 | INFO | Generated labels: 3480 positive, 3645 negative
+2026-09-12 11:41:28,132 | INFO | Generated labels: 3404 positive, 3721 negative
+2026-09-12 11:41:28,137 | INFO | Generated labels: 3312 positive, 3813 negative
+2026-09-12 11:41:28,139 | INFO |   Labels shape: (342000,), Positive: 161843, Negative: 180157
+2026-09-12 11:41:28,139 | INFO | 
+Evaluating on TEST split
+2026-09-12 11:41:28,139 | INFO |   Input shape: (342000, 8)
+2026-09-12 11:41:28,157 | INFO |   After NaN removal: (326832, 8) (15168 rows removed)
+2026-09-12 11:41:28,574 | INFO | ✅ TEST Results:
+2026-09-12 11:41:28,574 | INFO |    Accuracy:  0.5261
+2026-09-12 11:41:28,574 | INFO |    Precision: 0.4958
+2026-09-12 11:41:28,574 | INFO |    Recall:    0.0027
+2026-09-12 11:41:28,574 | INFO |    F1:        0.0053
+2026-09-12 11:41:28,574 | INFO |    AUC:       0.4997
+2026-09-12 11:41:28,576 | INFO | 
+
+PHASE 4: SEALED CONFIRMATION
+2026-09-12 11:41:28,577 | INFO | --------------------------------------------------------------------------------
+2026-09-12 11:41:28,577 | INFO | Loading sealed_confirmation split...
+2026-09-12 11:41:28,816 | INFO |   Loaded 48 symbols, shape: (360000, 8)
+2026-09-12 11:41:28,817 | INFO | Generating labels for sealed_confirmation...
+2026-09-12 11:41:28,822 | INFO | Generated labels: 3612 positive, 3888 negative
+2026-09-12 11:41:28,826 | INFO | Generated labels: 3525 positive, 3975 negative
+2026-09-12 11:41:28,831 | INFO | Generated labels: 3551 positive, 3949 negative
+2026-09-12 11:41:28,836 | INFO | Generated labels: 3524 positive, 3976 negative
+2026-09-12 11:41:28,842 | INFO | Generated labels: 3577 positive, 3923 negative
+2026-09-12 11:41:28,846 | INFO | Generated labels: 3318 positive, 4182 negative
+2026-09-12 11:41:28,852 | INFO | Generated labels: 3567 positive, 3933 negative
+2026-09-12 11:41:28,857 | INFO | Generated labels: 3708 positive, 3792 negative
+2026-09-12 11:41:28,862 | INFO | Generated labels: 3485 positive, 4015 negative
+2026-09-12 11:41:28,867 | INFO | Generated labels: 3664 positive, 3836 negative
+2026-09-12 11:41:28,872 | INFO | Generated labels: 3475 positive, 4025 negative
+2026-09-12 11:41:28,878 | INFO | Generated labels: 3328 positive, 4172 negative
+2026-09-12 11:41:28,882 | INFO | Generated labels: 3489 positive, 4011 negative
+2026-09-12 11:41:28,887 | INFO | Generated labels: 3626 positive, 3874 negative
+2026-09-12 11:41:28,892 | INFO | Generated labels: 3389 positive, 4111 negative
+2026-09-12 11:41:28,898 | INFO | Generated labels: 3640 positive, 3860 negative
+2026-09-12 11:41:28,903 | INFO | Generated labels: 3536 positive, 3964 negative
+2026-09-12 11:41:28,907 | INFO | Generated labels: 3552 positive, 3948 negative
+2026-09-12 11:41:28,912 | INFO | Generated labels: 3398 positive, 4102 negative
+2026-09-12 11:41:28,918 | INFO | Generated labels: 3486 positive, 4014 negative
+2026-09-12 11:41:28,922 | INFO | Generated labels: 3448 positive, 4052 negative
+2026-09-12 11:41:28,927 | INFO | Generated labels: 3636 positive, 3864 negative
+2026-09-12 11:41:28,932 | INFO | Generated labels: 3818 positive, 3682 negative
+2026-09-12 11:41:28,936 | INFO | Generated labels: 3379 positive, 4121 negative
+2026-09-12 11:41:28,941 | INFO | Generated labels: 3324 positive, 4176 negative
+2026-09-12 11:41:28,945 | INFO | Generated labels: 3404 positive, 4096 negative
+2026-09-12 11:41:28,949 | INFO | Generated labels: 3495 positive, 4005 negative
+2026-09-12 11:41:28,954 | INFO | Generated labels: 3590 positive, 3910 negative
+2026-09-12 11:41:28,958 | INFO | Generated labels: 3607 positive, 3893 negative
+2026-09-12 11:41:28,963 | INFO | Generated labels: 3584 positive, 3916 negative
+2026-09-12 11:41:28,968 | INFO | Generated labels: 3507 positive, 3993 negative
+2026-09-12 11:41:28,972 | INFO | Generated labels: 3751 positive, 3749 negative
+2026-09-12 11:41:28,977 | INFO | Generated labels: 3434 positive, 4066 negative
+2026-09-12 11:41:28,982 | INFO | Generated labels: 3195 positive, 4305 negative
+2026-09-12 11:41:28,986 | INFO | Generated labels: 3372 positive, 4128 negative
+2026-09-12 11:41:28,991 | INFO | Generated labels: 3470 positive, 4030 negative
+2026-09-12 11:41:28,995 | INFO | Generated labels: 3483 positive, 4017 negative
+2026-09-12 11:41:29,000 | INFO | Generated labels: 3658 positive, 3842 negative
+2026-09-12 11:41:29,005 | INFO | Generated labels: 3647 positive, 3853 negative
+2026-09-12 11:41:29,010 | INFO | Generated labels: 3711 positive, 3789 negative
+2026-09-12 11:41:29,014 | INFO | Generated labels: 3468 positive, 4032 negative
+2026-09-12 11:41:29,018 | INFO | Generated labels: 3610 positive, 3890 negative
+2026-09-12 11:41:29,024 | INFO | Generated labels: 3480 positive, 4020 negative
+2026-09-12 11:41:29,029 | INFO | Generated labels: 3586 positive, 3914 negative
+2026-09-12 11:41:29,033 | INFO | Generated labels: 3682 positive, 3818 negative
+2026-09-12 11:41:29,038 | INFO | Generated labels: 3629 positive, 3871 negative
+2026-09-12 11:41:29,042 | INFO | Generated labels: 3507 positive, 3993 negative
+2026-09-12 11:41:29,047 | INFO | Generated labels: 3562 positive, 3938 negative
+2026-09-12 11:41:29,050 | INFO |   Labels shape: (360000,), Positive: 169487, Negative: 190513
+2026-09-12 11:41:29,050 | INFO | 
+Evaluating on SEALED_CONFIRMATION split
+2026-09-12 11:41:29,050 | INFO |   Input shape: (360000, 8)
+2026-09-12 11:41:29,069 | INFO |   After NaN removal: (344832, 8) (15168 rows removed)
+2026-09-12 11:41:29,499 | INFO | ✅ SEALED_CONFIRMATION Results:
+2026-09-12 11:41:29,500 | INFO |    Accuracy:  0.5280
+2026-09-12 11:41:29,500 | INFO |    Precision: 0.5469
+2026-09-12 11:41:29,500 | INFO |    Recall:    0.0028
+2026-09-12 11:41:29,500 | INFO |    F1:        0.0055
+2026-09-12 11:41:29,500 | INFO |    AUC:       0.5065
+2026-09-12 11:41:29,500 | INFO | 
+
+PHASE 5: MODEL PERSISTENCE
+2026-09-12 11:41:29,500 | INFO | --------------------------------------------------------------------------------
+2026-09-12 11:41:29,501 | INFO | ✅ Model saved: revision2_external/frozen_models_2026/logistic_regression_frozen.pkl
+2026-09-12 11:41:29,501 | INFO |    Scaler: revision2_external/frozen_models_2026/feature_scaler.pkl
+2026-09-12 11:41:29,501 | INFO |    Stats: revision2_external/frozen_models_2026/training_stats.json
+2026-09-12 11:41:29,501 | INFO | 
+
+================================================================================
+2026-09-12 11:41:29,501 | INFO | FINAL RESULTS SUMMARY
+2026-09-12 11:41:29,501 | INFO | ================================================================================
+2026-09-12 11:41:29,501 | INFO | 
+TRAIN               : Acc=0.5254, Prec=0.5115, Rec=0.0053, F1=0.0104, AUC=0.5096
+2026-09-12 11:41:29,501 | INFO | 
+VALIDATION          : Acc=0.5063, Prec=0.5154, Rec=0.0109, F1=0.0213, AUC=0.5085
+2026-09-12 11:41:29,501 | INFO | 
+TEST                : Acc=0.5261, Prec=0.4958, Rec=0.0027, F1=0.0053, AUC=0.4997
+2026-09-12 11:41:29,501 | INFO | 
+SEALED_CONFIRMATION : Acc=0.5280, Prec=0.5469, Rec=0.0028, F1=0.0055, AUC=0.5065
+2026-09-12 11:41:29,501 | INFO | 
+✅ Results saved: revision2_external/frozen_models_2026/all_results.json

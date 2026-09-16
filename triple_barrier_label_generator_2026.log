@@ -1,0 +1,211 @@
+2026-09-12 13:02:51,629 | INFO | ✅ TripleBarrierLabelGenerator initialized
+2026-09-12 13:02:51,629 | INFO |    Holding Period: 45 bars (45 minutes)
+2026-09-12 13:02:51,630 | INFO |    Profit Target: +1.5×ATR(14)
+2026-09-12 13:02:51,630 | INFO |    Stop Loss: -1.0×ATR(14)
+2026-09-12 13:02:51,630 | INFO |    Entry: Open of bar t+1
+2026-09-12 13:02:51,630 | INFO | 
+================================================================================
+2026-09-12 13:02:51,630 | INFO | TRIPLE-BARRIER LABEL GENERATION - TRAIN SPLIT (45-BAR HORIZON)
+2026-09-12 13:02:51,630 | INFO | ================================================================================
+
+2026-09-12 13:02:51,630 | INFO | Processing 48 symbols...
+
+2026-09-12 13:02:51,672 | ERROR | [1/48] ADANIENT        - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:02:51,689 | ERROR | [2/48] ADANIPORTS      - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:02:51,705 | ERROR | [3/48] APOLLOHOSP      - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:51,720 | ERROR | [4/48] ASIANPAINT      - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:51,736 | ERROR | [5/48] AXISBANK        - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:51,751 | ERROR | [6/48] BAJAJ-AUTO      - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:51,766 | ERROR | [7/48] BAJAJFINSV      - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:51,782 | ERROR | [8/48] BAJFINANCE      - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:51,796 | ERROR | [9/48] BEL             - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:51,811 | ERROR | [10/48] BHARTIARTL      - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:51,824 | ERROR | [11/48] CIPLA           - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:51,838 | ERROR | [12/48] COALINDIA       - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:02:51,851 | ERROR | [13/48] DRREDDY         - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:51,864 | ERROR | [14/48] EICHERMOT       - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:51,877 | ERROR | [15/48] ETERNAL         - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:02:51,892 | ERROR | [16/48] GRASIM          - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:51,906 | ERROR | [17/48] HCLTECH         - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:51,922 | ERROR | [18/48] HDFCBANK        - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:51,937 | ERROR | [19/48] HDFCLIFE        - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:51,950 | ERROR | [20/48] HINDALCO        - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:51,964 | ERROR | [21/48] HINDUNILVR      - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:51,979 | ERROR | [22/48] ICICIBANK       - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:51,991 | ERROR | [23/48] INDIGO          - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:02:52,006 | ERROR | [24/48] INFY            - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:52,019 | ERROR | [25/48] ITC             - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:52,031 | ERROR | [26/48] JIOFIN          - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:52,046 | ERROR | [27/48] JSWSTEEL        - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:52,061 | ERROR | [28/48] KOTAKBANK       - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:52,076 | ERROR | [29/48] LT              - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:52,090 | ERROR | [30/48] M&M             - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:52,102 | ERROR | [31/48] MARUTI          - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:52,116 | ERROR | [32/48] MAXHEALTH       - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:52,131 | ERROR | [33/48] NTPC            - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:02:52,147 | ERROR | [34/48] ONGC            - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:52,162 | ERROR | [35/48] POWERGRID       - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:02:52,176 | ERROR | [36/48] RELIANCE        - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:02:52,191 | ERROR | [37/48] SBILIFE         - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:52,205 | ERROR | [38/48] SBIN            - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:52,218 | ERROR | [39/48] SHRIRAMFIN      - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:02:52,233 | ERROR | [40/48] SUNPHARMA       - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:52,245 | ERROR | [41/48] TATACONSUM      - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:52,259 | ERROR | [42/48] TATASTEEL       - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:52,274 | ERROR | [43/48] TCS             - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:52,287 | ERROR | [44/48] TECHM           - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:52,302 | ERROR | [45/48] TITAN           - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:52,315 | ERROR | [46/48] TRENT           - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:02:52,329 | ERROR | [47/48] ULTRACEMCO      - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:02:52,342 | ERROR | [48/48] WIPRO           - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:02:52,342 | INFO | 
+================================================================================
+2026-09-12 13:02:52,342 | INFO | AGGREGATE STATISTICS
+2026-09-12 13:02:52,342 | INFO | ================================================================================
+
+2026-09-12 13:02:52,342 | INFO | Total labeled bars: 0
+2026-09-12 13:02:52,342 | INFO |   TARGET_FIRST: 0 (0.00%)
+2026-09-12 13:03:11,588 | INFO | ✅ TripleBarrierLabelGenerator initialized
+2026-09-12 13:03:11,588 | INFO |    Holding Period: 45 bars (45 minutes)
+2026-09-12 13:03:11,588 | INFO |    Profit Target: +1.5×ATR(14)
+2026-09-12 13:03:11,588 | INFO |    Stop Loss: -1.0×ATR(14)
+2026-09-12 13:03:11,588 | INFO |    Entry: Open of bar t+1
+2026-09-12 13:03:11,588 | INFO | 
+================================================================================
+2026-09-12 13:03:11,588 | INFO | TRIPLE-BARRIER LABEL GENERATION - TRAIN SPLIT (45-BAR HORIZON)
+2026-09-12 13:03:11,588 | INFO | ================================================================================
+
+2026-09-12 13:03:11,589 | INFO | Processing 48 symbols...
+
+2026-09-12 13:03:11,633 | ERROR | [1/48] ADANIENT        - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:03:11,649 | ERROR | [2/48] ADANIPORTS      - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:03:11,663 | ERROR | [3/48] APOLLOHOSP      - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:11,677 | ERROR | [4/48] ASIANPAINT      - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:11,693 | ERROR | [5/48] AXISBANK        - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:11,709 | ERROR | [6/48] BAJAJ-AUTO      - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:11,723 | ERROR | [7/48] BAJAJFINSV      - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:11,737 | ERROR | [8/48] BAJFINANCE      - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:11,752 | ERROR | [9/48] BEL             - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:11,766 | ERROR | [10/48] BHARTIARTL      - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:11,779 | ERROR | [11/48] CIPLA           - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:11,793 | ERROR | [12/48] COALINDIA       - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:03:11,806 | ERROR | [13/48] DRREDDY         - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:11,820 | ERROR | [14/48] EICHERMOT       - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:11,834 | ERROR | [15/48] ETERNAL         - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:03:11,848 | ERROR | [16/48] GRASIM          - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:11,865 | ERROR | [17/48] HCLTECH         - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:11,879 | ERROR | [18/48] HDFCBANK        - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:11,895 | ERROR | [19/48] HDFCLIFE        - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:11,911 | ERROR | [20/48] HINDALCO        - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:11,924 | ERROR | [21/48] HINDUNILVR      - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:11,939 | ERROR | [22/48] ICICIBANK       - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:11,953 | ERROR | [23/48] INDIGO          - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:03:11,969 | ERROR | [24/48] INFY            - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:11,984 | ERROR | [25/48] ITC             - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:11,997 | ERROR | [26/48] JIOFIN          - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:12,012 | ERROR | [27/48] JSWSTEEL        - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:12,026 | ERROR | [28/48] KOTAKBANK       - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:12,040 | ERROR | [29/48] LT              - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:12,055 | ERROR | [30/48] M&M             - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:12,067 | ERROR | [31/48] MARUTI          - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:12,080 | ERROR | [32/48] MAXHEALTH       - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:12,094 | ERROR | [33/48] NTPC            - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:03:12,109 | ERROR | [34/48] ONGC            - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:12,124 | ERROR | [35/48] POWERGRID       - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:03:12,137 | ERROR | [36/48] RELIANCE        - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:03:12,151 | ERROR | [37/48] SBILIFE         - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:12,163 | ERROR | [38/48] SBIN            - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:12,176 | ERROR | [39/48] SHRIRAMFIN      - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:03:12,189 | ERROR | [40/48] SUNPHARMA       - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:12,202 | ERROR | [41/48] TATACONSUM      - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:12,216 | ERROR | [42/48] TATASTEEL       - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:12,229 | ERROR | [43/48] TCS             - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:12,242 | ERROR | [44/48] TECHM           - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:12,256 | ERROR | [45/48] TITAN           - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:12,269 | ERROR | [46/48] TRENT           - ERROR: could not convert string to float: 'STOP_FIRST'
+2026-09-12 13:03:12,283 | ERROR | [47/48] ULTRACEMCO      - ERROR: could not convert string to float: 'TIMEOUT'
+2026-09-12 13:03:12,296 | ERROR | [48/48] WIPRO           - ERROR: could not convert string to float: 'TARGET_FIRST'
+2026-09-12 13:03:12,296 | INFO | 
+================================================================================
+2026-09-12 13:03:12,296 | INFO | AGGREGATE STATISTICS
+2026-09-12 13:03:12,296 | INFO | ================================================================================
+
+2026-09-12 13:03:12,296 | INFO | Total labeled bars: 0
+2026-09-12 13:03:12,296 | INFO |   TARGET_FIRST: 0 (0.00%)
+2026-09-12 13:03:12,296 | INFO |   STOP_FIRST:   0 (0.00%)
+2026-09-12 13:03:12,296 | INFO |   TIMEOUT:      0 (0.00%)
+2026-09-12 13:03:12,297 | INFO | 
+Saving labels...
+2026-09-12 13:03:55,755 | INFO | ✅ TripleBarrierLabelGenerator initialized
+2026-09-12 13:03:55,755 | INFO |    Holding Period: 45 bars (45 minutes)
+2026-09-12 13:03:55,755 | INFO |    Profit Target: +1.5×ATR(14)
+2026-09-12 13:03:55,755 | INFO |    Stop Loss: -1.0×ATR(14)
+2026-09-12 13:03:55,755 | INFO |    Entry: Open of bar t+1
+2026-09-12 13:03:55,755 | INFO | 
+================================================================================
+2026-09-12 13:03:55,755 | INFO | TRIPLE-BARRIER LABEL GENERATION - TRAIN SPLIT (45-BAR HORIZON)
+2026-09-12 13:03:55,755 | INFO | ================================================================================
+
+2026-09-12 13:03:55,756 | INFO | Processing 48 symbols...
+
+2026-09-12 13:03:57,245 | INFO | [1/48] ADANIENT        ✅ ( 22454 bars, 36.65% target-first)
+2026-09-12 13:03:58,771 | INFO | [2/48] ADANIPORTS      ✅ ( 22454 bars, 37.69% target-first)
+2026-09-12 13:04:00,316 | INFO | [3/48] APOLLOHOSP      ✅ ( 22454 bars, 39.12% target-first)
+2026-09-12 13:04:01,992 | INFO | [4/48] ASIANPAINT      ✅ ( 22454 bars, 39.09% target-first)
+2026-09-12 13:04:03,677 | INFO | [5/48] AXISBANK        ✅ ( 22454 bars, 37.68% target-first)
+2026-09-12 13:04:05,199 | INFO | [6/48] BAJAJ-AUTO      ✅ ( 22454 bars, 40.58% target-first)
+2026-09-12 13:04:06,788 | INFO | [7/48] BAJAJFINSV      ✅ ( 22454 bars, 38.34% target-first)
+2026-09-12 13:04:08,449 | INFO | [8/48] BAJFINANCE      ✅ ( 22454 bars, 39.31% target-first)
+2026-09-12 13:04:10,086 | INFO | [9/48] BEL             ✅ ( 22454 bars, 38.59% target-first)
+2026-09-12 13:04:11,597 | INFO | [10/48] BHARTIARTL      ✅ ( 22454 bars, 39.65% target-first)
+2026-09-12 13:04:13,274 | INFO | [11/48] CIPLA           ✅ ( 22454 bars, 39.17% target-first)
+2026-09-12 13:04:15,011 | INFO | [12/48] COALINDIA       ✅ ( 22454 bars, 39.49% target-first)
+2026-09-12 13:04:16,662 | INFO | [13/48] DRREDDY         ✅ ( 22454 bars, 39.19% target-first)
+2026-09-12 13:04:18,186 | INFO | [14/48] EICHERMOT       ✅ ( 22454 bars, 40.87% target-first)
+2026-09-12 13:04:19,701 | INFO | [15/48] ETERNAL         ✅ ( 22454 bars, 38.22% target-first)
+2026-09-12 13:04:21,260 | INFO | [16/48] GRASIM          ✅ ( 22454 bars, 37.25% target-first)
+2026-09-12 13:04:22,826 | INFO | [17/48] HCLTECH         ✅ ( 22454 bars, 38.33% target-first)
+2026-09-12 13:04:24,508 | INFO | [18/48] HDFCBANK        ✅ ( 22454 bars, 36.02% target-first)
+2026-09-12 13:04:26,210 | INFO | [19/48] HDFCLIFE        ✅ ( 22454 bars, 37.98% target-first)
+2026-09-12 13:04:27,670 | INFO | [20/48] HINDALCO        ✅ ( 22454 bars, 40.18% target-first)
+2026-09-12 13:04:29,324 | INFO | [21/48] HINDUNILVR      ✅ ( 22454 bars, 38.65% target-first)
+2026-09-12 13:04:30,931 | INFO | [22/48] ICICIBANK       ✅ ( 22454 bars, 39.56% target-first)
+2026-09-12 13:04:32,527 | INFO | [23/48] INDIGO          ✅ ( 22454 bars, 38.10% target-first)
+2026-09-12 13:04:34,119 | INFO | [24/48] INFY            ✅ ( 22454 bars, 37.91% target-first)
+2026-09-12 13:04:35,781 | INFO | [25/48] ITC             ✅ ( 22454 bars, 35.02% target-first)
+2026-09-12 13:04:37,332 | INFO | [26/48] JIOFIN          ✅ ( 22454 bars, 34.44% target-first)
+2026-09-12 13:04:38,786 | INFO | [27/48] JSWSTEEL        ✅ ( 22454 bars, 37.28% target-first)
+2026-09-12 13:04:40,427 | INFO | [28/48] KOTAKBANK       ✅ ( 22454 bars, 35.58% target-first)
+2026-09-12 13:04:42,171 | INFO | [29/48] LT              ✅ ( 22454 bars, 38.64% target-first)
+2026-09-12 13:04:43,689 | INFO | [30/48] M&M             ✅ ( 22454 bars, 38.83% target-first)
+2026-09-12 13:04:45,240 | INFO | [31/48] MARUTI          ✅ ( 22454 bars, 39.46% target-first)
+2026-09-12 13:04:46,944 | INFO | [32/48] MAXHEALTH       ✅ ( 22454 bars, 40.63% target-first)
+2026-09-12 13:04:48,674 | INFO | [33/48] NTPC            ✅ ( 22454 bars, 40.92% target-first)
+2026-09-12 13:04:50,290 | INFO | [34/48] ONGC            ✅ ( 22454 bars, 40.30% target-first)
+2026-09-12 13:04:51,839 | INFO | [35/48] POWERGRID       ✅ ( 22454 bars, 39.00% target-first)
+2026-09-12 13:04:53,365 | INFO | [36/48] RELIANCE        ✅ ( 22454 bars, 37.21% target-first)
+2026-09-12 13:04:55,056 | INFO | [37/48] SBILIFE         ✅ ( 22454 bars, 39.48% target-first)
+2026-09-12 13:04:56,589 | INFO | [38/48] SBIN            ✅ ( 22454 bars, 38.81% target-first)
+2026-09-12 13:04:58,125 | INFO | [39/48] SHRIRAMFIN      ✅ ( 22454 bars, 38.58% target-first)
+2026-09-12 13:04:59,780 | INFO | [40/48] SUNPHARMA       ✅ ( 22454 bars, 37.88% target-first)
+2026-09-12 13:05:01,376 | INFO | [41/48] TATACONSUM      ✅ ( 22454 bars, 38.26% target-first)
+2026-09-12 13:05:03,083 | INFO | [42/48] TATASTEEL       ✅ ( 22454 bars, 39.02% target-first)
+2026-09-12 13:05:04,770 | INFO | [43/48] TCS             ✅ ( 22454 bars, 37.37% target-first)
+2026-09-12 13:05:06,410 | INFO | [44/48] TECHM           ✅ ( 22454 bars, 37.58% target-first)
+2026-09-12 13:05:08,027 | INFO | [45/48] TITAN           ✅ ( 22454 bars, 37.70% target-first)
+2026-09-12 13:05:09,681 | INFO | [46/48] TRENT           ✅ ( 22454 bars, 37.69% target-first)
+2026-09-12 13:05:11,422 | INFO | [47/48] ULTRACEMCO      ✅ ( 22454 bars, 39.97% target-first)
+2026-09-12 13:05:13,062 | INFO | [48/48] WIPRO           ✅ ( 22454 bars, 35.61% target-first)
+2026-09-12 13:05:13,062 | INFO | 
+================================================================================
+2026-09-12 13:05:13,062 | INFO | AGGREGATE STATISTICS
+2026-09-12 13:05:13,062 | INFO | ================================================================================
+
+2026-09-12 13:05:13,063 | INFO | Total labeled bars: 1,077,792
+2026-09-12 13:05:13,063 | INFO |   TARGET_FIRST: 413,809 (38.39%)
+2026-09-12 13:05:13,063 | INFO |   STOP_FIRST:   661,240 (61.35%)
+2026-09-12 13:05:13,063 | INFO |   TIMEOUT:      2,743 (0.25%)
+2026-09-12 13:05:13,063 | INFO | 
+Saving labels...
+2026-09-12 13:05:13,092 | INFO |   ✅ Labels: revision2/labels_triple_barrier_2026/train_labels.parquet
+2026-09-12 13:05:13,097 | INFO |   ✅ Metadata: revision2/labels_triple_barrier_2026/label_generation_metadata.json

@@ -1,0 +1,27 @@
+2026-09-12 15:09:37,683 | INFO | ✅ Loaded FROZEN macro-gate model
+2026-09-12 15:09:37,984 | INFO | ✅ Loaded validation features: (341996, 10)
+2026-09-12 15:10:56,039 | INFO | ✅ Generated 341,950 labels
+2026-09-12 15:10:56,099 | INFO | ✅ Scored 337,628 samples
+2026-09-12 15:10:56,120 | INFO | 
+Total audit samples: 337,583
+2026-09-12 15:10:56,121 | INFO | Base win rate: 39.52%
+2026-09-12 15:10:56,126 | INFO | Intrabar ambiguity: 461 (0.14%)
+2026-09-12 15:10:56,131 | INFO | 
+================================================================================
+2026-09-12 15:10:56,132 | INFO | APRIL 2026 VALIDATION RESULTS (MACRO-GATE MODEL)
+2026-09-12 15:10:56,132 | INFO | ================================================================================
+2026-09-12 15:10:56,132 | INFO | 
+Top 1.0% Cohort:
+2026-09-12 15:10:56,132 | INFO |   N samples: 3,376
+2026-09-12 15:10:56,132 | INFO |   N resolved: 3,366
+2026-09-12 15:10:56,132 | INFO |   Intrabar ambiguous: 10
+2026-09-12 15:10:56,132 | INFO |   Win rate: 42.45%
+2026-09-12 15:10:56,132 | INFO |   Gross P&L: 0.0613R
+2026-09-12 15:10:56,132 | INFO |   Friction: 0.2700R
+2026-09-12 15:10:56,132 | INFO |   Net P&L: -0.53 bps
+2026-09-12 15:10:56,132 | INFO | 
+KILL-SWITCH VERDICT:
+2026-09-12 15:10:56,132 | INFO |   Hurdle (≥50.80%): 42.45% ❌ FAIL
+2026-09-12 15:10:56,132 | INFO |   Min P&L (>0.0 bps): -0.53 bps ❌ FAIL
+2026-09-12 15:10:56,132 | ERROR | 
+❌ VALIDATION FAILED - STOP

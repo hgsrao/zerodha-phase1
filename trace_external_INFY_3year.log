@@ -1,0 +1,87 @@
+[10:37:24.555] [0001] ⊙ Initialize                               | Loading parameter registry
+[10:37:24.555] [0002] ✓ Initialize                               | Registry loaded
+         {
+           "parameters": 69,
+           "calibratable": 47
+         }
+[10:37:24.555] [0003] ⊙ Instantiate                              | Create Revision2ExternalEngineOrchestrator([INFY])
+[10:37:24.563] [0004] ✓ Instantiate                              | Orchestrator created
+         {
+           "symbol": "INFY",
+           "starting_equity": 1000000.0,
+           "engine_type": "Revision2ExternalEngineOrchestrator"
+         }
+[10:37:24.563] [0005] ⊙ Backtest                                 | Run on 291,140 bars, warmup=60
+         {
+           "first_bar_timestamp": "2023-07-03 09:15:00+05:30",
+           "last_bar_timestamp": "2026-08-24 15:14:00+05:30",
+           "data_columns": [
+             "timestamp",
+             "open",
+             "high",
+             "low",
+             "close",
+             "volume"
+           ]
+         }
+[11:31:37.205] [0006] ✓ Backtest                                 | Completed
+         {
+           "bars_processed": 291079,
+           "trades_executed": 396,
+           "net_pnl": -82410.87590761167,
+           "win_rate": 0,
+           "max_drawdown": 0,
+           "profit_factor": 0
+         }
+[11:31:37.205] [0007] ✓ Trades                                   | Generated 396 trades
+         {
+           "trades_sample": [
+             {
+               "entry_price": 1338.4689,
+               "exit_price": 1337.0141,
+               "quantity": 100,
+               "pnl": -145.47999999999774,
+               "bars_held": null
+             },
+             {
+               "entry_price": 1337.6685,
+               "exit_price": 1338.6421,
+               "quantity": 100,
+               "pnl": 97.36000000000331,
+               "bars_held": null
+             },
+             {
+               "entry_price": 1339.9697,
+               "exit_price": 1338.5291,
+               "quantity": 100,
+               "pnl": -144.06000000001313,
+               "bars_held": null
+             },
+             {
+               "entry_price": 1355.5219,
+               "exit_price": 1357.8294,
+               "quantity": 99,
+               "pnl": -228.4425000000117,
+               "bars_held": null
+             },
+             {
+               "entry_price": 1365.4824,
+               "exit_price": 1364.0053,
+               "quantity": 98,
+               "pnl": -144.75580000000627,
+               "bars_held": null
+             },
+             "..."
+           ]
+         }
+[11:31:37.205] [0008] ✓ Summary                                  | External engine complete
+         {
+           "engine": "Revision2ExternalEngineOrchestrator",
+           "symbol": "INFY",
+           "period": "3 years (2023-07-03 to 2026-08-24)",
+           "total_trades": 396,
+           "net_pnl_rupees": -82410.87590761167,
+           "win_rate_pct": 0,
+           "max_drawdown_pct": 0,
+           "profit_factor": 0
+         }

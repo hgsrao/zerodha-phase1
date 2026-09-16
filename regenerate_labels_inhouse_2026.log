@@ -1,0 +1,99 @@
+2026-09-12 12:52:13,067 | INFO | ✅ InHouseLabelGenerator initialized
+2026-09-12 12:52:13,067 | INFO |    Features: revision2/features_mtf_2026
+2026-09-12 12:52:13,067 | INFO |    Output labels: /home/shrinivas/ECS_Project_external_engine/revision2/labels_inhouse_2026
+2026-09-12 12:52:13,067 | INFO | 
+================================================================================
+2026-09-12 12:52:13,067 | INFO | IN-HOUSE ENGINE LABEL REGENERATION (TRAIN SPLIT)
+2026-09-12 12:52:13,067 | INFO | ================================================================================
+
+2026-09-12 12:52:13,067 | INFO | 
+Loading train split (in-house features)...
+2026-09-12 12:52:13,486 | INFO |   ✅ Loaded features: (1080000, 10)
+2026-09-12 12:52:13,486 | INFO |   ✅ Loaded close prices: (1080000, 1)
+2026-09-12 12:52:13,504 | INFO |   ✅ Forward returns: min=-9755.24 bps, max=158003.75 bps, mean=12.62 bps
+2026-09-12 12:52:13,505 | INFO | 
+================================================================================
+2026-09-12 12:52:13,505 | INFO | FEATURE-RETURN CORRELATION ANALYSIS
+2026-09-12 12:52:13,505 | INFO | ================================================================================
+2026-09-12 12:52:13,507 | INFO | 
+Profitable samples (>= 18 bps): 247025/1080000 (22.87%)
+2026-09-12 12:52:13,572 | INFO | 
+5m_trend:
+2026-09-12 12:52:13,572 | INFO |   Correlation with return: -0.0026
+2026-09-12 12:52:13,572 | INFO |   High values: avg return=10.26 bps, win rate=22.6%
+2026-09-12 12:52:13,572 | INFO |   Low values: avg return=14.93 bps, win rate=23.2%
+2026-09-12 12:52:13,572 | INFO |   Difference: -4.67 bps
+2026-09-12 12:52:13,633 | INFO | 
+5m_efficiency:
+2026-09-12 12:52:13,633 | INFO |   Correlation with return: -0.0033
+2026-09-12 12:52:13,633 | INFO |   High values: avg return=8.50 bps, win rate=23.4%
+2026-09-12 12:52:13,633 | INFO |   Low values: avg return=16.77 bps, win rate=22.3%
+2026-09-12 12:52:13,633 | INFO |   Difference: -8.27 bps
+2026-09-12 12:52:13,689 | INFO | 
+5m_vwap_dist_atr:
+2026-09-12 12:52:13,689 | INFO |   Correlation with return: -0.0017
+2026-09-12 12:52:13,689 | INFO |   High values: avg return=7.10 bps, win rate=22.9%
+2026-09-12 12:52:13,689 | INFO |   Low values: avg return=18.17 bps, win rate=22.8%
+2026-09-12 12:52:13,689 | INFO |   Difference: -11.07 bps
+2026-09-12 12:52:13,742 | INFO | 
+5m_realized_vol:
+2026-09-12 12:52:13,742 | INFO |   Correlation with return: 0.0015
+2026-09-12 12:52:13,742 | INFO |   High values: avg return=24.71 bps, win rate=26.7%
+2026-09-12 12:52:13,742 | INFO |   Low values: avg return=0.56 bps, win rate=19.1%
+2026-09-12 12:52:13,742 | INFO |   Difference: 24.15 bps
+2026-09-12 12:52:13,795 | INFO | 
+15m_trend:
+2026-09-12 12:52:13,795 | INFO |   Correlation with return: -0.0072
+2026-09-12 12:52:13,795 | INFO |   High values: avg return=4.07 bps, win rate=23.0%
+2026-09-12 12:52:13,795 | INFO |   Low values: avg return=20.75 bps, win rate=22.7%
+2026-09-12 12:52:13,795 | INFO |   Difference: -16.69 bps
+2026-09-12 12:52:13,884 | INFO | 
+15m_efficiency:
+2026-09-12 12:52:13,884 | INFO |   Correlation with return: 0.0061
+2026-09-12 12:52:13,884 | INFO |   High values: avg return=16.23 bps, win rate=23.7%
+2026-09-12 12:52:13,884 | INFO |   Low values: avg return=9.11 bps, win rate=22.0%
+2026-09-12 12:52:13,884 | INFO |   Difference: 7.13 bps
+2026-09-12 12:52:13,953 | INFO | 
+15m_vwap_dist_atr:
+2026-09-12 12:52:13,953 | INFO |   Correlation with return: -0.0011
+2026-09-12 12:52:13,953 | INFO |   High values: avg return=11.93 bps, win rate=22.9%
+2026-09-12 12:52:13,953 | INFO |   Low values: avg return=13.39 bps, win rate=22.8%
+2026-09-12 12:52:13,953 | INFO |   Difference: -1.46 bps
+2026-09-12 12:52:14,002 | INFO | 
+15m_realized_vol:
+2026-09-12 12:52:14,002 | INFO |   Correlation with return: -0.0013
+2026-09-12 12:52:14,002 | INFO |   High values: avg return=10.66 bps, win rate=25.3%
+2026-09-12 12:52:14,002 | INFO |   Low values: avg return=14.67 bps, win rate=20.4%
+2026-09-12 12:52:14,002 | INFO |   Difference: -4.01 bps
+2026-09-12 12:52:14,086 | INFO | 
+15m_rs_percentile:
+2026-09-12 12:52:14,086 | INFO |   Correlation with return: 0.0006
+2026-09-12 12:52:14,086 | INFO |   High values: avg return=11.57 bps, win rate=22.5%
+2026-09-12 12:52:14,086 | INFO |   Low values: avg return=13.69 bps, win rate=23.2%
+2026-09-12 12:52:14,086 | INFO |   Difference: -2.12 bps
+2026-09-12 12:52:14,169 | INFO | 
+15m_rs_excess:
+2026-09-12 12:52:14,169 | INFO |   Correlation with return: 0.0018
+2026-09-12 12:52:14,169 | INFO |   High values: avg return=11.61 bps, win rate=22.6%
+2026-09-12 12:52:14,169 | INFO |   Low values: avg return=13.64 bps, win rate=23.2%
+2026-09-12 12:52:14,169 | INFO |   Difference: -2.04 bps
+2026-09-12 12:52:14,170 | INFO | 
+================================================================================
+2026-09-12 12:52:14,170 | INFO | LABEL GENERATION: IN-HOUSE FEATURE-AWARE
+2026-09-12 12:52:14,170 | INFO | ================================================================================
+2026-09-12 12:52:14,171 | INFO | 
+Simple approach (return >= 18 bps):
+2026-09-12 12:52:14,173 | INFO |   Positive labels: 247025/1080000 (22.873%)
+2026-09-12 12:52:14,189 | INFO | 
+Multi-factor approach (efficiency + trend + vol + relative strength):
+2026-09-12 12:52:14,191 | INFO |   Positive labels: 19664/1080000 (1.821%)
+2026-09-12 12:52:14,204 | INFO | 
+Label Statistics:
+2026-09-12 12:52:14,204 | INFO |   Simple labels: 247,025 positive (22.873%)
+2026-09-12 12:52:14,204 | INFO |   Multi-factor: 19,664 positive (1.821%)
+2026-09-12 12:52:14,204 | INFO |   Avg return (all): 12.62 bps
+2026-09-12 12:52:14,204 | INFO |   Avg return (positive labels): 115.59 bps
+2026-09-12 12:52:14,204 | INFO | 
+Saving labels to /home/shrinivas/ECS_Project_external_engine/revision2/labels_inhouse_2026/...
+2026-09-12 12:52:14,220 | INFO |   ✅ Saved: /home/shrinivas/ECS_Project_external_engine/revision2/labels_inhouse_2026/train_labels_inhouse.parquet
+2026-09-12 12:52:14,220 | INFO |   ✅ Saved metadata: /home/shrinivas/ECS_Project_external_engine/revision2/labels_inhouse_2026/label_generation_metadata.json

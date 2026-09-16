@@ -1,0 +1,99 @@
+2026-09-12 12:42:04,096 | INFO | ✅ InHouseRefinedModelTrainer initialized
+2026-09-12 12:42:04,096 | INFO |    Features: revision2/features_mtf_2026
+2026-09-12 12:42:04,096 | INFO |    Labels: /home/shrinivas/ECS_ModelDevelopment_2026_MTF/labels_refined_2026
+2026-09-12 12:42:04,096 | INFO |    Output: revision2/frozen_models_inhouse_2026
+2026-09-12 12:42:04,096 | INFO | 
+================================================================================
+2026-09-12 12:42:04,096 | INFO | IN-HOUSE ENGINE MODEL TRAINING WITH REFINED LABELS
+2026-09-12 12:42:04,096 | INFO | ================================================================================
+
+2026-09-12 12:42:04,096 | INFO | PHASE 1: TRAINING ON TRAIN SPLIT
+2026-09-12 12:42:04,096 | INFO | --------------------------------------------------------------------------------
+2026-09-12 12:42:04,096 | INFO | 
+Loading train split...
+2026-09-12 12:42:42,192 | INFO | ✅ InHouseRefinedModelTrainer initialized
+2026-09-12 12:42:42,193 | INFO |    Features: revision2/features_mtf_2026
+2026-09-12 12:42:42,193 | INFO |    Labels: /home/shrinivas/ECS_ModelDevelopment_2026_MTF/labels_refined_2026
+2026-09-12 12:42:42,193 | INFO |    Output: revision2/frozen_models_inhouse_2026
+2026-09-12 12:42:42,193 | INFO | 
+================================================================================
+2026-09-12 12:42:42,193 | INFO | IN-HOUSE ENGINE MODEL TRAINING WITH REFINED LABELS
+2026-09-12 12:42:42,193 | INFO | ================================================================================
+
+2026-09-12 12:42:42,193 | INFO | Note: TRAIN split uses in-house extracted features
+2026-09-12 12:42:42,193 | INFO |       Validation/Test/Sealed require separate in-house extraction
+2026-09-12 12:42:42,193 | INFO | ================================================================================
+
+2026-09-12 12:42:42,193 | INFO | PHASE 1: TRAINING ON TRAIN SPLIT (IN-HOUSE FEATURES)
+2026-09-12 12:42:42,193 | INFO | --------------------------------------------------------------------------------
+2026-09-12 12:42:42,193 | INFO | 
+Loading train split...
+2026-09-12 12:42:42,576 | INFO |   ✅ Loaded features: (1080000, 10) (IN-HOUSE extraction)
+2026-09-12 12:42:42,582 | INFO |   ✅ Loaded labels: (1080000,), Positive: 629/1080000 (0.06%)
+2026-09-12 12:42:42,584 | INFO | 
+================================================================================
+2026-09-12 12:42:42,584 | INFO | TRAINING FROZEN LOGISTIC REGRESSION
+2026-09-12 12:42:42,584 | INFO | ================================================================================
+2026-09-12 12:42:42,584 | INFO | Input shape: (1080000, 10)
+2026-09-12 12:42:42,588 | INFO | Label distribution: {0: 1079371, 1: 629}
+2026-09-12 12:42:55,177 | INFO | ✅ InHouseRefinedModelTrainer initialized
+2026-09-12 12:42:55,177 | INFO |    Features: revision2/features_mtf_2026
+2026-09-12 12:42:55,177 | INFO |    Labels: /home/shrinivas/ECS_ModelDevelopment_2026_MTF/labels_refined_2026
+2026-09-12 12:42:55,177 | INFO |    Output: revision2/frozen_models_inhouse_2026
+2026-09-12 12:42:55,177 | INFO | 
+================================================================================
+2026-09-12 12:42:55,177 | INFO | IN-HOUSE ENGINE MODEL TRAINING WITH REFINED LABELS
+2026-09-12 12:42:55,177 | INFO | ================================================================================
+
+2026-09-12 12:42:55,177 | INFO | Note: TRAIN split uses in-house extracted features
+2026-09-12 12:42:55,177 | INFO |       Validation/Test/Sealed require separate in-house extraction
+2026-09-12 12:42:55,177 | INFO | ================================================================================
+
+2026-09-12 12:42:55,177 | INFO | PHASE 1: TRAINING ON TRAIN SPLIT (IN-HOUSE FEATURES)
+2026-09-12 12:42:55,177 | INFO | --------------------------------------------------------------------------------
+2026-09-12 12:42:55,177 | INFO | 
+Loading train split...
+2026-09-12 12:42:55,539 | INFO |   ✅ Loaded features: (1080000, 10) (IN-HOUSE extraction)
+2026-09-12 12:42:55,562 | INFO |   ✅ Loaded labels: (1080000,), Positive: 629/1080000 (0.06%)
+2026-09-12 12:42:55,563 | INFO | 
+================================================================================
+2026-09-12 12:42:55,563 | INFO | TRAINING FROZEN LOGISTIC REGRESSION
+2026-09-12 12:42:55,563 | INFO | ================================================================================
+2026-09-12 12:42:55,563 | INFO | Input shape: (1080000, 10)
+2026-09-12 12:42:55,568 | INFO | Label distribution: {0: 1079371, 1: 629}
+2026-09-12 12:42:55,607 | INFO | After NaN removal: (1075632, 10) (4368 rows removed)
+2026-09-12 12:42:55,608 | INFO | Positive label rate: 0.058%
+2026-09-12 12:42:55,751 | INFO | Feature scaling: mean=0.0000, std=1.0000
+2026-09-12 12:42:55,752 | INFO | Training LogisticRegression (fit_intercept=True, solver='lbfgs', max_iter=1000)...
+2026-09-12 12:42:58,538 | INFO | ✅ Training complete:
+2026-09-12 12:42:58,538 | INFO |    Accuracy:  0.9994
+2026-09-12 12:42:58,538 | INFO |    Precision: 0.0000
+2026-09-12 12:42:58,538 | INFO |    Recall:    0.0000
+2026-09-12 12:42:58,538 | INFO |    F1:        0.0000
+2026-09-12 12:42:58,538 | INFO |    AUC:       0.8854
+2026-09-12 12:42:58,540 | INFO | 
+================================================================================
+2026-09-12 12:42:58,540 | INFO | PENDING: Validation/Test/Sealed splits require in-house extraction
+2026-09-12 12:42:58,540 | INFO | ================================================================================
+2026-09-12 12:42:58,540 | INFO | 
+To complete cross-split validation:
+2026-09-12 12:42:58,540 | INFO | 1. Run in-house MTF extraction for VALIDATION split (Apr 2026)
+2026-09-12 12:42:58,540 | INFO | 2. Run in-house MTF extraction for TEST split (May 2026)
+2026-09-12 12:42:58,540 | INFO | 3. Run in-house MTF extraction for SEALED split (Jun 2026)
+2026-09-12 12:42:58,540 | INFO | 4. Re-run this trainer to evaluate on all holdout splits
+2026-09-12 12:42:58,540 | INFO | 
+
+PHASE 2: MODEL PERSISTENCE
+2026-09-12 12:42:58,540 | INFO | --------------------------------------------------------------------------------
+2026-09-12 12:42:58,540 | INFO | ✅ Model saved: revision2/frozen_models_inhouse_2026/logistic_regression_inhouse_refined.pkl
+2026-09-12 12:42:58,541 | INFO |    Scaler: revision2/frozen_models_inhouse_2026/feature_scaler.pkl
+2026-09-12 12:42:58,541 | INFO |    Stats: revision2/frozen_models_inhouse_2026/training_stats.json
+2026-09-12 12:42:58,541 | INFO | 
+
+================================================================================
+2026-09-12 12:42:58,541 | INFO | TRAINING COMPLETE - TRAIN SPLIT RESULTS
+2026-09-12 12:42:58,541 | INFO | ================================================================================
+2026-09-12 12:42:58,541 | INFO | 
+TRAIN                    : Acc=0.9994, Prec=0.0000, Rec=0.0000, F1=0.0000, AUC=0.8854
+2026-09-12 12:42:58,541 | INFO | 
+✅ Results saved: revision2/frozen_models_inhouse_2026/all_results.json

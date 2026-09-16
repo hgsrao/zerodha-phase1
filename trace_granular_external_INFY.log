@@ -1,0 +1,32 @@
+[10:43:49.280] [Bar 000000] ✓ Load Registry                            | 69 params, 47 calibratable
+[10:43:49.280] [Bar 000000] ✓ Create Orchestrator                      | Revision2ExternalEngineOrchestrator
+[10:43:50.436] [Bar 000000] ⊙ Call orchestrator.run()                  | Processing 5,000 bars
+[10:44:54.785] [Bar 005000] ✓ Backtest Complete                        | 62 trades
+[10:44:54.786] [Bar 000000] ✓ TRADE #1: ENTRY                          | {"timestamp": "2023-07-13 14:31:00+05:30", "price": 1338.4689, "quantity": 100, "direction": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #1: EXIT                           | {"timestamp": "2023-07-13 14:31:00+05:30", "price": 1337.0141, "pnl": -145.47999999999774, "pnl_pct": null, "bars_held": null, "exit_reason": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #2: ENTRY                          | {"timestamp": "2023-07-13 15:15:00+05:30", "price": 1337.6685, "quantity": 100, "direction": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #2: EXIT                           | {"timestamp": "2023-07-13 15:18:00+05:30", "price": 1338.6421, "pnl": 97.36000000000331, "pnl_pct": null, "bars_held": null, "exit_reason": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #3: ENTRY                          | {"timestamp": "2023-07-13 15:19:00+05:30", "price": 1339.9697, "quantity": 100, "direction": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #3: EXIT                           | {"timestamp": "2023-07-13 15:19:00+05:30", "price": 1338.5291, "pnl": -144.06000000001313, "pnl_pct": null, "bars_held": null, "exit_reason": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #4: ENTRY                          | {"timestamp": "2023-07-14 09:38:00+05:30", "price": 1355.5219, "quantity": 99, "direction": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #4: EXIT                           | {"timestamp": "2023-07-14 09:44:00+05:30", "price": 1357.8294, "pnl": -228.4425000000117, "pnl_pct": null, "bars_held": null, "exit_reason": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #5: ENTRY                          | {"timestamp": "2023-07-14 10:45:00+05:30", "price": 1365.4824, "quantity": 98, "direction": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #5: EXIT                           | {"timestamp": "2023-07-14 10:45:00+05:30", "price": 1364.0053, "pnl": -144.75580000000627, "pnl_pct": null, "bars_held": null, "exit_reason": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #6: ENTRY                          | {"timestamp": "2023-07-14 10:46:00+05:30", "price": 1365.4824, "quantity": 98, "direction": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #6: EXIT                           | {"timestamp": "2023-07-14 10:46:00+05:30", "price": 1363.9976, "pnl": -145.5104000000174, "pnl_pct": null, "bars_held": null, "exit_reason": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #7: ENTRY                          | {"timestamp": "2023-07-14 11:04:00+05:30", "price": 1367.3834, "quantity": 98, "direction": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #7: EXIT                           | {"timestamp": "2023-07-14 11:04:00+05:30", "price": 1366.0167, "pnl": -133.93660000000364, "pnl_pct": null, "bars_held": null, "exit_reason": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #8: ENTRY                          | {"timestamp": "2023-07-14 12:09:00+05:30", "price": 1371.1852, "quantity": 98, "direction": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #8: EXIT                           | {"timestamp": "2023-07-14 12:09:00+05:30", "price": 1369.8148, "pnl": -134.29919999997946, "pnl_pct": null, "bars_held": null, "exit_reason": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #9: ENTRY                          | {"timestamp": "2023-07-14 12:10:00+05:30", "price": 1371.4854, "quantity": 98, "direction": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #9: EXIT                           | {"timestamp": "2023-07-14 12:10:00+05:30", "price": 1370.1146, "pnl": -134.3383999999919, "pnl_pct": null, "bars_held": null, "exit_reason": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #10: ENTRY                         | {"timestamp": "2023-07-14 12:11:00+05:30", "price": 1372.9861, "quantity": 98, "direction": null}
+[10:44:54.786] [Bar 000000] ✓ TRADE #10: EXIT                          | {"timestamp": "2023-07-14 12:11:00+05:30", "price": 1371.6007, "pnl": -135.76920000001155, "pnl_pct": null, "bars_held": null, "exit_reason": null}
+[10:44:54.786] [Bar 005000] ✓ Final Results                            | {
+  "total_trades": 62,
+  "net_pnl": -11350.663591855358,
+  "win_rate": 0,
+  "max_drawdown": 0,
+  "profit_factor": 0,
+  "bars_processed": 4939
+}

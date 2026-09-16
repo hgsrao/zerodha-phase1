@@ -1,0 +1,1036 @@
+2026-09-12 11:17:50,301 | INFO | ✅ Registry valid: RESERVED_NOT_YET_RUN
+2026-09-12 11:17:50,302 | INFO | ✅ Output directories created under revision2_external/extracted_features_2026
+2026-09-12 11:18:24,938 | INFO | ✅ Registry valid: RESERVED_NOT_YET_RUN
+2026-09-12 11:18:24,938 | INFO | ✅ Output directories created under revision2_external/extracted_features_2026
+2026-09-12 11:18:24,938 | INFO | ✅ MTFExtractionRunner initialized
+2026-09-12 11:18:24,938 | INFO | 
+======================================================================
+2026-09-12 11:18:24,938 | INFO | STARTING MTF FEATURE EXTRACTION FOR 2026
+2026-09-12 11:18:24,938 | INFO | ======================================================================
+
+2026-09-12 11:18:24,938 | INFO | ✅ Registry updated: EXTRACTION_IN_PROGRESS
+2026-09-12 11:18:24,938 | INFO | 
+======================================================================
+2026-09-12 11:18:24,938 | INFO | EXTRACTING: TRAIN (2026-01-01 to 2026-03-31)
+2026-09-12 11:18:24,938 | INFO | ======================================================================
+
+2026-09-12 11:18:24,938 | INFO | ✅ Found 48 symbols for extraction
+2026-09-12 11:18:44,939 | INFO | ✅ Registry valid: EXTRACTION_IN_PROGRESS
+2026-09-12 11:18:44,939 | INFO | ✅ Output directories created under revision2_external/extracted_features_2026
+2026-09-12 11:19:26,565 | INFO | ✅ Registry valid: EXTRACTION_IN_PROGRESS
+2026-09-12 11:19:26,565 | INFO | ✅ Output directories created under revision2_external/extracted_features_2026
+2026-09-12 11:19:26,565 | INFO | ✅ MTFExtractionRunner initialized
+2026-09-12 11:19:26,566 | INFO | 
+======================================================================
+2026-09-12 11:19:26,566 | INFO | STARTING MTF FEATURE EXTRACTION FOR 2026
+2026-09-12 11:19:26,566 | INFO | ======================================================================
+
+2026-09-12 11:19:26,566 | INFO | ✅ Registry updated: EXTRACTION_IN_PROGRESS
+2026-09-12 11:19:26,566 | INFO | 
+======================================================================
+2026-09-12 11:19:26,566 | INFO | EXTRACTING: TRAIN (2026-01-01 to 2026-03-31)
+2026-09-12 11:19:26,566 | INFO | ======================================================================
+
+2026-09-12 11:19:26,566 | INFO | ✅ Found 48 symbols for extraction
+2026-09-12 11:19:28,269 | INFO | [1/48] ADANIENT: ✅ (22500 rows)
+2026-09-12 11:19:29,971 | INFO | [2/48] ADANIPORTS: ✅ (22500 rows)
+2026-09-12 11:19:31,508 | INFO | [3/48] APOLLOHOSP: ✅ (22500 rows)
+2026-09-12 11:19:33,140 | INFO | [4/48] ASIANPAINT: ✅ (22500 rows)
+2026-09-12 11:19:34,672 | INFO | [5/48] AXISBANK: ✅ (22500 rows)
+2026-09-12 11:19:36,291 | INFO | [6/48] BAJAJ-AUTO: ✅ (22500 rows)
+2026-09-12 11:19:37,919 | INFO | [7/48] BAJAJFINSV: ✅ (22500 rows)
+2026-09-12 11:19:39,475 | INFO | [8/48] BAJFINANCE: ✅ (22500 rows)
+2026-09-12 11:19:41,114 | INFO | [9/48] BEL: ✅ (22500 rows)
+2026-09-12 11:19:42,768 | INFO | [10/48] BHARTIARTL: ✅ (22500 rows)
+2026-09-12 11:19:44,450 | INFO | [11/48] CIPLA: ✅ (22500 rows)
+2026-09-12 11:19:46,007 | INFO | [12/48] COALINDIA: ✅ (22500 rows)
+2026-09-12 11:19:47,629 | INFO | [13/48] DRREDDY: ✅ (22500 rows)
+2026-09-12 11:19:49,234 | INFO | [14/48] EICHERMOT: ✅ (22500 rows)
+2026-09-12 11:19:50,816 | INFO | [15/48] ETERNAL: ✅ (22500 rows)
+2026-09-12 11:19:52,468 | INFO | [16/48] GRASIM: ✅ (22500 rows)
+2026-09-12 11:19:54,135 | INFO | [17/48] HCLTECH: ✅ (22500 rows)
+2026-09-12 11:19:55,703 | INFO | [18/48] HDFCBANK: ✅ (22500 rows)
+2026-09-12 11:19:57,353 | INFO | [19/48] HDFCLIFE: ✅ (22500 rows)
+2026-09-12 11:19:58,954 | INFO | [20/48] HINDALCO: ✅ (22500 rows)
+2026-09-12 11:20:00,567 | INFO | [21/48] HINDUNILVR: ✅ (22500 rows)
+2026-09-12 11:20:02,247 | INFO | [22/48] ICICIBANK: ✅ (22500 rows)
+2026-09-12 11:20:03,874 | INFO | [23/48] INDIGO: ✅ (22500 rows)
+2026-09-12 11:20:05,448 | INFO | [24/48] INFY: ✅ (22500 rows)
+2026-09-12 11:20:07,079 | INFO | [25/48] ITC: ✅ (22500 rows)
+2026-09-12 11:20:08,627 | INFO | [26/48] JIOFIN: ✅ (22500 rows)
+2026-09-12 11:20:10,159 | INFO | [27/48] JSWSTEEL: ✅ (22500 rows)
+2026-09-12 11:20:11,670 | INFO | [28/48] KOTAKBANK: ✅ (22500 rows)
+2026-09-12 11:20:13,190 | INFO | [29/48] LT: ✅ (22500 rows)
+2026-09-12 11:20:14,790 | INFO | [30/48] M&M: ✅ (22500 rows)
+2026-09-12 11:20:16,352 | INFO | [31/48] MARUTI: ✅ (22500 rows)
+2026-09-12 11:20:17,989 | INFO | [32/48] MAXHEALTH: ✅ (22500 rows)
+2026-09-12 11:20:19,618 | INFO | [33/48] NTPC: ✅ (22500 rows)
+2026-09-12 11:20:21,161 | INFO | [34/48] ONGC: ✅ (22500 rows)
+2026-09-12 11:20:22,728 | INFO | [35/48] POWERGRID: ✅ (22500 rows)
+2026-09-12 11:20:24,399 | INFO | [36/48] RELIANCE: ✅ (22500 rows)
+2026-09-12 11:20:25,999 | INFO | [37/48] SBILIFE: ✅ (22500 rows)
+2026-09-12 11:20:27,715 | INFO | [38/48] SBIN: ✅ (22500 rows)
+2026-09-12 11:20:29,496 | INFO | [39/48] SHRIRAMFIN: ✅ (22500 rows)
+2026-09-12 11:20:31,148 | INFO | [40/48] SUNPHARMA: ✅ (22500 rows)
+2026-09-12 11:20:32,793 | INFO | [41/48] TATACONSUM: ✅ (22500 rows)
+2026-09-12 11:20:34,464 | INFO | [42/48] TATASTEEL: ✅ (22500 rows)
+2026-09-12 11:20:36,117 | INFO | [43/48] TCS: ✅ (22500 rows)
+2026-09-12 11:20:37,773 | INFO | [44/48] TECHM: ✅ (22500 rows)
+2026-09-12 11:20:39,466 | INFO | [45/48] TITAN: ✅ (22500 rows)
+2026-09-12 11:20:41,198 | INFO | [46/48] TRENT: ✅ (22500 rows)
+2026-09-12 11:20:42,794 | INFO | [47/48] ULTRACEMCO: ✅ (22500 rows)
+2026-09-12 11:20:44,407 | INFO | [48/48] WIPRO: ✅ (22500 rows)
+2026-09-12 11:20:44,411 | INFO | 
+✅ train: 48/48 symbols extracted
+
+2026-09-12 11:20:44,411 | INFO | 
+======================================================================
+2026-09-12 11:20:44,411 | INFO | EXTRACTING: VALIDATION (2026-04-01 to 2026-04-30)
+2026-09-12 11:20:44,411 | INFO | ======================================================================
+
+2026-09-12 11:20:44,411 | INFO | ✅ Found 48 symbols for extraction
+2026-09-12 11:20:46,061 | INFO | [1/48] ADANIENT: ✅ (7125 rows)
+2026-09-12 11:20:47,695 | INFO | [2/48] ADANIPORTS: ✅ (7125 rows)
+2026-09-12 11:20:49,312 | INFO | [3/48] APOLLOHOSP: ✅ (7124 rows)
+2026-09-12 11:20:50,939 | INFO | [4/48] ASIANPAINT: ✅ (7125 rows)
+2026-09-12 11:20:52,657 | INFO | [5/48] AXISBANK: ✅ (7125 rows)
+2026-09-12 11:20:54,275 | INFO | [6/48] BAJAJ-AUTO: ✅ (7125 rows)
+2026-09-12 11:20:55,866 | INFO | [7/48] BAJAJFINSV: ✅ (7125 rows)
+2026-09-12 11:20:57,487 | INFO | [8/48] BAJFINANCE: ✅ (7125 rows)
+2026-09-12 11:20:59,076 | INFO | [9/48] BEL: ✅ (7125 rows)
+2026-09-12 11:21:00,747 | INFO | [10/48] BHARTIARTL: ✅ (7125 rows)
+2026-09-12 11:21:02,343 | INFO | [11/48] CIPLA: ✅ (7125 rows)
+2026-09-12 11:21:04,076 | INFO | [12/48] COALINDIA: ✅ (7125 rows)
+2026-09-12 11:21:05,839 | INFO | [13/48] DRREDDY: ✅ (7125 rows)
+2026-09-12 11:21:07,479 | INFO | [14/48] EICHERMOT: ✅ (7125 rows)
+2026-09-12 11:21:09,163 | INFO | [15/48] ETERNAL: ✅ (7125 rows)
+2026-09-12 11:21:10,793 | INFO | [16/48] GRASIM: ✅ (7125 rows)
+2026-09-12 11:21:12,570 | INFO | [17/48] HCLTECH: ✅ (7125 rows)
+2026-09-12 11:21:14,264 | INFO | [18/48] HDFCBANK: ✅ (7125 rows)
+2026-09-12 11:21:15,896 | INFO | [19/48] HDFCLIFE: ✅ (7124 rows)
+2026-09-12 11:21:17,651 | INFO | [20/48] HINDALCO: ✅ (7125 rows)
+2026-09-12 11:21:19,321 | INFO | [21/48] HINDUNILVR: ✅ (7125 rows)
+2026-09-12 11:21:21,026 | INFO | [22/48] ICICIBANK: ✅ (7125 rows)
+2026-09-12 11:21:22,671 | INFO | [23/48] INDIGO: ✅ (7124 rows)
+2026-09-12 11:21:24,354 | INFO | [24/48] INFY: ✅ (7125 rows)
+2026-09-12 11:21:26,118 | INFO | [25/48] ITC: ✅ (7125 rows)
+2026-09-12 11:22:22,307 | INFO | ✅ Registry valid: EXTRACTION_IN_PROGRESS
+2026-09-12 11:22:22,307 | INFO | ✅ Registry valid: EXTRACTION_IN_PROGRESS
+2026-09-12 11:22:22,307 | INFO | ✅ Output directories created under revision2_external/extracted_features_2026
+2026-09-12 11:22:22,307 | INFO | ✅ Output directories created under revision2_external/extracted_features_2026
+2026-09-12 11:22:22,307 | INFO | ✅ MTFExtractionRunner initialized
+2026-09-12 11:22:22,307 | INFO | ✅ MTFExtractionRunner initialized
+2026-09-12 11:22:22,307 | INFO | 
+======================================================================
+2026-09-12 11:22:22,307 | INFO | 
+======================================================================
+2026-09-12 11:22:22,307 | INFO | STARTING MTF FEATURE EXTRACTION FOR 2026
+2026-09-12 11:22:22,307 | INFO | STARTING MTF FEATURE EXTRACTION FOR 2026
+2026-09-12 11:22:22,307 | INFO | ======================================================================
+
+2026-09-12 11:22:22,307 | INFO | ======================================================================
+
+2026-09-12 11:22:22,308 | INFO | ✅ Registry updated: EXTRACTION_IN_PROGRESS
+2026-09-12 11:22:22,308 | INFO | ✅ Registry updated: EXTRACTION_IN_PROGRESS
+2026-09-12 11:22:22,308 | INFO | 
+======================================================================
+2026-09-12 11:22:22,308 | INFO | 
+======================================================================
+2026-09-12 11:22:22,308 | INFO | EXTRACTING: TRAIN (2026-01-01 to 2026-03-31)
+2026-09-12 11:22:22,308 | INFO | EXTRACTING: TRAIN (2026-01-01 to 2026-03-31)
+2026-09-12 11:22:22,308 | INFO | ======================================================================
+
+2026-09-12 11:22:22,308 | INFO | ======================================================================
+
+2026-09-12 11:22:22,308 | INFO | ✅ Found 48 symbols for extraction
+2026-09-12 11:22:22,308 | INFO | ✅ Found 48 symbols for extraction
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:24,036 | INFO | [1/48] ADANIENT: ✅ (22500 rows)
+2026-09-12 11:22:24,036 | INFO | [1/48] ADANIENT: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:25,750 | INFO | [2/48] ADANIPORTS: ✅ (22500 rows)
+2026-09-12 11:22:25,750 | INFO | [2/48] ADANIPORTS: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:27,467 | INFO | [3/48] APOLLOHOSP: ✅ (22500 rows)
+2026-09-12 11:22:27,467 | INFO | [3/48] APOLLOHOSP: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:29,154 | INFO | [4/48] ASIANPAINT: ✅ (22500 rows)
+2026-09-12 11:22:29,154 | INFO | [4/48] ASIANPAINT: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:30,881 | INFO | [5/48] AXISBANK: ✅ (22500 rows)
+2026-09-12 11:22:30,881 | INFO | [5/48] AXISBANK: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:32,562 | INFO | [6/48] BAJAJ-AUTO: ✅ (22500 rows)
+2026-09-12 11:22:32,562 | INFO | [6/48] BAJAJ-AUTO: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:34,321 | INFO | [7/48] BAJAJFINSV: ✅ (22500 rows)
+2026-09-12 11:22:34,321 | INFO | [7/48] BAJAJFINSV: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:36,040 | INFO | [8/48] BAJFINANCE: ✅ (22500 rows)
+2026-09-12 11:22:36,040 | INFO | [8/48] BAJFINANCE: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:37,792 | INFO | [9/48] BEL: ✅ (22500 rows)
+2026-09-12 11:22:37,792 | INFO | [9/48] BEL: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:39,496 | INFO | [10/48] BHARTIARTL: ✅ (22500 rows)
+2026-09-12 11:22:39,496 | INFO | [10/48] BHARTIARTL: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:41,276 | INFO | [11/48] CIPLA: ✅ (22500 rows)
+2026-09-12 11:22:41,276 | INFO | [11/48] CIPLA: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:43,060 | INFO | [12/48] COALINDIA: ✅ (22500 rows)
+2026-09-12 11:22:43,060 | INFO | [12/48] COALINDIA: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:44,855 | INFO | [13/48] DRREDDY: ✅ (22500 rows)
+2026-09-12 11:22:44,855 | INFO | [13/48] DRREDDY: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:46,702 | INFO | [14/48] EICHERMOT: ✅ (22500 rows)
+2026-09-12 11:22:46,702 | INFO | [14/48] EICHERMOT: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:48,415 | INFO | [15/48] ETERNAL: ✅ (22500 rows)
+2026-09-12 11:22:48,415 | INFO | [15/48] ETERNAL: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:50,145 | INFO | [16/48] GRASIM: ✅ (22500 rows)
+2026-09-12 11:22:50,145 | INFO | [16/48] GRASIM: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:51,836 | INFO | [17/48] HCLTECH: ✅ (22500 rows)
+2026-09-12 11:22:51,836 | INFO | [17/48] HCLTECH: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:53,443 | INFO | [18/48] HDFCBANK: ✅ (22500 rows)
+2026-09-12 11:22:53,443 | INFO | [18/48] HDFCBANK: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:55,024 | INFO | [19/48] HDFCLIFE: ✅ (22500 rows)
+2026-09-12 11:22:55,024 | INFO | [19/48] HDFCLIFE: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:56,616 | INFO | [20/48] HINDALCO: ✅ (22500 rows)
+2026-09-12 11:22:56,616 | INFO | [20/48] HINDALCO: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:58,230 | INFO | [21/48] HINDUNILVR: ✅ (22500 rows)
+2026-09-12 11:22:58,230 | INFO | [21/48] HINDUNILVR: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:22:59,830 | INFO | [22/48] ICICIBANK: ✅ (22500 rows)
+2026-09-12 11:22:59,830 | INFO | [22/48] ICICIBANK: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:01,419 | INFO | [23/48] INDIGO: ✅ (22500 rows)
+2026-09-12 11:23:01,419 | INFO | [23/48] INDIGO: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:03,001 | INFO | [24/48] INFY: ✅ (22500 rows)
+2026-09-12 11:23:03,001 | INFO | [24/48] INFY: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:04,597 | INFO | [25/48] ITC: ✅ (22500 rows)
+2026-09-12 11:23:04,597 | INFO | [25/48] ITC: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:06,110 | INFO | [26/48] JIOFIN: ✅ (22500 rows)
+2026-09-12 11:23:06,110 | INFO | [26/48] JIOFIN: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:07,677 | INFO | [27/48] JSWSTEEL: ✅ (22500 rows)
+2026-09-12 11:23:07,677 | INFO | [27/48] JSWSTEEL: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:09,248 | INFO | [28/48] KOTAKBANK: ✅ (22500 rows)
+2026-09-12 11:23:09,248 | INFO | [28/48] KOTAKBANK: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:10,868 | INFO | [29/48] LT: ✅ (22500 rows)
+2026-09-12 11:23:10,868 | INFO | [29/48] LT: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:12,453 | INFO | [30/48] M&M: ✅ (22500 rows)
+2026-09-12 11:23:12,453 | INFO | [30/48] M&M: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:14,071 | INFO | [31/48] MARUTI: ✅ (22500 rows)
+2026-09-12 11:23:14,071 | INFO | [31/48] MARUTI: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:15,648 | INFO | [32/48] MAXHEALTH: ✅ (22500 rows)
+2026-09-12 11:23:15,648 | INFO | [32/48] MAXHEALTH: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:17,211 | INFO | [33/48] NTPC: ✅ (22500 rows)
+2026-09-12 11:23:17,211 | INFO | [33/48] NTPC: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:18,779 | INFO | [34/48] ONGC: ✅ (22500 rows)
+2026-09-12 11:23:18,779 | INFO | [34/48] ONGC: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:20,350 | INFO | [35/48] POWERGRID: ✅ (22500 rows)
+2026-09-12 11:23:20,350 | INFO | [35/48] POWERGRID: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:21,926 | INFO | [36/48] RELIANCE: ✅ (22500 rows)
+2026-09-12 11:23:21,926 | INFO | [36/48] RELIANCE: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:23,537 | INFO | [37/48] SBILIFE: ✅ (22500 rows)
+2026-09-12 11:23:23,537 | INFO | [37/48] SBILIFE: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:25,117 | INFO | [38/48] SBIN: ✅ (22500 rows)
+2026-09-12 11:23:25,117 | INFO | [38/48] SBIN: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:26,685 | INFO | [39/48] SHRIRAMFIN: ✅ (22500 rows)
+2026-09-12 11:23:26,685 | INFO | [39/48] SHRIRAMFIN: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:28,273 | INFO | [40/48] SUNPHARMA: ✅ (22500 rows)
+2026-09-12 11:23:28,273 | INFO | [40/48] SUNPHARMA: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:29,847 | INFO | [41/48] TATACONSUM: ✅ (22500 rows)
+2026-09-12 11:23:29,847 | INFO | [41/48] TATACONSUM: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:31,401 | INFO | [42/48] TATASTEEL: ✅ (22500 rows)
+2026-09-12 11:23:31,401 | INFO | [42/48] TATASTEEL: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:32,957 | INFO | [43/48] TCS: ✅ (22500 rows)
+2026-09-12 11:23:32,957 | INFO | [43/48] TCS: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:34,541 | INFO | [44/48] TECHM: ✅ (22500 rows)
+2026-09-12 11:23:34,541 | INFO | [44/48] TECHM: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:36,143 | INFO | [45/48] TITAN: ✅ (22500 rows)
+2026-09-12 11:23:36,143 | INFO | [45/48] TITAN: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:37,715 | INFO | [46/48] TRENT: ✅ (22500 rows)
+2026-09-12 11:23:37,715 | INFO | [46/48] TRENT: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:39,254 | INFO | [47/48] ULTRACEMCO: ✅ (22500 rows)
+2026-09-12 11:23:39,254 | INFO | [47/48] ULTRACEMCO: ✅ (22500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:40,810 | INFO | [48/48] WIPRO: ✅ (22500 rows)
+2026-09-12 11:23:40,810 | INFO | [48/48] WIPRO: ✅ (22500 rows)
+2026-09-12 11:23:40,812 | INFO | 
+✅ train: 48/48 symbols extracted
+
+2026-09-12 11:23:40,812 | INFO | 
+✅ train: 48/48 symbols extracted
+
+2026-09-12 11:23:40,812 | INFO | 
+======================================================================
+2026-09-12 11:23:40,812 | INFO | 
+======================================================================
+2026-09-12 11:23:40,812 | INFO | EXTRACTING: VALIDATION (2026-04-01 to 2026-04-30)
+2026-09-12 11:23:40,812 | INFO | EXTRACTING: VALIDATION (2026-04-01 to 2026-04-30)
+2026-09-12 11:23:40,812 | INFO | ======================================================================
+
+2026-09-12 11:23:40,812 | INFO | ======================================================================
+
+2026-09-12 11:23:40,812 | INFO | ✅ Found 48 symbols for extraction
+2026-09-12 11:23:40,812 | INFO | ✅ Found 48 symbols for extraction
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:42,368 | INFO | [1/48] ADANIENT: ✅ (7125 rows)
+2026-09-12 11:23:42,368 | INFO | [1/48] ADANIENT: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:43,952 | INFO | [2/48] ADANIPORTS: ✅ (7125 rows)
+2026-09-12 11:23:43,952 | INFO | [2/48] ADANIPORTS: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:45,493 | INFO | [3/48] APOLLOHOSP: ✅ (7124 rows)
+2026-09-12 11:23:45,493 | INFO | [3/48] APOLLOHOSP: ✅ (7124 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:47,050 | INFO | [4/48] ASIANPAINT: ✅ (7125 rows)
+2026-09-12 11:23:47,050 | INFO | [4/48] ASIANPAINT: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:48,660 | INFO | [5/48] AXISBANK: ✅ (7125 rows)
+2026-09-12 11:23:48,660 | INFO | [5/48] AXISBANK: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:50,197 | INFO | [6/48] BAJAJ-AUTO: ✅ (7125 rows)
+2026-09-12 11:23:50,197 | INFO | [6/48] BAJAJ-AUTO: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:51,751 | INFO | [7/48] BAJAJFINSV: ✅ (7125 rows)
+2026-09-12 11:23:51,751 | INFO | [7/48] BAJAJFINSV: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:53,292 | INFO | [8/48] BAJFINANCE: ✅ (7125 rows)
+2026-09-12 11:23:53,292 | INFO | [8/48] BAJFINANCE: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:54,868 | INFO | [9/48] BEL: ✅ (7125 rows)
+2026-09-12 11:23:54,868 | INFO | [9/48] BEL: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:56,415 | INFO | [10/48] BHARTIARTL: ✅ (7125 rows)
+2026-09-12 11:23:56,415 | INFO | [10/48] BHARTIARTL: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:58,002 | INFO | [11/48] CIPLA: ✅ (7125 rows)
+2026-09-12 11:23:58,002 | INFO | [11/48] CIPLA: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:23:59,569 | INFO | [12/48] COALINDIA: ✅ (7125 rows)
+2026-09-12 11:23:59,569 | INFO | [12/48] COALINDIA: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:01,157 | INFO | [13/48] DRREDDY: ✅ (7125 rows)
+2026-09-12 11:24:01,157 | INFO | [13/48] DRREDDY: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:02,698 | INFO | [14/48] EICHERMOT: ✅ (7125 rows)
+2026-09-12 11:24:02,698 | INFO | [14/48] EICHERMOT: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:04,247 | INFO | [15/48] ETERNAL: ✅ (7125 rows)
+2026-09-12 11:24:04,247 | INFO | [15/48] ETERNAL: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:05,791 | INFO | [16/48] GRASIM: ✅ (7125 rows)
+2026-09-12 11:24:05,791 | INFO | [16/48] GRASIM: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:07,333 | INFO | [17/48] HCLTECH: ✅ (7125 rows)
+2026-09-12 11:24:07,333 | INFO | [17/48] HCLTECH: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:08,893 | INFO | [18/48] HDFCBANK: ✅ (7125 rows)
+2026-09-12 11:24:08,893 | INFO | [18/48] HDFCBANK: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:10,489 | INFO | [19/48] HDFCLIFE: ✅ (7124 rows)
+2026-09-12 11:24:10,489 | INFO | [19/48] HDFCLIFE: ✅ (7124 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:12,072 | INFO | [20/48] HINDALCO: ✅ (7125 rows)
+2026-09-12 11:24:12,072 | INFO | [20/48] HINDALCO: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:13,688 | INFO | [21/48] HINDUNILVR: ✅ (7125 rows)
+2026-09-12 11:24:13,688 | INFO | [21/48] HINDUNILVR: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:15,274 | INFO | [22/48] ICICIBANK: ✅ (7125 rows)
+2026-09-12 11:24:15,274 | INFO | [22/48] ICICIBANK: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:16,845 | INFO | [23/48] INDIGO: ✅ (7124 rows)
+2026-09-12 11:24:16,845 | INFO | [23/48] INDIGO: ✅ (7124 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:18,404 | INFO | [24/48] INFY: ✅ (7125 rows)
+2026-09-12 11:24:18,404 | INFO | [24/48] INFY: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:19,948 | INFO | [25/48] ITC: ✅ (7125 rows)
+2026-09-12 11:24:19,948 | INFO | [25/48] ITC: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:21,437 | INFO | [26/48] JIOFIN: ✅ (7125 rows)
+2026-09-12 11:24:21,437 | INFO | [26/48] JIOFIN: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:22,970 | INFO | [27/48] JSWSTEEL: ✅ (7125 rows)
+2026-09-12 11:24:22,970 | INFO | [27/48] JSWSTEEL: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:24,484 | INFO | [28/48] KOTAKBANK: ✅ (7124 rows)
+2026-09-12 11:24:24,484 | INFO | [28/48] KOTAKBANK: ✅ (7124 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:26,111 | INFO | [29/48] LT: ✅ (7125 rows)
+2026-09-12 11:24:26,111 | INFO | [29/48] LT: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:27,701 | INFO | [30/48] M&M: ✅ (7125 rows)
+2026-09-12 11:24:27,701 | INFO | [30/48] M&M: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:29,266 | INFO | [31/48] MARUTI: ✅ (7125 rows)
+2026-09-12 11:24:29,266 | INFO | [31/48] MARUTI: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:30,821 | INFO | [32/48] MAXHEALTH: ✅ (7125 rows)
+2026-09-12 11:24:30,821 | INFO | [32/48] MAXHEALTH: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:32,391 | INFO | [33/48] NTPC: ✅ (7125 rows)
+2026-09-12 11:24:32,391 | INFO | [33/48] NTPC: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:33,954 | INFO | [34/48] ONGC: ✅ (7125 rows)
+2026-09-12 11:24:33,954 | INFO | [34/48] ONGC: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:35,500 | INFO | [35/48] POWERGRID: ✅ (7125 rows)
+2026-09-12 11:24:35,500 | INFO | [35/48] POWERGRID: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:37,052 | INFO | [36/48] RELIANCE: ✅ (7125 rows)
+2026-09-12 11:24:37,052 | INFO | [36/48] RELIANCE: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:38,652 | INFO | [37/48] SBILIFE: ✅ (7125 rows)
+2026-09-12 11:24:38,652 | INFO | [37/48] SBILIFE: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:40,227 | INFO | [38/48] SBIN: ✅ (7125 rows)
+2026-09-12 11:24:40,227 | INFO | [38/48] SBIN: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:41,776 | INFO | [39/48] SHRIRAMFIN: ✅ (7125 rows)
+2026-09-12 11:24:41,776 | INFO | [39/48] SHRIRAMFIN: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:43,358 | INFO | [40/48] SUNPHARMA: ✅ (7125 rows)
+2026-09-12 11:24:43,358 | INFO | [40/48] SUNPHARMA: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:44,911 | INFO | [41/48] TATACONSUM: ✅ (7125 rows)
+2026-09-12 11:24:44,911 | INFO | [41/48] TATACONSUM: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:46,455 | INFO | [42/48] TATASTEEL: ✅ (7125 rows)
+2026-09-12 11:24:46,455 | INFO | [42/48] TATASTEEL: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:48,006 | INFO | [43/48] TCS: ✅ (7125 rows)
+2026-09-12 11:24:48,006 | INFO | [43/48] TCS: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:49,565 | INFO | [44/48] TECHM: ✅ (7125 rows)
+2026-09-12 11:24:49,565 | INFO | [44/48] TECHM: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:51,131 | INFO | [45/48] TITAN: ✅ (7125 rows)
+2026-09-12 11:24:51,131 | INFO | [45/48] TITAN: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:52,697 | INFO | [46/48] TRENT: ✅ (7125 rows)
+2026-09-12 11:24:52,697 | INFO | [46/48] TRENT: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:54,234 | INFO | [47/48] ULTRACEMCO: ✅ (7125 rows)
+2026-09-12 11:24:54,234 | INFO | [47/48] ULTRACEMCO: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:55,782 | INFO | [48/48] WIPRO: ✅ (7125 rows)
+2026-09-12 11:24:55,782 | INFO | [48/48] WIPRO: ✅ (7125 rows)
+2026-09-12 11:24:55,785 | INFO | 
+✅ validation: 48/48 symbols extracted
+
+2026-09-12 11:24:55,785 | INFO | 
+✅ validation: 48/48 symbols extracted
+
+2026-09-12 11:24:55,785 | INFO | 
+======================================================================
+2026-09-12 11:24:55,785 | INFO | 
+======================================================================
+2026-09-12 11:24:55,785 | INFO | EXTRACTING: TEST (2026-05-01 to 2026-05-31)
+2026-09-12 11:24:55,785 | INFO | EXTRACTING: TEST (2026-05-01 to 2026-05-31)
+2026-09-12 11:24:55,785 | INFO | ======================================================================
+
+2026-09-12 11:24:55,785 | INFO | ======================================================================
+
+2026-09-12 11:24:55,785 | INFO | ✅ Found 48 symbols for extraction
+2026-09-12 11:24:55,785 | INFO | ✅ Found 48 symbols for extraction
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:57,377 | INFO | [1/48] ADANIENT: ✅ (7125 rows)
+2026-09-12 11:24:57,377 | INFO | [1/48] ADANIENT: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:24:58,948 | INFO | [2/48] ADANIPORTS: ✅ (7125 rows)
+2026-09-12 11:24:58,948 | INFO | [2/48] ADANIPORTS: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:00,493 | INFO | [3/48] APOLLOHOSP: ✅ (7125 rows)
+2026-09-12 11:25:00,493 | INFO | [3/48] APOLLOHOSP: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:02,063 | INFO | [4/48] ASIANPAINT: ✅ (7125 rows)
+2026-09-12 11:25:02,063 | INFO | [4/48] ASIANPAINT: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:03,671 | INFO | [5/48] AXISBANK: ✅ (7125 rows)
+2026-09-12 11:25:03,671 | INFO | [5/48] AXISBANK: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:05,225 | INFO | [6/48] BAJAJ-AUTO: ✅ (7125 rows)
+2026-09-12 11:25:05,225 | INFO | [6/48] BAJAJ-AUTO: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:06,790 | INFO | [7/48] BAJAJFINSV: ✅ (7125 rows)
+2026-09-12 11:25:06,790 | INFO | [7/48] BAJAJFINSV: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:08,338 | INFO | [8/48] BAJFINANCE: ✅ (7125 rows)
+2026-09-12 11:25:08,338 | INFO | [8/48] BAJFINANCE: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:09,903 | INFO | [9/48] BEL: ✅ (7125 rows)
+2026-09-12 11:25:09,903 | INFO | [9/48] BEL: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:11,451 | INFO | [10/48] BHARTIARTL: ✅ (7125 rows)
+2026-09-12 11:25:11,451 | INFO | [10/48] BHARTIARTL: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:13,248 | INFO | [11/48] CIPLA: ✅ (7125 rows)
+2026-09-12 11:25:13,248 | INFO | [11/48] CIPLA: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:14,986 | INFO | [12/48] COALINDIA: ✅ (7125 rows)
+2026-09-12 11:25:14,986 | INFO | [12/48] COALINDIA: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:16,671 | INFO | [13/48] DRREDDY: ✅ (7125 rows)
+2026-09-12 11:25:16,671 | INFO | [13/48] DRREDDY: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:18,481 | INFO | [14/48] EICHERMOT: ✅ (7125 rows)
+2026-09-12 11:25:18,481 | INFO | [14/48] EICHERMOT: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:20,069 | INFO | [15/48] ETERNAL: ✅ (7125 rows)
+2026-09-12 11:25:20,069 | INFO | [15/48] ETERNAL: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:21,848 | INFO | [16/48] GRASIM: ✅ (7125 rows)
+2026-09-12 11:25:21,848 | INFO | [16/48] GRASIM: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:23,606 | INFO | [17/48] HCLTECH: ✅ (7125 rows)
+2026-09-12 11:25:23,606 | INFO | [17/48] HCLTECH: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:25,221 | INFO | [18/48] HDFCBANK: ✅ (7125 rows)
+2026-09-12 11:25:25,221 | INFO | [18/48] HDFCBANK: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:26,842 | INFO | [19/48] HDFCLIFE: ✅ (7125 rows)
+2026-09-12 11:25:26,842 | INFO | [19/48] HDFCLIFE: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:28,498 | INFO | [20/48] HINDALCO: ✅ (7125 rows)
+2026-09-12 11:25:28,498 | INFO | [20/48] HINDALCO: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:30,124 | INFO | [21/48] HINDUNILVR: ✅ (7125 rows)
+2026-09-12 11:25:30,124 | INFO | [21/48] HINDUNILVR: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:31,753 | INFO | [22/48] ICICIBANK: ✅ (7125 rows)
+2026-09-12 11:25:31,753 | INFO | [22/48] ICICIBANK: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:33,416 | INFO | [23/48] INDIGO: ✅ (7125 rows)
+2026-09-12 11:25:33,416 | INFO | [23/48] INDIGO: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:34,990 | INFO | [24/48] INFY: ✅ (7125 rows)
+2026-09-12 11:25:34,990 | INFO | [24/48] INFY: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:36,543 | INFO | [25/48] ITC: ✅ (7125 rows)
+2026-09-12 11:25:36,543 | INFO | [25/48] ITC: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:38,057 | INFO | [26/48] JIOFIN: ✅ (7125 rows)
+2026-09-12 11:25:38,057 | INFO | [26/48] JIOFIN: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:39,628 | INFO | [27/48] JSWSTEEL: ✅ (7125 rows)
+2026-09-12 11:25:39,628 | INFO | [27/48] JSWSTEEL: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:41,174 | INFO | [28/48] KOTAKBANK: ✅ (7125 rows)
+2026-09-12 11:25:41,174 | INFO | [28/48] KOTAKBANK: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:42,765 | INFO | [29/48] LT: ✅ (7125 rows)
+2026-09-12 11:25:42,765 | INFO | [29/48] LT: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:44,335 | INFO | [30/48] M&M: ✅ (7125 rows)
+2026-09-12 11:25:44,335 | INFO | [30/48] M&M: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:45,881 | INFO | [31/48] MARUTI: ✅ (7125 rows)
+2026-09-12 11:25:45,881 | INFO | [31/48] MARUTI: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:47,468 | INFO | [32/48] MAXHEALTH: ✅ (7125 rows)
+2026-09-12 11:25:47,468 | INFO | [32/48] MAXHEALTH: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:49,037 | INFO | [33/48] NTPC: ✅ (7125 rows)
+2026-09-12 11:25:49,037 | INFO | [33/48] NTPC: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:50,631 | INFO | [34/48] ONGC: ✅ (7125 rows)
+2026-09-12 11:25:50,631 | INFO | [34/48] ONGC: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:52,224 | INFO | [35/48] POWERGRID: ✅ (7125 rows)
+2026-09-12 11:25:52,224 | INFO | [35/48] POWERGRID: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:53,849 | INFO | [36/48] RELIANCE: ✅ (7125 rows)
+2026-09-12 11:25:53,849 | INFO | [36/48] RELIANCE: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:55,431 | INFO | [37/48] SBILIFE: ✅ (7125 rows)
+2026-09-12 11:25:55,431 | INFO | [37/48] SBILIFE: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:56,983 | INFO | [38/48] SBIN: ✅ (7125 rows)
+2026-09-12 11:25:56,983 | INFO | [38/48] SBIN: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:25:58,533 | INFO | [39/48] SHRIRAMFIN: ✅ (7125 rows)
+2026-09-12 11:25:58,533 | INFO | [39/48] SHRIRAMFIN: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:00,098 | INFO | [40/48] SUNPHARMA: ✅ (7125 rows)
+2026-09-12 11:26:00,098 | INFO | [40/48] SUNPHARMA: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:01,651 | INFO | [41/48] TATACONSUM: ✅ (7125 rows)
+2026-09-12 11:26:01,651 | INFO | [41/48] TATACONSUM: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:03,213 | INFO | [42/48] TATASTEEL: ✅ (7125 rows)
+2026-09-12 11:26:03,213 | INFO | [42/48] TATASTEEL: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:04,781 | INFO | [43/48] TCS: ✅ (7125 rows)
+2026-09-12 11:26:04,781 | INFO | [43/48] TCS: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:06,368 | INFO | [44/48] TECHM: ✅ (7125 rows)
+2026-09-12 11:26:06,368 | INFO | [44/48] TECHM: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:07,924 | INFO | [45/48] TITAN: ✅ (7125 rows)
+2026-09-12 11:26:07,924 | INFO | [45/48] TITAN: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:09,476 | INFO | [46/48] TRENT: ✅ (7125 rows)
+2026-09-12 11:26:09,476 | INFO | [46/48] TRENT: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:11,010 | INFO | [47/48] ULTRACEMCO: ✅ (7125 rows)
+2026-09-12 11:26:11,010 | INFO | [47/48] ULTRACEMCO: ✅ (7125 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:12,550 | INFO | [48/48] WIPRO: ✅ (7125 rows)
+2026-09-12 11:26:12,550 | INFO | [48/48] WIPRO: ✅ (7125 rows)
+2026-09-12 11:26:12,552 | INFO | 
+✅ test: 48/48 symbols extracted
+
+2026-09-12 11:26:12,552 | INFO | 
+✅ test: 48/48 symbols extracted
+
+2026-09-12 11:26:12,552 | INFO | 
+======================================================================
+2026-09-12 11:26:12,552 | INFO | 
+======================================================================
+2026-09-12 11:26:12,552 | INFO | EXTRACTING: SEALED_CONFIRMATION (2026-06-01 to 2026-06-30)
+2026-09-12 11:26:12,552 | INFO | EXTRACTING: SEALED_CONFIRMATION (2026-06-01 to 2026-06-30)
+2026-09-12 11:26:12,552 | INFO | ======================================================================
+
+2026-09-12 11:26:12,552 | INFO | ======================================================================
+
+2026-09-12 11:26:12,553 | INFO | ✅ Found 48 symbols for extraction
+2026-09-12 11:26:12,553 | INFO | ✅ Found 48 symbols for extraction
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:14,159 | INFO | [1/48] ADANIENT: ✅ (7500 rows)
+2026-09-12 11:26:14,159 | INFO | [1/48] ADANIENT: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:15,713 | INFO | [2/48] ADANIPORTS: ✅ (7500 rows)
+2026-09-12 11:26:15,713 | INFO | [2/48] ADANIPORTS: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:17,375 | INFO | [3/48] APOLLOHOSP: ✅ (7500 rows)
+2026-09-12 11:26:17,375 | INFO | [3/48] APOLLOHOSP: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:19,078 | INFO | [4/48] ASIANPAINT: ✅ (7500 rows)
+2026-09-12 11:26:19,078 | INFO | [4/48] ASIANPAINT: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:20,722 | INFO | [5/48] AXISBANK: ✅ (7500 rows)
+2026-09-12 11:26:20,722 | INFO | [5/48] AXISBANK: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:22,348 | INFO | [6/48] BAJAJ-AUTO: ✅ (7500 rows)
+2026-09-12 11:26:22,348 | INFO | [6/48] BAJAJ-AUTO: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:23,947 | INFO | [7/48] BAJAJFINSV: ✅ (7500 rows)
+2026-09-12 11:26:23,947 | INFO | [7/48] BAJAJFINSV: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:25,615 | INFO | [8/48] BAJFINANCE: ✅ (7500 rows)
+2026-09-12 11:26:25,615 | INFO | [8/48] BAJFINANCE: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:27,378 | INFO | [9/48] BEL: ✅ (7500 rows)
+2026-09-12 11:26:27,378 | INFO | [9/48] BEL: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:28,983 | INFO | [10/48] BHARTIARTL: ✅ (7500 rows)
+2026-09-12 11:26:28,983 | INFO | [10/48] BHARTIARTL: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:30,748 | INFO | [11/48] CIPLA: ✅ (7500 rows)
+2026-09-12 11:26:30,748 | INFO | [11/48] CIPLA: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:32,428 | INFO | [12/48] COALINDIA: ✅ (7500 rows)
+2026-09-12 11:26:32,428 | INFO | [12/48] COALINDIA: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:33,991 | INFO | [13/48] DRREDDY: ✅ (7500 rows)
+2026-09-12 11:26:33,991 | INFO | [13/48] DRREDDY: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:35,562 | INFO | [14/48] EICHERMOT: ✅ (7500 rows)
+2026-09-12 11:26:35,562 | INFO | [14/48] EICHERMOT: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:37,192 | INFO | [15/48] ETERNAL: ✅ (7500 rows)
+2026-09-12 11:26:37,192 | INFO | [15/48] ETERNAL: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:38,803 | INFO | [16/48] GRASIM: ✅ (7500 rows)
+2026-09-12 11:26:38,803 | INFO | [16/48] GRASIM: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:40,513 | INFO | [17/48] HCLTECH: ✅ (7500 rows)
+2026-09-12 11:26:40,513 | INFO | [17/48] HCLTECH: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:42,105 | INFO | [18/48] HDFCBANK: ✅ (7500 rows)
+2026-09-12 11:26:42,105 | INFO | [18/48] HDFCBANK: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:43,721 | INFO | [19/48] HDFCLIFE: ✅ (7500 rows)
+2026-09-12 11:26:43,721 | INFO | [19/48] HDFCLIFE: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:45,449 | INFO | [20/48] HINDALCO: ✅ (7500 rows)
+2026-09-12 11:26:45,449 | INFO | [20/48] HINDALCO: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:47,232 | INFO | [21/48] HINDUNILVR: ✅ (7500 rows)
+2026-09-12 11:26:47,232 | INFO | [21/48] HINDUNILVR: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:48,861 | INFO | [22/48] ICICIBANK: ✅ (7500 rows)
+2026-09-12 11:26:48,861 | INFO | [22/48] ICICIBANK: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:50,496 | INFO | [23/48] INDIGO: ✅ (7500 rows)
+2026-09-12 11:26:50,496 | INFO | [23/48] INDIGO: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:52,243 | INFO | [24/48] INFY: ✅ (7500 rows)
+2026-09-12 11:26:52,243 | INFO | [24/48] INFY: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:54,065 | INFO | [25/48] ITC: ✅ (7500 rows)
+2026-09-12 11:26:54,065 | INFO | [25/48] ITC: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:55,826 | INFO | [26/48] JIOFIN: ✅ (7500 rows)
+2026-09-12 11:26:55,826 | INFO | [26/48] JIOFIN: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:57,575 | INFO | [27/48] JSWSTEEL: ✅ (7500 rows)
+2026-09-12 11:26:57,575 | INFO | [27/48] JSWSTEEL: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:26:59,346 | INFO | [28/48] KOTAKBANK: ✅ (7500 rows)
+2026-09-12 11:26:59,346 | INFO | [28/48] KOTAKBANK: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:01,174 | INFO | [29/48] LT: ✅ (7500 rows)
+2026-09-12 11:27:01,174 | INFO | [29/48] LT: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:02,948 | INFO | [30/48] M&M: ✅ (7500 rows)
+2026-09-12 11:27:02,948 | INFO | [30/48] M&M: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:04,807 | INFO | [31/48] MARUTI: ✅ (7500 rows)
+2026-09-12 11:27:04,807 | INFO | [31/48] MARUTI: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:06,563 | INFO | [32/48] MAXHEALTH: ✅ (7500 rows)
+2026-09-12 11:27:06,563 | INFO | [32/48] MAXHEALTH: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:08,436 | INFO | [33/48] NTPC: ✅ (7500 rows)
+2026-09-12 11:27:08,436 | INFO | [33/48] NTPC: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:10,246 | INFO | [34/48] ONGC: ✅ (7500 rows)
+2026-09-12 11:27:10,246 | INFO | [34/48] ONGC: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:12,002 | INFO | [35/48] POWERGRID: ✅ (7500 rows)
+2026-09-12 11:27:12,002 | INFO | [35/48] POWERGRID: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:13,872 | INFO | [36/48] RELIANCE: ✅ (7500 rows)
+2026-09-12 11:27:13,872 | INFO | [36/48] RELIANCE: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:15,657 | INFO | [37/48] SBILIFE: ✅ (7500 rows)
+2026-09-12 11:27:15,657 | INFO | [37/48] SBILIFE: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:17,442 | INFO | [38/48] SBIN: ✅ (7500 rows)
+2026-09-12 11:27:17,442 | INFO | [38/48] SBIN: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:19,311 | INFO | [39/48] SHRIRAMFIN: ✅ (7500 rows)
+2026-09-12 11:27:19,311 | INFO | [39/48] SHRIRAMFIN: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:21,106 | INFO | [40/48] SUNPHARMA: ✅ (7500 rows)
+2026-09-12 11:27:21,106 | INFO | [40/48] SUNPHARMA: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:22,934 | INFO | [41/48] TATACONSUM: ✅ (7500 rows)
+2026-09-12 11:27:22,934 | INFO | [41/48] TATACONSUM: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:24,767 | INFO | [42/48] TATASTEEL: ✅ (7500 rows)
+2026-09-12 11:27:24,767 | INFO | [42/48] TATASTEEL: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:26,486 | INFO | [43/48] TCS: ✅ (7500 rows)
+2026-09-12 11:27:26,486 | INFO | [43/48] TCS: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:28,135 | INFO | [44/48] TECHM: ✅ (7500 rows)
+2026-09-12 11:27:28,135 | INFO | [44/48] TECHM: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:29,805 | INFO | [45/48] TITAN: ✅ (7500 rows)
+2026-09-12 11:27:29,805 | INFO | [45/48] TITAN: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:31,415 | INFO | [46/48] TRENT: ✅ (7500 rows)
+2026-09-12 11:27:31,415 | INFO | [46/48] TRENT: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:32,987 | INFO | [47/48] ULTRACEMCO: ✅ (7500 rows)
+2026-09-12 11:27:32,987 | INFO | [47/48] ULTRACEMCO: ✅ (7500 rows)
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:188: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "extracted_at": datetime.utcnow().isoformat(),
+2026-09-12 11:27:34,564 | INFO | [48/48] WIPRO: ✅ (7500 rows)
+2026-09-12 11:27:34,564 | INFO | [48/48] WIPRO: ✅ (7500 rows)
+2026-09-12 11:27:34,568 | INFO | 
+✅ sealed_confirmation: 48/48 symbols extracted
+
+2026-09-12 11:27:34,568 | INFO | 
+✅ sealed_confirmation: 48/48 symbols extracted
+
+/home/shrinivas/ECS_Project_external_engine/scripts/run_mtf_extraction_2026.py:243: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  self.registry["extraction_completed_at"] = datetime.utcnow().isoformat()
+2026-09-12 11:27:34,568 | INFO | ✅ Registry updated: EXTRACTION_COMPLETE
+2026-09-12 11:27:34,568 | INFO | ✅ Registry updated: EXTRACTION_COMPLETE
+2026-09-12 11:27:34,568 | INFO | 
+======================================================================
+2026-09-12 11:27:34,568 | INFO | 
+======================================================================
+2026-09-12 11:27:34,568 | INFO | EXTRACTION COMPLETE
+2026-09-12 11:27:34,568 | INFO | EXTRACTION COMPLETE
+2026-09-12 11:27:34,568 | INFO | ======================================================================
+2026-09-12 11:27:34,568 | INFO | ======================================================================
+2026-09-12 11:27:34,568 | INFO | {
+  "train": {
+    "extracted": 48,
+    "total": 48
+  },
+  "validation": {
+    "extracted": 48,
+    "total": 48
+  },
+  "test": {
+    "extracted": 48,
+    "total": 48
+  },
+  "sealed_confirmation": {
+    "extracted": 48,
+    "total": 48
+  }
+}
+2026-09-12 11:27:34,568 | INFO | {
+  "train": {
+    "extracted": 48,
+    "total": 48
+  },
+  "validation": {
+    "extracted": 48,
+    "total": 48
+  },
+  "test": {
+    "extracted": 48,
+    "total": 48
+  },
+  "sealed_confirmation": {
+    "extracted": 48,
+    "total": 48
+  }
+}
+
+======================================================================
+MTF Feature Extraction Complete!
+======================================================================
+
+Features saved to: revision2_external/extracted_features_2026/
+Registry status: EXTRACTION_COMPLETE
+
+Next steps:
+1. Validate extracted features (shape, NaN distribution)
+2. Train frozen models on train split
+3. Validate on validation split
+4. Test on test split
+5. Confirm on sealed_confirmation split

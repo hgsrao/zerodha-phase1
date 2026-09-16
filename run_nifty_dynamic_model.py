@@ -1,0 +1,314 @@
+import pandas as pd
+import numpy as np
+from pathlib import Path
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
+
+LOT_SIZE = 50  # NIFTY Index Futures Lot Size
+
+def calculate_zerodha_futures_friction(entry_price: float, exit_price: float, qty: int = LOT_SIZE) -> float:
+    entry_val = entry_price * qty
+    exit_val = exit_price * qty
+    turnover = entry_val + exit_val
+    
+    brokerage = 40.0                            # ₹20 buy + ₹20 sell
+    stt = 0.000125 * exit_val                   # 0.0125% on sell side
+    exchange_txn = 0.000019 * turnover          # NSE Index Futures rate
+    sebi = 0.000001 * turnover
+    stamp_duty = 0.00002 * entry_val
+    gst = 0.18 * (brokerage + exchange_txn + sebi)
+    return brokerage + stt + exchange_txn + sebi + stamp_duty + gst
+
+def load_and_resample_nifty_15m() -> pd.DataFrame:
+    grid_raw = pd.read_parquet('nifty_grid_features.parquet')
+    time_col = [c for c in grid_raw.columns if c.lower() in ['dt', 'date', 'datetime', 'timestamp']][0]
+    grid_raw['dt'] = pd.to_datetime(grid_raw[time_col]).dt.tz_localize(None)
+    
+    m = grid_raw[(grid_raw['dt'] >= '2023-07-03') & (grid_raw['dt'] <= '2023-08-04')].copy()
+    m = m.sort_values('dt').set_index('dt')
+    
+    price_col = 'close' if 'close' in m.columns else ('price' if 'price' in m.columns else m.columns[0])
+    
+    if 'open' in m.columns:
+        ohlc_dict = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last'}
+        if 'volume' in m.columns:
+            ohlc_dict['volume'] = 'sum'
+        df_15 = m.resample('15min').agg(ohlc_dict).dropna().reset_index()
+    else:
+        df_15 = m[[price_col]].resample('15min').agg({
+            price_col: ['first', 'max', 'min', 'last']
+        }).dropna()
+        df_15.columns = ['open', 'high', 'low', 'close']
+        df_15['volume'] = 50000.0
+        df_15 = df_15.reset_index()
+
+    if 'volume' not in df_15.columns:
+        df_15['volume'] = 50000.0
+
+    df_15['date_only'] = df_15['dt'].dt.date
+    df_15['time_only'] = df_15['dt'].dt.time
+    return df_15
+
+def compute_welford_15min_features(df: pd.DataFrame) -> pd.DataFrame:
+    delta = df['close'].diff()
+    gain = delta.where(delta > 0, 0.0).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0.0)).rolling(14).mean()
+    rs = gain / loss.replace(0, 1e-5)
+    df['rsi_14'] = 100 - (100 / (1 + rs))
+    
+    tr = np.maximum(
+        df['high'] - df['low'],
+        np.maximum(
+            abs(df['high'] - df['close'].shift(1)),
+            abs(df['low'] - df['close'].shift(1))
+        )
+    )
+    df['atr'] = tr.rolling(14).mean()
+    df['atr_baseline'] = df['atr'].rolling(40).mean().replace(0, 1e-5)
+    df['vol_ratio'] = (df['atr'] / df['atr_baseline']).replace(0, 1.0)
+    
+    df['typ_price'] = (df['high'] + df['low'] + df['close']) / 3.0
+    
+    # Weighted Welford VWAP
+    vwap_arr = np.zeros(len(df))
+    std_arr = np.zeros(len(df))
+    
+    for _, idxs in df.groupby('date_only').groups.items():
+        w_sum = 0.0
+        mean = 0.0
+        M2 = 0.0
+        for i in idxs:
+            p = df.at[i, 'typ_price']
+            w = max(1.0, df.at[i, 'volume'])
+            w_sum_old = w_sum
+            w_sum += w
+            delta_p = p - mean
+            R = delta_p * w / w_sum
+            mean += R
+            M2 += w_sum_old * delta_p * R
+            vwap_arr[i] = mean
+            std_arr[i] = np.sqrt(M2 / w_sum) if w_sum > 0 and M2 > 0 else 1.0
+            
+    df['vwap'] = vwap_arr
+    df['vwap_std'] = np.where(std_arr < 1e-4, 1.0, std_arr)
+    df['vwap_zscore'] = (df['close'] - df['vwap']) / df['vwap_std']
+    
+    # Macro trend baseline (20-period moving average on 15m)
+    df['trend_baseline'] = df['close'].rolling(20).mean()
+    
+    return df.dropna().reset_index(drop=True)
+
+class DynamicFuturesGovernor:
+    def __init__(self, friction_inr: float = 140.0):
+        self.friction_inr = friction_inr
+
+    def get_time_decay_factor(self, current_time) -> float:
+        curr_mins = current_time.hour * 60 + current_time.minute
+        cutoff_mins = 15 * 60 + 15
+        start_decay = 12 * 60 + 30
+        
+        if curr_mins < start_decay:
+            return 1.0
+        remaining = max(0, cutoff_mins - curr_mins)
+        total_window = cutoff_mins - start_decay
+        return float(np.clip(remaining / total_window, 0.25, 1.0))
+
+    def compute_scheduled_targets(self, vol_ratio: float, current_time, risk_inr: float) -> tuple[float, float]:
+        decay = self.get_time_decay_factor(current_time)
+        
+        # Ensure target comfortably clears friction
+        friction_r_penalty = (2.0 * self.friction_inr) / max(100.0, risk_inr)
+        
+        # Volatility-scaled dynamic R target
+        base_r = max(1.20, 0.80 + friction_r_penalty) * np.clip(vol_ratio, 0.85, 1.35)
+        base_z = 0.40
+        
+        decayed_r = max(0.40, base_r * decay)
+        decayed_z = -0.10 if decay < 0.50 else base_z * decay
+        return float(decayed_r), float(decayed_z)
+
+def run():
+    print("Loading and preparing 15m NIFTY features...")
+    df_raw = load_and_resample_nifty_15m()
+    df = compute_welford_15min_features(df_raw).set_index('dt')
+    print(f"Features ready across {len(df):,} bars.")
+    
+    governor = DynamicFuturesGovernor()
+    active_position = None
+    closed_trades = []
+    armed_state = None
+    
+    timestamps = list(df.index)
+    
+    print("\nRunning Dynamic Model Module on NIFTY Features (July 2023)...")
+    
+    for i in range(2, len(timestamps) - 1):
+        t = timestamps[i]
+        bar = df.loc[t]
+        bar_open = bar['open']
+        bar_high = bar['high']
+        bar_low = bar['low']
+        bar_close = bar['close']
+        bar_time = bar['time_only']
+        
+        # 1. EVALUATE ACTIVE POSITION
+        if active_position is not None:
+            risk_ticks = active_position['risk_ticks']
+            risk_inr = risk_ticks * LOT_SIZE
+            
+            # Session Cutoff
+            if bar_time >= pd.to_datetime('15:15:00').time():
+                fill_p = bar_close
+                gross_pnl = (fill_p - active_position['entry_price']) * LOT_SIZE
+                friction = calculate_zerodha_futures_friction(active_position['entry_price'], fill_p)
+                closed_trades.append({
+                    'entry_time': active_position['entry_time'],
+                    'exit_time': t,
+                    'entry_price': active_position['entry_price'],
+                    'exit_price': fill_p,
+                    'gross_pnl': gross_pnl,
+                    'friction': friction,
+                    'net_pnl': gross_pnl - friction,
+                    'net_r': (gross_pnl - friction) / risk_inr,
+                    'exit_reason': "SESSION_1515_SQUAREOFF"
+                })
+                active_position = None
+                continue
+                
+            # Worst-Case Stop Execution
+            if bar_low <= active_position['stop_price']:
+                fill_p = min(bar_open, active_position['stop_price']) - 2.0  # 2 pts slippage
+                gross_pnl = (fill_p - active_position['entry_price']) * LOT_SIZE
+                friction = calculate_zerodha_futures_friction(active_position['entry_price'], fill_p)
+                closed_trades.append({
+                    'entry_time': active_position['entry_time'],
+                    'exit_time': t,
+                    'entry_price': active_position['entry_price'],
+                    'exit_price': fill_p,
+                    'gross_pnl': gross_pnl,
+                    'friction': friction,
+                    'net_pnl': gross_pnl - friction,
+                    'net_r': (gross_pnl - friction) / risk_inr,
+                    'exit_reason': "STOP_TRIGGERED"
+                })
+                active_position = None
+                continue
+                
+            # Dynamic Target Evaluation
+            curr_peak_r = (bar_high - active_position['entry_price']) / risk_ticks
+            active_position['peak_r'] = max(active_position['peak_r'], curr_peak_r)
+            curr_r = (bar_close - active_position['entry_price']) / risk_ticks
+            
+            r_target, z_target = governor.compute_scheduled_targets(bar['vol_ratio'], bar_time, risk_inr)
+            
+            if curr_peak_r >= r_target:
+                fill_p = active_position['entry_price'] + (r_target * risk_ticks)
+                gross_pnl = (fill_p - active_position['entry_price']) * LOT_SIZE
+                friction = calculate_zerodha_futures_friction(active_position['entry_price'], fill_p)
+                closed_trades.append({
+                    'entry_time': active_position['entry_time'],
+                    'exit_time': t,
+                    'entry_price': active_position['entry_price'],
+                    'exit_price': fill_p,
+                    'gross_pnl': gross_pnl,
+                    'friction': friction,
+                    'net_pnl': gross_pnl - friction,
+                    'net_r': (gross_pnl - friction) / risk_inr,
+                    'exit_reason': "DYNAMIC_R_TARGET"
+                })
+                active_position = None
+                continue
+                
+            if bar['vwap_zscore'] >= z_target and curr_r >= 0.25:
+                fill_p = bar_close
+                gross_pnl = (fill_p - active_position['entry_price']) * LOT_SIZE
+                friction = calculate_zerodha_futures_friction(active_position['entry_price'], fill_p)
+                closed_trades.append({
+                    'entry_time': active_position['entry_time'],
+                    'exit_time': t,
+                    'entry_price': active_position['entry_price'],
+                    'exit_price': fill_p,
+                    'gross_pnl': gross_pnl,
+                    'friction': friction,
+                    'net_pnl': gross_pnl - friction,
+                    'net_r': (gross_pnl - friction) / risk_inr,
+                    'exit_reason': "DYNAMIC_Z_TARGET"
+                })
+                active_position = None
+                continue
+                
+            # Trailing Profit Lock
+            if active_position['peak_r'] >= 1.0:
+                new_stop = active_position['entry_price'] + (active_position['peak_r'] * 0.50 * risk_ticks)
+                active_position['stop_price'] = max(active_position['stop_price'], new_stop)
+
+        # 2. EVALUATE ENTRY PERMISSIVE (ANSI 25 SYNCHROCHECK)
+        if active_position is None:
+            prev_bar = df.iloc[i - 1]
+            
+            if bar_time >= pd.to_datetime('13:30:00').time():
+                armed_state = None
+                continue
+                
+            # Dynamic Pullback Threshold:
+            # If in macro uptrend (close > trend_baseline), allow shallow pullbacks (z < -0.9, RSI < 42)
+            # If in macro downtrend, demand deeper oversold (z < -1.6, RSI < 32)
+            is_uptrend = bar['close'] >= bar['trend_baseline']
+            z_thresh = -0.9 if is_uptrend else -1.6
+            rsi_thresh = 42 if is_uptrend else 32
+            
+            if bar['vwap_zscore'] < z_thresh and bar['rsi_14'] < rsi_thresh:
+                armed_state = {
+                    'swing_low': min(bar['low'], prev_bar['low'])
+                }
+                
+            if armed_state is not None:
+                armed_state['swing_low'] = min(armed_state['swing_low'], bar['low'])
+                
+                # Synchrocheck: zero-crossing reversal confirmation candle
+                if bar['close'] > prev_bar['high'] and bar['close'] > bar['open']:
+                    next_bar = df.iloc[i + 1]
+                    entry_p = next_bar['open']
+                    swing_low = armed_state['swing_low']
+                    risk_t = max(entry_p - swing_low, 0.8 * bar['atr'])
+                    
+                    active_position = {
+                        'entry_time': timestamps[i + 1],
+                        'entry_price': entry_p,
+                        'stop_price': entry_p - risk_t,
+                        'risk_ticks': risk_t,
+                        'peak_r': 0.0
+                    }
+                    armed_state = None
+
+    print("\n" + "=" * 75)
+    print("DYNAMIC MODEL MODULE: NIFTY INDEX FUTURES RESULTS (JULY 2023)")
+    print("=" * 75)
+    print(f"Total Completed Trades        : {len(closed_trades)}")
+    
+    if closed_trades:
+        tdf = pd.DataFrame(closed_trades)
+        total = len(tdf)
+        wr = (tdf['net_pnl'] > 0).mean() * 100
+        gross_pnl = tdf['gross_pnl'].sum()
+        friction = tdf['friction'].sum()
+        net_pnl = tdf['net_pnl'].sum()
+        net_exp = tdf['net_r'].mean()
+        
+        print(f"Win Rate                      : {wr:.2f}%")
+        print(f"Total Gross P&L               : ₹{gross_pnl:+,.2f}")
+        print(f"Total Statutory Fees          : ₹{friction:,.2f}")
+        print(f"Total Net Portfolio P&L       : ₹{net_pnl:+,.2f}")
+        print(f"Average Net Expectancy        : {net_exp:+.3f}R / trade")
+        print(f"Average Fee per Trade         : ₹{friction/total:.2f}")
+        print("-" * 75)
+        print("Exit Distribution:")
+        for r, cnt in tdf['exit_reason'].value_counts().items():
+            print(f"  • {r:<30}: {cnt:<3} trades ({cnt/total*100:.1f}%)")
+            
+        tdf.to_parquet('nifty_dynamic_model_july2023.parquet')
+        print("\nSaved detailed trade audit to 'nifty_dynamic_model_july2023.parquet'")
+    print("=" * 75)
+
+if __name__ == '__main__':
+    run()

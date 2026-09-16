@@ -1,0 +1,25 @@
+================================================================================
+INITIALIZING 1-DAY 48-SYMBOL REPLAY: 2023-09-01
+================================================================================
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/revision4/run_one_day.py", line 64, in <module>
+    run_one_day_replay(manifest_file, dataset_dir)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/shrinivas/ECS_Project_external_engine/revision4/run_one_day.py", line 31, in run_one_day_replay
+    all_w = loader.get_bars_for_month(symbol, w_start, w_end)
+  File "/home/shrinivas/ECS_Project_external_engine/revision4/validate_orchestrator.py", line 46, in get_bars_for_month
+    df = self.load_symbol_data(symbol)
+  File "/home/shrinivas/ECS_Project_external_engine/revision4/validate_orchestrator.py", line 41, in load_symbol_data
+    df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
+                      ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/pandas/core/tools/datetimes.py", line 1072, in to_datetime
+    values = convert_listlike(arg._values, format)
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/pandas/core/tools/datetimes.py", line 435, in _convert_listlike_datetimes
+    return _array_strptime_with_fallback(arg, name, utc, format, exact, errors)
+  File "/home/shrinivas/.local/lib/python3.14/site-packages/pandas/core/tools/datetimes.py", line 469, in _array_strptime_with_fallback
+    result, tz_out = array_strptime(arg, fmt, exact=exact, errors=errors, utc=utc)
+                     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/tslibs/strptime.pyx", line 426, in pandas._libs.tslibs.strptime.array_strptime
+  File "pandas/_libs/tslibs/tzconversion.pyx", line 166, in pandas._libs.tslibs.tzconversion.tz_localize_to_utc_single
+  File "pandas/_libs/tslibs/timezones.pyx", line 309, in pandas._libs.tslibs.timezones.get_dst_info
+KeyboardInterrupt

@@ -48,12 +48,12 @@ class EngineConfig:
     session_close_time: str = "15:15:00"
     
     # Target / Governor parameters
-    base_r_target: float = 1.30
-    base_z_target: float = 0.40
+    base_r_target: float = 2.25
+    base_z_target: float = 0.60
     min_harvest_r: float = 0.35
     decay_start_time: str = "12:30:00"
     min_decay_floor: float = 0.30
-    stop_atr_multiplier: float = 0.80
+    stop_atr_multiplier: float = 1.00
     trailing_profit_lock_r: float = 1.00
     trailing_profit_lock_pct: float = 0.50
 

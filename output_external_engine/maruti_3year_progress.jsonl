@@ -1,0 +1,6 @@
+{"t": 1788588710.4770086, "event": "start"}
+{"t": 1788588710.4847817, "event": "box1_done", "passed": true}
+{"t": 1788588716.4241095, "event": "box2_done", "rows": 291137, "ingest_seconds": 5.8972790241241455}
+{"t": 1788588716.4320095, "event": "instrumentation_attached"}
+{"t": 1788589062.9591088, "event": "run_complete", "elapsed": 346.5269730091095, "trades": 201}
+{"t": 1788589062.9619424, "event": "saved_results", "stats_path": "/home/shrinivas/ECS_Project_external_engine/output_external_engine/maruti_3year_box_stats.json", "summary_path": "/home/shrinivas/ECS_Project_external_engine/output_external_engine/maruti_3year_summary.json"}
