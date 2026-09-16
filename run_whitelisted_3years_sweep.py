@@ -1,10 +1,10 @@
 """
-48-Symbol 3-Year Sweep with Calibrated Breadth & Selectivity
+Whitelisted 17-Symbol 3-Year Replay (July 2023 - August 2026)
 ------------------------------------------------------------
-- Breadth Gate: Inhibits when cross-sectional Z_bar < -0.35 (scaled for N=48)
-- Entry Triggers: Z < -2.5, RSI < 28 (high-conviction mean reversion)
-- Session Gap-Down Circuit Breaker: >= 1.75%
-- Zerodha statutory fee model
+Runs exclusively on validated mean-reverting assets:
+AXISBANK, ULTRACEMCO, M&M, JSWSTEEL, BAJAJ-AUTO, EICHERMOT,
+HINDUNILVR, BAJFINANCE, ITC, GRASIM, MARUTI, COALINDIA,
+SBILIFE, NTPC, HDFCLIFE, CIPLA, ETERNAL.
 """
 
 import calendar
@@ -20,27 +20,29 @@ from alpha_engine_core import (
 
 DATA_DIR = Path('/home/dishan/data_48')
 
-BASE_SECTOR_MAP = {
-    "HDFCBANK": "BANK", "ICICIBANK": "BANK", "SBIN": "BANK", "KOTAKBANK": "BANK", "AXISBANK": "BANK", "INDUSINDBK": "BANK",
-    "INFY": "IT", "TCS": "IT", "WIPRO": "IT", "HCLTECH": "IT", "TECHM": "IT", "LTIM": "IT",
-    "LT": "INFRA", "ADANIENT": "INFRA", "ADANIPORTS": "INFRA",
-    "BAJFINANCE": "FIN", "BAJAJFINSV": "FIN", "CHOLAFIN": "FIN", "SBILIFE": "FIN", "HDFCLIFE": "FIN", "SHRIRAMFIN": "FIN",
-    "TATAMOTORS": "AUTO", "MARUTI": "AUTO", "M&M": "AUTO", "HEROMOTOCO": "AUTO", "BAJAJ-AUTO": "AUTO", "EICHERMOT": "AUTO",
-    "RELIANCE": "ENERGY", "ONGC": "ENERGY", "NTPC": "ENERGY", "POWERGRID": "ENERGY", "BPCL": "ENERGY", "COALINDIA": "ENERGY",
-    "SUNPHARMA": "PHARMA", "CIPLA": "PHARMA", "DRREDDY": "PHARMA", "DIVISLAB": "PHARMA", "APOLLOHOSP": "PHARMA",
-    "TATASTEEL": "METALS", "JSWSTEEL": "METALS", "HINDALCO": "METALS", "VEDL": "METALS",
-    "ITC": "FMCG", "HINDUNILVR": "FMCG", "NESTLEIND": "FMCG", "BRITANNIA": "FMCG", "TATACONSUM": "FMCG",
-    "TITAN": "CONSUMER", "BHARTIARTL": "TELECOM", "ASIANPAINT": "PAINTS", "GRASIM": "CEMENT", "ULTRACEMCO": "CEMENT"
+WHITELIST = [
+    "AXISBANK", "ULTRACEMCO", "M&M", "JSWSTEEL", "BAJAJ-AUTO",
+    "EICHERMOT", "HINDUNILVR", "BAJFINANCE", "ITC", "GRASIM",
+    "MARUTI", "COALINDIA", "SBILIFE", "NTPC", "HDFCLIFE", "CIPLA", "ETERNAL"
+]
+
+SECTOR_MAP = {
+    "AXISBANK": "BANK", "BAJFINANCE": "FIN", "SBILIFE": "FIN", "HDFCLIFE": "FIN",
+    "M&M": "AUTO", "BAJAJ-AUTO": "AUTO", "EICHERMOT": "AUTO", "MARUTI": "AUTO",
+    "ULTRACEMCO": "CEMENT", "GRASIM": "CEMENT", "JSWSTEEL": "METALS",
+    "HINDUNILVR": "FMCG", "ITC": "FMCG",
+    "COALINDIA": "ENERGY", "NTPC": "ENERGY",
+    "CIPLA": "PHARMA", "ETERNAL": "OTHER"
 }
 
-def discover_universe(data_dir: Path) -> dict:
-    files = sorted(list(data_dir.glob("NSE_*_minute_*.csv")))
+def discover_whitelisted_files(data_dir: Path) -> dict:
     sym_map = {}
-    for f in files:
+    for f in data_dir.glob("NSE_*_minute_*.csv"):
         parts = f.name.split('_')
         if len(parts) >= 2:
             sym = parts[1].upper()
-            sym_map[sym] = f
+            if sym in WHITELIST:
+                sym_map[sym] = f
     return sym_map
 
 def generate_monthly_windows(start_year=2023, end_year=2026):
@@ -69,8 +71,7 @@ def compute_daily_gaps(symbol_frames: dict) -> set:
         ).sort_index()
         daily['prev_close'] = daily['last_close'].shift(1)
         daily['gap_pct'] = (daily['first_open'] - daily['prev_close']) / daily['prev_close'] * 100.0
-        bad_dates = daily[daily['gap_pct'] <= -1.75].index
-        for d in bad_dates:
+        for d in daily[daily['gap_pct'] <= -1.75].index:
             gapped_days.add((sym, d))
     return gapped_days
 
@@ -106,7 +107,7 @@ def run_month_slice(config: EngineConfig, sym_files: dict, start_d: str, end_d: 
     for t in all_timestamps:
         symbols_to_close = []
 
-        # 1. Evaluate Active Positions
+        # 1. Active position lifecycle
         for sym, pos in active_positions.items():
             if t not in symbol_frames[sym].index:
                 continue
@@ -165,21 +166,20 @@ def run_month_slice(config: EngineConfig, sym_files: dict, start_d: str, end_d: 
                 'exit_reason': reason
             })
 
-        # 2. Entries with Recalibrated Breadth Gate
+        # 2. Entries (Calibrated Breadth for 17-stock basket: Z_bar < -0.45)
         available_slots = config.max_concurrent_positions - len(active_positions)
         if available_slots <= 0:
             continue
 
-        # Recalibrated N=48 Breadth Gate: Inhibit if universe mean Z < -0.35
         current_z = [
             symbol_frames[s].loc[t, 'vwap_zscore']
             for s in symbol_frames if t in symbol_frames[s].index
         ]
-        if current_z and np.mean(current_z) < -0.35:
+        if current_z and np.mean(current_z) < -0.45:
             armed_symbols.clear()
             continue
 
-        active_sectors = [config.sector_map.get(s, "OTHER") for s in active_positions.keys()]
+        active_sectors = [SECTOR_MAP.get(s, "OTHER") for s in active_positions.keys()]
 
         for sym, df in symbol_frames.items():
             if sym in active_positions or t not in df.index:
@@ -189,7 +189,7 @@ def run_month_slice(config: EngineConfig, sym_files: dict, start_d: str, end_d: 
             if (sym, current_date) in gapped_days:
                 continue
 
-            sym_sector = config.sector_map.get(sym, "OTHER")
+            sym_sector = SECTOR_MAP.get(sym, "OTHER")
             if active_sectors.count(sym_sector) >= 1:
                 continue
 
@@ -205,7 +205,7 @@ def run_month_slice(config: EngineConfig, sym_files: dict, start_d: str, end_d: 
                     del armed_symbols[sym]
                 continue
 
-            # High-Conviction Triggers: Z < -2.5, RSI < 28
+            # High-conviction entry trigger
             if curr_bar['vwap_zscore'] < -2.5 and curr_bar['rsi_14'] < 28.0:
                 armed_symbols[sym] = ArmedState(
                     armed_time=t,
@@ -242,15 +242,17 @@ def run_month_slice(config: EngineConfig, sym_files: dict, start_d: str, end_d: 
     return pd.DataFrame(closed_trades)
 
 def main():
-    sym_files = discover_universe(DATA_DIR)
+    sym_files = discover_whitelisted_files(DATA_DIR)
+    print(f"[INFO] Discovered {len(sym_files)} Whitelisted Symbols in {DATA_DIR}")
+    print(f"[INFO] Active Universe: {', '.join(sorted(list(sym_files.keys())))}")
+
     config = EngineConfig()
     config.symbols = list(sym_files.keys())
-    for s in config.symbols:
-        config.sector_map[s] = BASE_SECTOR_MAP.get(s, "OTHER")
+    config.sector_map = SECTOR_MAP
 
     windows = generate_monthly_windows(2023, 2026)
     print("=" * 80)
-    print(f"RUNNING RECALIBRATED 48-SYMBOL REPLAY (BREADTH Z < -0.35 | Z < -2.5 | RSI < 28)")
+    print("38-MONTH WHITELISTED WALK-FORWARD REPLAY (JULY 2023 - AUGUST 2026)")
     print("=" * 80)
 
     records = []
@@ -291,7 +293,7 @@ def main():
     agg_wr = (pd.concat(all_ledgers)['net_pnl'] > 0).mean() * 100 if all_ledgers else 0.0
 
     print("\n" + "=" * 80)
-    print("RECALIBRATED 3-YEAR PERFORMANCE SUMMARY")
+    print("CONSOLIDATED 38-MONTH WHITELIST AUDIT")
     print("=" * 80)
     print(f"Total Completed Trades : {int(tot_trades)}")
     print(f"Aggregate Win Rate     : {agg_wr:.1f}%")
@@ -299,10 +301,6 @@ def main():
     print(f"Total Statutory Fees   : ₹{tot_fees:12,.2f}")
     print(f"Total Net Portfolio P&L: ₹{tot_net:+12,.2f}")
     print("=" * 80)
-
-    if all_ledgers:
-        pd.concat(all_ledgers, ignore_index=True).to_parquet("alpha_48symbols_recalibrated_ledger.parquet")
-        print("[INFO] Saved to 'alpha_48symbols_recalibrated_ledger.parquet'")
 
 if __name__ == '__main__':
     main()
