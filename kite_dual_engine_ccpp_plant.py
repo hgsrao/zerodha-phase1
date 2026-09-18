@@ -134,6 +134,55 @@ def init_db():
     conn.commit()
     conn.close()
 
+
+class CCPP_PIDGovernorActuator:
+    def __init__(self, Kp=0.10, Ki=0.20, Kd=0.80, integral_window=12, baseline_natr=0.012, windup_limit=2.0):
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd
+        self.integral_window = integral_window
+        self.baseline_natr = baseline_natr
+        self.windup_limit = windup_limit
+        self.error_history = {}
+
+    def compute_valve_opening(self, symbol: str, z_score: float, price: float, atr: float) -> float:
+        e_k = -z_score
+        if symbol not in self.error_history:
+            self.error_history[symbol] = []
+        self.error_history[symbol].append(e_k)
+        if len(self.error_history[symbol]) > self.integral_window:
+            self.error_history[symbol].pop(0)
+
+        e_prev = self.error_history[symbol][-2] if len(self.error_history[symbol]) >= 2 else e_k
+        e_integral = sum(self.error_history[symbol])
+
+        natr = max(atr / price, 1e-5) if price > 0 else self.baseline_natr
+        gamma = float(np.clip(self.baseline_natr / natr, 0.25, 2.0))
+
+        p_term = (self.Kp * gamma) * e_k
+        i_term = (self.Ki * gamma) * float(np.clip(e_integral, -self.windup_limit, self.windup_limit))
+        d_term = (self.Kd * gamma) * (e_k - e_prev)
+
+        valve_pct = float(np.clip((p_term + i_term + d_term) / 3.0, 0.0, 1.0))
+        return max(valve_pct, 0.05)
+
+# Calibrated PID Governor Actuator (Kp=0.10, Ki=0.20, Kd=0.80)
+try:
+    with open('results/fleet_config.json', 'r') as _cfg_f:
+        _cfg_data = json.load(_cfg_f)
+    _pid_params = _cfg_data.get('pid_controller_parameters', {})
+    global_pid_actuator = CCPP_PIDGovernorActuator(
+        Kp=_pid_params.get('Kp', 0.10),
+        Ki=_pid_params.get('Ki', 0.20),
+        Kd=_pid_params.get('Kd', 0.80),
+        integral_window=_pid_params.get('integral_window', 12),
+        baseline_natr=_pid_params.get('baseline_natr', 0.012),
+        windup_limit=_pid_params.get('windup_limit', 2.0)
+    )
+    logger.info(f'(CCPP_DualPlant) PID Governor Initialized: Kp={global_pid_actuator.Kp}, Ki={global_pid_actuator.Ki}, Kd={global_pid_actuator.Kd}')
+except Exception as _e:
+    global_pid_actuator = CCPP_PIDGovernorActuator()
+
 class CCPPDualEnginePlant:
     def __init__(self):
         self.api_key, self.access_token = load_credentials()
@@ -233,7 +282,10 @@ class CCPPDualEnginePlant:
 
                 # Dip-reversion dispatch threshold
                 if z_score <= -1.8:
-                    qty = int(max(1, (100000.0 / p_now) * size_mul))
+                    _atr_proxy = float(std * 1.5)
+                    valve_pct = global_pid_actuator.compute_valve_opening(sym, z_score, p_now, _atr_proxy)
+                    qty = int(max(1, (100000.0 / p_now) * size_mul * valve_pct))
+                    logger.info(f"(PID_Actuator) {sym} Dispatch: Valve={valve_pct:.2%} | Allocated Qty={qty}")
                     stop_p = round(p_now * 0.985, 2)
                     target_p = round(p_now * 1.025, 2)
 

@@ -30,10 +30,36 @@
     "HINDALCO": 0.0339
   },
   "sector_turbine_mapping": {
-    "GTG1_AUTO": ["MARUTI", "TMPV"],
-    "GTG2_TECH": ["TCS", "INFY"],
-    "CSTG1_FIN": ["HDFCBANK", "ICICIBANK", "SBIN", "BAJFINANCE"],
-    "CSTG2_METALS": ["TATASTEEL", "BEL", "HINDALCO", "LT"],
-    "BASELOAD_GRID": ["RELIANCE"]
+    "GTG1_AUTO": [
+      "MARUTI",
+      "TMPV"
+    ],
+    "GTG2_TECH": [
+      "TCS",
+      "INFY"
+    ],
+    "CSTG1_FIN": [
+      "HDFCBANK",
+      "ICICIBANK",
+      "SBIN",
+      "BAJFINANCE"
+    ],
+    "CSTG2_METALS": [
+      "TATASTEEL",
+      "BEL",
+      "HINDALCO",
+      "LT"
+    ],
+    "BASELOAD_GRID": [
+      "RELIANCE"
+    ]
+  },
+  "pid_controller_parameters": {
+    "Kp": 0.1,
+    "Ki": 0.2,
+    "Kd": 0.8,
+    "integral_window": 12,
+    "baseline_natr": 0.012,
+    "windup_limit": 2.0
   }
 }
