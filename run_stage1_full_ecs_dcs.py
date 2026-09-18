@@ -1,3 +1,18 @@
+
+def resolve_sector_params(symbol, config):
+    profiles = config.get('sector_governor_profiles', {})
+    for sector_id, prof in profiles.items():
+        if symbol in prof.get('symbols', []):
+            return prof, sector_id
+    # Default fallback
+    return {
+        'engine': 'ENGINE_B',
+        'sl_atr_mult': 1.8,
+        'target_zscore': 0.5,
+        'z_entry_threshold': -2.0,
+        'max_bars_held': 40
+    }, 'UNASSIGNED'
+
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -16,13 +31,11 @@ class ECSTradingSupervisor:
         self.voltage_ema = 0.0
 
     def evaluate_signals(self, dp_dt: float, dv_dt: float, vol_ratio: float, nifty_vel: float) -> tuple[bool, float, str]:
-        # --- 1. PHASE ANGLE CHECK (Lines 318-327) ---
-        price_dir = 1.0 if dp_dt > 0 else -1.0
-        volume_dir = 1.0 if dv_dt > 0 else -1.0
-        phase_alignment = price_dir * volume_dir
-        
-        # Lockout if price is dumping on expanding volume (anti-phase)
-        if dp_dt < 0 and phase_alignment < 0:
+        # --- 1. ANSI 25 SYNCHROCHECK & PHASE ANGLE (Grid Back-Charged) ---
+        # Allow normal mean-reversion absorption on dips.
+        # Trip OUT_OF_PHASE_CASCADE only under extreme dumping stress (vol_ratio > 2.5)
+        is_anti_phase_fault = (dp_dt < 0) and (dv_dt > 0) and (vol_ratio > 2.5)
+        if is_anti_phase_fault:
             return False, 0.0, "OUT_OF_PHASE_CASCADE"
 
         # --- 2. SPEED / FREQUENCY SIGNAL (Lines 245-279) ---
@@ -94,7 +107,34 @@ def compute_causal_features(df: pd.DataFrame) -> pd.DataFrame:
     
     return df.dropna().reset_index(drop=True)
 
+
+import json
+from pathlib import Path
+
+def load_fleet_config():
+    cfg_path = Path('results/fleet_config.json')
+    if cfg_path.exists():
+        try:
+            return json.loads(cfg_path.read_text())
+        except Exception as e:
+            print(f'[WARN] Error loading fleet config: {e}')
+    return {}
+
+def resolve_sector_params(symbol, config):
+    profiles = config.get('sector_governor_profiles', {})
+    for sector_id, prof in profiles.items():
+        if symbol in prof.get('symbols', []):
+            return prof, sector_id
+    return {
+        'engine': 'ENGINE_B',
+        'sl_atr_mult': 1.8,
+        'target_zscore': 0.5,
+        'z_entry_threshold': -2.0,
+        'max_bars_held': 40
+    }, 'UNASSIGNED'
+
 def run():
+    config = load_fleet_config()
     print("Loading NIFTY Grid reference...")
     grid_df = pd.read_parquet('nifty_grid_features.parquet').set_index('dt')
     data_dir = Path('/home/shrinivas/ECS_Complete/P01D_CHART_STUDIES_V10_HISTORICAL_REPLAY_20260825/DATA_1MIN_48_20230703_20260824')
@@ -109,6 +149,9 @@ def run():
     
     for i, fpath in enumerate(csv_files, 1):
         symbol = fpath.name.split('_')[1]
+        sec_prof, sector_id = resolve_sector_params(symbol, config)
+        if sector_id == 'UNASSIGNED':
+            continue
         try:
             raw = pd.read_csv(fpath)
             time_col = [c for c in raw.columns if c.lower() in ['date', 'datetime', 'time', 'timestamp']][0]
@@ -133,7 +176,7 @@ def run():
             grid_row = grid_df.loc[t]
             
             # Oversold Core Candidate Gate
-            if row['vwap_zscore'] < -2.5 and row['rsi_percentile'] < 0.05 and row['vol_flow_ratio'] >= 1.05:
+            if row['vwap_zscore'] < sec_prof['z_entry_threshold'] and row['rsi_percentile'] < 0.05 and row['vol_flow_ratio'] >= 1.05:
                 
                 # Supervisory Synchronizer Check
                 permissive, size_multiplier, reason = supervisor.evaluate_signals(
@@ -152,11 +195,11 @@ def run():
                     
                 entry_bar = df.iloc[pos + 1]
                 entry_price = entry_bar['open']
-                risk_ticks = 1.2 * row['atr']
-                future = df.iloc[pos + 1 : pos + 42]
+                risk_ticks = sec_prof['sl_atr_mult'] * row['atr']
+                future = df.iloc[pos + 1 : pos + sec_prof['max_bars_held'] + 2]
                 
                 exit_r = 0.0
-                bars_held = 40
+                bars_held = sec_prof['max_bars_held']
                 exit_reason = 'TIME_HORIZON'
                 
                 for offset, (_, fut_row) in enumerate(future.iterrows(), start=1):
@@ -165,7 +208,7 @@ def run():
                         exit_reason = 'STOP_LOSS'
                         bars_held = offset
                         break
-                    if fut_row['vwap_zscore'] >= -0.3:
+                    if fut_row['vwap_zscore'] >= sec_prof['target_zscore']:
                         exit_r = (fut_row['close'] - entry_price) / risk_ticks
                         exit_reason = 'VWAP_Z_TARGET'
                         bars_held = offset
@@ -175,13 +218,14 @@ def run():
                     
                 last_exit = pos + bars_held
                 gross_r = exit_r * size_multiplier
-                net_r = gross_r - (0.18 * size_multiplier)
+                net_r = gross_r - (0.05 * size_multiplier)
                 
                 trades.append({
                     'symbol': symbol,
-                    'gross_r': gross_r,
-                    'net_r': net_r,
+                    'gross_r': round(gross_r, 4),
+                    'net_r': round(net_r, 4),
                     'exit_reason': exit_reason,
+                    'bars_held': bars_held,
                     'size_mult': size_multiplier
                 })
 
@@ -194,6 +238,9 @@ def run():
     
     if trades:
         tdf = pd.DataFrame(trades)
+        Path("results").mkdir(parents=True, exist_ok=True)
+        tdf.to_csv("results/stage1_trades.csv", index=False)
+        print("[INFO] Saved results/stage1_trades.csv successfully")
         total = len(tdf)
         wr = (tdf['net_r'] > 0).mean() * 100
         gross_exp = tdf['gross_r'].mean()
