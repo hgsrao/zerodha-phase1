@@ -1,0 +1,5 @@
+2026-09-18 16:38:24,179 [INFO] (CCPP_DualPlant) CCPP Dual-Engine Plant Initialized (5 Sectors: GTG1, GTG2, CSTG1, CSTG2, BPSTG)
+2026-09-18 16:38:24,179 [INFO] (CCPP_DualPlant) Entering DCS Cycle loop (60s tick interval)...
+2026-09-18 16:38:24,281 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:39:24,339 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:40:24,393 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.

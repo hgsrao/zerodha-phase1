@@ -1,0 +1,337 @@
+2026-09-18 14:47:26,320 [INFO] (CCPP_DualPlant) CCPP Dual-Engine Plant Initialized (5 Sectors: GTG1, GTG2, CSTG1, CSTG2, BPSTG)
+2026-09-18 14:47:26,320 [INFO] (CCPP_DualPlant) Entering DCS Cycle loop (60s tick interval)...
+2026-09-18 14:47:26,436 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:48:26,507 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:49:26,568 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:50:26,627 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:51:26,692 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:52:26,748 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:53:26,804 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:54:26,870 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:55:26,962 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:56:27,022 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:57:27,135 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:58:27,198 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 14:59:27,266 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:00:27,332 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:01:27,395 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:02:27,469 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:03:27,549 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:04:27,606 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:05:27,664 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:06:27,725 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:07:27,782 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:08:28,037 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:09:28,101 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:10:28,162 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:11:28,228 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:12:28,286 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:13:28,349 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:14:28,421 [ERROR] (CCPP_DualPlant) Cycle Exception: name 'open_positions' is not defined
+Traceback (most recent call last):
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 300, in <module>
+    plant.run_cycle()
+    ~~~~~~~~~~~~~~~^^
+  File "/home/shrinivas/ECS_Project_external_engine/kite_dual_engine_ccpp_plant.py", line 194, in run_cycle
+    active_turbines = [p.get("turbine") for p in open_positions.values()]
+                                                 ^^^^^^^^^^^^^^
+NameError: name 'open_positions' is not defined
+2026-09-18 15:15:28,508 [INFO] (CCPP_DualPlant) 🔒 CLOSED: [ENGINE_A|GTG2_TECH] TCS | P&L: ₹-450.80 | Reason: MANDATORY_1515_SQUAREOFF
+2026-09-18 15:15:28,519 [INFO] (CCPP_DualPlant) 🔒 CLOSED: [ENGINE_A|GTG2_TECH] INFY | P&L: ₹-285.00 | Reason: MANDATORY_1515_SQUAREOFF
+2026-09-18 15:15:28,520 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:16:28,577 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:17:28,634 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:18:28,693 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:19:28,768 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:20:28,837 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:21:28,945 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:22:29,020 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:23:29,084 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:24:29,148 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:25:29,217 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:26:29,276 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:27:29,341 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:28:29,405 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:29:29,463 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:30:29,536 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:31:29,610 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:32:29,667 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:33:29,727 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:34:29,792 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:35:29,855 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:36:29,921 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:37:29,997 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:38:30,065 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:39:30,123 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:40:30,174 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:41:30,240 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:42:30,299 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:43:30,360 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:44:30,432 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:45:30,502 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:46:30,565 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:47:30,638 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:48:30,703 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:49:30,774 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:50:30,842 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:51:30,905 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:52:30,981 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:53:31,048 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:54:31,116 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:55:31,182 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:56:31,249 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:57:31,316 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:58:31,487 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 15:59:31,550 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:00:31,618 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:01:31,685 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:02:31,751 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:03:31,819 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:04:31,887 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:05:31,952 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:06:32,009 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:07:32,071 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:08:32,138 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:09:32,212 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:10:32,279 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:11:32,345 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:12:32,415 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:13:32,479 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:14:32,543 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:15:32,607 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:16:32,665 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:17:32,723 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:18:32,797 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:19:32,864 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:20:32,938 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:21:33,009 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:22:33,106 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:23:33,169 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:24:33,229 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:25:33,294 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:26:58,998 [INFO] (CCPP_DualPlant) CCPP Dual-Engine Plant Initialized (5 Sectors: GTG1, GTG2, CSTG1, CSTG2, BPSTG)
+2026-09-18 16:26:58,998 [INFO] (CCPP_DualPlant) Entering DCS Cycle loop (60s tick interval)...
+2026-09-18 16:26:59,113 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:27:59,180 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:28:59,247 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:38:24,179 [INFO] (CCPP_DualPlant) CCPP Dual-Engine Plant Initialized (5 Sectors: GTG1, GTG2, CSTG1, CSTG2, BPSTG)
+2026-09-18 16:38:24,179 [INFO] (CCPP_DualPlant) Entering DCS Cycle loop (60s tick interval)...
+2026-09-18 16:38:24,281 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:39:24,339 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
+2026-09-18 16:40:24,393 [INFO] (CCPP_DualPlant) Past 15:15 IST. Intraday dispatch barred.
