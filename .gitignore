@@ -1,15 +1,11 @@
-*.csv
-*.parquet
-*.npy
-*.gz
-*.json
-!production_config.json
-diagnostic_output/
-revision8_pairs/
+# Python & environment
 __pycache__/
-*.pyc
-venv/
-env/
-.env
-credentials.json
-token.json
+*.py[cod]
+quant_env/
+.venv/
+
+# Heavy parquet data & large logs (do not push to GitHub)
+data/raw/*.parquet
+*.log
+*.sqlite
+*.db

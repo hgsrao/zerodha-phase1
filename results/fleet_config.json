@@ -1,0 +1,39 @@
+{
+  "calibration_metadata": {
+    "engine": "CCPP_DualPlant",
+    "timestamp": "2026-09-18",
+    "dataset_span": "2021-09-20 to 2026-09-18",
+    "total_historical_trades": 23794,
+    "calibrated_sharpe": 14.91,
+    "calibrated_calmar": 23.65
+  },
+  "economizer_parameters": {
+    "z_entry_threshold": -2.0,
+    "stop_loss_atr_mult": 1.0,
+    "take_profit_atr_mult": 3.0,
+    "holding_horizon_bars": 12,
+    "lookback_window": 20
+  },
+  "hrp_fleet_allocation": {
+    "ICICIBANK": 0.1278,
+    "MARUTI": 0.1218,
+    "TCS": 0.0994,
+    "HDFCBANK": 0.0978,
+    "RELIANCE": 0.0963,
+    "INFY": 0.0844,
+    "SBIN": 0.0843,
+    "LT": 0.0717,
+    "BAJFINANCE": 0.0622,
+    "BEL": 0.0423,
+    "TATASTEEL": 0.0409,
+    "TMPV": 0.0371,
+    "HINDALCO": 0.0339
+  },
+  "sector_turbine_mapping": {
+    "GTG1_AUTO": ["MARUTI", "TMPV"],
+    "GTG2_TECH": ["TCS", "INFY"],
+    "CSTG1_FIN": ["HDFCBANK", "ICICIBANK", "SBIN", "BAJFINANCE"],
+    "CSTG2_METALS": ["TATASTEEL", "BEL", "HINDALCO", "LT"],
+    "BASELOAD_GRID": ["RELIANCE"]
+  }
+}
