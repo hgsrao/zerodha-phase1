@@ -274,5 +274,139 @@
     "DRREDDY": "BPSTG_HEALTHCARE_PHARMA",
     "SUNPHARMA": "BPSTG_HEALTHCARE_PHARMA",
     "MAXHEALTH": "BPSTG_HEALTHCARE_PHARMA"
+  },
+  "whole_system_profile_10box": {
+    "metadata": {
+      "title": "ECS_WHOLE_SYSTEM_REVISION_2_MASTER_CALIBRATION",
+      "calibration_timestamp": "2026-09-19T08:39:00Z",
+      "scope": "SUPERVISOR + BB01_THROUGH_BB10_CROSS_COUPLED"
+    },
+    "bay_calibrations": {
+      "GTG1_METALS_MINING": {
+        "optimal_parameters": {
+          "supervisor_vol_mult_range": [
+            0.5,
+            1.25
+          ],
+          "bb01_hurst_cutoff": 0.46,
+          "bb02_flux_window": 15,
+          "bb03_z_entry": -2.1,
+          "bb05_flame_bars": 8,
+          "bb05_min_rebound": 0.2,
+          "bb06_target_z": 0.35,
+          "bb07_trip_z": -3.2,
+          "bb08_cooldown_bars": 20,
+          "bb09_ratchet_trigger_z": -0.5,
+          "bb10_max_bay_concurrency": 2
+        },
+        "metrics": {
+          "score": 0.7047,
+          "trades": 7440,
+          "net_r": 75.98,
+          "expectancy_r": 0.0102,
+          "max_drawdown_r": 1.25
+        }
+      },
+      "GTG2_POWER_ENERGY_INFRA": {
+        "optimal_parameters": {
+          "supervisor_vol_mult_range": [
+            0.4,
+            1.5
+          ],
+          "bb01_hurst_cutoff": 0.46,
+          "bb02_flux_window": 15,
+          "bb03_z_entry": -1.85,
+          "bb05_flame_bars": 8,
+          "bb05_min_rebound": 0.2,
+          "bb06_target_z": 0.5,
+          "bb07_trip_z": -3.2,
+          "bb08_cooldown_bars": 10,
+          "bb09_ratchet_trigger_z": -0.2,
+          "bb10_max_bay_concurrency": 2
+        },
+        "metrics": {
+          "score": 0.5985,
+          "trades": 18817,
+          "net_r": 214.6,
+          "expectancy_r": 0.0114,
+          "max_drawdown_r": 2.61
+        }
+      },
+      "CSTG1_BANKING_FINANCE": {
+        "optimal_parameters": {
+          "supervisor_vol_mult_range": [
+            0.5,
+            1.25
+          ],
+          "bb01_hurst_cutoff": 0.46,
+          "bb02_flux_window": 15,
+          "bb03_z_entry": -1.85,
+          "bb05_flame_bars": 8,
+          "bb05_min_rebound": 0.2,
+          "bb06_target_z": 0.5,
+          "bb07_trip_z": -3.2,
+          "bb08_cooldown_bars": 10,
+          "bb09_ratchet_trigger_z": -0.2,
+          "bb10_max_bay_concurrency": 2
+        },
+        "metrics": {
+          "score": 1.0788,
+          "trades": 26661,
+          "net_r": 246.48,
+          "expectancy_r": 0.0092,
+          "max_drawdown_r": 1.4
+        }
+      },
+      "CSTG2_TECH_CONSUMER_AUTO": {
+        "optimal_parameters": {
+          "supervisor_vol_mult_range": [
+            0.4,
+            1.5
+          ],
+          "bb01_hurst_cutoff": 0.46,
+          "bb02_flux_window": 15,
+          "bb03_z_entry": -1.85,
+          "bb05_flame_bars": 8,
+          "bb05_min_rebound": 0.2,
+          "bb06_target_z": 0.5,
+          "bb07_trip_z": -3.2,
+          "bb08_cooldown_bars": 20,
+          "bb09_ratchet_trigger_z": -0.2,
+          "bb10_max_bay_concurrency": 2
+        },
+        "metrics": {
+          "score": 1.2144,
+          "trades": 34445,
+          "net_r": 368.13,
+          "expectancy_r": 0.0107,
+          "max_drawdown_r": 1.63
+        }
+      },
+      "BPSTG_HEALTHCARE_PHARMA": {
+        "optimal_parameters": {
+          "supervisor_vol_mult_range": [
+            0.4,
+            1.5
+          ],
+          "bb01_hurst_cutoff": 0.46,
+          "bb02_flux_window": 15,
+          "bb03_z_entry": -1.85,
+          "bb05_flame_bars": 8,
+          "bb05_min_rebound": 0.35,
+          "bb06_target_z": 0.35,
+          "bb07_trip_z": -3.2,
+          "bb08_cooldown_bars": 10,
+          "bb09_ratchet_trigger_z": -0.5,
+          "bb10_max_bay_concurrency": 2
+        },
+        "metrics": {
+          "score": 0.9817,
+          "trades": 10655,
+          "net_r": 101.34,
+          "expectancy_r": 0.0095,
+          "max_drawdown_r": 0.88
+        }
+      }
+    }
   }
 }
