@@ -1,3 +1,24 @@
+class SectorTurbinePID:
+    def __init__(self, target_z: float, kp: float = 0.3, ki: float = 0.02, kd: float = 0.15, droop: float = 0.05, integral_clamp: float = 1.5, trail_activation_u: float = 0.15):
+        self.target_z = target_z
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.droop = droop
+        self.integral_clamp = integral_clamp
+        self.trail_activation_u = trail_activation_u
+        self.integral = 0.0
+        self.prev_error = None
+
+    def update(self, current_z: float, grid_velocity: float = 0.0) -> float:
+        error = current_z - self.target_z
+        self.integral += error
+        self.integral = max(-self.integral_clamp, min(self.integral_clamp, self.integral))
+        deriv = (error - self.prev_error) if self.prev_error is not None else 0.0
+        self.prev_error = error
+        u_raw = (self.kp * error) + (self.ki * self.integral) + (self.kd * deriv)
+        return u_raw - (self.droop * grid_velocity)
+
 
 def resolve_sector_params(symbol, config):
     profiles = config.get('sector_governor_profiles', {})
@@ -196,26 +217,55 @@ def run():
                 entry_bar = df.iloc[pos + 1]
                 entry_price = entry_bar['open']
                 risk_ticks = sec_prof['sl_atr_mult'] * row['atr']
-                future = df.iloc[pos + 1 : pos + sec_prof['max_bars_held'] + 2]
+                if risk_ticks <= 0:
+                    continue
+
+                pid_cfg = sec_prof.get('pid', {})
+                controller = SectorTurbinePID(
+                    target_z=sec_prof['target_zscore'],
+                    kp=pid_cfg.get('kp', 0.25),
+                    ki=pid_cfg.get('ki', 0.02),
+                    kd=pid_cfg.get('kd', 0.15),
+                    droop=pid_cfg.get('droop', 0.05),
+                    integral_clamp=pid_cfg.get('integral_clamp', 1.5),
+                    trail_activation_u=pid_cfg.get('trail_activation_u', 0.15)
+                )
+
+                current_stop = entry_price - risk_ticks
+                max_b = sec_prof['max_bars_held']
+                future = df.iloc[pos + 1 : pos + 1 + max_b]
                 
                 exit_r = 0.0
-                bars_held = sec_prof['max_bars_held']
+                bars_held = max_b
                 exit_reason = 'TIME_HORIZON'
-                
-                for offset, (_, fut_row) in enumerate(future.iterrows(), start=1):
-                    if (entry_price - fut_row['low']) >= risk_ticks:
-                        exit_r = -1.0
+
+                for bar_idx, (_, fut_row) in enumerate(future.iterrows(), 1):
+                    fut_t = fut_row['dt']
+                    fut_grid_vel = grid_df.loc[fut_t]['f_grid'] if (fut_t in grid_df.index and 'f_grid' in grid_df.columns) else 0.0
+
+                    u_control = controller.update(fut_row['vwap_zscore'], grid_velocity=fut_grid_vel)
+
+                    if u_control > -0.30:
+                        ratchet_pct = min(1.0, max(0.0, (u_control + 0.30) / 0.60))
+                        dynamic_stop = entry_price - (risk_ticks * (1.0 - (0.80 * ratchet_pct)))
+                        current_stop = max(current_stop, dynamic_stop)
+
+                    if fut_row['low'] <= current_stop:
+                        exit_r = (current_stop - entry_price) / risk_ticks
                         exit_reason = 'STOP_LOSS'
-                        bars_held = offset
+                        bars_held = bar_idx
                         break
+
                     if fut_row['vwap_zscore'] >= sec_prof['target_zscore']:
                         exit_r = (fut_row['close'] - entry_price) / risk_ticks
                         exit_reason = 'VWAP_Z_TARGET'
-                        bars_held = offset
+                        bars_held = bar_idx
                         break
                 else:
                     exit_r = (future.iloc[-1]['close'] - entry_price) / risk_ticks
-                    
+                    exit_reason = 'TIME_HORIZON'
+                    bars_held = max_b
+
                 last_exit = pos + bars_held
                 gross_r = exit_r * size_multiplier
                 net_r = gross_r - (0.05 * size_multiplier)

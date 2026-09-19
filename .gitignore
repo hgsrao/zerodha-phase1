@@ -1,30 +1,5 @@
-# Python & environment
 __pycache__/
-*.py[cod]
-quant_env/
-.venv/
-
-# Heavy parquet data & large logs (do not push to GitHub)
-data/raw/*.parquet
-*.log
-*.sqlite
-*.db
-
-# Secrets & local env
-.env
-
-# Research ledgers, arrays, and Parquet dumps
-*.parquet
-*.npy
+*.pyc
 *.csv
-!FINAL_PARAMETER_INVENTORY.csv
-!calibration_progress.csv
-
-# Output and revision directories
-diagnostic_output/
-hypothesis11_monthly/
-mean_reversion/
-output/
-output_external_engine/
-revision*/
-data/
+.venv*/
+*.parquet

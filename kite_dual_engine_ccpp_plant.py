@@ -1,3 +1,19 @@
+
+# --- REVISION 2: DYNAMIC BAY MARK V DISPATCH LOOKUP ---
+def get_bay_parameters(symbol: str, fleet_cfg: dict):
+    mapping = {
+        'TATASTEEL': 'GTG1_METALS_ENERGY', 'RELIANCE': 'GTG1_METALS_ENERGY',
+        'TCS': 'GTG2_TECH_AGILE', 'INFY': 'GTG2_TECH_AGILE',
+        'HDFCBANK': 'CSTG_CORE_BANKING', 'ICICIBANK': 'CSTG_CORE_BANKING',
+        'SBIN': 'CSTG_CORE_BANKING', 'BAJFINANCE': 'CSTG_CORE_BANKING',
+        'LT': 'BPSTG_INFRA', 'MARUTI': 'BPSTG_INFRA'
+    }
+    bay = mapping.get(symbol, 'CSTG_CORE_BANKING')
+    regs = fleet_cfg.get('bay_mark_v_registers', {}).get(bay, {
+        'z_entry_threshold': -1.8, 'stop_atr_mult': 1.5, 'target_atr_mult': 3.0,
+        'Kp': 0.10, 'Ki': 0.20, 'Kd': 0.80
+    })
+    return bay, regs
 #!/usr/bin/env python3
 """
 kite_dual_engine_ccpp_plant.py
@@ -166,22 +182,39 @@ class CCPP_PIDGovernorActuator:
         valve_pct = float(np.clip((p_term + i_term + d_term) / 3.0, 0.0, 1.0))
         return max(valve_pct, 0.05)
 
-# Calibrated PID Governor Actuator (Kp=0.10, Ki=0.20, Kd=0.80)
+# ==============================================================================
+# CALIBRATED HIERARCHICAL PID CONTROLLERS (TIER 1 & TIER 2)
+# ==============================================================================
 try:
     with open('results/fleet_config.json', 'r') as _cfg_f:
         _cfg_data = json.load(_cfg_f)
-    _pid_params = _cfg_data.get('pid_controller_parameters', {})
-    global_pid_actuator = CCPP_PIDGovernorActuator(
-        Kp=_pid_params.get('Kp', 0.10),
-        Ki=_pid_params.get('Ki', 0.20),
-        Kd=_pid_params.get('Kd', 0.80),
-        integral_window=_pid_params.get('integral_window', 12),
-        baseline_natr=_pid_params.get('baseline_natr', 0.012),
-        windup_limit=_pid_params.get('windup_limit', 2.0)
-    )
-    logger.info(f'(CCPP_DualPlant) PID Governor Initialized: Kp={global_pid_actuator.Kp}, Ki={global_pid_actuator.Ki}, Kd={global_pid_actuator.Kd}')
-except Exception as _e:
-    global_pid_actuator = CCPP_PIDGovernorActuator()
+except Exception as _err:
+    logger.warning(f'Could not load fleet_config.json, using defaults: {_err}')
+    _cfg_data = {}
+
+# Tier 1: Master Central DCS Grid Governor (Kp=1.30, Ki=0.00, Kd=1.50)
+_g_params = _cfg_data.get('master_grid_dcs_pid', {})
+master_grid_actuator = CCPP_PIDGovernorActuator(
+    Kp=_g_params.get('Kp_grid', 1.30),
+    Ki=_g_params.get('Ki_grid', 0.00),
+    Kd=_g_params.get('Kd_grid', 1.50),
+    integral_window=12,
+    baseline_natr=0.012,
+    windup_limit=_g_params.get('windup_limit', 1.0)
+)
+logger.info(f'(CCPP_DualPlant) Master Grid DCS Governor Loaded: Kp={master_grid_actuator.Kp}, Kd={master_grid_actuator.Kd}')
+
+# Tier 2: Sector Baseline Actuator (Kp=0.10, Ki=0.20, Kd=0.80)
+_pid_p = _cfg_data.get('pid_controller_parameters', {})
+global_pid_actuator = CCPP_PIDGovernorActuator(
+    Kp=_pid_p.get('Kp', 0.10),
+    Ki=_pid_p.get('Ki', 0.20),
+    Kd=_pid_p.get('Kd', 0.80),
+    integral_window=_pid_p.get('integral_window', 12),
+    baseline_natr=_pid_p.get('baseline_natr', 0.012),
+    windup_limit=_pid_p.get('windup_limit', 2.0)
+)
+logger.info(f'(CCPP_DualPlant) Sector Baseline Actuator Loaded: Kp={global_pid_actuator.Kp}, Ki={global_pid_actuator.Ki}, Kd={global_pid_actuator.Kd}')
 
 class CCPPDualEnginePlant:
     def __init__(self):
@@ -284,7 +317,11 @@ class CCPPDualEnginePlant:
                 if z_score <= -1.8:
                     _atr_proxy = float(std * 1.5)
                     valve_pct = global_pid_actuator.compute_valve_opening(sym, z_score, p_now, _atr_proxy)
-                    qty = int(max(1, (100000.0 / p_now) * size_mul * valve_pct))
+                    # Two-Tier Hierarchical Capacity Throttling (Master Busbar x Local Bay Valve)
+                    grid_valve = master_grid_actuator.compute_valve_opening('NIFTY_GRID', z_score, p_now, _atr_proxy) if 'master_grid_actuator' in globals() else 1.0
+                    effective_valve = valve_pct * grid_valve
+                    qty = int(max(1, (100000.0 / p_now) * size_mul * effective_valve))
+                    logger.info(f"(2-TIER_ACTUATOR) {sym} Dispatch: LocalValve={valve_pct:.2%} | GridValve={grid_valve:.2%} | NetValve={effective_valve:.2%} -> Qty={qty}")
                     logger.info(f"(PID_Actuator) {sym} Dispatch: Valve={valve_pct:.2%} | Allocated Qty={qty}")
                     stop_p = round(p_now * 0.985, 2)
                     target_p = round(p_now * 1.025, 2)
