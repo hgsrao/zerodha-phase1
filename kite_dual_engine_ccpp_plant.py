@@ -313,8 +313,13 @@ class CCPPDualEnginePlant:
                 std = np.std(prices) if np.std(prices) > 0 else 1.0
                 z_score = (p_now - ma) / std
 
-                # Dip-reversion dispatch threshold
-                if z_score <= -1.8:
+                # Dynamic Sector Bay Registers & ATR Triple Barriers
+                bay_name, bay_reg = get_bay_parameters(sym, _cfg_all if '_cfg_all' in globals() else {})
+                z_thresh = bay_reg.get('z_entry_threshold', -1.8)
+                stop_m = bay_reg.get('stop_atr_mult', 1.5)
+                target_m = bay_reg.get('target_atr_mult', 3.0)
+
+                if z_score <= z_thresh:
                     _atr_proxy = float(std * 1.5)
                     valve_pct = global_pid_actuator.compute_valve_opening(sym, z_score, p_now, _atr_proxy)
                     # Two-Tier Hierarchical Capacity Throttling (Master Busbar x Local Bay Valve)
@@ -323,8 +328,8 @@ class CCPPDualEnginePlant:
                     qty = int(max(1, (100000.0 / p_now) * size_mul * effective_valve))
                     logger.info(f"(2-TIER_ACTUATOR) {sym} Dispatch: LocalValve={valve_pct:.2%} | GridValve={grid_valve:.2%} | NetValve={effective_valve:.2%} -> Qty={qty}")
                     logger.info(f"(PID_Actuator) {sym} Dispatch: Valve={valve_pct:.2%} | Allocated Qty={qty}")
-                    stop_p = round(p_now * 0.985, 2)
-                    target_p = round(p_now * 1.025, 2)
+                    stop_p = round(p_now - (stop_m * _atr_proxy), 2)
+                    target_p = round(p_now + (target_m * _atr_proxy), 2)
 
                     conn = sqlite3.connect(DB_PATH)
                     c = conn.cursor()
