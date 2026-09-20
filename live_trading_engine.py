@@ -226,6 +226,9 @@ for symbol, df in symbol_data.items():
                 exit_reason = 'max_hold_bars'
 
             if exit_reason:
+                # Calculate P&L percentage
+                pnl_pct = (pnl / entry_price) * 100 if entry_price > 0 else 0
+
                 # Update trade record
                 trades[-1].update({
                     'exit_timestamp': timestamp,
@@ -234,7 +237,7 @@ for symbol, df in symbol_data.items():
                     'bars_held': idx - controller_state['entry_bar'],
                     'exit_reason': exit_reason,
                     'pnl': pnl,
-                    'pnl_pct': (pnl / entry_price) * 100,
+                    'pnl_pct': pnl_pct,
                 })
 
                 print(f"    EXIT @ {timestamp}: {symbol} @ ₹{exit_price:.2f} | P&L: ₹{pnl:+.2f} ({pnl_pct:+.2f}%) | Reason: {exit_reason}")
