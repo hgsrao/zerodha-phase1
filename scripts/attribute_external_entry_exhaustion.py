@@ -50,9 +50,9 @@ def entry_features(
     """Return direction-aware entry features without looking past `now`."""
     timestamps = pd.to_datetime(bars["timestamp"], utc=True, errors="raise")
     target = _as_utc(decision_timestamp)
-    # Compare normalized UTC nanoseconds rather than pandas' timezone-aware
-    # extension array with a timezone-naive numpy datetime64.
-    matches = np.flatnonzero(timestamps.array.asi8 == target.value)
+    # Compare timestamps directly: pandas may store them as microseconds or
+    # nanoseconds; raw asi8 values must not be compared across resolutions.
+    matches = np.flatnonzero((timestamps == target).to_numpy())
     if len(matches) != 1:
         raise ValueError(f"decision timestamp must match exactly one bar: {decision_timestamp}")
     index = int(matches[0])

@@ -29,7 +29,7 @@ from revision2_external.dynamic_parameter_controller import DynamicParameterCont
 
 import itertools
 import math
-from dataclasses import replace
+from dataclasses import replace, asdict
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
@@ -45,7 +45,7 @@ from revision2.portfolio_orchestrator import SECTOR_MAP, _ClockEvent
 from revision2_external.composite_study_signal import CompositeStudySignal
 from revision2_external.closed_loop_control import ClosedLoopSupervisor, HMMRiskHysteresis, regime_risk_derate
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
-from revision2_external.data_certification_pandera import certify_bars
+from revision2_external.data_certification_pandera import certify_bars, certify_session_completeness
 from revision2_external.dynamic_target_setpoint import FrozenTargetSetpointProvider
 from revision2_external.entry_expectancy_evidence import CausalEntryExpectancyLedger
 from revision2_external.entry_candidate_observations import EntryCandidateObservationLedger
@@ -56,7 +56,9 @@ from revision2_external.pid_controller import SimplePIDModelPredictiveControlBox
 from revision2_external.position_sizing_pyportfolioopt import PyPortfolioOptPositionManagerBox, compute_portfolio_weights
 from revision2_external.regime_id_box import HMMIntelligentDiscriminationBox
 from revision2_external.startup_validation import validate_runtime_parameters, validate_safety_contract
-from runtime.operating_mode import ExecutionGate, PaperBrokerAdapter
+from runtime.operating_mode import ExecutionGate
+from revision2_external.paper_execution import CostedPaperBrokerAdapter, ReplayIntentLedger
+from revision2.transaction_costs import leg_cost, paper_fill_price
 
 SNAPSHOT_LOOKBACK_BARS = 300
 PORTFOLIO_WEIGHT_REFIT_EVERY_BARS = 500  # PyPortfolioOpt refit cadence, per unique clock tick
@@ -69,6 +71,14 @@ class ExternalEngineStartupNotCertifiedError(StartupNotCertifiedError):
 
 class Revision2ExternalEngineOrchestrator:
     """Shared-portfolio orchestrator using the external-library box set."""
+
+    # These retain compatibility in the shared registry but have no external
+    # replay actuator. They must not spend calibration budget.
+    INACTIVE_CALIBRATION_PARAMETERS = frozenset({
+        "exit_confidence_threshold", "pid_derivative_smoothing",
+        "limit_order_offset_percent", "max_retry_attempts", "retry_delay_seconds",
+        "max_positions_per_symbol", "max_symbol_concentration", "data_validation_mode",
+    })
 
     def __init__(
         self,
@@ -83,6 +93,8 @@ class Revision2ExternalEngineOrchestrator:
         pid_mode: str = "enabled",
         dynamic_target_setpoint_provider: Optional[FrozenTargetSetpointProvider] = None,
         dynamic_target_setpoint_mode: str = "shadow",
+        risk_profile: str = "development",
+        session_schedule: Optional[Dict[str, Tuple[str, str]]] = None,
     ) -> None:
         if closed_loop_mode not in {"shadow", "active_paper"}:
             raise ValueError("closed_loop_mode must be 'shadow' or 'active_paper'")
@@ -102,7 +114,13 @@ class Revision2ExternalEngineOrchestrator:
         self.pid_mode = pid_mode
         self.dynamic_target_setpoint_provider = dynamic_target_setpoint_provider
         self.dynamic_target_setpoint_mode = dynamic_target_setpoint_mode
+        if risk_profile not in {"development", "trial"}:
+            raise ValueError("risk_profile must be development or trial")
+        self.risk_profile = risk_profile
+        self.session_schedule = dict(session_schedule or {})
         self.registry = registry or CanonicalParameterRegistry()
+        if risk_profile == "trial":
+            self.registry = self.registry.trial_profile()
         overrides = calibration_overrides or {}
         errors = self.registry.validate_calibration_payload(overrides)
         if errors:
@@ -124,6 +142,8 @@ class Revision2ExternalEngineOrchestrator:
 
         self.config = EffectiveConfig.build(values, registry_hash=self.registry.FROZEN_IDENTITY_SHA256)
         self.safety_contract = SafetyContract.from_registry(self.registry)
+        if self.config.require("order_type") != "MARKET":
+            raise ValueError("External replay supports MARKET orders only")
         self.sector_map = dict(sector_map) if sector_map is not None else dict(SECTOR_MAP)
         # The provider is shadow-only in this release.  It records a causal,
         # timestamp-aligned Nifty/VIX assessment but is not an entry gate and
@@ -158,8 +178,15 @@ class Revision2ExternalEngineOrchestrator:
         self.safety_gates_target = SafetyGatesTargetBox()
         self.position_manager = PyPortfolioOptPositionManagerBox()
         self.p01d = P01DBox()
-        self.broker = PaperBrokerAdapter(account_id="PAPER-EXTERNAL-ENGINE")
+        self.broker = CostedPaperBrokerAdapter(
+            account_id="PAPER-EXTERNAL-ENGINE",
+            slippage_fraction=float(self.config.require("slippage_cost_multiplier")) * 0.0005,
+        )
         self.entry_decision_engine = EntryDecisionEngine(config=self._build_safety_gate_config())
+        self._intent_ledger = ReplayIntentLedger(self.safety_contract.values["order_dedup_window_seconds"])
+        self._execution_halted = False
+        self._exit_orders_submitted = 0
+        self._post_fill_checks = []
 
         self.starting_equity = starting_equity
         self.consumed_parameters: set = set()
@@ -230,6 +257,12 @@ class Revision2ExternalEngineOrchestrator:
             max_gross_exposure_fraction=float(v["max_gross_exposure_fraction"]),
             max_exposure_per_symbol_fraction=float(v["max_exposure_per_symbol_fraction"]),
             no_entry_cutoff_time=str(v["no_entry_cutoff_time"]),
+            max_market_data_age_seconds=int(v["max_market_data_age_seconds"]),
+            drawdown_derate_threshold=float(v["drawdown_derate_threshold"]),
+            drawdown_derate_multiplier=float(v["drawdown_derate_multiplier"]),
+            order_timeout_seconds=min(int(v["order_timeout_seconds_execution"]),
+                                      int(self.config.require("order_timeout_seconds"))),
+            max_reconciliation_qty_diff=int(v["max_reconciliation_qty_diff"]),
         )
 
     def _issue_startup_certificate(self) -> StartupCertificate:
@@ -248,11 +281,11 @@ class Revision2ExternalEngineOrchestrator:
             self.consumed_parameters.add(use.parameter)
 
     def _equity(self) -> float:
-        return self.starting_equity + self.broker.realized_pnl
+        return self.starting_equity + self.broker.realized_pnl - self.broker.booked_costs
 
     def _current_drawdown(self) -> float:
-        peak = max(self._equity_curve) if self._equity_curve else self.starting_equity
-        current = self._equity_curve[-1] if self._equity_curve else self.starting_equity
+        peak = max(self._mtm_peak, max(self._equity_curve, default=self.starting_equity))
+        current = self._mark_to_market_equity()
         return (peak - current) / peak if peak > 0 else 0.0
 
     def _mark_to_market_equity(self) -> float:
@@ -263,10 +296,11 @@ class Revision2ExternalEngineOrchestrator:
                 (mark - trade["entry_price"]) * trade["quantity"] if trade["side"] == "BUY"
                 else (trade["entry_price"] - mark) * trade["quantity"]
             )
-        return self.starting_equity + self.broker.realized_pnl + unrealized
+        return self._equity() + unrealized
 
     def _gross_exposure_notional(self) -> float:
-        return sum(t["quantity"] * t["entry_price"] for t in self.open_trades.values())
+        return sum(t["quantity"] * self._last_close.get(s, t["entry_price"])
+                   for s, t in self.open_trades.items())
 
     def _record_mtm(self, timestamp: object) -> None:
         """Update drawdown online; retain the full curve only for full telemetry."""
@@ -280,22 +314,29 @@ class Revision2ExternalEngineOrchestrator:
         if self.telemetry_mode == "full":
             self._mtm_equity_curve.append((str(timestamp), equity))
 
-    @staticmethod
-    def _leg_cost(price: float, quantity: int, side: str) -> float:
-        turnover = price * quantity
-        cost = min(20.0, 0.0003 * turnover) + 0.0000345 * turnover
-        if side == "SELL":
-            cost += 0.00025 * turnover
-        return cost
+    _leg_cost = staticmethod(leg_cost)
+    _paper_fill_price = staticmethod(paper_fill_price)
 
-    @staticmethod
-    def _paper_fill_price(market_price: float, side: str, slippage_fraction: float) -> float:
-        """Mirror PaperBrokerAdapter's deterministic adverse-fill convention."""
-        slip = float(market_price) * float(slippage_fraction)
-        return round(float(market_price) + slip if side == "BUY" else float(market_price) - slip, 4)
+    def _system_state(self) -> SystemState:
+        equity = self._equity()
+        unrealized = self._mark_to_market_equity() - equity
+        return SystemState(
+            portfolio_value=equity, current_dd_percent=self._current_drawdown(),
+            current_lambda=self._gross_exposure_notional() / max(equity, 1.0),
+            daily_realized_loss=max(0.0, self._day_start_equity - equity),
+            daily_unrealized_loss=max(0.0, -unrealized),
+            open_positions_count=len(self.open_trades),
+            open_positions=[type("P", (), {"position_notional":
+                t["quantity"] * self._last_close.get(s, t["entry_price"])})()
+                for s, t in self.open_trades.items()],
+            market_data_age_seconds=0, broker_connected=True, broker_offline_seconds=0,
+            kill_switch_active=not bool(self.safety_contract.values["kill_switch_enabled"]),
+            circuit_breaker_triggered=False,
+        )
 
     def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
         close_side = "SELL" if trade["side"] == "BUY" else "BUY"
+        self._exit_orders_submitted += 1
         result = self.broker.place_order(
             symbol=symbol, side=close_side, quantity=trade["quantity"], order_type="MARKET",
             market_price=exit_price, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
@@ -329,6 +370,23 @@ class Revision2ExternalEngineOrchestrator:
                     completed.update({"mfe_price": state.mfe_price, "mae_price": state.mae_price,
                                       "mfe_r": favorable / risk, "mae_r": adverse / risk,
                                       "terminal_bar_excursion": "intrabar_order_unknown"})
+                    terminal = trade.get("_terminal_bar")
+                    inclusive_mfe, inclusive_mae = state.mfe_price, state.mae_price
+                    if terminal is not None:
+                        if trade["side"] == "BUY":
+                            inclusive_mfe = max(inclusive_mfe, float(terminal["high"]))
+                            inclusive_mae = min(inclusive_mae, float(terminal["low"]))
+                        else:
+                            inclusive_mfe = min(inclusive_mfe, float(terminal["low"]))
+                            inclusive_mae = max(inclusive_mae, float(terminal["high"]))
+                    sign = 1 if trade["side"] == "BUY" else -1
+                    completed.update({
+                        "mfe_pre_exit_bar_r": favorable / risk,
+                        "mae_pre_exit_bar_r": adverse / risk,
+                        "mfe_terminal_inclusive_r": sign * (inclusive_mfe - trade["entry_price"]) / risk,
+                        "mae_terminal_inclusive_r": sign * (inclusive_mae - trade["entry_price"]) / risk,
+                        "terminal_inclusive_is_ohlc_bound": True,
+                    })
             shadow = None
             if state is not None and state.shadow_exit_price is not None:
                 shadow_close_side = "SELL" if trade["side"] == "BUY" else "BUY"
@@ -377,14 +435,14 @@ class Revision2ExternalEngineOrchestrator:
 
             # --- CLOSED-LOOP INTER-BOX FEEDBACK (Box 10 -> Box 6/8) ---
             _pnl = float(completed.get("net_pnl", 0.0))
-            _reason = str(reason).lower()
-            if _pnl < 0 or "stop" in _reason:
+            if _pnl < 0:
                 _c_losses = self.symbol_consecutive_losses.get(symbol, 0) + 1
                 self.symbol_consecutive_losses[symbol] = _c_losses
                 self.symbol_cooldown_until_bar[symbol] = getattr(self, "_current_bar_idx", 0) + 15
                 if _c_losses >= 2:
                     self.symbol_tripped[symbol] = True
-            elif _pnl > 0 and "target" in _reason:
+            elif _pnl > 0:
+                # Any profitable exit breaks consecutive loss streak
                 self.symbol_consecutive_losses[symbol] = 0
             self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
                 "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
@@ -402,6 +460,7 @@ class Revision2ExternalEngineOrchestrator:
             self._equity_curve.append(self._equity())
             del self.open_trades[symbol]
             self._exit_controller_states.pop(symbol, None)
+            self._record_mtm(timestamp)
 
     def _record_controller_event(self, event_type: str, timestamp: object, symbol: str, payload: Dict[str, Any]) -> None:
         """Record controller state and any bounded paper-only actuation."""
@@ -421,7 +480,19 @@ class Revision2ExternalEngineOrchestrator:
         trade = self.open_trades.get(symbol)
         if trade is None:
             return
-        halt_dd = float(self.config.require("drawdown_halt_threshold"))
+        # Completed fill bar is elapsed bar 0; the clock owns this counter.
+        state = self._exit_controller_states.get(symbol)
+        if state is not None:
+            state.bars_held = int(held_bars)
+        trade["_terminal_bar"] = dict(bar)
+        studies_direction = (chart_studies_audit or {}).get("direction")
+        if studies_direction is not None and studies_direction != (1 if trade["side"] == "BUY" else -1):
+            chart_studies_confidence = 0.0
+        if pd.Timestamp(timestamp).strftime("%H:%M") >= self.entry_decision_engine.config.force_close_time:
+            self._execute_exit(symbol, timestamp, trade, float(bar["open"]), "force_close_time")
+            return
+        halt_dd = min(float(self.config.require("drawdown_halt_threshold")),
+                      float(self.safety_contract.values["safety_drawdown_halt_threshold"]))
         if self._current_drawdown() >= halt_dd:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "forced_close_drawdown_halt")
             return
@@ -477,7 +548,7 @@ class Revision2ExternalEngineOrchestrator:
             current_atr = float(signal.volatility) * float(bar["close"])
             state = self.exit_controller.update(
                 symbol, state, float(signal.exit_confidence), chart_studies_confidence,
-                float(bar["close"]), current_atr,
+                float(bar["close"]), current_atr, held_bars=held_bars,
             )
             self._exit_controller_states[symbol] = state
             closed_loop_snapshot = trade.get("closed_loop")
@@ -557,7 +628,7 @@ class Revision2ExternalEngineOrchestrator:
                 path=path_observation.to_dict() if closed_loop_snapshot is not None else None,
                 exit_pid=state.last_telemetry, held_bars=held_bars,
                 minimum_hold_bars=int(trade["minimum_hold_bars"]),
-                maximum_hold_bars=int(trade["maximum_hold_bars"]),
+                maximum_hold_bars=int(trade["maximum_hold_bars"]), side=trade["side"],
             )
             self._record_controller_event("FINAL_EXECUTION_EXIT_DECISION", timestamp, symbol, {
                 "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"), **final_exit,
@@ -638,6 +709,11 @@ class Revision2ExternalEngineOrchestrator:
             })
 
     @staticmethod
+    def prepare_market_data(symbol_bars):
+        """Canonical frames must precede any clock construction."""
+        return {symbol: certify_bars(frame)[0] for symbol, frame in symbol_bars.items()}
+
+    @staticmethod
     def build_clock(symbol_bars: Dict[str, pd.DataFrame], warmup: int) -> List[_ClockEvent]:
         events: List[_ClockEvent] = []
         for symbol, bars in symbol_bars.items():
@@ -646,6 +722,36 @@ class Revision2ExternalEngineOrchestrator:
                 events.append(_ClockEvent(ts.iloc[bar_idx], symbol, bar_idx))
         events.sort(key=lambda e: (e.timestamp, e.symbol))
         return events
+
+    @staticmethod
+    def rank_simultaneous_entry_candidates(candidates):
+        """Deterministic arbitration for candidates created at one timestamp.
+
+        This does not create alpha or tune a weighted score. It uses existing
+        authoritative entry evidence lexicographically:
+
+        1. higher ID confidence,
+        2. higher actual planned bracket reward:risk,
+        3. symbol only as the deterministic final tie-break.
+
+        Input order must never affect the returned ordering.
+        """
+        def key(candidate):
+            entry = float(candidate["plan"].entry_price)
+            stop = float(candidate["plan"].stop_price)
+            target = float(candidate["plan"].target_price)
+
+            risk = abs(entry - stop)
+            reward = abs(target - entry)
+            rr = reward / risk if risk > 0.0 else 0.0
+
+            return (
+                -float(candidate["decision"].confidence),
+                -float(rr),
+                str(candidate["symbol"]),
+            )
+
+        return sorted(candidates, key=key)
 
     def run(
         self, symbol_bars: Dict[str, pd.DataFrame], warmup: int = 60,
@@ -663,12 +769,34 @@ class Revision2ExternalEngineOrchestrator:
             certified[symbol] = frame
             certification_audit[symbol] = audit
         symbol_bars = certified
+        if precomputed_clock is not None:
+            expected_clock = self.build_clock(symbol_bars, warmup)
+            if precomputed_clock != expected_clock:
+                raise ValueError("precomputed clock does not match certified frames")
 
         for symbol, bars in symbol_bars.items():
             self.pa.calibrate(symbol, bars.iloc[:warmup])
-            self.id_box.calibrate(symbol, bars.iloc[:warmup])
+            self.id_box.calibrate(symbol, bars.iloc[:0])
+            # Replay warmup through sensor histories and eligible planner PIDs,
+            # with no order construction, portfolio allocation, or submission.
+            for idx in range(min(warmup, len(bars))):
+                snapshot = MarketSnapshot(symbol, str(bars.iloc[idx]["timestamp"]), bars.iloc[:idx + 1])
+                warm_signal, _ = self.pa.evaluate(snapshot, self.config)
+                self.chart_studies.evaluate(symbol, snapshot.bars)
+                if warm_signal.direction == 0:
+                    self.id_box._current_regime(symbol, float(bars.iloc[idx]["close"]))
+                    continue
+                warm_decision, _ = self.id_box.evaluate(
+                    warm_signal, self.config, latest_close=float(bars.iloc[idx]["close"]))
+                if warm_decision.approved:
+                    close = float(bars.iloc[idx]["close"])
+                    self.mpc.build_plan(warm_signal, warm_decision, close,
+                                        max(float(warm_signal.volatility) * close, 1e-6), self.config)
 
         funnel = {
+            "pa_evaluations": 0, "directional_signals": 0, "confidence_qualified": 0,
+            "pa_green": 0, "pa_amber": 0, "pa_red": 0, "pa_neutral": 0,
+            "bay_trip_rejections": 0, "bay_cooldown_rejections": 0,
             "bars_processed": 0, "pa_signals": 0, "id_approvals": 0, "id_rejections": 0,
             "mpc_plans": 0, "safety_approvals": 0, "safety_rejections": 0,
             "gates_evaluated": 0, "gates_passed": 0, "gates_rejected": 0,
@@ -703,6 +831,10 @@ class Revision2ExternalEngineOrchestrator:
             if self._active_trading_date != event_ts.date():
                 self._active_trading_date = event_ts.date()
                 self._day_start_equity = self._equity()
+                # Session-scoped machine bay lockout reset
+                self.symbol_cooldown_until_bar.clear()
+                self.symbol_consecutive_losses.clear()
+                self.symbol_tripped.clear()
 
             for event in tick_events:
                 self._last_close[event.symbol] = float(symbol_bars[event.symbol].iloc[event.bar_idx]["close"])
@@ -725,6 +857,8 @@ class Revision2ExternalEngineOrchestrator:
                 if len(price_history) >= 2:
                     self._portfolio_weights = compute_portfolio_weights(price_history)
 
+            pending_entry_candidates = []
+
             for event in tick_events:
                 funnel["bars_processed"] += 1
                 symbol, bar_idx = event.symbol, event.bar_idx
@@ -746,7 +880,11 @@ class Revision2ExternalEngineOrchestrator:
                 )
                 signal, trace = self.pa.evaluate(snapshot, self.config)
                 self._record(trace)
-                funnel["pa_signals"] += 1
+                funnel["pa_signals"] += 1  # deprecated compatibility alias for pa_evaluations
+                funnel["pa_evaluations"] += 1
+                funnel["directional_signals"] += int(signal.direction != 0)
+                funnel["confidence_qualified"] += int(signal.confidence >= float(self.config.require("entry_confidence_threshold")))
+                funnel["pa_" + signal.quality_band] += 1
 
                 # Box 4b, the Chart-Studies Confirmation Layer -- a SECOND,
                 # fully independent confidence reading (Ichimoku/Bollinger/
@@ -778,7 +916,7 @@ class Revision2ExternalEngineOrchestrator:
                     chart_studies_confidence, composite_result,
                 )
 
-                if symbol in self.open_trades or not in_window:
+                if symbol in self.open_trades or not in_window or self._execution_halted:
                     continue
                 if next_ts.date() != event_ts.date() or next_ts.strftime("%H:%M") >= str(self.safety_contract.values["no_entry_cutoff_time"]):
                     continue
@@ -834,7 +972,7 @@ class Revision2ExternalEngineOrchestrator:
                         "pa_confidence": float(signal.confidence), "id_confidence": float(decision.confidence),
                     })
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "bay_ansi_flameout_tripped")
-                    funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
+                    funnel["bay_trip_rejections"] += 1
                     continue
 
                 if bar_idx < self.symbol_cooldown_until_bar.get(symbol, -1):
@@ -846,7 +984,7 @@ class Revision2ExternalEngineOrchestrator:
                         "pa_confidence": float(signal.confidence), "id_confidence": float(decision.confidence),
                     })
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "bay_cooldown_active")
-                    funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
+                    funnel["bay_cooldown_rejections"] += 1
                     continue
 
                 funnel["mpc_plans"] += 1
@@ -908,7 +1046,54 @@ class Revision2ExternalEngineOrchestrator:
                             "maximum_hold_bars": plan.maximum_hold_bars, **proposal,
                         })
 
-                approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(self._equity_curve, self.config)
+                # S4: candidate construction is complete.  No portfolio
+                # capacity, sizing, gate submission, or broker mutation is
+                # allowed until every symbol at this timestamp has reached
+                # this same boundary.
+                pending_entry_candidates.append({
+                    "symbol": symbol,
+                    "bar_idx": bar_idx,
+                    "bars": bars,
+                    "next_ts": next_ts,
+                    "signal": signal,
+                    "decision": decision,
+                    "plan": plan,
+                    "pid_info": pid_info,
+                    "candidate_id": candidate_id,
+                    "entry_quality": entry_quality,
+                    "composite_result": composite_result,
+                    "chart_studies_confidence": chart_studies_confidence,
+                    "atr": atr,
+                })
+                continue
+
+            # S4_PHASE_B_SIMULTANEOUS_ARBITRATION
+            # Every eligible candidate for this exact timestamp now exists.
+            # Rank the immutable candidate batch first; only then allow any
+            # candidate to consume portfolio capacity or create a fill.
+            for pending in self.rank_simultaneous_entry_candidates(
+                pending_entry_candidates
+            ):
+                symbol = pending["symbol"]
+                bar_idx = pending["bar_idx"]
+                bars = pending["bars"]
+                next_ts = pending["next_ts"]
+                signal = pending["signal"]
+                decision = pending["decision"]
+                plan = pending["plan"]
+                pid_info = pending["pid_info"]
+                candidate_id = pending["candidate_id"]
+                entry_quality = pending["entry_quality"]
+                composite_result = pending["composite_result"]
+                chart_studies_confidence = pending["chart_studies_confidence"]
+                atr = pending["atr"]
+
+                # Some lifecycle/audit code uses this authoritative bar index.
+                self._current_bar_idx = bar_idx
+
+                approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(
+                    self._equity_curve, self.config, current_lambda=self._system_state().current_lambda,
+                )
                 self._record(trace)
                 if not approved:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "pre_sizing_safety")
@@ -994,7 +1179,7 @@ class Revision2ExternalEngineOrchestrator:
                     funnel["portfolio_cap_rejections"] += 1
                     continue
                 sector_notional = sum(
-                    t["quantity"] * t["entry_price"] for s, t in self.open_trades.items()
+                    t["quantity"] * self._last_close.get(s, t["entry_price"]) for s, t in self.open_trades.items()
                     if self.sector_map.get(s, "Unclassified") == sector
                 )
                 if sector_notional + real_notional > equity_now * sector_cap_fraction:
@@ -1002,7 +1187,10 @@ class Revision2ExternalEngineOrchestrator:
                     funnel["portfolio_cap_rejections"] += 1
                     continue
 
-                post_ok, _, trace = self.safety_gates_target.evaluate_post_sizing(self._equity_curve, plan, quantity, self.config)
+                post_ok, _, trace = self.safety_gates_target.evaluate_post_sizing(
+                    self._equity_curve, plan, quantity, self.config,
+                    daily_loss=self._system_state().daily_realized_loss + self._system_state().daily_unrealized_loss,
+                )
                 self._record(trace)
                 if not post_ok:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "post_sizing_safety")
@@ -1016,59 +1204,23 @@ class Revision2ExternalEngineOrchestrator:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "order_construction")
                     continue
 
-                state = SystemState(
-                    portfolio_value=equity_now, current_dd_percent=self._current_drawdown(),
-                    current_lambda=self._gross_exposure_notional() / max(equity_now, 1.0),
-                    daily_realized_loss=max(0.0, self._day_start_equity - equity_now),
-                    # Was a hardcoded 0.0. Real, verified before fixing: no
-                    # gate in gates_framework.py actually reads
-                    # daily_unrealized_loss (grepped every Gate0X class body
-                    # -- it's defined on SystemState and appears in one
-                    # diagnostic dict, never in a pass/fail check), so this
-                    # fix changes zero real gate decisions today. Fixed
-                    # anyway because it's real, cheap, already-available
-                    # data (the same _mark_to_market_equity() the MTM curve
-                    # already uses) -- a future gate that DOES read it
-                    # should see the truth, not a permanent zero.
-                    daily_unrealized_loss=max(0.0, self._day_start_equity - self._mark_to_market_equity()),
-                    open_positions_count=len(self.open_trades),
-                    open_positions=[type("P", (), {"position_notional": t["quantity"] * t["entry_price"]})() for t in self.open_trades.values()],
-                    # market_data_age_seconds / broker_connected /
-                    # circuit_breaker_triggered stay fixed "healthy" here on
-                    # purpose, not by oversight: this is an offline replay
-                    # against historical bars -- there is no live broker
-                    # session to disconnect, no live feed to go stale, and
-                    # no circuit-breaker signal computed anywhere in this
-                    # codebase. Gate04BrokerHalt/Gate07StaleData/
-                    # Gate18CircuitBreaker DO read these three for real
-                    # (verified), so faking a plausible-looking number here
-                    # would be worse than an honest, documented backtest
-                    # default -- a real live-trading mode (not built yet)
-                    # would need to feed these from actual broker/feed
-                    # telemetry, not from this replay orchestrator.
-                    market_data_age_seconds=0, broker_connected=True, broker_offline_seconds=0,
-                    kill_switch_active=not bool(self.safety_contract.values["kill_switch_enabled"]),
-                    circuit_breaker_triggered=False,
-                )
+                state = self._system_state()
                 entry_signal = EntrySignal(
                     symbol=symbol, entry_price=plan.entry_price, stop_loss_price=plan.stop_price,
                     profit_target_price=plan.target_price, confidence=decision.confidence,
                     suggested_quantity=quantity, position_notional=real_notional,
-                    risk_reward_ratio=decision.risk_reward_ratio,
+                    risk_reward_ratio=abs(plan.target_price - plan.entry_price) / max(abs(plan.entry_price - plan.stop_price), 1e-12),
                 )
                 try:
                     current_time = datetime.fromisoformat(str(next_ts))
                 except Exception:
                     current_time = datetime.now()
-                # Box 7 (SafetyGates/18-gate) is unchanged, in-house, from
-                # this branch's own base commit -- evaluate_pre_submit()/
-                # evaluate_post_fill() are a different branch's enhancement
-                # (codex/ten-box-remediation), not present here. Using
-                # .evaluate() as-is, matching "kept in-house, untouched".
-                gate_result = self.entry_decision_engine.evaluate(
+                gate_result = self.entry_decision_engine.evaluate_pre_submit(
                     state, signal=entry_signal, current_time=current_time, proposed_quantity=quantity,
                     target_price=plan.entry_price, fill_price=plan.entry_price, expected_qty=quantity,
-                    actual_qty=quantity, symbol=symbol, seen_recent=False, proposed_notional=real_notional,
+                    actual_qty=quantity, symbol=symbol,
+                    seen_recent=self._intent_ledger.seen_recent(symbol, order.side, current_time),
+                    proposed_notional=real_notional,
                 )
                 # GRID GATE INTEGRATION: DISABLED PENDING REAL DATA INJECTION
                 # Status: Fail-closed logic is implemented, but orchestrator never initializes:
@@ -1100,7 +1252,8 @@ class Revision2ExternalEngineOrchestrator:
                         continue
                 funnel["gates_evaluated"] += 1
                 if not gate_result["passed"]:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_gate")
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_gate",
+                        details={**gate_result, "decisions": [asdict(d) for d in gate_result["decisions"]]})
                     funnel["gates_rejected"] += 1
                     continue
                 funnel["gates_passed"] += 1
@@ -1119,6 +1272,13 @@ class Revision2ExternalEngineOrchestrator:
                     funnel["safety_rejections"] += 1
                     continue
 
+                # Derating/clamping can only round DOWN to a valid symbol lot.
+                lot_size = max(1, int(self.config.require("lot_size_by_symbol").get(symbol, 1)))
+                quantity = (quantity // lot_size) * lot_size
+                if quantity <= 0:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "lot_rounding_zero")
+                    continue
+                self._intent_ledger.record(symbol, order.side, current_time)
                 fill = self.broker.place_order(
                     symbol=symbol, side=order.side, quantity=quantity, order_type=order.order_type,
                     market_price=float(pid_info["execution_market_price"]),
@@ -1126,6 +1286,25 @@ class Revision2ExternalEngineOrchestrator:
                 )
                 funnel["orders_submitted"] += 1
                 if fill["passed"]:
+                    actual_quantity = int(fill["filled_quantity"])
+                    post_fill = self.entry_decision_engine.evaluate_post_fill(
+                        target_price=float(pid_info["execution_market_price"]), fill_price=float(fill["filled_price"]),
+                        expected_qty=quantity, actual_qty=actual_quantity,
+                        elapsed_seconds=float(fill["ack_elapsed_seconds"]),
+                        expected_position=actual_quantity * (1 if order.side == "BUY" else -1),
+                        actual_position=self.broker.get_position(symbol)["quantity"],
+                    )
+                    self._post_fill_checks.append({
+                        "candidate_id": candidate_id, **post_fill,
+                        "decisions": [asdict(d) for d in post_fill["decisions"]],
+                    })
+                    if not post_fill["passed"]:
+                        # A fill already happened: retain it in the ledger and halt NEW entries.
+                        # Existing protective exits remain enabled.
+                        self._execution_halted = True
+                    if actual_quantity <= 0:
+                        raise RuntimeError("Paper fill has no reconcilable positive quantity")
+                    quantity = actual_quantity
                     self.entry_candidate_observations.dispose(candidate_id, "FILLED", "paper_fill")
                     funnel["fills"] += 1
                     self._trade_sequence += 1
@@ -1190,7 +1369,13 @@ class Revision2ExternalEngineOrchestrator:
         safety_names = set(self.registry.safety_params)
         coverage_target = sorted(target_names & self.consumed_parameters)
 
+        funnel["exit_orders_submitted"] = self._exit_orders_submitted
         return {
+            "risk_profile": self.risk_profile,
+            "operating_mode": "paper",
+            "post_fill_checks": self._post_fill_checks,
+            "execution_halted": self._execution_halted,
+            "safety_violations": sum(not row["passed"] for row in self._post_fill_checks),
             **funnel, "symbols": self.symbols, "completed_trades": len(self.completed_trades),
             "gross_pnl": gross_pnl, "net_pnl": sum(t["net_pnl"] for t in self.completed_trades),
             "ending_equity": self.starting_equity + sum(t["net_pnl"] for t in self.completed_trades),
@@ -1198,6 +1383,10 @@ class Revision2ExternalEngineOrchestrator:
             "closed_loop_mode": self.closed_loop_mode,
             "pid_mode": self.pid_mode,
             "certification_audit": certification_audit,
+            "session_completeness": {
+                s: certify_session_completeness(frame, self.session_schedule)
+                for s, frame in symbol_bars.items()
+            },
             "final_portfolio_weights": self._portfolio_weights,
             "parameter_coverage": {
                 "target_total": len(target_names), "target_consumed": len(coverage_target),

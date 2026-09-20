@@ -491,7 +491,7 @@ class SafetyGatesTargetBox:
     multiplier PositionManager needs as an input.
     """
 
-    def evaluate_pre_sizing(self, equity_curve: List[float], config: EffectiveConfig) -> Tuple[bool, str, float, List[ParameterUse]]:
+    def evaluate_pre_sizing(self, equity_curve: List[float], config: EffectiveConfig, *, current_lambda: float = 0.0) -> Tuple[bool, str, float, List[ParameterUse]]:
         trace: List[ParameterUse] = []
 
         def req(name: str, calculation: str, output_field: str) -> Any:
@@ -516,25 +516,18 @@ class SafetyGatesTargetBox:
             size_multiplier = 0.5
         elif drawdown >= normal_dd:
             size_multiplier = 0.8
-        size_multiplier = min(size_multiplier, lambda_limit / max(lambda_limit, 0.01))
+        size_multiplier = min(size_multiplier, lambda_limit / max(lambda_limit, current_lambda, 0.01))
 
         return True, "approved", size_multiplier, trace
 
     @staticmethod
     def _leg_cost(price: float, quantity: int, side: str) -> float:
-        """Identical formula to orchestrator.py's _transaction_costs() /
-        portfolio_orchestrator.py's _leg_cost() / revision2_external's own
-        copy -- kept identical deliberately so the profit-margin check below
-        compares against the SAME cost the trade will actually be charged,
-        not an independently-drifting estimate."""
-        turnover = price * quantity
-        cost = min(20.0, 0.0003 * turnover) + 0.0000345 * turnover
-        if side == "SELL":
-            cost += 0.00025 * turnover
-        return cost
+        from revision2.transaction_costs import leg_cost
+        return leg_cost(price, quantity, side)
 
     def evaluate_post_sizing(
-        self, equity_curve: List[float], plan: TradePlan, quantity: int, config: EffectiveConfig
+        self, equity_curve: List[float], plan: TradePlan, quantity: int, config: EffectiveConfig,
+        *, daily_loss: Optional[float] = None,
     ) -> Tuple[bool, str, List[ParameterUse]]:
         trace: List[ParameterUse] = []
 
@@ -554,7 +547,7 @@ class SafetyGatesTargetBox:
         if worst_case_trade_loss_rupees > max_loss_trade:
             return False, f"worst-case trade loss Rs.{worst_case_trade_loss_rupees:.2f} exceeds per-trade cap Rs.{max_loss_trade:.2f}", trace
 
-        daily_loss_so_far = max(0.0, peak - current)
+        daily_loss_so_far = max(0.0, peak - current) if daily_loss is None else max(0.0, daily_loss)
         if daily_loss_so_far > max_loss_day:
             return False, f"cumulative loss Rs.{daily_loss_so_far:.2f} exceeds daily cap Rs.{max_loss_day:.2f}", trace
 

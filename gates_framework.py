@@ -75,6 +75,11 @@ class SafetyGateConfig:
     min_risk_reward_ratio: float = 1.50
     slippage_tolerance_percent: float = 0.001
     max_broker_offline_seconds: int = 300
+    max_market_data_age_seconds: int = 30
+    drawdown_derate_threshold: float = 0.18
+    drawdown_derate_multiplier: float = 0.80
+    order_timeout_seconds: int = 30
+    max_reconciliation_qty_diff: int = 0
     max_position_quantity: int = 100
     max_concurrent_positions: int = 5
     max_gross_exposure_fraction: float = 0.50
@@ -150,7 +155,7 @@ class Gate06GrossExposure(BaseGate):
 
 class Gate07StaleData(BaseGate):
     def evaluate(self, state: SystemState) -> GateDecision:
-        if state.market_data_age_seconds > 30:
+        if state.market_data_age_seconds > self.config.max_market_data_age_seconds:
             return self._make_decision("Gate07StaleData", False, f"market data stale: {state.market_data_age_seconds}s")
         return self._make_decision("Gate07StaleData", True, "market data fresh")
 
@@ -180,8 +185,8 @@ class Gate09PositionQuantity(BaseGate):
 
 class Gate10DrawdownDerating(BaseGate):
     def evaluate(self, state: SystemState, size: int) -> Tuple[GateDecision, int]:
-        if state.current_dd_percent >= 0.18:
-            adjusted = int(size * self.config.lambda_derate_multiplier)
+        if state.current_dd_percent >= self.config.drawdown_derate_threshold:
+            adjusted = int(size * self.config.drawdown_derate_multiplier)
             return self._make_decision("Gate10DrawdownDerating", True, "drawdown derating in effect", {"adjusted_size": adjusted}), adjusted
         return self._make_decision("Gate10DrawdownDerating", True, "drawdown derating not required"), size
 
@@ -212,7 +217,7 @@ class Gate13OrderDuplication(BaseGate):
 
 class Gate14OrderTimeout(BaseGate):
     def evaluate(self, elapsed_seconds: float) -> GateDecision:
-        if elapsed_seconds > self.config.max_broker_offline_seconds:
+        if elapsed_seconds > self.config.order_timeout_seconds:
             return self._make_decision("Gate14OrderTimeout", False, f"order timeout exceeded: {elapsed_seconds}s")
         return self._make_decision("Gate14OrderTimeout", True, "order within timeout window")
 
@@ -220,7 +225,7 @@ class Gate14OrderTimeout(BaseGate):
 class Gate15OrderReconciliation(BaseGate):
     def evaluate(self, expected_qty: int, actual_qty: int) -> GateDecision:
         delta = abs(expected_qty - actual_qty)
-        if delta > 0:
+        if delta > self.config.max_reconciliation_qty_diff:
             return self._make_decision("Gate15OrderReconciliation", False, f"reconciliation delta {delta} exceeds tolerance")
         return self._make_decision("Gate15OrderReconciliation", True, "reconciliation matched")
 
@@ -294,6 +299,7 @@ class EntryDecisionEngine:
         symbol: str = "",
         seen_recent: bool = False,
         proposed_notional: float = 0.0,
+        execution_phase: str = "legacy",
     ) -> Dict[str, Any]:
         decision_log: List[GateDecision] = []
         adjusted_quantity = proposed_quantity
@@ -337,6 +343,10 @@ class EntryDecisionEngine:
                 }
 
         for gate in self.gates:
+            if execution_phase == "pre_submit" and isinstance(
+                gate, (Gate14OrderTimeout, Gate15OrderReconciliation, Gate16Slippage)
+            ):
+                continue
             if isinstance(gate, Gate01KillSwitch):
                 decision = gate.evaluate(state)
             elif isinstance(gate, Gate02DrawdownHalt):
@@ -398,3 +408,28 @@ class EntryDecisionEngine:
             "adjusted_quantity": adjusted_quantity,
             "decisions": decision_log,
         }
+
+
+    def evaluate_pre_submit(self, *args, **kwargs) -> Dict[str, Any]:
+        """Only gates whose inputs exist before a fill."""
+        return self.evaluate(*args, **kwargs, execution_phase="pre_submit")
+
+    def evaluate_post_fill(self, *, target_price: float, fill_price: float,
+                           expected_qty: int, actual_qty: int, elapsed_seconds: float,
+                           expected_position: int, actual_position: int) -> Dict[str, Any]:
+        values = (target_price, fill_price, expected_qty, actual_qty, elapsed_seconds,
+                  expected_position, actual_position)
+        if (not all(math.isfinite(float(v)) for v in values) or elapsed_seconds < 0
+                or actual_qty <= 0 or fill_price <= 0):
+            return {"passed": False, "gate": "PostFillValidation", "reason": "invalid fill evidence",
+                    "decisions": []}
+        decisions = [
+            Gate14OrderTimeout(self.config, self.logger).evaluate(elapsed_seconds),
+            Gate15OrderReconciliation(self.config, self.logger).evaluate(expected_qty, actual_qty),
+            Gate16Slippage(self.config, self.logger).evaluate(target_price, fill_price),
+            GateDecision("PostFillPositionReconciliation", expected_position == actual_position,
+                         "position matched" if expected_position == actual_position else "position mismatch"),
+        ]
+        failed = next((d for d in decisions if not d.passed), None)
+        return {"passed": failed is None, "gate": failed.gate_name if failed else "PostFill",
+                "reason": failed.reason if failed else "fill reconciled", "decisions": decisions}

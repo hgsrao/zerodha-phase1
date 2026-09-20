@@ -102,6 +102,13 @@ class SafetyContract:
         return SafetyContract(values=frozen_values, contract_hash=contract_hash)
 
 
+    @staticmethod
+    def trial_defaults(registry=None) -> "SafetyContract":
+        from canonical_parameter_registry import CanonicalParameterRegistry
+        registry = registry or CanonicalParameterRegistry()
+        return SafetyContract.from_registry(registry.trial_profile())
+
+
 @dataclass(frozen=True)
 class MarketSnapshot:
     """The bars available as of a completed bar `t` — nothing after it."""

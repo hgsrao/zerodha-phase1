@@ -20,6 +20,7 @@ workflow) rather than forcing it into a role it wasn't built for.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
@@ -177,14 +178,14 @@ class PyPortfolioOptPositionManagerBox:
         risk_budget = base_risk_budget * conviction_derate
         raw_quantity = math.floor(risk_budget / risk_per_share)
 
-        lot_size = int(lot_map.get(plan.side, 1)) if isinstance(lot_map, dict) and lot_map else 1
+        lot_size = int(lot_map.get(symbol, 1)) if isinstance(lot_map, Mapping) and lot_map else 1
         lot_size = max(1, lot_size)
         quantity = (raw_quantity // lot_size) * lot_size
 
         # The safety cap is independent of, and authoritative over, the
         # optimizer. It remains a hard notional ceiling after risk sizing.
         max_by_safety_cap = math.floor((usable_equity * max_exposure_per_symbol_fraction) / plan.entry_price) if plan.entry_price else 0
-        quantity = min(quantity, max_by_safety_cap)
+        quantity = (min(quantity, max_by_safety_cap) // lot_size) * lot_size
 
         self.last_sizing_telemetry = {
             "symbol": symbol,

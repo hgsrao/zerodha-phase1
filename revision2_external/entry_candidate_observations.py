@@ -27,7 +27,7 @@ class EntryCandidateObservationLedger:
         self._rows[candidate_id] = row
         return dict(row)
 
-    def dispose(self, candidate_id: str, disposition: str, reason: str) -> dict[str, Any]:
+    def dispose(self, candidate_id: str, disposition: str, reason: str, *, details: dict[str, Any] | None = None) -> dict[str, Any]:
         row = self._rows.get(str(candidate_id))
         if row is None:
             raise ValueError(f"unknown candidate_id {candidate_id}")
@@ -35,6 +35,8 @@ class EntryCandidateObservationLedger:
             raise ValueError(f"candidate {candidate_id} already disposed")
         row["execution_disposition"] = str(disposition)
         row["execution_reason"] = str(reason)
+        if details is not None:
+            row["execution_details"] = dict(details)
         return dict(row)
 
     def finalize_pending(self) -> None:

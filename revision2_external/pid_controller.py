@@ -48,6 +48,7 @@ from collections import deque
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from simple_pid import PID
+from revision2.transaction_costs import paper_fill_price
 
 from revision2.contracts import EffectiveConfig, IDDecision, ParameterUse, PASignal, TradePlan
 
@@ -78,6 +79,7 @@ class SimplePIDModelPredictiveControlBox:
         if symbol not in store:
             pid = PID(Kp=kp, Ki=ki, Kd=kd, setpoint=target, sample_time=None, output_limits=(-abs(clamp), abs(clamp)))
             store[symbol] = pid
+        store[symbol].tunings = (kp, ki, kd)
         return store[symbol]
 
     def _confidence_baseline(self, symbol: str, current_confidence: float, window: int) -> float:
@@ -200,9 +202,7 @@ class SimplePIDModelPredictiveControlBox:
         # its normal adverse fill exactly once.  This keeps planned entry
         # and expected paper fill aligned in both PID modes.
         execution_market_price = float(entry_price) * (1.0 + entry_adjustment * 0.001)
-        effective_entry = execution_market_price * (
-            1.0 + slippage_cost_mult * 0.0005 * (1 if side == "BUY" else -1)
-        )
+        effective_entry = paper_fill_price(execution_market_price, side, slippage_cost_mult * 0.0005)
         stop_distance *= exit_tightness
         target_distance *= exit_tightness
 

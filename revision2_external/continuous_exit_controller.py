@@ -336,12 +336,13 @@ class ContinuousExitController:
     def update(
         self, symbol: str, state: ExitControllerState, current_confidence: float,
         current_chart_studies_confidence: float, current_close: float, current_atr: float,
+        *, held_bars: Optional[int] = None,
     ) -> ExitControllerState:
         """Called once per bar the position stays open. See module
         docstring for the four inputs (PA confidence, chart-studies
         confidence, price, time) and the droop (current ATR) this
         combines every call."""
-        state.bars_held += 1
+        state.bars_held = state.bars_held + 1 if held_bars is None else int(held_bars)
 
         # Track 1: PA confidence -- its own PID, own baseline, own history.
         baseline = self._baseline_from(self._confidence_history, symbol, current_confidence)

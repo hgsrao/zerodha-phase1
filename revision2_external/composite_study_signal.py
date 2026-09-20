@@ -291,7 +291,7 @@ class CompositeStudySignal:
 
         total_weight = sum(weights.values()) or 1.0
         weighted_score = sum(current_votes[n] * weights[n] for n in STUDY_NAMES) / total_weight  # in [-1, 1]
-        confidence = (weighted_score + 1.0) / 2.0  # mapped to [0, 1], same scale as PASignal.confidence
+        confidence = abs(weighted_score)  # conviction magnitude; direction is independent
         direction = 1 if weighted_score > 0 else (-1 if weighted_score < 0 else 0)
 
         return {

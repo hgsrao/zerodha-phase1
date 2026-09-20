@@ -448,7 +448,8 @@ class CalibrationSupervisor:
     ):
         self.registry = registry
         self.symbols = symbols
-        self.symbol_bars = symbol_bars
+        prepare = getattr(orchestrator_class, "prepare_market_data", None)
+        self.symbol_bars = prepare(symbol_bars) if prepare is not None else symbol_bars
         self.run_config = run_config or CalibrationRunConfig.from_registry_defaults(registry)
         self.gates = gates or AcceptanceGates()
         self.warmup = warmup
@@ -456,6 +457,13 @@ class CalibrationSupervisor:
         self.sector_map = sector_map
         self.orchestrator_class = orchestrator_class
         self.space = trading_search_space(registry)
+        excluded = getattr(orchestrator_class, "INACTIVE_CALIBRATION_PARAMETERS", frozenset())
+        self.space = SearchSpace(
+            names=[n for n in self.space.names if n not in excluded],
+            minimum={n: v for n, v in self.space.minimum.items() if n not in excluded},
+            maximum={n: v for n, v in self.space.maximum.items() if n not in excluded},
+            is_int={n: v for n, v in self.space.is_int.items() if n not in excluded},
+        )
 
         self._start_time: Optional[float] = None
         self._candidates: List[CandidateRecord] = []

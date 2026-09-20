@@ -67,7 +67,12 @@ def load_symbols_full_dataset():
 def main():
     parser = argparse.ArgumentParser(description="Full 3-year calibration with proper data scale")
     parser.add_argument("--time-only", action="store_true", help="Run one fixed-param evaluation and exit")
+    parser.add_argument("--research-only", action="store_true",
+                        help="Explicit uncertified research; cannot freeze production parameters")
     args = parser.parse_args()
+    if not args.time_only and not args.research_only:
+        parser.error("Production freezing is disabled: sealed train/validation/holdout evidence is required. "
+                     "Use --research-only only for an explicitly uncertified experiment.")
 
     print("=" * 90, flush=True)
     print("LOADING FULL 3-YEAR DATASET (vs. 1-month smoke test)", flush=True)
@@ -105,7 +110,7 @@ def main():
 
     print("\nStarting calibration supervisor (RandomSearch → TPE → CMA-ES → fine-tune)...", flush=True)
     run_config = CalibrationRunConfig.from_registry_defaults(registry, checkpoint_path=str(CHECKPOINT_PATH), seed=203)  # seed=203 for 3-year run
-    gates = AcceptanceGates()  # smoke_test_defaults
+    gates = AcceptanceGates.smoke_test_defaults()  # explicitly uncertified research only
 
     supervisor = CalibrationSupervisor(
         registry, symbols, symbol_bars, run_config=run_config, gates=gates,
@@ -120,6 +125,9 @@ def main():
     from collections import Counter
     summary = {
         "engine": "Revision2ExternalEngineOrchestrator",
+        "certified": False,
+        "production_freeze_allowed": False,
+        "acceptance_profile": "research_smoke",
         "dataset": "FULL_3YEAR (2023-07-03 to 2026-08-24)",
         "symbols": symbols,
         "total_bars": total_bars,

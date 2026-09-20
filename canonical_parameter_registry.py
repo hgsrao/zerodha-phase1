@@ -58,7 +58,8 @@ class CanonicalParameterRegistry:
     # saturation_exit_bars. These changes are exactly what this hash tracks.
     # Recomputed and verified when the approved intraday-only Gate16 default
     # moved from 0.10% to 0.15%. Cross-session orders remain prohibited.
-    FROZEN_IDENTITY_SHA256 = "26755ba69e28a81142a424fcca1a8c1b1f51a377ef70ba46fa52a97f96f28d74"
+    # 2026-09-20: user-approved monotonic PA band defaults/ranges. Safety defaults unchanged.
+    FROZEN_IDENTITY_SHA256 = "79ac231af4a0c6ee71b18ab979a3576b9737ad5dcaed468cd98a35d039ff9f0b"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -115,9 +116,9 @@ class CanonicalParameterRegistry:
             ParameterSpec("confirmation_2bar_weight", "PA", "float", 0.25, 0.1, 0.4, True, "2-bar confirmation"),
             ParameterSpec("momentum_weight", "PA", "float", 0.25, 0.1, 0.4, True, "Momentum weight"),
             ParameterSpec("volatility_weight", "PA", "float", 0.25, 0.05, 0.4, True, "Volatility weight"),
-            ParameterSpec("green_threshold", "PA", "float", 0.25, 0.10, 0.45, True, "Green signal threshold"),
-            ParameterSpec("amber_threshold_lower", "PA", "float", 0.50, 0.3, 0.7, True, "Amber threshold lower bound"),
-            ParameterSpec("red_threshold", "PA", "float", 0.30, 0.1, 0.5, True, "Red threshold"),
+            ParameterSpec("green_threshold", "PA", "float", 0.75, 0.60, 0.85, True, "Green signal threshold"),
+            ParameterSpec("amber_threshold_lower", "PA", "float", 0.50, 0.40, 0.60, True, "Amber threshold lower bound"),
+            ParameterSpec("red_threshold", "PA", "float", 0.25, 0.15, 0.35, True, "Red threshold"),
             ParameterSpec("slippage_guard_threshold", "ID", "float", 0.05, 0.01, 0.15, True, "Max slippage"),
             ParameterSpec("volatility_regime_multiplier", "PA", "float", 1.00, 0.7, 1.5, True, "Volatility regime multiplier"),
             ParameterSpec("low_vol_regime_multiplier", "PA", "float", 1.00, 0.8, 1.5, True, "Low vol multiplier"),
@@ -420,6 +421,27 @@ class CanonicalParameterRegistry:
                     reasons.append(f"safety invariant mismatch for {name}: expected {spec.default}")
 
         return reasons
+
+    def trial_profile(self):
+        """User-approved paper trial ceiling; never modifies this registry."""
+        from copy import deepcopy
+        from dataclasses import replace
+        trial = deepcopy(self)
+        for name, ceiling in {
+            "max_concurrent_positions": 1,
+            "max_daily_loss_rupees": 5000.0,
+            "safety_drawdown_halt_threshold": 0.03,
+            # Existing 50% gross cap is already stricter than no leverage.
+            "max_gross_exposure_fraction": 1.0,
+        }.items():
+            spec = trial.safety_params[name]
+            trial.safety_params[name] = replace(spec, default=min(spec.default, ceiling))
+        capital = trial.params["capital_per_trade_fraction"]
+        trial.params["capital_per_trade_fraction"] = replace(
+            capital, default=min(capital.default, 0.005), maximum=0.005,
+        )
+        trial.FROZEN_IDENTITY_SHA256 = trial.identity_sha256()
+        return trial
 
     def black_box_mapping(self) -> Dict[str, List[str]]:
         mapping: Dict[str, List[str]] = {}

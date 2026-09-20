@@ -93,3 +93,34 @@ def certify_bars(frame: pd.DataFrame, timezone: str = "Asia/Kolkata") -> Tuple[p
         raise ValueError("timestamps must be strictly increasing after certification")
 
     return bars, {"input_rows": len(frame), "output_rows": len(bars), "exact_duplicates_removed": duplicate_rows_removed}
+
+
+def certify_session_completeness(frame: pd.DataFrame, schedule: dict) -> dict:
+    """Compare minute-open bars with an explicitly supplied session calendar.
+
+    schedule maps ISO dates to (open, exclusive_close) local clock times.
+    It must come from a pinned calendar, including exceptional sessions and
+    holidays. No weekday-only calendar or interpolated bars are invented.
+    Schema-valid bars without this evidence are not completeness-certified.
+    """
+    if not schedule:
+        return {"complete": False, "reason": "SESSION_CALENDAR_NOT_SUPPLIED",
+                "missing_minutes": None, "unexpected_minutes": None}
+    import hashlib
+    import json
+    actual = pd.DatetimeIndex(pd.to_datetime(frame["timestamp"]))
+    actual = actual.tz_localize("Asia/Kolkata") if actual.tz is None else actual.tz_convert("Asia/Kolkata")
+    expected = pd.DatetimeIndex([], tz="Asia/Kolkata")
+    for date, (opens, closes) in sorted(schedule.items()):
+        start = pd.Timestamp(f"{date} {opens}", tz="Asia/Kolkata")
+        stop = pd.Timestamp(f"{date} {closes}", tz="Asia/Kolkata")
+        if stop <= start:
+            raise ValueError("session close must follow open")
+        expected = expected.union(pd.date_range(start, stop, freq="min", inclusive="left"))
+    missing = expected.difference(actual)
+    unexpected = actual.difference(expected)
+    complete = not len(missing) and not len(unexpected) and not actual.has_duplicates
+    return {"complete": complete, "reason": "COMPLETE" if complete else "INCOMPLETE_SESSION_DATA",
+            "missing_minutes": len(missing), "unexpected_minutes": len(unexpected),
+            "expected_minutes": len(expected), "observed_minutes": len(actual),
+            "calendar_sha256": hashlib.sha256(json.dumps(schedule, sort_keys=True).encode()).hexdigest()}

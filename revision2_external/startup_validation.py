@@ -97,6 +97,10 @@ def validate_runtime_parameters(registry: CanonicalParameterRegistry, values: Di
         model.model_validate(values)
     except ValidationError as exc:
         return [f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()]
+    red, amber, green = (float(values[name]) for name in
+                         ("red_threshold", "amber_threshold_lower", "green_threshold"))
+    if not 0 <= red < amber < green <= 1:
+        return ["quality bands require 0 <= red_threshold < amber_threshold_lower < green_threshold <= 1"]
     return []
 
 

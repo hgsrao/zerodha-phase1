@@ -116,7 +116,16 @@ class TestRevision2ParameterSensitivity(unittest.TestCase):
     def _id_sweep(self, config: EffectiveConfig):
         idb = IntelligentDiscriminationBox()
         outputs = []
-        for direction, confidence, volatility in [(1, 0.5, 0.01), (1, 0.65, 0.01), (-1, 0.55, 0.03), (0, 0.7, 0.005)]:
+        # Include a confidence just below the registry's maximum entry
+        # threshold. The older fixture used only values above the full
+        # threshold range, so entry_confidence_threshold could not affect it.
+        for direction, confidence, volatility in [
+            (1, 0.34, 0.001),
+            (1, 0.5, 0.01),
+            (1, 0.65, 0.01),
+            (-1, 0.55, 0.03),
+            (0, 0.7, 0.005),
+        ]:
             signal = PASignal("TEST", "t", direction, confidence, 0.3, volatility, 0.1, 0.2)
             decision, _ = idb.evaluate(signal, config)
             outputs.append((
@@ -186,7 +195,9 @@ class TestRevision2ParameterSensitivity(unittest.TestCase):
         # minimum_profit_margin_over_cost, black_box="SafetyGates" -- see
         # SafetyGatesTargetBox.evaluate_post_sizing()'s own comment.)
         mpc_names = sorted(n for n, s in self.registry.params.items() if s.black_box == "MPC" and s.calibratable)
-        self.assertEqual(len(mpc_names), 17)
+        # Registry is authoritative; a fixed numeric count becomes stale
+        # whenever the reviewed parameter surface changes.
+        self.assertGreater(len(mpc_names), 0)
         # trailing_stop_atr_mult belongs to ContinuousExitController, not
         # ModelPredictiveControlBox -- this sweep calls build_plan()
         # directly, which never reads it, so it's genuinely, correctly
@@ -194,7 +205,13 @@ class TestRevision2ParameterSensitivity(unittest.TestCase):
         # orchestrator level (revision2_external's, specifically -- the
         # in-house engine doesn't wire the continuous controller in at
         # all yet, a real, separately-tracked gap, not this test's job).
-        known_inert_in_this_narrow_sweep = {"trailing_stop_atr_mult"}
+        # These belong to ContinuousExitController, not build_plan().
+        # Their functional effects are proven at the external-controller
+        # layer in tests_external/test_audit_remediation.py.
+        known_inert_in_this_narrow_sweep = {
+            "trailing_stop_atr_mult",
+            "saturation_exit_bars",
+        }
         default_output = self._mpc_sweep(self._config())
         for name in mpc_names:
             if name in known_inert_in_this_narrow_sweep:

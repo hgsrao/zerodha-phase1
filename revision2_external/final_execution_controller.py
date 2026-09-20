@@ -57,11 +57,14 @@ class FinalExecutionController:
 
     def exit_decision(
         self, *, path: Dict[str, Any] | None, exit_pid: Dict[str, Any],
-        held_bars: int, minimum_hold_bars: int, maximum_hold_bars: int,
+        held_bars: int, minimum_hold_bars: int, maximum_hold_bars: int, side: str = "BUY",
     ) -> Dict[str, Any]:
         saturation = bool(exit_pid.get("studies_clamped"))
         behind_path = bool((path or {}).get("behind_path"))
-        stop_moved = float(exit_pid.get("stop_after", 0.0)) > float(exit_pid.get("stop_before", 0.0))
+        if side not in {"BUY", "SELL"}:
+            raise ValueError("invalid exit side")
+        delta = float(exit_pid.get("stop_after", 0.0)) - float(exit_pid.get("stop_before", 0.0))
+        stop_moved = delta > 0 if side == "BUY" else delta < 0
         eligible = int(held_bars) >= int(minimum_hold_bars)
         if int(held_bars) >= int(maximum_hold_bars):
             action, reason = "EXIT", "MAXIMUM_HOLD_REACHED"

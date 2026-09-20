@@ -184,6 +184,8 @@ def main():
     report = orch.run({symbol: frame}, warmup=60)
     elapsed = time.time() - t0
 
+    Path(TRACE_PATH).parent.mkdir(parents=True, exist_ok=True)
+    Path(TRACE_PATH).parent.mkdir(parents=True, exist_ok=True)
     with open(TRACE_PATH, "w") as f:
         for row in trace_rows:
             f.write(json.dumps(row, default=str) + "\n")
