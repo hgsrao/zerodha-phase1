@@ -1,0 +1,533 @@
+{
+  "timestamp": "20260920_060527",
+  "duration": "1week",
+  "total_symbols": 48,
+  "symbol_data": {
+    "INFY": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "vix_level": 1,
+        "sector_concentration": 1,
+        "leverage_limit": 1
+      }
+    },
+    "TCS": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "technical_confirmation": 1,
+        "vix_level": 1
+      }
+    },
+    "WIPRO": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "liquidity_check": 1,
+        "sector_concentration": 1
+      }
+    },
+    "HCL": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "portfolio_risk": 1,
+        "technical_confirmation": 1
+      }
+    },
+    "LTTS": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "drawdown_limit": 1,
+        "technical_confirmation": 1,
+        "sector_concentration": 1
+      }
+    },
+    "TECHM": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "technical_confirmation": 1,
+        "circuit_breaker": 1
+      }
+    },
+    "MPHASIS": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "max_concurrent_pos": 1,
+        "volatility_check": 1
+      }
+    },
+    "COFORGE": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "portfolio_risk": 1
+      }
+    },
+    "RELIANCE": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "portfolio_risk": 1
+      }
+    },
+    "BHARTIARTL": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "correlation_risk": 1,
+        "entry_signal_quality": 1,
+        "drawdown_limit": 1
+      }
+    },
+    "JSWSTEEL": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "margin_available": 1,
+        "leverage_limit": 1,
+        "volatility_check": 1
+      }
+    },
+    "TATASTEEL": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "momentum_divergence": 1,
+        "breadth_alignment": 1
+      }
+    },
+    "SAILIND": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "momentum_divergence": 1,
+        "time_of_day": 1
+      }
+    },
+    "HINDALCO": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "volatility_check": 1,
+        "entry_signal_quality": 1
+      }
+    },
+    "SBIN": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "breadth_alignment": 1,
+        "daily_loss_limit": 1
+      }
+    },
+    "HDFC": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "gap_risk": 1
+      }
+    },
+    "ICICIBANK": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "correlation_risk": 1,
+        "daily_loss_limit": 1
+      }
+    },
+    "AXISBANK": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "breadth_alignment": 1
+      }
+    },
+    "KOTAKBANK": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 2,
+      "execution_gate": 0,
+      "trades_executed": 2,
+      "gate_rejection_detail": {
+        "max_concurrent_pos": 1
+      }
+    },
+    "INDUSIND": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "gap_risk": 1,
+        "volatility_check": 1
+      }
+    },
+    "MARUTI": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "liquidity_check": 1
+      }
+    },
+    "BAJAJFINSV": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "margin_available": 1,
+        "gap_risk": 1
+      }
+    },
+    "LT": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "time_of_day": 1,
+        "volatility_check": 1
+      }
+    },
+    "SIEMENS": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "time_of_day": 1,
+        "technical_confirmation": 1
+      }
+    },
+    "ABB": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "daily_loss_limit": 1,
+        "correlation_risk": 1
+      }
+    },
+    "HAVELLS": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "circuit_breaker": 1
+      }
+    },
+    "MINDTREE": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "entry_signal_quality": 1
+      }
+    },
+    "ASIANPAINT": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "leverage_limit": 1,
+        "sector_concentration": 1,
+        "entry_signal_quality": 1
+      }
+    },
+    "COLPAL": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "portfolio_risk": 1
+      }
+    },
+    "MARICO": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "daily_loss_limit": 1
+      }
+    },
+    "ITC": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "correlation_risk": 2,
+        "max_concurrent_pos": 1
+      }
+    },
+    "BRITANNIA": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "entry_signal_quality": 1,
+        "breadth_alignment": 1
+      }
+    },
+    "NESTLEIND": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "daily_loss_limit": 1,
+        "sector_concentration": 1
+      }
+    },
+    "SUNPHARMA": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "vix_level": 1,
+        "max_concurrent_pos": 1
+      }
+    },
+    "DRREDDY": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "technical_confirmation": 1,
+        "portfolio_risk": 1
+      }
+    },
+    "CIPLA": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "leverage_limit": 1,
+        "volatility_check": 1
+      }
+    },
+    "LUPIN": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "daily_loss_limit": 1,
+        "volatility_check": 1
+      }
+    },
+    "CADILAHC": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "volatility_check": 1,
+        "liquidity_check": 1
+      }
+    },
+    "DIVISLAB": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "entry_signal_quality": 1,
+        "margin_available": 1
+      }
+    },
+    "PIDILITIND": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "margin_available": 1,
+        "entry_signal_quality": 1,
+        "daily_loss_limit": 1
+      }
+    },
+    "EICHERMOT": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "volatility_check": 1
+      }
+    },
+    "HEROMOTOCO": {
+      "signals_generated": 3,
+      "signals_sized": 2,
+      "entry_decision_gate": 2,
+      "execution_gate": 0,
+      "trades_executed": 2,
+      "gate_rejection_detail": {}
+    },
+    "ASHOKLEY": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "drawdown_limit": 1
+      }
+    },
+    "TATACOMM": {
+      "signals_generated": 4,
+      "signals_sized": 2,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "technical_confirmation": 1,
+        "sector_concentration": 1
+      }
+    },
+    "INFRATEL": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 2,
+      "execution_gate": 0,
+      "trades_executed": 2,
+      "gate_rejection_detail": {
+        "entry_signal_quality": 1
+      }
+    },
+    "POWERGRID": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "volatility_check": 1,
+        "breadth_alignment": 1,
+        "max_concurrent_pos": 1
+      }
+    },
+    "NTPC": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 1,
+      "execution_gate": 0,
+      "trades_executed": 1,
+      "gate_rejection_detail": {
+        "drawdown_limit": 1,
+        "gap_risk": 1
+      }
+    },
+    "GAIL": {
+      "signals_generated": 5,
+      "signals_sized": 3,
+      "entry_decision_gate": 0,
+      "execution_gate": 0,
+      "trades_executed": 0,
+      "gate_rejection_detail": {
+        "breadth_alignment": 1,
+        "time_of_day": 1,
+        "volatility_check": 1
+      }
+    }
+  },
+  "summary": {
+    "total_signals": 193,
+    "total_sized": 112,
+    "total_passed_gates": 22,
+    "total_executed": 22
+  }
+}
