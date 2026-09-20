@@ -32,8 +32,16 @@ class CircuitBreakerThresholds:
     # Max drawdown threshold
     MAX_DRAWDOWN_THRESHOLD = -0.05  # 5% drawdown
 
-    # Consecutive loss threshold
-    CONSECUTIVE_LOSSES_THRESHOLD = 5
+    # Consecutive loss threshold - NOW REGIME-AWARE (not hardcoded to 5)
+    BASE_CONSECUTIVE_LOSSES_THRESHOLD = 2  # Conservative base
+
+    # Regime-specific consecutive loss thresholds (replaces hardcoded value)
+    CONSECUTIVE_LOSSES_BY_REGIME = {
+        'calm': 3,           # Calm markets: tolerate 3 consecutive losses
+        'elevated': 2,       # Elevated risk: tolerate 2 consecutive losses
+        'stressed': 1,       # Stressed regime: halt at 1 consecutive loss
+        'crisis': 0,         # Crisis: halt immediately on any loss
+    }
 
     # Volatility crisis threshold
     VOLATILITY_CRISIS = 5.0  # 5% rolling vol
@@ -82,6 +90,10 @@ class RedisCircuitBreaker:
             # Test connection
             self.redis_client.ping()
             logger.info(f"Redis connected: {host}:{port}")
+
+            # Track market regime for adaptive thresholds
+            self.current_regime = 'calm'  # Default regime
+
             self._initialize_circuit_breaker()
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {e}")
@@ -105,6 +117,27 @@ class RedisCircuitBreaker:
         self.redis_client.set('trading:stress_factor', '0')
 
         logger.info("Circuit breaker initialized")
+
+    # ========================================================================
+    # REGIME MANAGEMENT (Adaptive Thresholds)
+    # ========================================================================
+
+    def set_market_regime(self, regime: str):
+        """Set current market regime for adaptive thresholds"""
+        valid_regimes = list(CircuitBreakerThresholds.CONSECUTIVE_LOSSES_BY_REGIME.keys())
+        if regime in valid_regimes:
+            self.current_regime = regime
+            logger.info(f"Circuit breaker regime updated: {regime}")
+        else:
+            logger.warning(f"Unknown regime: {regime}, keeping {self.current_regime}")
+
+    def _get_consecutive_loss_threshold(self) -> int:
+        """Get regime-aware consecutive loss threshold (replaces hardcoded value)"""
+        threshold = CircuitBreakerThresholds.CONSECUTIVE_LOSSES_BY_REGIME.get(
+            self.current_regime,
+            CircuitBreakerThresholds.BASE_CONSECUTIVE_LOSSES_THRESHOLD
+        )
+        return threshold
 
     # ========================================================================
     # MAIN API: Check If Trading Allowed
@@ -247,9 +280,10 @@ class RedisCircuitBreaker:
         if max_dd < CircuitBreakerThresholds.MAX_DRAWDOWN_THRESHOLD:
             triggers.append(f"max_dd={max_dd:.3f}")
 
-        # 3. Consecutive losses
-        if consecutive_losses >= CircuitBreakerThresholds.CONSECUTIVE_LOSSES_THRESHOLD:
-            triggers.append(f"consecutive_losses={consecutive_losses}")
+        # 3. Consecutive losses (NOW REGIME-AWARE)
+        threshold = self._get_consecutive_loss_threshold()
+        if consecutive_losses >= threshold:
+            triggers.append(f"consecutive_losses={consecutive_losses} (regime={self.current_regime}, threshold={threshold})")
 
         # 4. Volatility crisis
         if volatility > CircuitBreakerThresholds.VOLATILITY_CRISIS:

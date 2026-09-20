@@ -109,7 +109,85 @@ class SafetyGateConfig:
         'INFY': 5,
         'TCS': 10,
         'RELIANCE': 3,
-        # ... add all 48 symbols
+        'HDFCBANK': 4,
+        'ICICIBANK': 6,
+        'SBIN': 8,
+        'HDFC': 4,
+        'ITC': 15,
+        'MARUTI': 2,
+        'ONGC': 20,
+        'WIPRO': 6,
+        'BAJAJFINSV': 3,
+        'HDFCLIFE': 4,
+        'TECHM': 8,
+        'POWERGRID': 15,
+        'LTTS': 5,
+        'SUNPHARMA': 4,
+        'ASIANPAINT': 3,
+        'BPCL': 8,
+        'BHARTIARTL': 12,
+        'EICHERMOT': 2,
+        'GRASIM': 5,
+        'HEROMOTOCO': 2,
+        'HINDALCO': 10,
+        'HINDUNILVR': 3,
+        'INFRATEL': 10,
+        'JSWSTEEL': 8,
+        'KOTAKBANK': 5,
+        'M&M': 6,
+        'NESTLEIND': 2,
+        'NTPC': 20,
+        'SBICARD': 8,
+        'SBILIFE': 6,
+        'ULTRACEMCO': 4,
+        'UPL': 8,
+        'YESBANK': 15,
+        'ZEEL': 20,
+    }
+
+    # Group 2b: Symbol-Aware Slippage Thresholds (replaces hardcoded 0.10%)
+    SLIPPAGE_THRESHOLDS_BY_SYMBOL = {
+        # Tier 1: Highest liquidity - tight spreads
+        'INFY': 0.08,
+        'TCS': 0.10,
+        'RELIANCE': 0.10,
+        'HDFCBANK': 0.10,
+        'ICICIBANK': 0.12,
+
+        # Tier 2: High liquidity
+        'SBIN': 0.12,
+        'WIPRO': 0.15,
+        'ITC': 0.15,
+        'HDFC': 0.12,
+        'MARUTI': 0.20,
+        'TECHM': 0.15,
+        'POWERGRID': 0.15,
+
+        # Tier 3: Moderate liquidity
+        'ONGC': 0.25,
+        'YESBANK': 0.30,
+        'ZEEL': 0.35,
+        'BHARTIARTL': 0.20,
+        'HINDALCO': 0.20,
+        'INFRATEL': 0.20,
+        'UPL': 0.20,
+        'GRASIM': 0.18,
+        'BPCL': 0.18,
+        'LTTS': 0.15,
+        'SUNPHARMA': 0.18,
+        'ASIANPAINT': 0.15,
+        'HDFCLIFE': 0.15,
+        'EICHERMOT': 0.25,
+        'HEROMOTOCO': 0.25,
+        'JSWSTEEL': 0.20,
+        'KOTAKBANK': 0.15,
+        'M&M': 0.18,
+        'NESTLEIND': 0.12,
+        'NTPC': 0.20,
+        'SBICARD': 0.20,
+        'SBILIFE': 0.18,
+        'ULTRACEMCO': 0.15,
+        '_default': 0.25,  # Fallback for unknown symbols
     }
 
     # Group 3: Portfolio Exposure
@@ -149,6 +227,10 @@ class SafetyGateConfig:
 
     # Group 16: Kill Switch
     BROKER_OFFLINE_THRESHOLD_SECONDS = 300  # 5 minutes
+
+    def get_slippage_threshold(self, symbol: str) -> float:
+        """Get symbol-aware slippage threshold (replaces hardcoded 0.10%)"""
+        return self.SLIPPAGE_THRESHOLDS_BY_SYMBOL.get(symbol, self.SLIPPAGE_THRESHOLDS_BY_SYMBOL['_default'])
 
 
 # ============================================================================
@@ -831,24 +913,27 @@ class Gate16Slippage:
     Gate 16: Slippage Rejection (Priority 5)
 
     If executed fill > threshold away from target price, reject and try again.
-    Threshold: SafetyGateConfig.SLIPPAGE_REJECT_THRESHOLD_PERCENT
+    Threshold: Symbol-aware (SLIPPAGE_THRESHOLDS_BY_SYMBOL)
     """
 
     def __init__(self, config: SafetyGateConfig, logger: GateLogger):
         self.config = config
         self.logger = logger
 
-    def evaluate(self, target_price: float,
+    def evaluate(self, symbol: str, target_price: float,
                  fill_price: float) -> GateDecision:
-        """Check if slippage exceeds threshold"""
+        """Check if slippage exceeds symbol-specific threshold"""
         slippage_percent = abs(fill_price - target_price) / target_price
 
-        if slippage_percent > self.config.SLIPPAGE_REJECT_THRESHOLD_PERCENT:
+        # Use symbol-aware threshold (NOT hardcoded 0.10%)
+        threshold = self.config.get_slippage_threshold(symbol)
+
+        if slippage_percent > threshold:
             decision = GateDecision(
                 gate_name="Gate16_Slippage",
                 passed=False,
                 reason=f"Slippage too high: {slippage_percent:.4f} ({slippage_percent*100:.2f}%) "
-                       f"> threshold {self.config.SLIPPAGE_REJECT_THRESHOLD_PERCENT:.4f}"
+                       f"> threshold {threshold:.4f} ({threshold*100:.2f}%) for {symbol}"
             )
             self.logger.log_decision(decision)
             return decision
@@ -856,7 +941,8 @@ class Gate16Slippage:
         decision = GateDecision(
             gate_name="Gate16_Slippage",
             passed=True,
-            reason=f"Slippage acceptable: {slippage_percent:.4f} ({slippage_percent*100:.2f}%)"
+            reason=f"Slippage acceptable: {slippage_percent:.4f} ({slippage_percent*100:.2f}%) "
+                   f"<= threshold {threshold:.4f} ({threshold*100:.2f}%) for {symbol}"
         )
         self.logger.log_decision(decision)
         return decision

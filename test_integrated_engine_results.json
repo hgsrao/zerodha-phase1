@@ -1,0 +1,284 @@
+{
+  "timestamp": "2026-09-20T12:19:33.111959",
+  "test": "Integrated Engine V3.4 with Critical Fixes",
+  "symbols_tested": [
+    "INFY",
+    "TCS"
+  ],
+  "bars_processed_per_symbol": 200,
+  "warmup_bars": 60,
+  "total_bars_processed": 280,
+  "total_signals": 30,
+  "signals": [
+    {
+      "timestamp": "2023-07-03 01:11:00",
+      "symbol": "INFY",
+      "entry_price": 1517.3214682477353,
+      "entry_confidence": 0.11336475393055134,
+      "entry_signal": 0.002516922420939112,
+      "stop_loss": 1505.1868053027467,
+      "target": 1533.5010188410533
+    },
+    {
+      "timestamp": "2023-07-03 01:16:00",
+      "symbol": "INFY",
+      "entry_price": 1524.194971064437,
+      "entry_confidence": 1.5025501648516546,
+      "entry_signal": 0.0034602341874323413,
+      "stop_loss": 1516.942444002344,
+      "target": 1533.8650071472273
+    },
+    {
+      "timestamp": "2023-07-03 01:26:00",
+      "symbol": "INFY",
+      "entry_price": 1524.0618083876375,
+      "entry_confidence": 1.7611360747715308,
+      "entry_signal": 0.0028410297190848257,
+      "stop_loss": 1514.9270573608906,
+      "target": 1536.2414764233001
+    },
+    {
+      "timestamp": "2023-07-03 01:39:00",
+      "symbol": "INFY",
+      "entry_price": 1516.2522212137435,
+      "entry_confidence": 1.3835488217103442,
+      "entry_signal": 0.00280406328400184,
+      "stop_loss": 1501.054940191696,
+      "target": 1536.5152625764736
+    },
+    {
+      "timestamp": "2023-07-03 01:45:00",
+      "symbol": "INFY",
+      "entry_price": 1513.5685301801611,
+      "entry_confidence": 4.660599921333899,
+      "entry_signal": 0.0021304495848233195,
+      "stop_loss": 1502.8394746354575,
+      "target": 1527.8739375730993
+    },
+    {
+      "timestamp": "2023-07-03 01:50:00",
+      "symbol": "INFY",
+      "entry_price": 1520.240098074648,
+      "entry_confidence": 0.8812824362448703,
+      "entry_signal": 0.00292523678037664,
+      "stop_loss": 1513.3227654920875,
+      "target": 1529.4632081847285
+    },
+    {
+      "timestamp": "2023-07-03 01:58:00",
+      "symbol": "INFY",
+      "entry_price": 1530.340739513655,
+      "entry_confidence": 1.7399070443128926,
+      "entry_signal": 0.0072791364838378815,
+      "stop_loss": 1520.6516565902298,
+      "target": 1543.2595167448887
+    },
+    {
+      "timestamp": "2023-07-03 02:05:00",
+      "symbol": "INFY",
+      "entry_price": 1529.6886174710733,
+      "entry_confidence": 1.8507915776732133,
+      "entry_signal": 0.002361292065528218,
+      "stop_loss": 1520.9406442420207,
+      "target": 1541.3525817764767
+    },
+    {
+      "timestamp": "2023-07-03 02:10:00",
+      "symbol": "INFY",
+      "entry_price": 1531.6293235085743,
+      "entry_confidence": 0.40855236530000294,
+      "entry_signal": 0.0037696307401393152,
+      "stop_loss": 1523.9342943070865,
+      "target": 1541.8893624438915
+    },
+    {
+      "timestamp": "2023-07-03 02:18:00",
+      "symbol": "INFY",
+      "entry_price": 1536.137874878179,
+      "entry_confidence": 1.7098299415600378,
+      "entry_signal": 0.0032926834664657695,
+      "stop_loss": 1528.6697833407911,
+      "target": 1546.095330261363
+    },
+    {
+      "timestamp": "2023-07-03 02:25:00",
+      "symbol": "INFY",
+      "entry_price": 1539.373528438198,
+      "entry_confidence": 0.9149132501324356,
+      "entry_signal": 0.003635197334345521,
+      "stop_loss": 1530.2404513133959,
+      "target": 1551.550964604601
+    },
+    {
+      "timestamp": "2023-07-03 02:31:00",
+      "symbol": "INFY",
+      "entry_price": 1535.00805904933,
+      "entry_confidence": 1.3446852405283165,
+      "entry_signal": 0.004263907504439245,
+      "stop_loss": 1520.393070412655,
+      "target": 1554.4947105648966
+    },
+    {
+      "timestamp": "2023-07-03 02:41:00",
+      "symbol": "INFY",
+      "entry_price": 1528.156514976876,
+      "entry_confidence": 3.4864412993354446,
+      "entry_signal": 0.0031162064830239766,
+      "stop_loss": 1525.1575213764913,
+      "target": 1532.1551731107222
+    },
+    {
+      "timestamp": "2023-07-03 02:45:00",
+      "symbol": "INFY",
+      "entry_price": 1545.2498995363133,
+      "entry_confidence": 0.2525602061954736,
+      "entry_signal": 0.005217421630517156,
+      "stop_loss": 1532.60600716528,
+      "target": 1562.108422697691
+    },
+    {
+      "timestamp": "2023-07-03 02:48:00",
+      "symbol": "INFY",
+      "entry_price": 1548.9758279570315,
+      "entry_confidence": 1.934120641945534,
+      "entry_signal": 0.004258883405115134,
+      "stop_loss": 1542.8194533780506,
+      "target": 1557.1843273956724
+    },
+    {
+      "timestamp": "2023-07-03 02:56:00",
+      "symbol": "INFY",
+      "entry_price": 1546.698862649864,
+      "entry_confidence": 1.0098287893737061,
+      "entry_signal": 0.0023111096380100636,
+      "stop_loss": 1542.3276217493355,
+      "target": 1552.5271838505685
+    },
+    {
+      "timestamp": "2023-07-03 03:04:00",
+      "symbol": "INFY",
+      "entry_price": 1541.832436598735,
+      "entry_confidence": 0.14945904200131388,
+      "entry_signal": 0.003172107499825086,
+      "stop_loss": 1533.0941949610994,
+      "target": 1553.4834254489158
+    },
+    {
+      "timestamp": "2023-07-03 03:08:00",
+      "symbol": "INFY",
+      "entry_price": 1548.4960146250612,
+      "entry_confidence": 2.681756394764199,
+      "entry_signal": 0.003388459274883476,
+      "stop_loss": 1535.2602034691895,
+      "target": 1566.1437628328902
+    },
+    {
+      "timestamp": "2023-07-03 03:13:00",
+      "symbol": "INFY",
+      "entry_price": 1551.4299486196592,
+      "entry_confidence": 2.6167979425002637,
+      "entry_signal": 0.0023629600512304824,
+      "stop_loss": 1539.182515113262,
+      "target": 1567.759859961522
+    },
+    {
+      "timestamp": "2023-07-03 01:01:00",
+      "symbol": "TCS",
+      "entry_price": 3204.723903966714,
+      "entry_confidence": 3.1102395627788724,
+      "entry_signal": 0.002594322054681411,
+      "stop_loss": 3189.9106270011757,
+      "target": 3224.4749399207644
+    },
+    {
+      "timestamp": "2023-07-03 01:05:00",
+      "symbol": "TCS",
+      "entry_price": 3219.2140959378626,
+      "entry_confidence": 0.5466229786925441,
+      "entry_signal": 0.0039783766742112585,
+      "stop_loss": 3192.912829655976,
+      "target": 3254.2824509803777
+    },
+    {
+      "timestamp": "2023-07-03 01:11:00",
+      "symbol": "TCS",
+      "entry_price": 3199.4833502221345,
+      "entry_confidence": 3.7909346153043613,
+      "entry_signal": 0.003653472466676566,
+      "stop_loss": 3170.447894917848,
+      "target": 3238.19729062785
+    },
+    {
+      "timestamp": "2023-07-03 01:39:00",
+      "symbol": "TCS",
+      "entry_price": 3173.6500838914626,
+      "entry_confidence": 4.375585219193167,
+      "entry_signal": 0.0032047150498916346,
+      "stop_loss": 3145.4057153977737,
+      "target": 3211.3092418830474
+    },
+    {
+      "timestamp": "2023-07-03 01:51:00",
+      "symbol": "TCS",
+      "entry_price": 3143.3013536751746,
+      "entry_confidence": 3.907226792908823,
+      "entry_signal": 0.002303977318716458,
+      "stop_loss": 3116.334372564233,
+      "target": 3179.2573284897635
+    },
+    {
+      "timestamp": "2023-07-03 02:07:00",
+      "symbol": "TCS",
+      "entry_price": 3147.898031999492,
+      "entry_confidence": 8.395972687194313,
+      "entry_signal": 0.002121883245222556,
+      "stop_loss": 3139.171400889695,
+      "target": 3159.533540145888
+    },
+    {
+      "timestamp": "2023-07-03 02:24:00",
+      "symbol": "TCS",
+      "entry_price": 3163.5195943702324,
+      "entry_confidence": 0.3821687878123111,
+      "entry_signal": 0.004058154703733587,
+      "stop_loss": 3150.6940039144974,
+      "target": 3180.620381644546
+    },
+    {
+      "timestamp": "2023-07-03 02:41:00",
+      "symbol": "TCS",
+      "entry_price": 3171.2219688504865,
+      "entry_confidence": 4.506879588155041,
+      "entry_signal": 0.0029099292791882293,
+      "stop_loss": 3151.4182487892913,
+      "target": 3197.62692893208
+    },
+    {
+      "timestamp": "2023-07-03 02:55:00",
+      "symbol": "TCS",
+      "entry_price": 3187.9404305153257,
+      "entry_confidence": 3.934832608953291,
+      "entry_signal": 0.003193630341412759,
+      "stop_loss": 3155.1867498450065,
+      "target": 3231.6120047424183
+    },
+    {
+      "timestamp": "2023-07-03 02:59:00",
+      "symbol": "TCS",
+      "entry_price": 3192.8740923327573,
+      "entry_confidence": 12.540689610726957,
+      "entry_signal": 0.00246849892513636,
+      "stop_loss": 3177.6915387291897,
+      "target": 3213.117497137514
+    },
+    {
+      "timestamp": "2023-07-03 03:08:00",
+      "symbol": "TCS",
+      "entry_price": 3187.1638503297463,
+      "entry_confidence": 4.888383975979595,
+      "entry_signal": 0.0024925337565121406,
+      "stop_loss": 3165.122030331651,
+      "target": 3216.55294366054
+    }
+  ]
+}

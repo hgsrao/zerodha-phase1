@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-09-20T12:43:18.277454",
+  "test": "Complete Integration Test - Production Trading Engine v1.0",
+  "components_tested": [
+    "RollingSetpointProvider (FIX #1)",
+    "BoundedPIDController (FIX #3)",
+    "EntrySignalGenerator",
+    "TradingEngineV1 State Machine"
+  ],
+  "test_outcomes": {
+    "rolling_setpoint_provider": "PASS",
+    "bounded_pid_controller": "PASS",
+    "entry_signal_generator": "PASS",
+    "state_machine_initialization": "PASS"
+  },
+  "statistics": {
+    "bars_processed": 280,
+    "entry_signals_generated": 31,
+    "symbols_tested": 2,
+    "warmup_bars": 60
+  },
+  "entry_signals": {
+    "count": 31,
+    "confidence_min": 0.22212879812607633,
+    "confidence_max": 10.470743155398736,
+    "confidence_mean": 2.835906977870762,
+    "signal_min": 0.0022211240185191286,
+    "signal_max": 0.006154903267472555,
+    "signal_mean": 0.0032760511167212753
+  }
+}
