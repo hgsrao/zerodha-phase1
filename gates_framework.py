@@ -141,7 +141,7 @@ class SafetyGateConfig:
     RECONCILIATION_FREQUENCY_MINUTES = 5
 
     # Group 13: Slippage
-    SLIPPAGE_REJECT_THRESHOLD_PERCENT = 0.35  # 0.35% - ignore sub-tick noise (₹0.50-1.00 on INFY)
+    SLIPPAGE_REJECT_THRESHOLD_PERCENT = 0.10  # 0.10%
 
     # Group 14: Market Close
     LAST_ENTRY_CUTOFF_TIME = "15:20"  # IST
@@ -533,7 +533,7 @@ class Gate09PositionQuantity:
                  symbol: str,
                  suggested_quantity: int) -> Tuple[GateDecision, int]:
         """Check and cap position quantity"""
-        max_qty = self.config.MAX_POSITION_QUANTITY_PER_SYMBOL.get(symbol, 100)  # Default to 100 shares if not in config
+        max_qty = self.config.MAX_POSITION_QUANTITY_PER_SYMBOL.get(symbol, 1)
 
         if suggested_quantity > max_qty:
             capped_qty = max_qty

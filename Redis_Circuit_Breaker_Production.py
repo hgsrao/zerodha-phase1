@@ -32,8 +32,8 @@ class CircuitBreakerThresholds:
     # Max drawdown threshold
     MAX_DRAWDOWN_THRESHOLD = -0.05  # 5% drawdown
 
-    # Consecutive loss threshold - block re-entry after 2nd consecutive loss
-    CONSECUTIVE_LOSSES_THRESHOLD = 2
+    # Consecutive loss threshold
+    CONSECUTIVE_LOSSES_THRESHOLD = 5
 
     # Volatility crisis threshold
     VOLATILITY_CRISIS = 5.0  # 5% rolling vol
