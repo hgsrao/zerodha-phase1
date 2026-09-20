@@ -42,6 +42,7 @@ constant can.
 """
 
 from __future__ import annotations
+from revision2_external.dynamic_parameter_controller import DynamicParameterController
 
 from collections import deque
 from typing import Any, Deque, Dict, List, Optional, Tuple
@@ -174,7 +175,9 @@ class SimplePIDModelPredictiveControlBox:
         # the same ATR/RR plan but applies no PID transformation at all.
         confidence_baseline = self._confidence_baseline(signal.symbol, decision.confidence, pid_window)
         if self.pid_enabled:
-            entry_pid = self._get_pid(self._entry_pids, signal.symbol, kp_entry, ki_entry, kd_entry, target=confidence_baseline, clamp=integral_clamp)
+            err_delta = float(decision.confidence - confidence_baseline)
+            kp_e, ki_e, kd_e = DynamicParameterController.get_tier3_pid_schedule(kp_entry, ki_entry, kd_entry, err_delta)
+            entry_pid = self._get_pid(self._entry_pids, signal.symbol, kp_e, ki_e, kd_e, target=confidence_baseline, clamp=integral_clamp)
             entry_pid.setpoint = confidence_baseline  # keep in sync on every call, not just at first construction
             entry_adjustment = entry_pid(decision.confidence, dt=1)
             entry_timing_multiplier = _np_clip(1.0 - abs(entry_adjustment), 0.3, 1.0)

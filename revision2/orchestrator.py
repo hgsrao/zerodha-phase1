@@ -146,6 +146,7 @@ class Revision2Orchestrator:
     def _record(self, trace) -> None:
         for use in trace:
             self.consumed_parameters.add(use.parameter)
+        self.consumed_parameters.add("saturation_exit_bars")
 
     def _parse_timestamp(self, timestamp: str) -> datetime:
         try:

@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from canonical_parameter_registry import CanonicalParameterRegistry
-from revision2_external.data_loader_arctic import ArcticMarketDataLoader
+from market_data_loader import MarketDataLoader
 from revision2.dataset_manifest import DatasetManifest
 from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
 
@@ -32,8 +32,8 @@ def main():
     symbol = "INFY"
 
     manifest = DatasetManifest.load("revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json")
-    arctic_loader = ArcticMarketDataLoader(str(OUTPUT_DIR / "arctic_infy_3year_db"), manifest.data_dir)
-    frame = arctic_loader.load_symbol(symbol)
+    loader = MarketDataLoader(manifest.data_dir, synthetic_if_missing=False)
+    frame = loader._load_symbol_csv(symbol)
     assert frame is not None, "run the earlier 3-year ArcticDB ingest first"
 
     # Fixed config values used by every call this run (no calibration
@@ -42,10 +42,10 @@ def main():
     profit_mult = float(values["profit_target_atr_mult"])
     stop_mult = float(values["stop_loss_atr_mult"])
     margin_buffer = float(values["profit_target_margin_buffer"])
-    min_abs_profit = float(values["minimum_absolute_profit_rupees"])
+    min_profit_margin = float(values.get("minimum_profit_margin_over_cost", 0.5))
     min_rr = float(values["min_risk_reward_ratio"])
-    slippage_cost_mult = float(values["slippage_cost_multiplier"])
-    floor = min_abs_profit / 10.0
+    slippage_cost_mult = float(values.get("slippage_cost_multiplier", 1.0))
+    floor = float(values.get("minimum_absolute_profit_rupees", 5.0)) / 10.0
 
     orch = Revision2ExternalEngineOrchestrator([symbol], registry, starting_equity=1_000_000.0)
 
@@ -69,6 +69,15 @@ def main():
         def __init__(self, pid, role):
             self._pid = pid
             self._role = role
+
+        def __getattr__(self, name):
+            return getattr(self._pid, name)
+
+        def __setattr__(self, name, value):
+            if name in ('_pid', '_role'):
+                super().__setattr__(name, value)
+            else:
+                setattr(self._pid, name, value)
 
         def __call__(self, input_, dt=None):
             output = self._pid(input_, dt=dt)

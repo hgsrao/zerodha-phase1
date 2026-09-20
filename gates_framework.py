@@ -164,12 +164,18 @@ class Gate08SymbolConcentration(BaseGate):
 
 
 class Gate09PositionQuantity(BaseGate):
-    def evaluate(self, quantity: int) -> GateDecision:
+    def evaluate(self, quantity: int) -> Tuple[GateDecision, int]:
         if quantity <= 0:
-            return self._make_decision("Gate09PositionQuantity", False, "non-positive order quantity")
+            return self._make_decision("Gate09PositionQuantity", False, "non-positive order quantity"), 0
         if quantity > self.config.max_position_quantity:
-            return self._make_decision("Gate09PositionQuantity", False, f"quantity {quantity} exceeds max {self.config.max_position_quantity}")
-        return self._make_decision("Gate09PositionQuantity", True, "quantity within cap")
+            clamped = int(self.config.max_position_quantity)
+            return self._make_decision(
+                "Gate09PositionQuantity",
+                True,
+                f"quantity {quantity} clamped to max {clamped}",
+                {"original_quantity": quantity, "clamped_quantity": clamped}
+            ), clamped
+        return self._make_decision("Gate09PositionQuantity", True, "quantity within cap"), quantity
 
 
 class Gate10DrawdownDerating(BaseGate):
@@ -349,7 +355,7 @@ class EntryDecisionEngine:
                 exposure = float(proposed_notional or (signal.position_notional if signal is not None else 0.0))
                 decision = gate.evaluate(symbol or (signal.symbol if signal is not None else "INFY"), exposure, state)
             elif isinstance(gate, Gate09PositionQuantity):
-                decision = gate.evaluate(adjusted_quantity)
+                decision, adjusted_quantity = gate.evaluate(adjusted_quantity)
             elif isinstance(gate, Gate10DrawdownDerating):
                 decision, adjusted_quantity = gate.evaluate(state, adjusted_quantity)
             elif isinstance(gate, Gate11LambdaDerating):

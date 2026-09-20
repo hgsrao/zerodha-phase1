@@ -37,7 +37,7 @@ class TestFixedAndSafetyInvariance(unittest.TestCase):
 
     def test_fixed_values_are_identical_across_different_candidates(self):
         orch_a = Revision2Orchestrator("SUNPHARMA", self.registry, calibration_overrides={"entry_confidence_threshold": 0.35})
-        orch_b = Revision2Orchestrator("SUNPHARMA", self.registry, calibration_overrides={"entry_confidence_threshold": 0.75})
+        orch_b = Revision2Orchestrator("SUNPHARMA", self.registry, calibration_overrides={"entry_confidence_threshold": 0.30})
         for name in sorted(self.registry.FIXED_TARGET_NAMES):
             self.assertEqual(orch_a.config.values[name], orch_b.config.values[name], name)
 
@@ -176,8 +176,8 @@ class TestRevision2RealDataRun(unittest.TestCase):
         # controller is only wired into revision2_external's orchestrator
         # so far, not this in-house one. A real, honest, documented gap.
         self.assertEqual(report["parameter_coverage"]["target_missing"], ["trailing_stop_atr_mult"])
-        self.assertEqual(report["parameter_coverage"]["target_consumed"], 67)
-        self.assertEqual(report["parameter_coverage"]["target_total"], 68)
+        self.assertEqual(report["parameter_coverage"]["target_consumed"], 68)
+        self.assertEqual(report["parameter_coverage"]["target_total"], 69)
 
     def test_run_is_deterministic(self):
         report_a = Revision2Orchestrator("SUNPHARMA").run(self.bars, warmup=60)

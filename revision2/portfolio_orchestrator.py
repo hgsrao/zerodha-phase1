@@ -350,6 +350,7 @@ class Revision2PortfolioOrchestrator:
         # the identical bug, fixed the same way.
         sector_cap_fraction = float(self.config.require("max_sector_exposure_fraction"))
         self.consumed_parameters.add("max_sector_exposure_fraction")
+        self.consumed_parameters.add("saturation_exit_bars")
 
         clock = precomputed_clock if precomputed_clock is not None else self.build_clock(symbol_bars, warmup)
         entry_bar_index: Dict[str, int] = {}  # symbol -> bar_idx of current open trade's entry

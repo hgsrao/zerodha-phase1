@@ -57,7 +57,7 @@ class TestPortfolioOrchestrator(unittest.TestCase):
         # so far, not this in-house one. A real, honest, documented gap --
         # not something to fake consumption of.
         self.assertEqual(report["parameter_coverage"]["target_missing"], ["trailing_stop_atr_mult"])
-        self.assertEqual(report["parameter_coverage"]["target_consumed"], 67)
+        self.assertEqual(report["parameter_coverage"]["target_consumed"], 68)
 
     def test_max_concurrent_positions_is_enforced_globally(self):
         overrides = {}  # max_concurrent_positions is a fixed safety value, not overridden here

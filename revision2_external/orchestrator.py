@@ -25,6 +25,7 @@ principle as the Backtrader parity work.
 """
 
 from __future__ import annotations
+from revision2_external.dynamic_parameter_controller import DynamicParameterController, MarketEnvironmentState
 
 import itertools
 import math
@@ -92,6 +93,10 @@ class Revision2ExternalEngineOrchestrator:
         if dynamic_target_setpoint_mode not in {"shadow", "paper_apply"}:
             raise ValueError("dynamic_target_setpoint_mode must be 'shadow' or 'paper_apply'")
         self.symbols = list(symbols)
+        # Machine Bay & Symbol Closed-Loop Lockout Registers
+        self.symbol_cooldown_until_bar = {}
+        self.symbol_consecutive_losses = {}
+        self.symbol_tripped = {}
         self.closed_loop_mode = closed_loop_mode
         self.telemetry_mode = telemetry_mode
         self.pid_mode = pid_mode
@@ -369,6 +374,18 @@ class Revision2ExternalEngineOrchestrator:
             closed_loop_profile = self.closed_loop.record_outcome(
                 completed, regime=trade.get("closed_loop", {}).get("regime", "unknown"),
             )
+
+            # --- CLOSED-LOOP INTER-BOX FEEDBACK (Box 10 -> Box 6/8) ---
+            _pnl = float(completed.get("net_pnl", 0.0))
+            _reason = str(reason).lower()
+            if _pnl < 0 or "stop" in _reason:
+                _c_losses = self.symbol_consecutive_losses.get(symbol, 0) + 1
+                self.symbol_consecutive_losses[symbol] = _c_losses
+                self.symbol_cooldown_until_bar[symbol] = getattr(self, "_current_bar_idx", 0) + 15
+                if _c_losses >= 2:
+                    self.symbol_tripped[symbol] = True
+            elif _pnl > 0 and "target" in _reason:
+                self.symbol_consecutive_losses[symbol] = 0
             self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
                 "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
                 "exit_reason": reason, "net_pnl": completed["net_pnl"], "pnl": pnl, "costs": trade_costs,
@@ -711,6 +728,7 @@ class Revision2ExternalEngineOrchestrator:
             for event in tick_events:
                 funnel["bars_processed"] += 1
                 symbol, bar_idx = event.symbol, event.bar_idx
+                self._current_bar_idx = bar_idx
                 bars = symbol_bars[symbol]
                 next_ts = pd.Timestamp(bars.iloc[bar_idx + 1]["timestamp"])
                 end_time = str(self.config.require("trading_hours_end"))
@@ -796,12 +814,41 @@ class Revision2ExternalEngineOrchestrator:
                     )
                     self.grid_shadow_observations.append(observation.to_dict())
 
-                atr = signal.volatility * bars.iloc[bar_idx]["close"]
+                _close_price = float(bars.iloc[bar_idx]["close"])
+                env_state = MarketEnvironmentState.from_bars(symbol, bars, bar_idx, regime=decision.regime if hasattr(decision, "regime") else "trend")
+                t1_params = DynamicParameterController.get_tier1_vol_parameters(env_state)
+                _min_atr_floor = t1_params["min_atr_floor"]
+                atr = max(float(signal.volatility * _close_price), _min_atr_floor)
                 next_open = float(bars.iloc[bar_idx + 1]["open"])
                 plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
                 self._record(trace)
                 if plan is None:
                     continue
+                # Inter-box Closed Loop Lockout Checks
+                if self.symbol_tripped.get(symbol, False):
+                    self._controller_sequence += 1
+                    candidate_id = f"candidate-{self._controller_sequence}"
+                    self.entry_candidate_observations.observe({
+                        "candidate_id": candidate_id, "symbol": symbol, "side": plan.side,
+                        "timestamp": str(timestamp), "planned_fill_timestamp": str(next_ts),
+                        "pa_confidence": float(signal.confidence), "id_confidence": float(decision.confidence),
+                    })
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "bay_ansi_flameout_tripped")
+                    funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
+                    continue
+
+                if bar_idx < self.symbol_cooldown_until_bar.get(symbol, -1):
+                    self._controller_sequence += 1
+                    candidate_id = f"candidate-{self._controller_sequence}"
+                    self.entry_candidate_observations.observe({
+                        "candidate_id": candidate_id, "symbol": symbol, "side": plan.side,
+                        "timestamp": str(timestamp), "planned_fill_timestamp": str(next_ts),
+                        "pa_confidence": float(signal.confidence), "id_confidence": float(decision.confidence),
+                    })
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "bay_cooldown_active")
+                    funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
+                    continue
+
                 funnel["mpc_plans"] += 1
                 self._controller_sequence += 1
                 candidate_id = f"candidate-{self._controller_sequence}"
