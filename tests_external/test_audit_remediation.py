@@ -617,3 +617,69 @@ def test_s4_simultaneous_candidates_compete_as_batch_not_symbol_order(monkeypatc
 
     assert first_forward == "BBB"
     assert first_reverse == "BBB"
+
+
+
+def test_f11_loss_cooldown_is_explicit_fixed_policy():
+    """F11: cooldown is a named fixed runtime policy, not hidden calibration."""
+    from revision2_external.orchestrator import BAY_LOSS_COOLDOWN_BARS
+
+    assert BAY_LOSS_COOLDOWN_BARS == 15
+
+    orch = Engine(["INFY"])
+    orch._current_bar_idx = 100
+
+    trade = open_position(orch)
+    orch._execute_exit(
+        "INFY",
+        "2024-01-01 10:02",
+        trade,
+        90.0,
+        "stop",
+    )
+
+    assert orch.completed_trades[-1]["net_pnl"] < 0
+    assert orch.symbol_cooldown_until_bar["INFY"] == (
+        100 + BAY_LOSS_COOLDOWN_BARS
+    )
+
+
+def test_f11_cooldown_policy_is_not_calibratable():
+    """F11: machine-bay cooldown must not silently enter optimizer search."""
+    from revision2.calibration_supervisor import trading_search_space
+
+    registry = CanonicalParameterRegistry()
+
+    assert "bay_loss_cooldown_bars" not in registry.params
+    assert "bay_loss_cooldown_bars" not in set(
+        trading_search_space(registry).names
+    )
+
+
+
+def test_f17_portfolio_refit_cadence_is_explicit_fixed_policy():
+    """F17: PyPortfolioOpt refit cadence is an intentional fixed policy."""
+    from revision2_external.orchestrator import (
+        PORTFOLIO_WEIGHT_REFIT_EVERY_BARS,
+        PORTFOLIO_WEIGHT_LOOKBACK_MINUTE_BARS,
+    )
+
+    assert PORTFOLIO_WEIGHT_REFIT_EVERY_BARS == 500
+    assert PORTFOLIO_WEIGHT_LOOKBACK_MINUTE_BARS == 2_000
+
+
+def test_f17_refit_cadence_is_not_calibratable():
+    """F17: removed dead rebalance control must not return to optimization."""
+    from revision2.calibration_supervisor import trading_search_space
+
+    registry = CanonicalParameterRegistry()
+    search_names = set(trading_search_space(registry).names)
+
+    forbidden = {
+        "rebalance_frequency_minutes",
+        "portfolio_weight_refit_every_bars",
+        "portfolio_refit_cadence",
+    }
+
+    assert forbidden.isdisjoint(registry.params)
+    assert forbidden.isdisjoint(search_names)

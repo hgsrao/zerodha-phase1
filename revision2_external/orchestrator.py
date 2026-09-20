@@ -61,8 +61,17 @@ from revision2_external.paper_execution import CostedPaperBrokerAdapter, ReplayI
 from revision2.transaction_costs import leg_cost, paper_fill_price
 
 SNAPSHOT_LOOKBACK_BARS = 300
-PORTFOLIO_WEIGHT_REFIT_EVERY_BARS = 500  # PyPortfolioOpt refit cadence, per unique clock tick
+# F17: fixed PyPortfolioOpt maintenance policy, deliberately NOT calibratable.
+# Refit every 500 unique portfolio clock ticks using the trailing 2,000
+# one-minute bars.  The former rebalance_frequency_minutes registry entry
+# was removed because it never controlled this real refit path.
+PORTFOLIO_WEIGHT_REFIT_EVERY_BARS = 500
 PORTFOLIO_WEIGHT_LOOKBACK_MINUTE_BARS = 2_000  # ~130 completed 15-minute samples
+
+# F11: fixed machine-bay protection policy, deliberately NOT calibratable.
+# A net losing exit blocks new entries in that symbol until bar index
+# exit_bar + BAY_LOSS_COOLDOWN_BARS.  Session rollover clears the latch.
+BAY_LOSS_COOLDOWN_BARS = 15
 
 
 class ExternalEngineStartupNotCertifiedError(StartupNotCertifiedError):
@@ -438,7 +447,9 @@ class Revision2ExternalEngineOrchestrator:
             if _pnl < 0:
                 _c_losses = self.symbol_consecutive_losses.get(symbol, 0) + 1
                 self.symbol_consecutive_losses[symbol] = _c_losses
-                self.symbol_cooldown_until_bar[symbol] = getattr(self, "_current_bar_idx", 0) + 15
+                self.symbol_cooldown_until_bar[symbol] = (
+                    getattr(self, "_current_bar_idx", 0) + BAY_LOSS_COOLDOWN_BARS
+                )
                 if _c_losses >= 2:
                     self.symbol_tripped[symbol] = True
             elif _pnl > 0:
