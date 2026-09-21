@@ -182,6 +182,7 @@ class Revision2ExternalEngineOrchestrator:
         self._controller_sequence = 0
         self._trade_sequence = 0
         self.bb03_bb04_supervisory_by_symbol: Dict[str, Any] = {}
+        self.bb09_bb10_supervisory_by_symbol: Dict[str, Any] = {}
 
         self.pa = TALibPredictiveAnalyticsBox()
         # Box 4b, the Chart-Studies Confirmation Layer -- gains/clamp/
@@ -1324,6 +1325,16 @@ class Revision2ExternalEngineOrchestrator:
                     config=self.safety_contract.as_dict(), parameter_registry=self.registry,
                 )
                 funnel["orders_submitted"] += 1
+                # BB09/BB10 supervisory hand-off: a read-only record of what
+                # P01D constructed and what UnifiedExecution did with it.
+                # Never gates or revises the outcome above -- see
+                # Revision5SupervisoryBridge.snapshot_bb09_bb10.
+                self.bb09_bb10_supervisory_by_symbol[symbol] = (
+                    self.supervisory_bridge.snapshot_bb09_bb10(
+                        proposed_order=replace(order, quantity=quantity),
+                        fill_result=fill,
+                    )
+                )
                 if fill["passed"]:
                     actual_quantity = int(fill["filled_quantity"])
                     post_fill = self.entry_decision_engine.evaluate_post_fill(

@@ -650,8 +650,15 @@ class P01DBox:
         offset_pct = float(req("limit_order_offset_percent", "limit price offset from plan entry", "limit_price"))
         timeout_s = int(req("order_timeout_seconds", "broker acknowledgement timeout", "timeout_seconds"))
         max_retries = int(req("max_retry_attempts", "retry attempts on timeout/reject", "max_retries"))
-        req("retry_delay_seconds", "delay between retries", "max_retries")
-        slippage_tolerance = float(req("slippage_tolerance_percent", "maximum tolerated slippage before rejecting the order", "order_type"))
+        # retry_delay_seconds and slippage_tolerance_percent are fixed,
+        # non-calibratable registry entries (see FIXED_TARGET_NAMES) with no
+        # ProposedOrder field of their own -- there is no real
+        # retry-with-delay actuator in the replay/paper path, and the real
+        # Gate16 slippage threshold is the separate fixed max_slippage_fraction,
+        # not this value. Still read via req() so parameter-coverage tracking
+        # doesn't misreport them as never consumed by this box.
+        req("retry_delay_seconds", "delay between retries (no replay actuator)", "unused")
+        req("slippage_tolerance_percent", "retained for registry-surface compatibility (see max_slippage_fraction)", "unused")
 
         if quantity <= 0:
             return None, trace
@@ -660,8 +667,6 @@ class P01DBox:
         if order_type == "LIMIT":
             direction = 1 if plan.side == "BUY" else -1
             limit_price = plan.entry_price * (1 + direction * offset_pct)
-
-        _ = slippage_tolerance  # enforced by the ExecutionGate/PaperBrokerAdapter downstream
 
         order = ProposedOrder(
             symbol=symbol,
