@@ -658,14 +658,18 @@ def test_f11_cooldown_policy_is_not_calibratable():
 
 
 def test_f17_portfolio_refit_cadence_is_explicit_fixed_policy():
-    """F17: PyPortfolioOpt refit cadence is an intentional fixed policy."""
-    from revision2_external.orchestrator import (
-        PORTFOLIO_WEIGHT_REFIT_EVERY_BARS,
-        PORTFOLIO_WEIGHT_LOOKBACK_MINUTE_BARS,
-    )
+    """F17: BB08 refit/lookback are explicit fixed runtime parameters."""
+    registry = CanonicalParameterRegistry()
 
-    assert PORTFOLIO_WEIGHT_REFIT_EVERY_BARS == 500
-    assert PORTFOLIO_WEIGHT_LOOKBACK_MINUTE_BARS == 2_000
+    refit = registry.get("portfolio_weight_refit_bars")
+    lookback = registry.get("portfolio_weight_lookback_minute_bars")
+
+    assert refit.default == 500
+    assert lookback.default == 2_000
+    assert refit.calibratable is False
+    assert lookback.calibratable is False
+    assert "portfolio_weight_refit_bars" in registry.FIXED_TARGET_NAMES
+    assert "portfolio_weight_lookback_minute_bars" in registry.FIXED_TARGET_NAMES
 
 
 def test_f17_refit_cadence_is_not_calibratable():
@@ -675,11 +679,17 @@ def test_f17_refit_cadence_is_not_calibratable():
     registry = CanonicalParameterRegistry()
     search_names = set(trading_search_space(registry, engine="IN_HOUSE").names)
 
-    forbidden = {
+    obsolete_names = {
         "rebalance_frequency_minutes",
         "portfolio_weight_refit_every_bars",
         "portfolio_refit_cadence",
     }
 
-    assert forbidden.isdisjoint(registry.params)
-    assert forbidden.isdisjoint(search_names)
+    assert obsolete_names.isdisjoint(registry.params)
+    assert obsolete_names.isdisjoint(search_names)
+
+    # The real BB08 cadence now exists as an explicit runtime parameter,
+    # but remains FIXED / NOT_CALIBRATED.
+    assert "portfolio_weight_refit_bars" in registry.params
+    assert "portfolio_weight_refit_bars" not in search_names
+    assert registry.get("portfolio_weight_refit_bars").calibratable is False

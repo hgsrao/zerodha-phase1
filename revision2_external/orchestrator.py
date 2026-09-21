@@ -66,8 +66,6 @@ SNAPSHOT_LOOKBACK_BARS = 300
 # Refit every 500 unique portfolio clock ticks using the trailing 2,000
 # one-minute bars.  The former rebalance_frequency_minutes registry entry
 # was removed because it never controlled this real refit path.
-PORTFOLIO_WEIGHT_REFIT_EVERY_BARS = 500
-PORTFOLIO_WEIGHT_LOOKBACK_MINUTE_BARS = 2_000  # ~130 completed 15-minute samples
 
 # F11: fixed machine-bay protection policy, deliberately NOT calibratable.
 # A net losing exit blocks new entries in that symbol until bar index
@@ -283,6 +281,8 @@ class Revision2ExternalEngineOrchestrator:
             max_exposure_per_symbol_fraction=float(v["max_exposure_per_symbol_fraction"]),
             no_entry_cutoff_time=str(v["no_entry_cutoff_time"]),
             max_market_data_age_seconds=int(v["max_market_data_age_seconds"]),
+            max_broker_offline_seconds=int(v["max_broker_offline_seconds"]),
+            force_close_time=str(v["force_close_time"]),
             drawdown_derate_threshold=float(v["drawdown_derate_threshold"]),
             drawdown_derate_multiplier=float(v["drawdown_derate_multiplier"]),
             order_timeout_seconds=min(int(v["order_timeout_seconds_execution"]),
@@ -860,6 +860,20 @@ class Revision2ExternalEngineOrchestrator:
         entry_bar_index: Dict[str, int] = {}
         ticks_since_reweight = 0
 
+        # BB08 operational controls.  These are explicit runtime parameters,
+        # but remain FIXED / NOT_CALIBRATED until the parameter surface is
+        # validated independently.
+        portfolio_refit_bars = int(self.config.require("portfolio_weight_refit_bars"))
+        portfolio_lookback_bars = int(self.config.require("portfolio_weight_lookback_minute_bars"))
+        portfolio_min_observations = int(self.config.require("portfolio_min_15min_observations"))
+        portfolio_risk_free_rate = float(self.config.require("portfolio_optimizer_risk_free_rate"))
+        self.consumed_parameters.update({
+            "portfolio_weight_refit_bars",
+            "portfolio_weight_lookback_minute_bars",
+            "portfolio_min_15min_observations",
+            "portfolio_optimizer_risk_free_rate",
+        })
+
         for timestamp, tick_events in itertools.groupby(clock, key=lambda e: e.timestamp):
             tick_events = list(tick_events)
             event_ts = pd.Timestamp(timestamp)
@@ -880,17 +894,21 @@ class Revision2ExternalEngineOrchestrator:
             # would dominate runtime for no real benefit at 1-minute
             # granularity).
             ticks_since_reweight += 1
-            if ticks_since_reweight >= PORTFOLIO_WEIGHT_REFIT_EVERY_BARS:
+            if ticks_since_reweight >= portfolio_refit_bars:
                 ticks_since_reweight = 0
                 price_history = {}
                 for symbol in self.symbols:
                     bars = symbol_bars[symbol]
                     idx = min(event_ts, bars["timestamp"].max())
-                    window = bars[bars["timestamp"] <= idx].tail(PORTFOLIO_WEIGHT_LOOKBACK_MINUTE_BARS)
-                    if len(window) >= PORTFOLIO_WEIGHT_LOOKBACK_MINUTE_BARS:
+                    window = bars[bars["timestamp"] <= idx].tail(portfolio_lookback_bars)
+                    if len(window) >= portfolio_lookback_bars:
                         price_history[symbol] = window.set_index("timestamp")["close"]
                 if len(price_history) >= 2:
-                    self._portfolio_weights = compute_portfolio_weights(price_history)
+                    self._portfolio_weights = compute_portfolio_weights(
+                        price_history,
+                        min_observations=portfolio_min_observations,
+                        risk_free_rate=portfolio_risk_free_rate,
+                    )
 
             pending_entry_candidates = []
 

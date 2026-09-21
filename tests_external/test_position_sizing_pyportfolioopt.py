@@ -30,7 +30,7 @@ def test_real_weights_sum_to_one_and_are_nonnegative():
         frame = loader._load_symbol_csv(symbol)
         prices[symbol] = frame.tail(2000).set_index("timestamp")["close"]
 
-    weights = compute_portfolio_weights(prices)
+    weights = compute_portfolio_weights(prices, min_observations=100, risk_free_rate=0.0)
     assert set(weights.keys()) == set(symbols)
     assert all(w >= -1e-9 for w in weights.values())
     assert abs(sum(weights.values()) - 1.0) < 1e-6
@@ -39,7 +39,7 @@ def test_real_weights_sum_to_one_and_are_nonnegative():
 def test_degenerate_input_falls_back_to_equal_weight_not_a_crash():
     # Too few bars for a meaningful covariance estimate.
     prices = {"A": pd.Series([100.0, 100.1, 100.2]), "B": pd.Series([50.0, 50.05, 50.1])}
-    weights = compute_portfolio_weights(prices)
+    weights = compute_portfolio_weights(prices, min_observations=100, risk_free_rate=0.0)
     assert weights == {"A": 0.5, "B": 0.5}
 
 
@@ -62,13 +62,16 @@ def test_mvo_uses_completed_15_minute_prices_and_intraday_annualization(monkeypa
             )
 
     class FakeEfficientFrontier:
-        def __init__(self, _mu, _cov):
-            pass
+        def __init__(self, _mu, _cov, *, weight_bounds):
+            captured["weight_bounds"] = weight_bounds
 
-        def max_sharpe(self):
+        def max_sharpe(self, *, risk_free_rate):
+            captured["risk_free_rate"] = risk_free_rate
             return {"A": 0.5, "B": 0.5}
 
-        def clean_weights(self):
+        def clean_weights(self, *, cutoff, rounding):
+            captured["clean_cutoff"] = cutoff
+            captured["clean_rounding"] = rounding
             return {"A": 0.5, "B": 0.5}
 
     monkeypatch.setattr(sizing_module.expected_returns, "mean_historical_return", fake_mean_historical_return)
@@ -80,7 +83,12 @@ def test_mvo_uses_completed_15_minute_prices_and_intraday_annualization(monkeypa
         "A": pd.Series(range(100, 2_100), index=index, dtype=float),
         "B": pd.Series(range(200, 2_200), index=index, dtype=float),
     }
-    weights = compute_portfolio_weights(prices)
+    weights = compute_portfolio_weights(prices, min_observations=100, risk_free_rate=0.0)
+
+    assert captured["weight_bounds"] == (0.0, 1.0)
+    assert captured["risk_free_rate"] == 0.0
+    assert captured["clean_cutoff"] == 0.0001
+    assert captured["clean_rounding"] == 5
 
     assert weights == {"A": 0.5, "B": 0.5}
     assert captured["mean_frequency"] == INTRADAY_15MIN_PERIODS_PER_YEAR

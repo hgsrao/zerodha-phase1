@@ -90,7 +90,7 @@ def test_registry_owns_the_new_parameters():
     assert not set(OLD_LITERALS) & set(trading_search_space(REG, engine="IN_HOUSE").names)
     assert set(OLD_LITERALS) <= set(trading_search_space(REG, engine="EXTERNAL").names)
     assert (len(REG.params), len(REG.fixed_target_names()), len(REG.safety_params),
-            len(REG.calibratable_names())) == (136, 28, 20, 108)
+            len(REG.calibratable_names())) == (141, 33, 22, 108)
     REG.verify_frozen_identity()
 
 
