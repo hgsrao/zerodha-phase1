@@ -59,7 +59,7 @@ from revision2_external.startup_validation import validate_runtime_parameters, v
 from runtime.operating_mode import ExecutionGate
 from revision2_external.paper_execution import CostedPaperBrokerAdapter, ReplayIntentLedger
 from revision2.transaction_costs import leg_cost, paper_fill_price
-from revision5.supervisory_bridge import Revision5SupervisoryBridge
+from revision5.supervisory_bridge import Revision5SupervisoryBridge, SupervisorySnapshotError
 
 SNAPSHOT_LOOKBACK_BARS = 300
 # F17: fixed PyPortfolioOpt maintenance policy, deliberately NOT calibratable.
@@ -183,6 +183,9 @@ class Revision2ExternalEngineOrchestrator:
         self._trade_sequence = 0
         self.bb03_bb04_supervisory_by_symbol: Dict[str, Any] = {}
         self.bb09_bb10_supervisory_by_symbol: Dict[str, Any] = {}
+        # Observer failures after an order was already placed.  Telemetry only:
+        # they never veto, roll back or alter fill/position/ledger bookkeeping.
+        self.bb09_bb10_observer_failures: List[Dict[str, Any]] = []
 
         self.pa = TALibPredictiveAnalyticsBox()
         # Box 4b, the Chart-Studies Confirmation Layer -- gains/clamp/
@@ -1327,14 +1330,24 @@ class Revision2ExternalEngineOrchestrator:
                 funnel["orders_submitted"] += 1
                 # BB09/BB10 supervisory hand-off: a read-only record of what
                 # P01D constructed and what UnifiedExecution did with it.
-                # Never gates or revises the outcome above -- see
-                # Revision5SupervisoryBridge.snapshot_bb09_bb10.
-                self.bb09_bb10_supervisory_by_symbol[symbol] = (
-                    self.supervisory_bridge.snapshot_bb09_bb10(
-                        proposed_order=replace(order, quantity=quantity),
-                        fill_result=fill,
+                # The order already exists, so this observer has NO veto, NO
+                # rollback and NO authority: only the bridge's own data-validation
+                # error is contained (recorded); any other exception is a real
+                # defect and still propagates.  Bookkeeping below always runs.
+                try:
+                    self.bb09_bb10_supervisory_by_symbol[symbol] = (
+                        self.supervisory_bridge.snapshot_bb09_bb10(
+                            proposed_order=replace(order, quantity=quantity),
+                            fill_result=fill,
+                        )
                     )
-                )
+                except SupervisorySnapshotError as exc:
+                    self.bb09_bb10_observer_failures.append({
+                        "symbol": symbol, "timestamp": str(timestamp),
+                        "side": order.side, "quantity": int(quantity),
+                        "fill_passed": bool(fill.get("passed")),
+                        "error_type": type(exc).__name__, "error": str(exc),
+                    })
                 if fill["passed"]:
                     actual_quantity = int(fill["filled_quantity"])
                     post_fill = self.entry_decision_engine.evaluate_post_fill(

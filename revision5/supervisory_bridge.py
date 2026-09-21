@@ -122,11 +122,20 @@ class BB03BB04SupervisorySnapshot:
     analytics: BB04AnalyticsSnapshot
 
 
+class SupervisorySnapshotError(ValueError):
+    """A BB09/BB10 snapshot could not be built from the supplied order/fill data.
+
+    Raised for malformed or non-finite input only.  Callers that observe an
+    already-completed order must treat it as telemetry, never as a veto.
+    """
+
+
 @dataclass(frozen=True)
 class BB09OrderConstructionSnapshot:
     """Immutable record of a P01D-constructed order.
 
-    EXECUTION authority: P01D turns an already-approved trade plan and
+    INFORMATION_ONLY snapshot: the box that produced the order (P01D) has
+    EXECUTION responsibility, this record does not.  P01D turns an already-approved trade plan and
     quantity into the mechanical order fields a broker needs (order type,
     limit price, timeout, retry budget). It does not choose the side, the
     entry/stop/target, or whether to trade at all -- those are frozen by
@@ -140,14 +149,15 @@ class BB09OrderConstructionSnapshot:
     limit_price: float | None
     timeout_seconds: int
     max_retries: int
-    authority: str = "EXECUTION"
+    authority: str = "INFORMATION_ONLY"
 
 
 @dataclass(frozen=True)
 class BB10ExecutionSnapshot:
     """Immutable record of a UnifiedExecution submission outcome.
 
-    EXECUTION authority: UnifiedExecution submits the already-constructed
+    INFORMATION_ONLY snapshot: the execution/paper adapter has EXECUTION
+    responsibility, this record does not.  UnifiedExecution submits the already-constructed
     BB09 order to the broker/paper-simulation adapter and reports what
     happened. It does not revise the trade decision -- a rejected or
     partially filled order is reported here, not silently retried into a
@@ -161,7 +171,7 @@ class BB10ExecutionSnapshot:
     filled_quantity: int
     filled_price: float | None
     reason: str
-    authority: str = "EXECUTION"
+    authority: str = "INFORMATION_ONLY"
 
 
 @dataclass(frozen=True)
@@ -341,54 +351,61 @@ class Revision5SupervisoryBridge:
         governor, or protection object -- it is a read-only hand-off, the
         same shape as ``snapshot_bb03_bb04``.
         """
-        if not isinstance(proposed_order, ProposedOrder):
-            raise ValueError("proposed_order must be a ProposedOrder")
-        if proposed_order.side not in ("BUY", "SELL"):
-            raise ValueError("BB09 order side must be BUY or SELL")
-        if proposed_order.quantity <= 0:
-            raise ValueError("BB09 order quantity must be positive")
+        try:
+            if not isinstance(proposed_order, ProposedOrder):
+                raise SupervisorySnapshotError("proposed_order must be a ProposedOrder")
+            if proposed_order.side not in ("BUY", "SELL"):
+                raise ValueError("BB09 order side must be BUY or SELL")
+            if proposed_order.quantity <= 0:
+                raise ValueError("BB09 order quantity must be positive")
 
-        order_snapshot = BB09OrderConstructionSnapshot(
-            symbol=proposed_order.symbol,
-            side=proposed_order.side,
-            quantity=int(proposed_order.quantity),
-            order_type=proposed_order.order_type,
-            limit_price=(
-                self._finite_float("limit_price", proposed_order.limit_price)
-                if proposed_order.limit_price is not None
+            order_snapshot = BB09OrderConstructionSnapshot(
+                symbol=proposed_order.symbol,
+                side=proposed_order.side,
+                quantity=int(proposed_order.quantity),
+                order_type=proposed_order.order_type,
+                limit_price=(
+                    self._finite_float("limit_price", proposed_order.limit_price)
+                    if proposed_order.limit_price is not None
+                    else None
+                ),
+                timeout_seconds=int(proposed_order.timeout_seconds),
+                max_retries=int(proposed_order.max_retries),
+            )
+
+            passed = bool(fill_result.get("passed"))
+            filled_quantity = int(fill_result["filled_quantity"]) if passed else 0
+            filled_price = (
+                self._finite_float("filled_price", fill_result["filled_price"])
+                if passed
                 else None
-            ),
-            timeout_seconds=int(proposed_order.timeout_seconds),
-            max_retries=int(proposed_order.max_retries),
-        )
+            )
+            if passed:
+                reason = "FILLED"
+            else:
+                reasons = fill_result.get("reasons") or fill_result.get("reason")
+                reason = "; ".join(reasons) if isinstance(reasons, (list, tuple)) else str(reasons or "REJECTED")
 
-        passed = bool(fill_result.get("passed"))
-        filled_quantity = int(fill_result["filled_quantity"]) if passed else 0
-        filled_price = (
-            self._finite_float("filled_price", fill_result["filled_price"])
-            if passed
-            else None
-        )
-        if passed:
-            reason = "FILLED"
-        else:
-            reasons = fill_result.get("reasons") or fill_result.get("reason")
-            reason = "; ".join(reasons) if isinstance(reasons, (list, tuple)) else str(reasons or "REJECTED")
+            execution_snapshot = BB10ExecutionSnapshot(
+                symbol=proposed_order.symbol,
+                side=proposed_order.side,
+                requested_quantity=int(proposed_order.quantity),
+                submitted=passed,
+                filled_quantity=filled_quantity,
+                filled_price=filled_price,
+                reason=reason,
+            )
 
-        execution_snapshot = BB10ExecutionSnapshot(
-            symbol=proposed_order.symbol,
-            side=proposed_order.side,
-            requested_quantity=int(proposed_order.quantity),
-            submitted=passed,
-            filled_quantity=filled_quantity,
-            filled_price=filled_price,
-            reason=reason,
-        )
-
-        return BB09BB10SupervisorySnapshot(
-            order=order_snapshot,
-            execution=execution_snapshot,
-        )
+            return BB09BB10SupervisorySnapshot(
+                order=order_snapshot,
+                execution=execution_snapshot,
+            )
+        except SupervisorySnapshotError:
+            raise
+        except (ValueError, KeyError, TypeError) as exc:
+            raise SupervisorySnapshotError(
+                f"BB09/BB10 snapshot data invalid: {type(exc).__name__}: {exc}"
+            ) from exc
 
     def evaluate(
         self,

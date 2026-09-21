@@ -15,6 +15,8 @@ box used by the in-house (non-external) Revision 2 engines.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from canonical_parameter_registry import CanonicalParameterRegistry
@@ -28,6 +30,7 @@ from revision2_external.paper_execution import CostedPaperBrokerAdapter, ReplayI
 from revision5.supervisory_bridge import (
     BB09BB10SupervisorySnapshot,
     Revision5SupervisoryBridge,
+    SupervisorySnapshotError,
 )
 
 
@@ -187,21 +190,59 @@ def test_orchestrator_wires_gate16_from_max_slippage_fraction_not_slippage_toler
 # BB09/BB10 boundary: order_timeout_seconds vs. the fixed execution floor
 # ---------------------------------------------------------------------------
 
-def test_gate14_timeout_is_the_tighter_of_the_calibratable_and_fixed_values():
-    """order_timeout_seconds (P01D, structural-but-registered) can only
-    ever TIGHTEN Gate14's effective timeout below the fixed
-    order_timeout_seconds_execution floor, never loosen past it."""
-    registry = CanonicalParameterRegistry()
-    fixed_floor = int(registry.safety_params["order_timeout_seconds_execution"].default)
+def test_gate14_logic_rejects_elapsed_beyond_its_configured_timeout():
+    """Gate14's own unit behaviour, independent of any runtime wiring."""
+    gate = Gate14OrderTimeout(SafetyGateConfig(order_timeout_seconds=30))
+    assert gate.evaluate(elapsed_seconds=30).passed
+    assert not gate.evaluate(elapsed_seconds=31).passed
 
-    tighter = min(fixed_floor, 10)
-    looser_request = min(fixed_floor, 999)
 
-    assert tighter == 10
-    assert looser_request == fixed_floor
+def _short_run(registry, symbol="INFY", bars=1500, warmup=60, before_run=None):
+    manifest = DatasetManifest.load("revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json")
+    loader = MarketDataLoader(manifest.data_dir, synthetic_if_missing=False)
+    data = {symbol: loader._load_symbol_csv(symbol).tail(bars).reset_index(drop=True)}
+    orch = Revision2ExternalEngineOrchestrator([symbol], registry, starting_equity=1_000_000.0)
+    fills = []
+    real_place = orch.broker.place_order
 
-    gate = Gate14OrderTimeout(SafetyGateConfig(order_timeout_seconds=looser_request))
-    assert not gate.evaluate(elapsed_seconds=fixed_floor + 1).passed
+    def spy(*args, **kwargs):
+        result = real_place(*args, **kwargs)
+        fills.append(result)
+        return result
+
+    orch.broker.place_order = spy
+    if before_run is not None:
+        before_run(orch)
+    return orch, orch.run(data, warmup=warmup), fills
+
+
+def _trades(orch):
+    return [(t["symbol"], round(t["pnl"], 6), round(t["net_pnl"], 6)) for t in orch.completed_trades]
+
+
+def test_replay_wiring_never_reaches_the_order_timeout():
+    """order_timeout_seconds is a FIXED execution-timeout policy.  In the current
+    replay/paper path the paper adapter acknowledges synchronously
+    (ack_elapsed_seconds == 0.0) and Gate14 is never given a non-zero elapsed
+    time, so changing the fixed value cannot change any replay result."""
+    from dataclasses import replace
+    default_registry = CanonicalParameterRegistry()
+    tight_registry = CanonicalParameterRegistry()
+    tight_registry.params["order_timeout_seconds"] = replace(
+        tight_registry.params["order_timeout_seconds"], default=5)
+
+    base_orch, base_report, base_fills = _short_run(default_registry)
+    tight_orch, tight_report, tight_fills = _short_run(tight_registry)
+
+    # the value really reaches Gate14's effective configuration ...
+    assert base_orch.entry_decision_engine.config.order_timeout_seconds == 30
+    assert tight_orch.entry_decision_engine.config.order_timeout_seconds == 5
+    # ... but every acknowledgement is instantaneous, so it is never exercised
+    passed = [f for f in base_fills + tight_fills if f["passed"]]
+    assert passed and all(f["ack_elapsed_seconds"] == 0.0 for f in passed)
+    assert base_report["completed_trades"] > 0
+    assert _trades(tight_orch) == _trades(base_orch)
+    assert tight_report["net_pnl"] == base_report["net_pnl"]
 
 
 # ---------------------------------------------------------------------------
@@ -296,14 +337,14 @@ def _order(**overrides):
     return ProposedOrder(**base)
 
 
-def test_snapshot_bb09_bb10_reports_a_filled_order_as_execution_authority():
+def test_snapshot_bb09_bb10_reports_a_filled_order_as_information_only():
     snapshot = Revision5SupervisoryBridge().snapshot_bb09_bb10(
         proposed_order=_order(),
         fill_result={"passed": True, "filled_quantity": 10, "filled_price": 101.25},
     )
     assert isinstance(snapshot, BB09BB10SupervisorySnapshot)
-    assert snapshot.order.authority == "EXECUTION"
-    assert snapshot.execution.authority == "EXECUTION"
+    assert snapshot.order.authority == "INFORMATION_ONLY"
+    assert snapshot.execution.authority == "INFORMATION_ONLY"
     assert snapshot.order.order_type == "MARKET"
     assert snapshot.execution.submitted is True
     assert snapshot.execution.filled_quantity == 10
@@ -373,9 +414,79 @@ def test_bb09_bb10_supervisory_snapshot_populated_during_a_real_run():
     assert isinstance(snapshot, BB09BB10SupervisorySnapshot)
     assert snapshot.order.symbol == "INFY"
     assert snapshot.order.order_type == "MARKET"
-    assert snapshot.order.authority == "EXECUTION"
-    assert snapshot.execution.authority == "EXECUTION"
+    assert snapshot.order.authority == "INFORMATION_ONLY"
+    assert snapshot.execution.authority == "INFORMATION_ONLY"
     # Every submitted order this pipeline can construct is MARKET-only
     # (fail-closed at startup), so a passed fill must carry a real price.
     if snapshot.execution.submitted:
         assert snapshot.execution.filled_price is not None
+
+
+# ---------------------------------------------------------------------------
+# Supervisory observer: information-only, never able to interrupt bookkeeping
+# ---------------------------------------------------------------------------
+
+def test_snapshot_authority_is_information_only_for_both_boxes():
+    snapshot = Revision5SupervisoryBridge().snapshot_bb09_bb10(
+        proposed_order=_order(), fill_result={"passed": False, "reasons": ["rejected"]})
+    assert snapshot.order.authority == "INFORMATION_ONLY"
+    assert snapshot.execution.authority == "INFORMATION_ONLY"
+    assert snapshot.execution.submitted is False and snapshot.execution.reason == "rejected"
+
+
+@pytest.mark.parametrize("order_kwargs, fill", [
+    ({"max_retries": None}, {"passed": True, "filled_quantity": 10, "filled_price": 101.0}),
+    ({}, {"passed": True, "filled_quantity": 10, "filled_price": float("nan")}),
+    ({}, {"passed": True, "filled_price": 101.0}),
+    ({"side": "HOLD"}, {"passed": True, "filled_quantity": 10, "filled_price": 101.0}),
+])
+def test_invalid_snapshot_data_raises_only_the_dedicated_error(order_kwargs, fill):
+    with pytest.raises(SupervisorySnapshotError):
+        Revision5SupervisoryBridge().snapshot_bb09_bb10(proposed_order=_order(**order_kwargs), fill_result=fill)
+
+
+def test_invalid_post_fill_snapshot_data_does_not_interrupt_fill_bookkeeping():
+    """max_retries is never read by the broker path, so corrupting it breaks ONLY the
+    supervisory snapshot.  The run must still complete every fill, position and ledger
+    update exactly as an undisturbed run, and the observer failure must be recorded."""
+    registry = CanonicalParameterRegistry()
+    base_orch, base_report, base_fills = _short_run(registry)
+    assert base_report["completed_trades"] > 0 and not base_orch.bb09_bb10_observer_failures
+
+    def corrupt(orch):
+        real_create = orch.p01d.create_order
+
+        def create(*args, **kwargs):
+            order, trace = real_create(*args, **kwargs)
+            if order is not None:
+                order = replace(order, max_retries=None)
+            return order, trace
+
+        orch.p01d.create_order = create
+
+    bad_orch, bad_report, bad_fills = _short_run(registry, before_run=corrupt)
+
+    assert _trades(bad_orch) == _trades(base_orch)
+    assert bad_report["completed_trades"] == base_report["completed_trades"]
+    assert bad_report["net_pnl"] == base_report["net_pnl"]
+    assert len(bad_fills) == len(base_fills)
+    failures = bad_orch.bb09_bb10_observer_failures
+    # one snapshot attempt per ENTRY order (exit orders share place_order but are not snapshotted)
+    assert len(failures) == len(base_orch.completed_trades) > 0
+    assert all(f["error_type"] == "SupervisorySnapshotError" and f["symbol"] == "INFY" for f in failures)
+    assert failures[0]["side"] in ("BUY", "SELL") and failures[0]["fill_passed"] is True
+    assert "NoneType" in failures[0]["error"]
+    assert bad_orch.bb09_bb10_supervisory_by_symbol == {}       # no snapshot recorded, no veto
+
+
+def test_unexpected_observer_exceptions_are_not_swallowed():
+    """Only the bridge's data-validation error is contained; a real defect still surfaces."""
+    registry = CanonicalParameterRegistry()
+
+    def boom(orch):
+        def broken(**kwargs):
+            raise RuntimeError("programming error")
+        orch.supervisory_bridge.snapshot_bb09_bb10 = broken
+
+    with pytest.raises(RuntimeError, match="programming error"):
+        _short_run(registry, before_run=boom)
