@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import isfinite
 from types import MappingProxyType
-from typing import Mapping, Tuple
+from typing import Any, Mapping, Tuple
 
 from canonical_parameter_registry import (
     CanonicalParameterRegistry,
@@ -32,6 +32,12 @@ from revision2_external.dynamic_parameter_controller import (
     DynamicParameterController,
     MarketEnvironmentState,
 )
+from revision2_external.startup_validation import (
+    validate_runtime_parameters,
+    validate_safety_contract,
+)
+from revision2.boxes import DataIngestionBox
+from revision2.contracts import EffectiveConfig
 
 
 @dataclass(frozen=True)
@@ -64,6 +70,20 @@ class SupervisorySnapshot:
         float,
         float,
     ]
+
+
+@dataclass(frozen=True)
+class UpstreamAdmissionSnapshot:
+    """Fail-closed BB01/BB02 result for an intent headed to R5 admission.
+
+    This is deliberately a precondition only.  It neither selects a bay nor
+    calls the plant, so Governor, AVR, and protection retain their authority.
+    """
+
+    admitted: bool
+    reason: str
+    config_hash: str | None
+    consumed_parameters: Tuple[str, ...]
 
 
 class Revision5SupervisoryBridge:
@@ -99,6 +119,60 @@ class Revision5SupervisoryBridge:
             )
 
         return number
+
+    def evaluate_upstream_admission(
+        self,
+        *,
+        symbol: str,
+        runtime_parameters: Mapping[str, Any],
+        safety_parameters: Mapping[str, Any],
+    ) -> UpstreamAdmissionSnapshot:
+        """Validate BB01 then apply BB02 before a harness calls R5 entry.
+
+        BB01 owns complete registry-backed startup validation. BB02 owns the
+        allow/deny universe decision. Both are upstream and cannot mutate the
+        plant or substitute for its Governor and protection checks.
+        """
+        runtime_values = dict(runtime_parameters)
+        safety_values = dict(safety_parameters)
+        runtime_errors = validate_runtime_parameters(
+            self.registry,
+            runtime_values,
+        )
+        safety_errors = validate_safety_contract(
+            self.registry,
+            safety_values,
+        )
+        safety_errors += self.registry.validate_execution_payload(
+            safety_values,
+        )
+        if runtime_errors or safety_errors:
+            return UpstreamAdmissionSnapshot(
+                admitted=False,
+                reason=(
+                    "BB01_STARTUP_REJECTED:"
+                    + "; ".join(runtime_errors + safety_errors)
+                ),
+                config_hash=None,
+                consumed_parameters=(),
+            )
+
+        config = EffectiveConfig.build(
+            runtime_values,
+            registry_hash=self.registry.FROZEN_IDENTITY_SHA256,
+        )
+        admitted, reason, trace = DataIngestionBox().admit(
+            symbol,
+            config,
+        )
+        return UpstreamAdmissionSnapshot(
+            admitted=admitted,
+            reason=("BB02_" + reason.upper().replace(" ", "_")),
+            config_hash=config.config_hash,
+            consumed_parameters=tuple(
+                use.parameter for use in trace
+            ),
+        )
 
     def evaluate(
         self,

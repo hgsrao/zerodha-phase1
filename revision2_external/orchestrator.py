@@ -39,7 +39,7 @@ import pandas as pd
 
 from canonical_parameter_registry import CanonicalParameterRegistry
 from gates_framework import EntryDecisionEngine, EntrySignal, SafetyGateConfig, SystemState
-from revision2.boxes import DataIngestionBox, P01DBox, SafetyGatesTargetBox
+from revision2.boxes import P01DBox, SafetyGatesTargetBox
 from revision2.contracts import EffectiveConfig, MarketSnapshot, SafetyContract, StartupCertificate, StartupNotCertifiedError
 from revision2.portfolio_orchestrator import SECTOR_MAP, _ClockEvent
 from revision2_external.composite_study_signal import CompositeStudySignal
@@ -59,6 +59,7 @@ from revision2_external.startup_validation import validate_runtime_parameters, v
 from runtime.operating_mode import ExecutionGate
 from revision2_external.paper_execution import CostedPaperBrokerAdapter, ReplayIntentLedger
 from revision2.transaction_costs import leg_cost, paper_fill_price
+from revision5.supervisory_bridge import Revision5SupervisoryBridge
 
 SNAPSHOT_LOOKBACK_BARS = 300
 # F17: fixed PyPortfolioOpt maintenance policy, deliberately NOT calibratable.
@@ -104,6 +105,7 @@ class Revision2ExternalEngineOrchestrator:
         dynamic_target_setpoint_mode: str = "shadow",
         risk_profile: str = "development",
         session_schedule: Optional[Dict[str, Tuple[str, str]]] = None,
+        supervisory_bridge: Optional[Revision5SupervisoryBridge] = None,
     ) -> None:
         if closed_loop_mode not in {"shadow", "active_paper"}:
             raise ValueError("closed_loop_mode must be 'shadow' or 'active_paper'")
@@ -151,6 +153,13 @@ class Revision2ExternalEngineOrchestrator:
 
         self.config = EffectiveConfig.build(values, registry_hash=self.registry.FROZEN_IDENTITY_SHA256)
         self.safety_contract = SafetyContract.from_registry(self.registry)
+        # BB01/BB02 remain upstream.  The bridge provides their single
+        # tracked hand-off to R5; it does not call a plant or alter strategy.
+        self.supervisory_bridge = (
+            supervisory_bridge
+            if supervisory_bridge is not None
+            else Revision5SupervisoryBridge(self.registry)
+        )
         if self.config.require("order_type") != "MARKET":
             raise ValueError("External replay supports MARKET orders only")
         self.sector_map = dict(sector_map) if sector_map is not None else dict(SECTOR_MAP)
@@ -173,7 +182,6 @@ class Revision2ExternalEngineOrchestrator:
         self._controller_sequence = 0
         self._trade_sequence = 0
 
-        self.data_ingestion = DataIngestionBox()
         self.pa = TALibPredictiveAnalyticsBox()
         # Box 4b, the Chart-Studies Confirmation Layer -- gains/clamp/
         # grading-horizon/hit-rate-window are real, disclosed, fixed
@@ -879,9 +887,15 @@ class Revision2ExternalEngineOrchestrator:
                 end_time = str(self.config.require("trading_hours_end"))
                 session_last_bar = next_ts.date() != event_ts.date() or event_ts.strftime("%H:%M") >= end_time
 
-                admitted, _, trace = self.data_ingestion.admit(symbol, self.config)
-                self._record(trace)
-                if not admitted:
+                upstream = self.supervisory_bridge.evaluate_upstream_admission(
+                    symbol=symbol,
+                    runtime_parameters=self.config.as_dict(),
+                    safety_parameters=self.safety_contract.as_dict(),
+                )
+                self.consumed_parameters.update(
+                    upstream.consumed_parameters
+                )
+                if not upstream.admitted:
                     continue
                 in_window = self._in_trading_window(str(timestamp))
 
