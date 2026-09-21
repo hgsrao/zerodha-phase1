@@ -342,6 +342,141 @@ class BayExcitationAVR:
 
         self._refresh_runtime_limits()
 
+    def configure_synchronizing_voltage_reference(
+        self,
+        *,
+        initial_reference_pu: float,
+        minimum_reference_pu: float,
+        maximum_reference_pu: float,
+        reference_rate_pu_per_second: float,
+    ) -> None:
+        """
+        Install the generator synchronizing AVR reference channel.
+
+        All operating values are explicit configuration.
+        """
+        from math import isfinite
+
+        values = (
+            initial_reference_pu,
+            minimum_reference_pu,
+            maximum_reference_pu,
+            reference_rate_pu_per_second,
+        )
+
+        if not all(isfinite(float(v)) for v in values):
+            raise ValueError(
+                "synchronizing AVR parameters must be finite"
+            )
+
+        if not (
+            float(minimum_reference_pu)
+            < float(initial_reference_pu)
+            < float(maximum_reference_pu)
+        ):
+            raise ValueError(
+                "initial voltage reference must lie inside its limits"
+            )
+
+        if float(reference_rate_pu_per_second) <= 0.0:
+            raise ValueError(
+                "voltage reference rate must be positive"
+            )
+
+        self.sync_voltage_reference_pu = float(
+            initial_reference_pu
+        )
+
+        self.sync_voltage_reference_min_pu = float(
+            minimum_reference_pu
+        )
+
+        self.sync_voltage_reference_max_pu = float(
+            maximum_reference_pu
+        )
+
+        self.sync_voltage_reference_rate_pu_per_second = float(
+            reference_rate_pu_per_second
+        )
+
+    def apply_synchronizing_voltage_pulse(
+        self,
+        *,
+        command,
+        pulse_width_seconds: float,
+    ) -> float:
+        """
+        Apply one physical-equivalent 25A VOLTAGE RAISE/LOWER pulse.
+        """
+        from math import isfinite
+
+        required = (
+            "sync_voltage_reference_pu",
+            "sync_voltage_reference_min_pu",
+            "sync_voltage_reference_max_pu",
+            "sync_voltage_reference_rate_pu_per_second",
+        )
+
+        if not all(hasattr(self, name) for name in required):
+            raise RuntimeError(
+                "synchronizing AVR channel not configured"
+            )
+
+        width = float(pulse_width_seconds)
+
+        if not isfinite(width) or width < 0.0:
+            raise ValueError(
+                "pulse_width_seconds must be finite and non-negative"
+            )
+
+        normalized = str(
+            getattr(command, "value", command)
+        ).upper()
+
+        delta = (
+            self.sync_voltage_reference_rate_pu_per_second
+            * width
+        )
+
+        reference = self.sync_voltage_reference_pu
+
+        if normalized in (
+            "RAISE",
+            "VOLTAGE_RAISE",
+        ):
+            reference += delta
+
+        elif normalized in (
+            "LOWER",
+            "VOLTAGE_LOWER",
+        ):
+            reference -= delta
+
+        elif normalized in (
+            "NONE",
+            "HOLD",
+            "VOLTAGE_NONE",
+        ):
+            pass
+
+        else:
+            raise ValueError(
+                f"unsupported synchronizing voltage command: "
+                f"{normalized!r}"
+            )
+
+        reference = max(
+            self.sync_voltage_reference_min_pu,
+            min(
+                self.sync_voltage_reference_max_pu,
+                reference,
+            ),
+        )
+
+        self.sync_voltage_reference_pu = float(reference)
+
+        return self.sync_voltage_reference_pu
+
     def evaluate_control(
         self,
         *,

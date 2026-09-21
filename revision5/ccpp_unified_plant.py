@@ -358,6 +358,365 @@ class TurbineBayPanel:
             snapshot.plant.target_cooldown_bars
         )
 
+    def install_synchronizing_equipment(
+        self,
+        *,
+        auto_synchronizer,
+        synchrocheck_relay,
+        initial_speed_reference_hz: float,
+        minimum_speed_reference_hz: float,
+        maximum_speed_reference_hz: float,
+        speed_reference_rate_hz_per_second: float,
+        initial_voltage_reference_pu: float,
+        minimum_voltage_reference_pu: float,
+        maximum_voltage_reference_pu: float,
+        voltage_reference_rate_pu_per_second: float,
+    ) -> None:
+        """
+        Install native R5 generator synchronizing equipment.
+
+        25A = active control.
+        25  = independent close supervision.
+        """
+        from revision5.startup_synchronization import (
+            MachineKind,
+            TurbineStartupSequencer,
+        )
+
+        self.auto_synchronizer_25a = (
+            auto_synchronizer
+        )
+
+        self.synchrocheck_relay_25 = (
+            synchrocheck_relay
+        )
+
+        machine_kind = (
+            MachineKind.GAS_TURBINE
+            if self.bay_id.startswith("GTG")
+            else MachineKind.STEAM_TURBINE
+        )
+
+        self.startup_sequencer = (
+            TurbineStartupSequencer(
+                machine_kind
+            )
+        )
+
+        self.governor.configure_synchronizing_speed_reference(
+            initial_reference_hz=(
+                initial_speed_reference_hz
+            ),
+            minimum_reference_hz=(
+                minimum_speed_reference_hz
+            ),
+            maximum_reference_hz=(
+                maximum_speed_reference_hz
+            ),
+            reference_rate_hz_per_second=(
+                speed_reference_rate_hz_per_second
+            ),
+        )
+
+        self.avr.configure_synchronizing_voltage_reference(
+            initial_reference_pu=(
+                initial_voltage_reference_pu
+            ),
+            minimum_reference_pu=(
+                minimum_voltage_reference_pu
+            ),
+            maximum_reference_pu=(
+                maximum_voltage_reference_pu
+            ),
+            reference_rate_pu_per_second=(
+                voltage_reference_rate_pu_per_second
+            ),
+        )
+
+    def _startup_inputs(
+        self,
+        **overrides,
+    ):
+        from revision5.startup_synchronization import (
+            StartupInputs,
+        )
+
+        values = {
+            "start_command": False,
+            "starting_means_ready": False,
+            "crank_complete": False,
+            "flame_proven": False,
+            "exhaust_spread_ok": True,
+            "exhaust_spread_trip": False,
+            "fsnl_reached": False,
+            "synchronizer_ready": False,
+            "synchronizer_permissive": False,
+            "generator_breaker_closed": False,
+            "minimum_load_reached": False,
+            "auxiliary_services_stable": False,
+            "mechanical_trip": False,
+        }
+
+        values.update(overrides)
+
+        return StartupInputs(**values)
+
+    def prepare_startup(self) -> None:
+        if not hasattr(
+            self,
+            "startup_sequencer",
+        ):
+            raise RuntimeError(
+                "synchronizing equipment not installed"
+            )
+
+        self.startup_sequencer.reset()
+
+        reset = getattr(
+            self.auto_synchronizer_25a,
+            "reset",
+            None,
+        )
+
+        if reset is not None:
+            reset()
+
+    def advance_startup(
+        self,
+        **startup_inputs,
+    ):
+        if not hasattr(
+            self,
+            "startup_sequencer",
+        ):
+            raise RuntimeError(
+                "synchronizing equipment not installed"
+            )
+
+        return self.startup_sequencer.step(
+            self._startup_inputs(
+                **startup_inputs
+            )
+        )
+
+    def run_synchronizing_control(
+        self,
+        *,
+        dt_seconds: float,
+        generator_frequency_hz: float,
+        bus_frequency_hz: float,
+        generator_voltage_pu: float,
+        bus_voltage_pu: float,
+        generator_phase_deg: float,
+        bus_phase_deg: float,
+        dead_bus_close_authorized: bool = False,
+    ) -> dict:
+        """
+        Execute one synchronizing-control scan.
+
+        LIVE BUS:
+            25A -> governor/AVR pulses
+            independent 25 -> closing permissive
+            both required for 52G request.
+
+        DEAD BUS:
+            25A is deliberately not asked to synchronize against a
+            zero-frequency/de-energized bus. Explicit dead-bus authority
+            plus Relay 25 dead-bus supervision controls closing.
+        """
+        from revision5.startup_synchronization import (
+            StartupState,
+        )
+
+        if not hasattr(
+            self,
+            "startup_sequencer",
+        ):
+            raise RuntimeError(
+                "synchronizing equipment not installed"
+            )
+
+        if (
+            self.startup_sequencer.state
+            != StartupState.SYNC_READY
+        ):
+            return {
+                "breaker_close_requested": False,
+                "reason": (
+                    "UNIT_NOT_SYNC_READY:"
+                    + self.startup_sequencer.state.value
+                ),
+            }
+
+        if self.tripped_offline:
+            return {
+                "breaker_close_requested": False,
+                "reason": "UNIT_TRIPPED_OFFLINE",
+            }
+
+        dead_bus_threshold = float(
+            self.synchrocheck_relay_25
+            .spec
+            .dead_bus_voltage_pu
+        )
+
+        dead_bus = (
+            float(bus_voltage_pu)
+            <= dead_bus_threshold
+        )
+
+        auto_output = None
+
+        if not dead_bus:
+            auto_output = (
+                self.auto_synchronizer_25a.step(
+                    dt_seconds=dt_seconds,
+                    generator_frequency_hz=(
+                        generator_frequency_hz
+                    ),
+                    bus_frequency_hz=(
+                        bus_frequency_hz
+                    ),
+                    generator_voltage_pu=(
+                        generator_voltage_pu
+                    ),
+                    bus_voltage_pu=(
+                        bus_voltage_pu
+                    ),
+                    generator_phase_deg=(
+                        generator_phase_deg
+                    ),
+                    bus_phase_deg=(
+                        bus_phase_deg
+                    ),
+                    enabled=True,
+                )
+            )
+
+            self.governor.apply_synchronizing_speed_pulse(
+                command=auto_output.speed_command,
+                pulse_width_seconds=(
+                    auto_output.speed_pulse_width_seconds
+                ),
+            )
+
+            self.avr.apply_synchronizing_voltage_pulse(
+                command=auto_output.voltage_command,
+                pulse_width_seconds=(
+                    auto_output.voltage_pulse_width_seconds
+                ),
+            )
+
+        #
+        # The actual AVR remains a closed-loop controller during
+        # synchronizing. The 25A pulses move its reference.
+        #
+        avr_control = self.avr.evaluate_control(
+            mode="BUS_VOLTAGE",
+            bus_voltage_reference_pu=(
+                self.avr.sync_voltage_reference_pu
+            ),
+            terminal_voltage_pu=(
+                generator_voltage_pu
+            ),
+            mvar_reference_pu=0.0,
+            measured_mvar_pu=0.0,
+        )
+
+        relay_25 = (
+            self.synchrocheck_relay_25.evaluate(
+                generator_frequency_hz=(
+                    generator_frequency_hz
+                ),
+                bus_frequency_hz=(
+                    bus_frequency_hz
+                ),
+                generator_voltage_pu=(
+                    generator_voltage_pu
+                ),
+                bus_voltage_pu=(
+                    bus_voltage_pu
+                ),
+                generator_phase_deg=(
+                    generator_phase_deg
+                ),
+                bus_phase_deg=(
+                    bus_phase_deg
+                ),
+                dead_bus_close_authorized=(
+                    dead_bus_close_authorized
+                ),
+            )
+        )
+
+        if dead_bus:
+            #
+            # First island-forming generator:
+            # there is no energized waveform for 25A to chase.
+            #
+            combined_permissive = bool(
+                dead_bus_close_authorized
+                and relay_25.permitted
+            )
+
+            control_reason = (
+                "DEAD_BUS_CLOSE_PATH"
+            )
+
+        else:
+            combined_permissive = bool(
+                auto_output.close_opportunity
+                and relay_25.permitted
+            )
+
+            control_reason = (
+                "LIVE_BUS_25A_AND_25"
+            )
+
+        if avr_control.get("tripped", False):
+            combined_permissive = False
+            control_reason = (
+                "AVR_PROTECTION_BLOCK"
+            )
+
+        transition = (
+            self.startup_sequencer.step(
+                self._startup_inputs(
+                    synchronizer_permissive=(
+                        combined_permissive
+                    )
+                )
+            )
+        )
+
+        return {
+            "breaker_close_requested": bool(
+                transition.breaker_close_requested
+            ),
+            "combined_permissive": (
+                combined_permissive
+            ),
+            "dead_bus": dead_bus,
+            "automatic_25a": auto_output,
+            "synchrocheck_25": relay_25,
+            "avr_control": avr_control,
+            "speed_reference_hz": (
+                self.governor
+                .sync_speed_reference_hz
+            ),
+            "speed_error_hz": (
+                self.governor
+                .synchronizing_speed_error(
+                    generator_frequency_hz
+                )
+            ),
+            "voltage_reference_pu": (
+                self.avr
+                .sync_voltage_reference_pu
+            ),
+            "reason": control_reason,
+        }
+
     def evaluate_admission(
         self,
         *,
@@ -377,6 +736,23 @@ class TurbineBayPanel:
         measured_mvar_pu: float = 0.0,
         avr_mode: str = "BUS_VOLTAGE",
     ) -> dict:
+        if hasattr(self, "startup_sequencer"):
+            from revision5.startup_synchronization import (
+                StartupState,
+            )
+
+            if (
+                self.startup_sequencer.state
+                != StartupState.DISPATCH_READY
+            ):
+                return {
+                    "admitted": False,
+                    "reason": (
+                        "UNIT_NOT_DISPATCH_READY:"
+                        + self.startup_sequencer.state.value
+                    ),
+                }
+
         if symbol not in self.symbols:
             return {
                 "admitted": False,
@@ -801,6 +1177,206 @@ class CentralPlantMasterDCS:
         self.dynamic_snapshot = snapshot
 
         return snapshot
+
+    def configure_unit_synchronizer(
+        self,
+        *,
+        bay_id: str,
+        auto_synchronizer,
+        synchrocheck_relay,
+        initial_speed_reference_hz: float,
+        minimum_speed_reference_hz: float,
+        maximum_speed_reference_hz: float,
+        speed_reference_rate_hz_per_second: float,
+        initial_voltage_reference_pu: float,
+        minimum_voltage_reference_pu: float,
+        maximum_voltage_reference_pu: float,
+        voltage_reference_rate_pu_per_second: float,
+    ) -> None:
+        if bay_id not in self.bays:
+            raise KeyError(
+                f"unknown bay: {bay_id}"
+            )
+
+        self.bays[
+            bay_id
+        ].install_synchronizing_equipment(
+            auto_synchronizer=auto_synchronizer,
+            synchrocheck_relay=synchrocheck_relay,
+            initial_speed_reference_hz=(
+                initial_speed_reference_hz
+            ),
+            minimum_speed_reference_hz=(
+                minimum_speed_reference_hz
+            ),
+            maximum_speed_reference_hz=(
+                maximum_speed_reference_hz
+            ),
+            speed_reference_rate_hz_per_second=(
+                speed_reference_rate_hz_per_second
+            ),
+            initial_voltage_reference_pu=(
+                initial_voltage_reference_pu
+            ),
+            minimum_voltage_reference_pu=(
+                minimum_voltage_reference_pu
+            ),
+            maximum_voltage_reference_pu=(
+                maximum_voltage_reference_pu
+            ),
+            voltage_reference_rate_pu_per_second=(
+                voltage_reference_rate_pu_per_second
+            ),
+        )
+
+    def prepare_unit_startup(
+        self,
+        *,
+        bay_id: str,
+    ) -> None:
+        """
+        Put the selected generator breaker in the startup-open state.
+
+        This does NOT clear unit-trip or ANSI-86 protection state.
+        """
+        if bay_id not in self.bays:
+            raise KeyError(
+                f"unknown bay: {bay_id}"
+            )
+
+        breaker = (
+            self.electrical_network
+            .unit_breaker(
+                bay_id
+            )
+        )
+
+        breaker.open(
+            reason="UNIT_STARTUP",
+            source="R5_STARTUP_SEQUENCE",
+        )
+
+        self.bays[
+            bay_id
+        ].prepare_startup()
+
+    def advance_unit_startup(
+        self,
+        *,
+        bay_id: str,
+        **startup_inputs,
+    ):
+        if bay_id not in self.bays:
+            raise KeyError(
+                f"unknown bay: {bay_id}"
+            )
+
+        return self.bays[
+            bay_id
+        ].advance_startup(
+            **startup_inputs
+        )
+
+    def run_unit_synchronization(
+        self,
+        *,
+        bay_id: str,
+        dt_seconds: float,
+        generator_frequency_hz: float,
+        bus_frequency_hz: float,
+        generator_voltage_pu: float,
+        bus_voltage_pu: float,
+        generator_phase_deg: float,
+        bus_phase_deg: float,
+        dead_bus_close_authorized: bool = False,
+    ) -> dict:
+        """
+        Run 25A + independent 25 and operate the real 52G only if
+        the turbine startup sequencer requests closure.
+        """
+        if bay_id not in self.bays:
+            raise KeyError(
+                f"unknown bay: {bay_id}"
+            )
+
+        bay = self.bays[bay_id]
+
+        result = bay.run_synchronizing_control(
+            dt_seconds=dt_seconds,
+            generator_frequency_hz=(
+                generator_frequency_hz
+            ),
+            bus_frequency_hz=(
+                bus_frequency_hz
+            ),
+            generator_voltage_pu=(
+                generator_voltage_pu
+            ),
+            bus_voltage_pu=(
+                bus_voltage_pu
+            ),
+            generator_phase_deg=(
+                generator_phase_deg
+            ),
+            bus_phase_deg=(
+                bus_phase_deg
+            ),
+            dead_bus_close_authorized=(
+                dead_bus_close_authorized
+            ),
+        )
+
+        result["breaker_closed"] = False
+
+        if not result.get(
+            "breaker_close_requested",
+            False,
+        ):
+            return result
+
+        breaker = (
+            self.electrical_network
+            .unit_breaker(
+                bay_id
+            )
+        )
+
+        if breaker.lockout_86:
+            result[
+                "breaker_close_requested"
+            ] = False
+
+            result["reason"] = (
+                "52G_BLOCKED_ANSI86"
+            )
+
+            return result
+
+        if bay.tripped_offline:
+            result[
+                "breaker_close_requested"
+            ] = False
+
+            result["reason"] = (
+                "52G_BLOCKED_UNIT_TRIP"
+            )
+
+            return result
+
+        self.electrical_network.close_unit_breaker(
+            bay_id
+        )
+
+        bay.advance_startup(
+            generator_breaker_closed=True
+        )
+
+        result["breaker_closed"] = True
+        result["reason"] = (
+            "52G_CLOSED_SYNCHRONIZED"
+        )
+
+        return result
 
     def begin_bar(
         self,

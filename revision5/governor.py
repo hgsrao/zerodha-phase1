@@ -317,6 +317,167 @@ class BayTurbineClosedLoopGovernor:
             ),
         )
 
+    def configure_synchronizing_speed_reference(
+        self,
+        *,
+        initial_reference_hz: float,
+        minimum_reference_hz: float,
+        maximum_reference_hz: float,
+        reference_rate_hz_per_second: float,
+    ) -> None:
+        """
+        Install the generator synchronizing speed-reference channel.
+
+        The numerical limits/rate are supplied by configuration.
+        No synchronizing operating constants live in this class.
+        """
+        from math import isfinite
+
+        values = (
+            initial_reference_hz,
+            minimum_reference_hz,
+            maximum_reference_hz,
+            reference_rate_hz_per_second,
+        )
+
+        if not all(isfinite(float(v)) for v in values):
+            raise ValueError(
+                "synchronizing governor parameters must be finite"
+            )
+
+        if not (
+            float(minimum_reference_hz)
+            < float(initial_reference_hz)
+            < float(maximum_reference_hz)
+        ):
+            raise ValueError(
+                "initial speed reference must lie inside its limits"
+            )
+
+        if float(reference_rate_hz_per_second) <= 0.0:
+            raise ValueError(
+                "speed reference rate must be positive"
+            )
+
+        self.sync_speed_reference_hz = float(
+            initial_reference_hz
+        )
+
+        self.sync_speed_reference_min_hz = float(
+            minimum_reference_hz
+        )
+
+        self.sync_speed_reference_max_hz = float(
+            maximum_reference_hz
+        )
+
+        self.sync_speed_reference_rate_hz_per_second = float(
+            reference_rate_hz_per_second
+        )
+
+    def apply_synchronizing_speed_pulse(
+        self,
+        *,
+        command,
+        pulse_width_seconds: float,
+    ) -> float:
+        """
+        Apply one physical-equivalent 25A SPEED RAISE/LOWER pulse.
+
+        Pulse width times configured reference-rate determines the
+        reference movement. The machine dynamic model will later turn
+        this reference movement into rotor acceleration through
+        governor/actuator/turbine/inertia dynamics.
+        """
+        from math import isfinite
+
+        required = (
+            "sync_speed_reference_hz",
+            "sync_speed_reference_min_hz",
+            "sync_speed_reference_max_hz",
+            "sync_speed_reference_rate_hz_per_second",
+        )
+
+        if not all(hasattr(self, name) for name in required):
+            raise RuntimeError(
+                "synchronizing governor channel not configured"
+            )
+
+        width = float(pulse_width_seconds)
+
+        if not isfinite(width) or width < 0.0:
+            raise ValueError(
+                "pulse_width_seconds must be finite and non-negative"
+            )
+
+        normalized = str(
+            getattr(command, "value", command)
+        ).upper()
+
+        delta = (
+            self.sync_speed_reference_rate_hz_per_second
+            * width
+        )
+
+        reference = self.sync_speed_reference_hz
+
+        if normalized in (
+            "RAISE",
+            "SPEED_RAISE",
+        ):
+            reference += delta
+
+        elif normalized in (
+            "LOWER",
+            "SPEED_LOWER",
+        ):
+            reference -= delta
+
+        elif normalized in (
+            "NONE",
+            "HOLD",
+            "SPEED_NONE",
+        ):
+            pass
+
+        else:
+            raise ValueError(
+                f"unsupported synchronizing speed command: "
+                f"{normalized!r}"
+            )
+
+        reference = max(
+            self.sync_speed_reference_min_hz,
+            min(
+                self.sync_speed_reference_max_hz,
+                reference,
+            ),
+        )
+
+        self.sync_speed_reference_hz = float(reference)
+
+        return self.sync_speed_reference_hz
+
+    def synchronizing_speed_error(
+        self,
+        measured_frequency_hz: float,
+    ) -> float:
+        """
+        Comparator error used by the coming machine-dynamic model.
+        """
+        if not hasattr(
+            self,
+            "sync_speed_reference_hz",
+        ):
+            raise RuntimeError(
+                "synchronizing governor channel not configured"
+            )
+
+        return (
+            float(self.sync_speed_reference_hz)
+            - float(measured_frequency_hz)
+        )
+
     def evaluate_entry_request(
         self,
         *,
