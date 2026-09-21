@@ -39,6 +39,47 @@ class MasterGridProtectionMiCOM:
         self.max_regime_vol_z = max_regime_vol_z
         self.master_breaker_open = False
 
+    def apply_runtime_profile(self, profile) -> None:
+        # These operating trip thresholds can only tighten.
+        if not (
+            0.0
+            < float(
+                profile.max_daily_fleet_drawdown_pct
+            )
+            <= 0.020
+        ):
+            raise ValueError(
+                "MiCOM drawdown limit outside envelope"
+            )
+
+        if not (
+            0.0
+            < float(profile.nifty_crash_rate_pct)
+            <= 0.015
+        ):
+            raise ValueError(
+                "MiCOM crash-rate limit outside envelope"
+            )
+
+        if not (
+            0.0
+            < float(profile.max_regime_vol_z)
+            <= 3.0
+        ):
+            raise ValueError(
+                "MiCOM volatility-zone limit outside envelope"
+            )
+
+        self.max_dd_pct = float(
+            profile.max_daily_fleet_drawdown_pct
+        )
+        self.nifty_crash_rate = float(
+            profile.nifty_crash_rate_pct
+        )
+        self.max_regime_vol_z = float(
+            profile.max_regime_vol_z
+        )
+
     def evaluate_grid_intertie(
         self,
         nifty_15m_return: float,
@@ -97,9 +138,144 @@ class BayExcitationAVR:
         max_notional_oel_inr: float = 800000.0
     ):
         self.bay_name = bay_name
-        self.allocated_capital = allocated_capital_inr
-        self.uel_min = min_notional_uel_inr
-        self.oel_max = max_notional_oel_inr
+
+        if allocated_capital_inr <= 0:
+            raise ValueError(
+                "allocated capital must be positive"
+            )
+
+        self.allocated_capital = float(
+            allocated_capital_inr
+        )
+
+        self._base_uel_min = float(
+            min_notional_uel_inr
+        )
+
+        self._base_oel_fraction = float(
+            max_notional_oel_inr
+        ) / self.allocated_capital
+
+        # Runtime operating values.
+        self.loading_fraction = 0.15
+        self.uel_min_multiplier = 1.0
+        self.oel_fraction = self._base_oel_fraction
+
+        self.vol_scalar_min = 0.20
+        self.vol_scalar_max = 2.0
+
+        self.z_strength_denominator = 1.80
+        self.z_strength_cap = 1.50
+
+        self.uel_min = self._base_uel_min
+        self.oel_max = float(
+            max_notional_oel_inr
+        )
+
+    def update_allocated_capital(
+        self,
+        allocated_capital_inr: float,
+    ) -> None:
+        if allocated_capital_inr <= 0:
+            raise ValueError(
+                "allocated capital must be positive"
+            )
+
+        self.allocated_capital = float(
+            allocated_capital_inr
+        )
+
+        self._refresh_runtime_limits()
+
+    def _refresh_runtime_limits(self) -> None:
+        self.uel_min = (
+            self._base_uel_min
+            * self.uel_min_multiplier
+        )
+
+        self.oel_max = (
+            self.allocated_capital
+            * self.oel_fraction
+        )
+
+    def apply_runtime_profile(self, profile) -> None:
+        if getattr(profile, "bay_id", self.bay_name) != self.bay_name:
+            raise ValueError(
+                "AVR runtime profile bay mismatch"
+            )
+
+        values = (
+            profile.loading_fraction,
+            profile.uel_min_multiplier,
+            profile.oel_fraction,
+            profile.vol_scalar_min,
+            profile.vol_scalar_max,
+            profile.z_strength_denominator,
+            profile.z_strength_cap,
+        )
+
+        if not all(
+            isinstance(v, (int, float))
+            and v == v
+            and abs(float(v)) != float("inf")
+            for v in values
+        ):
+            raise ValueError(
+                "AVR runtime profile contains invalid value"
+            )
+
+        if not (
+            0.0
+            < float(profile.loading_fraction)
+            <= 0.15
+        ):
+            raise ValueError(
+                "AVR loading fraction outside envelope"
+            )
+
+        if not (
+            0.0
+            < float(profile.oel_fraction)
+            <= self._base_oel_fraction
+        ):
+            raise ValueError(
+                "AVR OEL fraction outside envelope"
+            )
+
+        if (
+            float(profile.vol_scalar_min) <= 0.0
+            or float(profile.vol_scalar_max)
+            < float(profile.vol_scalar_min)
+        ):
+            raise ValueError(
+                "invalid AVR volatility scalar range"
+            )
+
+        self.loading_fraction = float(
+            profile.loading_fraction
+        )
+        self.uel_min_multiplier = float(
+            profile.uel_min_multiplier
+        )
+        self.oel_fraction = float(
+            profile.oel_fraction
+        )
+
+        self.vol_scalar_min = float(
+            profile.vol_scalar_min
+        )
+        self.vol_scalar_max = float(
+            profile.vol_scalar_max
+        )
+
+        self.z_strength_denominator = float(
+            profile.z_strength_denominator
+        )
+        self.z_strength_cap = float(
+            profile.z_strength_cap
+        )
+
+        self._refresh_runtime_limits()
 
     def calculate_lot_size(
         self,
@@ -110,8 +286,29 @@ class BayExcitationAVR:
         if asset_price <= 0 or asset_atr <= 0:
             return 0, "AVR: Zero Price / ATR Fault"
 
-        vol_scalar = max(0.2, min(2.0, 1.0 / (asset_atr / asset_price * 100.0)))
-        raw_notional = (self.allocated_capital * 0.15) * vol_scalar * min(1.5, abs(z_strength) / 1.8)
+        vol_scalar = max(
+            self.vol_scalar_min,
+            min(
+                self.vol_scalar_max,
+                1.0
+                / (
+                    asset_atr
+                    / asset_price
+                    * 100.0
+                ),
+            ),
+        )
+
+        raw_notional = (
+            self.allocated_capital
+            * self.loading_fraction
+            * vol_scalar
+            * min(
+                self.z_strength_cap,
+                abs(z_strength)
+                / self.z_strength_denominator,
+            )
+        )
 
         # OEL: Over-Excitation Limiter (Cap Leverage)
         if raw_notional > self.oel_max:
@@ -156,7 +353,62 @@ class BayUnitProtectionSEL300G:
         self.max_slippage_pct = max_slippage_pct
         self.max_adverse_bars = max_adverse_bars
         self.vol_surge_mult = vol_surge_mult
+
+        self.stale_tick_limit_seconds = 120.0
+        self.max_spread_fraction = 0.005
+
         self.adverse_drift_counters: Dict[str, int] = {}
+
+    def apply_runtime_profile(self, profile) -> None:
+        if getattr(profile, "bay_id", self.bay_name) != self.bay_name:
+            raise ValueError(
+                "SEL300G runtime profile bay mismatch"
+            )
+
+        # Dynamic protection is allowed to tighten the original
+        # protection envelope, never widen it.
+        if not (
+            0.0
+            < float(profile.stale_tick_limit_seconds)
+            <= 120.0
+        ):
+            raise ValueError(
+                "SEL300G stale-data limit outside envelope"
+            )
+
+        if not (
+            0.0
+            < float(profile.max_spread_fraction)
+            <= 0.005
+        ):
+            raise ValueError(
+                "SEL300G spread limit outside envelope"
+            )
+
+        if not (
+            0.0
+            < float(profile.vol_surge_mult)
+            <= 3.5
+        ):
+            raise ValueError(
+                "SEL300G volatility limit outside envelope"
+            )
+
+        self.stale_tick_limit_seconds = float(
+            profile.stale_tick_limit_seconds
+        )
+        self.max_spread_fraction = float(
+            profile.max_spread_fraction
+        )
+        self.vol_surge_mult = float(
+            profile.vol_surge_mult
+        )
+        self.max_slippage_pct = float(
+            profile.max_slippage_pct
+        )
+        self.max_adverse_bars = int(
+            profile.max_adverse_bars
+        )
 
     def check_pre_synchronization(
         self,
@@ -168,22 +420,22 @@ class BayUnitProtectionSEL300G:
         curr_bar_range: float
     ) -> UnitRelayTrip:
         # ANSI 60FL: Potential Transformer (PT) Fuse Failure / Stale Data Loss
-        if last_tick_age_sec > 120.0:
+        if last_tick_age_sec > self.stale_tick_limit_seconds:
             return UnitRelayTrip(
                 tripped=True,
                 ansi_code="ANSI 60FL",
                 symbol=symbol,
-                reason=f"PT Fuse Failure: Tick age {last_tick_age_sec:.1f}s exceeds 120s limit"
+                reason=f"PT Fuse Failure: Tick age {last_tick_age_sec:.1f}s exceeds {self.stale_tick_limit_seconds:.1f}s limit"
             )
 
         # ANSI 40: Loss of Field / Severe Liquidity Evaporation
         spread_pct = (ask - bid) / (bid + 1e-9)
-        if spread_pct > 0.005:
+        if spread_pct > self.max_spread_fraction:
             return UnitRelayTrip(
                 tripped=True,
                 ansi_code="ANSI 40",
                 symbol=symbol,
-                reason=f"Loss of Excitation: Illiquid spread {spread_pct*100:.2f}% > 0.50%"
+                reason=f"Loss of Excitation: Illiquid spread {spread_pct*100:.2f}% > {self.max_spread_fraction*100:.2f}%"
             )
 
         # ANSI 24: Volts / Hertz Overfluxing (Extreme Intra-Bar Volatility Spike)

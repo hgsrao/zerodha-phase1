@@ -276,6 +276,14 @@ class TurbineBayPanel:
         # Entry allowed when bar_index >= this value.
         self.cooldown_until_bar_exclusive = 0
 
+        # Current runtime cooldown settings.
+        self.loss_cooldown_bars = (
+            LOSS_COOLDOWN_BARS
+        )
+        self.target_cooldown_bars = (
+            TARGET_COOLDOWN_BARS
+        )
+
     def reset_session(self) -> None:
         """
         Reset session-scoped protection state.
@@ -297,12 +305,8 @@ class TurbineBayPanel:
 
         self.bay_capital = float(new_capital)
 
-        self.avr.allocated_capital_inr = (
+        self.avr.update_allocated_capital(
             self.bay_capital
-        )
-
-        self.avr.oel_max = (
-            self.bay_capital * 0.40
         )
 
     def cooldown_remaining(
@@ -318,6 +322,40 @@ class TurbineBayPanel:
             0,
             self.cooldown_until_bar_exclusive
             - bar_index,
+        )
+
+    def apply_dynamic_snapshot(
+        self,
+        snapshot,
+    ) -> None:
+        """
+        Apply one R5 runtime snapshot directly to this physical bay:
+        governor + AVR + SEL300G + cooldown controller.
+        """
+        self.governor.apply_runtime_profile(
+            snapshot.governor_by_bay[
+                self.bay_id
+            ]
+        )
+
+        self.avr.apply_runtime_profile(
+            snapshot.avr_by_bay[
+                self.bay_id
+            ]
+        )
+
+        self.relay.apply_runtime_profile(
+            snapshot.unit_protection_by_bay[
+                self.bay_id
+            ]
+        )
+
+        self.loss_cooldown_bars = int(
+            snapshot.plant.loss_cooldown_bars
+        )
+
+        self.target_cooldown_bars = int(
+            snapshot.plant.target_cooldown_bars
         )
 
     def evaluate_admission(
@@ -459,7 +497,7 @@ class TurbineBayPanel:
 
             self.cooldown_until_bar_exclusive = (
                 bar_index
-                + LOSS_COOLDOWN_BARS
+                + self.loss_cooldown_bars
                 + 1
             )
 
@@ -474,7 +512,7 @@ class TurbineBayPanel:
 
             self.cooldown_until_bar_exclusive = (
                 bar_index
-                + TARGET_COOLDOWN_BARS
+                + self.target_cooldown_bars
                 + 1
             )
 
@@ -541,6 +579,20 @@ class CentralPlantMasterDCS:
             for bay_id in BAY_IDS
         }
 
+        # Revision-5 native dynamic control system.
+        #
+        # No Revision-2/3/4 controller is imported or called.
+        from revision5.dynamic_parameters import (
+            Revision5DynamicParameterController,
+        )
+
+        self.dynamic_controller = (
+            Revision5DynamicParameterController()
+        )
+
+        self.dynamic_snapshot = None
+        self._dynamic_bar_index = None
+
         self.current_trading_date: Optional[
             date
         ] = None
@@ -549,10 +601,44 @@ class CentralPlantMasterDCS:
             int
         ] = None
 
+    def apply_dynamic_environment(
+        self,
+        environment,
+    ):
+        """
+        Calculate and install one native R5 dynamic operating snapshot.
+
+        This directly changes the operating values consumed by:
+        - all five bay governors,
+        - all five AVRs,
+        - all five SEL300G unit relays,
+        - the plant MiCOM grid relay,
+        - bay cooldown controllers.
+
+        Base specifications are not mutated.
+        """
+        snapshot = self.dynamic_controller.evaluate(
+            environment
+        )
+
+        self.grid_relay.apply_runtime_profile(
+            snapshot.grid_protection
+        )
+
+        for bay in self.bays.values():
+            bay.apply_dynamic_snapshot(
+                snapshot
+            )
+
+        self.dynamic_snapshot = snapshot
+
+        return snapshot
+
     def begin_bar(
         self,
         current_dt: datetime,
         bar_index: int,
+        environment=None,
     ) -> None:
         if bar_index < 0:
             raise ValueError(
@@ -572,6 +658,7 @@ class CentralPlantMasterDCS:
             )
 
             self.current_bar_index = None
+            self._dynamic_bar_index = None
 
             for bay in self.bays.values():
                 bay.reset_session()
@@ -584,6 +671,19 @@ class CentralPlantMasterDCS:
             raise ValueError(
                 "bar_index moved backwards "
                 "within the same trading session"
+            )
+
+        if (
+            environment is not None
+            and self._dynamic_bar_index
+            != bar_index
+        ):
+            self.apply_dynamic_environment(
+                environment
+            )
+
+            self._dynamic_bar_index = (
+                bar_index
             )
 
         self.current_bar_index = bar_index
@@ -762,12 +862,14 @@ class CentralPlantMasterDCS:
         nifty_15m_ret: float = 0.0,
         nifty_vol_z: float = 0.0,
         fleet_equity_dd_pct: float = 0.0,
+        dynamic_environment=None,
     ) -> dict:
         validate_engine(engine_mode)
 
         self.begin_bar(
             bar_dt,
             bar_index,
+            environment=dynamic_environment,
         )
 
         try:

@@ -147,6 +147,40 @@ class BayTurbineClosedLoopGovernor:
     def __init__(self, spec: BayGovernorSpec):
         self.spec = spec
 
+        # Native Revision-5 runtime operating values.
+        #
+        # spec remains the immutable certified/base specification.
+        # These members are the values actually consumed by the
+        # governor PID/droop equations.
+        self.runtime_target_r = float(spec.target_r)
+        self.runtime_outcome_window = int(
+            spec.outcome_window
+        )
+        self.runtime_integral_clamp = float(
+            spec.integral_clamp
+        )
+
+        self.runtime_kp = float(spec.kp)
+        self.runtime_ki = float(spec.ki)
+        self.runtime_kd = float(spec.kd)
+
+        self.runtime_base_z = float(spec.base_z)
+        self.runtime_droop_r = float(spec.droop_r)
+
+        self.runtime_dynamic_offset_min = float(
+            spec.dynamic_offset_min
+        )
+        self.runtime_dynamic_offset_max = float(
+            spec.dynamic_offset_max
+        )
+
+        self.runtime_grid_droop_gain = float(
+            spec.grid_droop_gain
+        )
+        self.runtime_grid_droop_max = float(
+            spec.grid_droop_max
+        )
+
         self.integral_error = 0.0
         self.last_error = 0.0
         self.last_control_u = 0.0
@@ -159,16 +193,16 @@ class BayTurbineClosedLoopGovernor:
 
         self.history_r.append(float(realized_r))
 
-        if len(self.history_r) > self.spec.outcome_window:
+        if len(self.history_r) > self.runtime_outcome_window:
             self.history_r.pop(0)
 
         process_r = fmean(self.history_r)
-        error = self.spec.target_r - process_r
+        error = self.runtime_target_r - process_r
 
         self.integral_error = max(
-            -self.spec.integral_clamp,
+            -self.runtime_integral_clamp,
             min(
-                self.spec.integral_clamp,
+                self.runtime_integral_clamp,
                 self.integral_error + error,
             ),
         )
@@ -177,12 +211,102 @@ class BayTurbineClosedLoopGovernor:
         self.last_error = error
 
         self.last_control_u = (
-            self.spec.kp * error
-            + self.spec.ki * self.integral_error
-            + self.spec.kd * derivative
+            self.runtime_kp * error
+            + self.runtime_ki * self.integral_error
+            + self.runtime_kd * derivative
         )
 
         return self.last_control_u
+
+    def apply_runtime_profile(self, profile) -> None:
+        """
+        Apply the current Revision-5 governor operating profile.
+
+        The immutable BayGovernorSpec is never mutated.
+        """
+        values = (
+            profile.target_r,
+            profile.integral_clamp,
+            profile.grid_droop_gain,
+            profile.grid_droop_max,
+            profile.kp,
+            profile.ki,
+            profile.kd,
+            profile.base_z,
+            profile.droop_r,
+            profile.dynamic_offset_min,
+            profile.dynamic_offset_max,
+        )
+
+        if not all(isfinite(float(v)) for v in values):
+            raise ValueError(
+                "governor runtime profile contains "
+                "non-finite value"
+            )
+
+        if int(profile.outcome_window) <= 0:
+            raise ValueError(
+                "outcome_window must be positive"
+            )
+
+        if float(profile.integral_clamp) <= 0.0:
+            raise ValueError(
+                "integral_clamp must be positive"
+            )
+
+        if float(profile.droop_r) <= 0.0:
+            raise ValueError(
+                "droop_r must be positive"
+            )
+
+        self.runtime_target_r = float(
+            profile.target_r
+        )
+        self.runtime_outcome_window = int(
+            profile.outcome_window
+        )
+        self.runtime_integral_clamp = float(
+            profile.integral_clamp
+        )
+
+        self.runtime_kp = float(profile.kp)
+        self.runtime_ki = float(profile.ki)
+        self.runtime_kd = float(profile.kd)
+
+        self.runtime_base_z = float(profile.base_z)
+        self.runtime_droop_r = float(profile.droop_r)
+
+        self.runtime_dynamic_offset_min = float(
+            profile.dynamic_offset_min
+        )
+        self.runtime_dynamic_offset_max = float(
+            profile.dynamic_offset_max
+        )
+
+        self.runtime_grid_droop_gain = float(
+            profile.grid_droop_gain
+        )
+        self.runtime_grid_droop_max = float(
+            profile.grid_droop_max
+        )
+
+        # If a new dynamic window is shorter than retained history,
+        # trim immediately rather than allowing stale outcomes to
+        # continue influencing the controller.
+        while (
+            len(self.history_r)
+            > self.runtime_outcome_window
+        ):
+            self.history_r.pop(0)
+
+        # Re-clamp existing integrator state to the new runtime limit.
+        self.integral_error = max(
+            -self.runtime_integral_clamp,
+            min(
+                self.runtime_integral_clamp,
+                self.integral_error,
+            ),
+        )
 
     def dynamic_z(
         self,
@@ -194,9 +318,9 @@ class BayTurbineClosedLoopGovernor:
             )
 
         feedback_offset = max(
-            self.spec.dynamic_offset_min,
+            self.runtime_dynamic_offset_min,
             min(
-                self.spec.dynamic_offset_max,
+                self.runtime_dynamic_offset_max,
                 -0.25 * self.last_control_u,
             ),
         )
@@ -208,17 +332,17 @@ class BayTurbineClosedLoopGovernor:
 
         droop_penalty = (
             adverse_grid
-            / self.spec.droop_r
-            * self.spec.grid_droop_gain
+            / self.runtime_droop_r
+            * self.runtime_grid_droop_gain
         )
 
         droop_penalty = min(
             droop_penalty,
-            self.spec.grid_droop_max,
+            self.runtime_grid_droop_max,
         )
 
         return (
-            self.spec.base_z
+            self.runtime_base_z
             + feedback_offset
             - droop_penalty
         )
@@ -226,12 +350,12 @@ class BayTurbineClosedLoopGovernor:
     def snapshot(self) -> dict:
         return {
             "bay_id": self.spec.bay_id,
-            "target_r": self.spec.target_r,
-            "droop_r": self.spec.droop_r,
-            "kp": self.spec.kp,
-            "ki": self.spec.ki,
-            "kd": self.spec.kd,
-            "base_z": self.spec.base_z,
+            "target_r": self.runtime_target_r,
+            "droop_r": self.runtime_droop_r,
+            "kp": self.runtime_kp,
+            "ki": self.runtime_ki,
+            "kd": self.runtime_kd,
+            "base_z": self.runtime_base_z,
             "integral_error": self.integral_error,
             "last_error": self.last_error,
             "last_control_u": self.last_control_u,
