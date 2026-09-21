@@ -130,8 +130,37 @@ class Revision2ParameterManifest:
 
     @staticmethod
     def revision2_35():
-        # Historical method name retained; BB04 names only, values owned by registry.
+        # Historical method name retained; values remain owned by the registry.
         return [
+            "id_feature_window",
+            "id_refit_every_bars",
+            "id_min_history_bars",
+            "id_volatility_window",
+            "id_volatility_min_samples",
+            "id_hmm_iterations",
+            "id_hmm_tolerance",
+            "id_min_state_occupancy",
+            "id_variance_ratio",
+            "id_slippage_cap",
+            "id_slippage_gain",
+            "id_reward_floor",
+            "id_reward_gain",
+            "id_risk_floor",
+            "id_risk_gain",
+            "id_variance_floor",
+            "id_initial_variance_regularizer",
+            "mpc_entry_price_gain",
+            "mpc_base_slippage_fraction",
+            "mpc_time_decay_gain",
+            "mpc_shadow_r_gamma",
+            "mpc_schedule_kp_gain",
+            "mpc_schedule_ki_gain",
+            "mpc_schedule_kd_gain",
+            "mpc_environment_lookback",
+            "mpc_range_atr_period",
+            "mpc_range_fallback_fraction",
+            "mpc_atr_floor_gain",
+            "mpc_slippage_vol_gain",
             "momentum_normalization_divisor",
             "pa_atr_absolute_floor",
             "pa_atr_fallback_price_fraction",

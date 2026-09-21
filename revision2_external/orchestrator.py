@@ -182,6 +182,7 @@ class Revision2ExternalEngineOrchestrator:
         self._controller_sequence = 0
         self._trade_sequence = 0
         self.bb03_bb04_supervisory_by_symbol: Dict[str, Any] = {}
+        self.bb05_bb06_supervisory_by_symbol: Dict[str, Any] = {}
 
         self.pa = TALibPredictiveAnalyticsBox()
         # Box 4b, the Chart-Studies Confirmation Layer -- gains/clamp/
@@ -191,14 +192,14 @@ class Revision2ExternalEngineOrchestrator:
         # project's own prior chart-studies work used for its thresholds).
         self.chart_studies = CompositeStudySignal()
         self.final_execution_controller = FinalExecutionController()
-        self.id_box = HMMIntelligentDiscriminationBox()
+        self.id_box = HMMIntelligentDiscriminationBox(config=self.config)
         self.mpc = SimplePIDModelPredictiveControlBox(pid_enabled=pid_mode == "enabled")
         self.safety_gates_target = SafetyGatesTargetBox()
         self.position_manager = PyPortfolioOptPositionManagerBox()
         self.p01d = P01DBox()
         self.broker = CostedPaperBrokerAdapter(
             account_id="PAPER-EXTERNAL-ENGINE",
-            slippage_fraction=float(self.config.require("slippage_cost_multiplier")) * 0.0005,
+            slippage_fraction=float(self.config.require("slippage_cost_multiplier")) * float(self.config.require("mpc_base_slippage_fraction")),
         )
         self.entry_decision_engine = EntryDecisionEngine(config=self._build_safety_gate_config())
         self._intent_ledger = ReplayIntentLedger(self.safety_contract.values["order_dedup_window_seconds"])
@@ -244,10 +245,12 @@ class Revision2ExternalEngineOrchestrator:
             atr_droop_mult=float(self.config.require("trailing_stop_atr_mult")),
             baseline_window=int(self.config.require("pid_integral_window_bars")),
             saturation_exit_bars=int(self.config.require("saturation_exit_bars")),
+            config=self.config,
         )
         self.consumed_parameters.update({
             "pid_kp_exit", "pid_ki_exit", "pid_kd_exit", "pid_integral_max_clamp",
             "pid_integral_window_bars", "trailing_stop_atr_mult", "saturation_exit_bars",
+            "mpc_time_decay_gain", "mpc_shadow_r_gamma", "mpc_base_slippage_fraction",
         })
         self._exit_controller_states: Dict[str, ExitControllerState] = {}
         # Three-loop supervisory layer. ``shadow`` records comparators only;
@@ -566,6 +569,7 @@ class Revision2ExternalEngineOrchestrator:
             # frozen entry-time ATR -- matches how atr is computed
             # everywhere else in this file (signal.volatility * close).
             current_atr = float(signal.volatility) * float(bar["close"])
+            self.exit_controller.configure(self.config)
             state = self.exit_controller.update(
                 symbol, state, float(signal.exit_confidence), chart_studies_confidence,
                 float(bar["close"]), current_atr, held_bars=held_bars,
@@ -716,6 +720,7 @@ class Revision2ExternalEngineOrchestrator:
         # biased its own trailing window. Gated by minimum_hold_bars, same
         # as saturation_exit, so a position isn't force-exited on a
         # regime read taken moments after entry.
+        self.id_box.configure(self.config)
         regime = self.id_box._current_regime(symbol, float(bar["close"]))
         if regime == "stressed" and held_bars >= trade["minimum_hold_bars"]:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "regime_stressed_exit")
@@ -801,7 +806,7 @@ class Revision2ExternalEngineOrchestrator:
 
         for symbol, bars in symbol_bars.items():
             self.pa.calibrate(symbol, bars.iloc[:warmup], self.config)
-            self.id_box.calibrate(symbol, bars.iloc[:0])
+            self.id_box.calibrate(symbol, bars.iloc[:0], self.config)
             # Replay warmup through sensor histories and eligible planner PIDs,
             # with no order construction, portfolio allocation, or submission.
             for idx in range(min(warmup, len(bars))):
@@ -962,6 +967,9 @@ class Revision2ExternalEngineOrchestrator:
 
                 decision, trace = self.id_box.evaluate(signal, self.config, latest_close=float(bars.iloc[bar_idx]["close"]))
                 self._record(trace)
+                self.bb05_bb06_supervisory_by_symbol[symbol] = (
+                    self.supervisory_bridge.snapshot_bb05_bb06(symbol=symbol, decision=decision)
+                )
                 # HMM posterior -> portfolio-risk input is deliberately
                 # shadow-only.  The posterior is causal (filtering, not a
                 # future-smoothed state estimate) and the adapter can only
@@ -992,13 +1000,20 @@ class Revision2ExternalEngineOrchestrator:
                     self.grid_shadow_observations.append(observation.to_dict())
 
                 _close_price = float(bars.iloc[bar_idx]["close"])
-                env_state = MarketEnvironmentState.from_bars(symbol, bars, bar_idx, regime=decision.regime if hasattr(decision, "regime") else "trend")
-                t1_params = DynamicParameterController.get_tier1_vol_parameters(env_state)
+                env_state = MarketEnvironmentState.from_bars(symbol, bars, bar_idx, regime=decision.regime if hasattr(decision, "regime") else "trend", config=self.config)
+                t1_params = DynamicParameterController.get_tier1_vol_parameters(env_state, config=self.config)
+                self.consumed_parameters.update({
+                    'mpc_environment_lookback', 'mpc_range_atr_period',
+                    'mpc_range_fallback_fraction', 'mpc_atr_floor_gain', 'mpc_slippage_vol_gain',
+                })
                 _min_atr_floor = t1_params["min_atr_floor"]
                 atr = max(float(signal.volatility * _close_price), _min_atr_floor)
                 next_open = float(bars.iloc[bar_idx + 1]["open"])
                 plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
                 self._record(trace)
+                self.bb05_bb06_supervisory_by_symbol[symbol] = (
+                    self.supervisory_bridge.snapshot_bb05_bb06(symbol=symbol, decision=decision, plan=plan)
+                )
                 if plan is None:
                     continue
                 # Inter-box Closed Loop Lockout Checks

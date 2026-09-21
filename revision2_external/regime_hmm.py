@@ -28,12 +28,13 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
+from revision2_external.bb05_bb06_parameters import default_config, require
 
 
-def _log_gaussian_pdf(x: np.ndarray, mean: np.ndarray, var: np.ndarray) -> np.ndarray:
+def _log_gaussian_pdf(x: np.ndarray, mean: np.ndarray, var: np.ndarray, variance_floor: float) -> np.ndarray:
     """Log density of a diagonal-covariance multivariate Gaussian,
     evaluated for every row of x (T, D) against one (mean, var) state."""
-    var = np.maximum(var, 1e-8)
+    var = np.maximum(var, variance_floor)
     d = x.shape[1]
     diff = x - mean
     return -0.5 * (d * np.log(2 * np.pi) + np.sum(np.log(var)) + np.sum(diff * diff / var, axis=1))
@@ -47,12 +48,23 @@ class GaussianHMM:
     swap in directly if hmmlearn becomes installable later."""
 
     n_states: int
-    n_iter: int = 50
-    tol: float = 1e-4
+    n_iter: int | None = None
+    tol: float | None = None
     random_state: int = 0
-    min_state_occupancy_fraction: float = 0.05
+    min_state_occupancy_fraction: float | None = None
+    variance_floor: float | None = None
+    initial_variance_regularizer: float | None = None
 
     def __post_init__(self) -> None:
+        config = default_config()
+        for field, name in (
+            ("n_iter", "id_hmm_iterations"), ("tol", "id_hmm_tolerance"),
+            ("min_state_occupancy_fraction", "id_min_state_occupancy"),
+            ("variance_floor", "id_variance_floor"),
+            ("initial_variance_regularizer", "id_initial_variance_regularizer"),
+        ):
+            if getattr(self, field) is None:
+                setattr(self, field, require(config, name))
         self.means_: Optional[np.ndarray] = None
         self.vars_: Optional[np.ndarray] = None
         self.transmat_: Optional[np.ndarray] = None
@@ -69,13 +81,13 @@ class GaussianHMM:
         n, d = X.shape
         idx = rng.choice(n, size=self.n_states, replace=False)
         self.means_ = X[idx].copy()
-        overall_var = np.var(X, axis=0) + 1e-6
+        overall_var = np.var(X, axis=0) + self.initial_variance_regularizer
         self.vars_ = np.tile(overall_var, (self.n_states, 1))
         self.transmat_ = np.full((self.n_states, self.n_states), 1.0 / self.n_states)
         self.startprob_ = np.full(self.n_states, 1.0 / self.n_states)
 
     def _log_emission(self, X: np.ndarray) -> np.ndarray:
-        return np.column_stack([_log_gaussian_pdf(X, self.means_[k], self.vars_[k]) for k in range(self.n_states)])
+        return np.column_stack([_log_gaussian_pdf(X, self.means_[k], self.vars_[k], self.variance_floor) for k in range(self.n_states)])
 
     @staticmethod
     def _logsumexp(a: np.ndarray, axis=None) -> np.ndarray:
@@ -139,7 +151,7 @@ class GaussianHMM:
 
             weights = gamma.sum(axis=0)
             global_mean = X.mean(axis=0)
-            global_var = np.maximum(X.var(axis=0), 1e-8)
+            global_var = np.maximum(X.var(axis=0), self.variance_floor)
             for k in range(self.n_states):
                 # Do not convert a truly unoccupied state's emissions into
                 # a synthetic near-zero-variance cluster.  It is reset to
@@ -153,7 +165,7 @@ class GaussianHMM:
                 self.means_[k] = (w * X).sum(axis=0) / weights[k]
                 diff = X - self.means_[k]
                 self.vars_[k] = (w * diff * diff).sum(axis=0) / weights[k]
-                self.vars_[k] = np.maximum(self.vars_[k], 1e-8)
+                self.vars_[k] = np.maximum(self.vars_[k], self.variance_floor)
 
             if abs(ll - prev_ll) < self.tol:
                 break

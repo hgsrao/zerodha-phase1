@@ -139,13 +139,14 @@ from dataclasses import dataclass, field
 from typing import Any, Deque, Dict, Optional
 
 from simple_pid import PID
+from revision2_external.bb05_bb06_parameters import default_config, require
 
 
 # Research-only reference curve.  It is intentionally fixed, disclosed and
 # non-calibratable while it is evaluated in shadow mode.  At u=0 protection is
 # -1R (the original stop); at u=1 it reaches break-even.  It has no authority
 # over the live trailing stop.
-SHADOW_R_TRAJECTORY_GAMMA = 0.65
+_EXIT_TIGHTNESS_FLOOR = 0.5  # FIXED_SAFETY_ENVELOPE
 
 
 def _clip(value: float, lo: float, hi: float) -> float:
@@ -200,9 +201,15 @@ class ContinuousExitController:
     """
 
     def __init__(
-        self, kp: float, ki: float, kd: float, clamp: float, atr_droop_mult: float, baseline_window: int = 10,
-        saturation_exit_bars: int = 4, disable_saturation_exit: bool = False,
+        self, kp: float, ki: float, kd: float, clamp: float, atr_droop_mult: float, baseline_window: Optional[int] = None,
+        saturation_exit_bars: Optional[int] = None, disable_saturation_exit: bool = False,
+        config=None,
     ) -> None:
+        self.config = config if config is not None else default_config()
+        if baseline_window is None:
+            baseline_window = require(self.config, 'pid_integral_window_bars')
+        if saturation_exit_bars is None:
+            saturation_exit_bars = require(self.config, 'saturation_exit_bars')
         self.kp, self.ki, self.kd = kp, ki, kd
         self.clamp = abs(clamp)
         self.atr_droop_mult = abs(atr_droop_mult)
@@ -214,12 +221,27 @@ class ContinuousExitController:
         self._studies_pids: Dict[str, PID] = {}
         self._studies_history: Dict[str, Deque[float]] = {}
 
+    def configure(self, config) -> None:
+        names = ("pid_kp_exit", "pid_ki_exit", "pid_kd_exit",
+                 "pid_integral_max_clamp", "trailing_stop_atr_mult",
+                 "pid_integral_window_bars", "saturation_exit_bars",
+                 "mpc_time_decay_gain", "mpc_shadow_r_gamma")
+        values = {name: require(config, name) for name in names}
+        self.config = config
+        self.kp, self.ki, self.kd = (values[name] for name in names[:3])
+        self.clamp = values["pid_integral_max_clamp"]
+        self.atr_droop_mult = values["trailing_stop_atr_mult"]
+        self.baseline_window = values["pid_integral_window_bars"]
+        self.saturation_exit_bars = values["saturation_exit_bars"]
+
     def _get_pid_from(self, store: Dict[str, PID], symbol: str) -> PID:
         if symbol not in store:
             # setpoint is overwritten on every real call in update() below
             # -- the value here only matters for the very first construction.
             store[symbol] = PID(Kp=self.kp, Ki=self.ki, Kd=self.kd, setpoint=0.5,
                                  sample_time=None, output_limits=(-self.clamp, self.clamp))
+        store[symbol].tunings = (self.kp, self.ki, self.kd)
+        store[symbol].output_limits = (-self.clamp, self.clamp)
         return store[symbol]
 
     def _baseline_from(self, store: Dict[str, Deque[float]], symbol: str, current_value: float) -> float:
@@ -227,6 +249,8 @@ class ContinuousExitController:
         SimplePIDModelPredictiveControlBox._confidence_baseline, applied
         independently to whichever track's own history dict is passed in."""
         history = store.setdefault(symbol, deque(maxlen=self.baseline_window))
+        if history.maxlen != self.baseline_window:
+            history = store[symbol] = deque(history, maxlen=self.baseline_window)
         baseline = (sum(history) / len(history)) if history else current_value
         history.append(current_value)
         return baseline
@@ -277,7 +301,7 @@ class ContinuousExitController:
         if state.shadow_exit_price is not None:
             return state.last_shadow_telemetry
         progress = _clip(state.bars_held / state.max_hold_bars, 0.0, 1.0)
-        reference_r = -1.0 + progress ** SHADOW_R_TRAJECTORY_GAMMA
+        reference_r = -1.0 + progress ** require(self.config, "mpc_shadow_r_gamma")
         actual_r = self._r_multiple(state, float(current_close))
         stop_before = float(state.shadow_stop_price)
         lagging = actual_r < reference_r
@@ -294,7 +318,7 @@ class ContinuousExitController:
             "shadow_lagging": lagging,
             "shadow_stop_before": stop_before,
             "shadow_stop_after": float(state.shadow_stop_price),
-            "shadow_gamma": SHADOW_R_TRAJECTORY_GAMMA,
+            "shadow_gamma": require(self.config, "mpc_shadow_r_gamma"),
             "shadow_bars_held": int(state.bars_held),
         }
         return state.last_shadow_telemetry
@@ -349,7 +373,7 @@ class ContinuousExitController:
         pid = self._get_pid_from(self._pids, symbol)
         pid.setpoint = baseline
         adjustment = pid(current_confidence, dt=1)
-        confidence_tightness = _clip(1.0 - abs(adjustment), 0.5, 1.0)
+        confidence_tightness = _clip(1.0 - abs(adjustment), _EXIT_TIGHTNESS_FLOOR, 1.0)
         state.adjustment_history.append(adjustment)
 
         # Track 2: chart-studies confidence -- a COMPLETELY SEPARATE PID,
@@ -361,7 +385,7 @@ class ContinuousExitController:
         studies_pid = self._get_pid_from(self._studies_pids, symbol)
         studies_pid.setpoint = studies_baseline
         studies_adjustment = studies_pid(current_chart_studies_confidence, dt=1)
-        studies_tightness = _clip(1.0 - abs(studies_adjustment), 0.5, 1.0)
+        studies_tightness = _clip(1.0 - abs(studies_adjustment), _EXIT_TIGHTNESS_FLOOR, 1.0)
         state.studies_adjustment_history.append(studies_adjustment)
 
         # simple_pid computes error = setpoint - input: a reading BELOW
@@ -390,7 +414,7 @@ class ContinuousExitController:
 
         # Input #4: time held, as continuous decay, not just a final gate.
         time_fraction = _clip(state.bars_held / state.max_hold_bars, 0.0, 1.0)
-        time_tightness = 1.0 - 0.5 * time_fraction  # 1.0 (fresh) -> 0.5 (at max hold)
+        time_tightness = 1.0 - require(self.config, "mpc_time_decay_gain") * time_fraction  # 1.0 (fresh) -> 0.5 (at max hold)
 
         # Whichever input says "be more careful right now" wins -- a long
         # hold tightens even if both confidence reads still look fine, and

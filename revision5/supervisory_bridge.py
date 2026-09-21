@@ -122,6 +122,24 @@ class BB03BB04SupervisorySnapshot:
     analytics: BB04AnalyticsSnapshot
 
 
+@dataclass(frozen=True)
+class BB05BB06SupervisorySnapshot:
+    """External admission/plan telemetry only; never an R5 trade instruction."""
+
+    symbol: str
+    admission_approved: bool
+    admission_reason: str
+    confidence: float
+    risk_reward_ratio: float
+    proposed_side: str | None
+    proposed_entry: float | None
+    proposed_stop: float | None
+    proposed_target: float | None
+    minimum_hold_bars: int | None
+    maximum_hold_bars: int | None
+    authority: str = "INFORMATION_ONLY"
+
+
 class Revision5SupervisoryBridge:
     """
     Fail-closed boundary between the legacy DPC and Revision 5.
@@ -272,6 +290,27 @@ class Revision5SupervisoryBridge:
         return BB03BB04SupervisorySnapshot(
             certification=certification,
             analytics=analytics,
+        )
+
+    def snapshot_bb05_bb06(self, *, symbol, decision, plan=None):
+        """Copy existing external outputs; no plant, governor or execution call."""
+        side = None if plan is None else plan.side
+        if side not in (None, "BUY", "SELL"):
+            raise ValueError("BB06 proposed side must be BUY or SELL")
+        if plan is not None and not decision.approved:
+            raise ValueError("BB06 plan requires approved external admission")
+        def price(name):
+            return None if plan is None else self._finite_float(
+                "BB06 " + name, getattr(plan, name))
+        return BB05BB06SupervisorySnapshot(
+            symbol=str(symbol), admission_approved=bool(decision.approved),
+            admission_reason=str(decision.reason),
+            confidence=self._finite_float("BB05 confidence", decision.confidence),
+            risk_reward_ratio=self._finite_float("BB05 reward/risk", decision.risk_reward_ratio),
+            proposed_side=side, proposed_entry=price("entry_price"),
+            proposed_stop=price("stop_price"), proposed_target=price("target_price"),
+            minimum_hold_bars=None if plan is None else int(plan.minimum_hold_bars),
+            maximum_hold_bars=None if plan is None else int(plan.maximum_hold_bars),
         )
 
     def evaluate(

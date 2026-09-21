@@ -60,7 +60,8 @@ class CanonicalParameterRegistry:
     # moved from 0.10% to 0.15%. Cross-session orders remain prohibited.
     # 2026-09-20: user-approved monotonic PA band defaults/ranges. Safety defaults unchanged.
     # BB04 expansion: 16 engineering-initial parameters; 85 targets / 63 eligible (not calibrated).
-    FROZEN_IDENTITY_SHA256 = "42d9b0a6fa8f82b3fb060be21ca5aa71a43f88dc6f23738c8fbf889b3d854bf1"
+    # BB05-BB06 expansion: 29 engineering-initial parameters (5 fixed, non-optimizer); 114 targets / 87 eligible.
+    FROZEN_IDENTITY_SHA256 = "f499047bfe77e8b12feb650555702c81d0a9fef971a572ead235f94470b83a8b"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -97,6 +98,13 @@ class CanonicalParameterRegistry:
         "symbols_to_trade",
         "trading_hours_end",
         "trading_hours_start",
+        # BB05/BB06 runtime-configurable but deliberately outside the optimizer:
+        # cost-model realism, numerical regularization, shadow/telemetry-only.
+        "mpc_base_slippage_fraction",
+        "mpc_shadow_r_gamma",
+        "mpc_slippage_vol_gain",
+        "id_variance_floor",
+        "id_initial_variance_regularizer",
     }
     APPROVED_CALIBRATABLE = set(Revision2ParameterManifest.all_68()) - FIXED_TARGET_NAMES
 
@@ -107,6 +115,35 @@ class CanonicalParameterRegistry:
 
     def _build_registry(self):
         entries = [
+            ParameterSpec('id_feature_window', 'ID', 'int', 200, 100, 400, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Trailing regime feature history"),
+            ParameterSpec('id_refit_every_bars', 'ID', 'int', 20, 10, 40, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Refit cadence; retains existing counter convention"),
+            ParameterSpec('id_min_history_bars', 'ID', 'int', 60, 30, 100, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Minimum closes before regime evaluation"),
+            ParameterSpec('id_volatility_window', 'ID', 'int', 10, 5, 20, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Rolling volatility window"),
+            ParameterSpec('id_volatility_min_samples', 'ID', 'int', 3, 2, 5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Minimum volatility samples"),
+            ParameterSpec('id_hmm_iterations', 'ID', 'int', 20, 10, 40, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 EM iteration ceiling"),
+            ParameterSpec('id_hmm_tolerance', 'ID', 'float', 0.0001, 1e-06, 0.001, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 EM convergence tolerance"),
+            ParameterSpec('id_min_state_occupancy', 'ID', 'float', 0.05, 0.01, 0.15, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Minimum supported regime occupancy"),
+            ParameterSpec('id_variance_ratio', 'ID', 'float', 2.5, 1.5, 4.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Distinct stressed state variance ratio"),
+            ParameterSpec('id_slippage_cap', 'ID', 'float', 0.2, 0.15, 0.3, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Estimated slippage cap"),
+            ParameterSpec('id_slippage_gain', 'ID', 'float', 2.0, 1.0, 3.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Volatility to estimated slippage gain"),
+            ParameterSpec('id_reward_floor', 'ID', 'float', 0.05, 0.01, 0.1, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Confidence floor in assumed reward"),
+            ParameterSpec('id_reward_gain', 'ID', 'float', 4.0, 2.0, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Assumed reward scale"),
+            ParameterSpec('id_risk_floor', 'ID', 'float', 0.1, 0.05, 0.2, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Complement confidence floor in assumed risk"),
+            ParameterSpec('id_risk_gain', 'ID', 'float', 2.0, 1.0, 3.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Assumed risk scale"),
+            ParameterSpec('id_variance_floor', 'ID', 'float', 1e-08, 1e-10, 1e-06, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Emission covariance floor; operational regularization"),
+            ParameterSpec('id_initial_variance_regularizer', 'ID', 'float', 1e-06, 1e-08, 0.0001, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Initial covariance regularization"),
+            ParameterSpec('mpc_entry_price_gain', 'MPC', 'float', 0.001, 0.0005, 0.002, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 PID adjustment to submitted market reference"),
+            ParameterSpec('mpc_base_slippage_fraction', 'MPC', 'float', 0.0005, 0.0003, 0.001, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Shared plan and external paper fill base slippage"),
+            ParameterSpec('mpc_time_decay_gain', 'MPC', 'float', 0.5, 0.25, 0.75, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Continuous exit time tightness decay"),
+            ParameterSpec('mpc_shadow_r_gamma', 'MPC', 'float', 0.65, 0.4, 1.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Shadow-only R reference exponent; excluded from external optimization"),
+            ParameterSpec('mpc_schedule_kp_gain', 'MPC', 'float', 1.2, 0.6, 2.4, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Tier3 proportional scheduling scale"),
+            ParameterSpec('mpc_schedule_ki_gain', 'MPC', 'float', 2.0, 1.0, 4.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Tier3 integral scheduling scale"),
+            ParameterSpec('mpc_schedule_kd_gain', 'MPC', 'float', 0.8, 0.4, 1.6, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Tier3 derivative scheduling scale"),
+            ParameterSpec('mpc_environment_lookback', 'MPC', 'int', 50, 30, 100, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Range proxy lookback offset; includes current bar"),
+            ParameterSpec('mpc_range_atr_period', 'MPC', 'int', 14, 7, 28, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 DPC range proxy period; distinct from the TA-Lib PA ATR period"),
+            ParameterSpec('mpc_range_fallback_fraction', 'MPC', 'float', 0.01, 0.005, 0.02, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Short-history range proxy fallback"),
+            ParameterSpec('mpc_atr_floor_gain', 'MPC', 'float', 0.005, 0.0025, 0.01, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Volatility-scaled plan ATR floor before fixed envelope"),
+            ParameterSpec('mpc_slippage_vol_gain', 'MPC', 'float', 0.5, 0.25, 1.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 DPC slippage volatility gain; advisory only"),
             ParameterSpec("momentum_normalization_divisor", "PA", "float", 3.0, 1.5, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Momentum amplitude"),
             ParameterSpec("pa_atr_absolute_floor", "PA", "float", 0.001, 0.0001, 0.01, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Absolute ATR fallback trigger and floor"),
             ParameterSpec("pa_atr_fallback_price_fraction", "PA", "float", 0.005, 0.0005, 0.01, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Price-relative ATR fallback"),
@@ -274,8 +311,8 @@ class CanonicalParameterRegistry:
         expected = Revision2ParameterManifest.all_68()
         # NOTE: Adding saturation_exit_bars (2025) expands from 68 → 69 total.
         # BB04 adds 16: base_33() + revision2_35() = 33 + 52 = 85.
-        if len(expected) != 85 or len(set(expected)) != 85:
-            raise ValueError("Revision 2 target names must contain 85 unique values")
+        if len(expected) != 114 or len(set(expected)) != 114:
+            raise ValueError("Revision 2 target names must contain 114 unique values")
         if set(expected) != set(self.params):
             raise ValueError("registry does not exactly match the Revision 2 manifest")
         if len(self.safety_params) != 20:
@@ -293,8 +330,8 @@ class CanonicalParameterRegistry:
         # Further expanded by saturation_exit_bars (2025) from 46 → 47, another
         # genuine calibratable addition to Box 6's exit control surface.
         # BB04 now adds 16 eligible (NOT_CALIBRATED) parameters: 47 + 16 = 63.
-        if len(calibratable) != 63:
-            raise ValueError(f"optimizer surface must contain exactly 63 values; got {len(calibratable)}")
+        if len(calibratable) != 87:
+            raise ValueError(f"optimizer surface must contain exactly 87 values; got {len(calibratable)}")
         if set(self.APPROVED_CALIBRATABLE) != calibratable:
             missing = sorted(set(self.APPROVED_CALIBRATABLE) - calibratable)
             extra = sorted(calibratable - set(self.APPROVED_CALIBRATABLE))
