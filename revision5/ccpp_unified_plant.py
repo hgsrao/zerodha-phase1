@@ -717,6 +717,170 @@ class TurbineBayPanel:
             "reason": control_reason,
         }
 
+    def install_machine_dynamics(
+        self,
+        *,
+        dynamic_spec,
+        mechanical_protection_spec,
+    ) -> None:
+        """
+        Install the actual R5 turbine-generator dynamic model and
+        independent mechanical protection cubicle.
+        """
+        from revision5.machine_dynamics import (
+            TurbineMachineModel,
+            TurbineMechanicalProtection,
+        )
+
+        if (
+            dynamic_spec.machine_kind
+            != mechanical_protection_spec.machine_kind
+        ):
+            raise ValueError(
+                "machine dynamics/protection kind mismatch"
+            )
+
+        expected_kind = (
+            "GAS_TURBINE"
+            if self.bay_id.startswith("GTG")
+            else "STEAM_TURBINE"
+        )
+
+        if dynamic_spec.machine_kind != expected_kind:
+            raise ValueError(
+                f"{self.bay_id} requires {expected_kind}"
+            )
+
+        self.machine_model = TurbineMachineModel(
+            dynamic_spec
+        )
+
+        self.mechanical_protection = (
+            TurbineMechanicalProtection(
+                mechanical_protection_spec
+            )
+        )
+
+    def run_machine_scan(
+        self,
+        *,
+        dt_seconds: float,
+        load_reference_pu: float,
+        electrical_power_pu: float,
+        vibration_mm_s: float,
+        lube_oil_pressure_bar: float,
+        hydraulic_pressure_bar: float,
+        bearing_temperature_c: float,
+        speed_reference_hz=None,
+        flame_proven=None,
+        fuel_available=None,
+        exhaust_temperature_c=None,
+        exhaust_spread_c=None,
+    ) -> dict:
+        """
+        One actual machine-control/protection scan.
+
+        During synchronization, the reference comes directly from
+        the real governor channel modified by 25A SPEED RAISE/LOWER.
+
+        During later loaded operation a caller may explicitly provide
+        another governor speed reference.
+        """
+        from revision5.machine_dynamics import (
+            MechanicalMeasurements,
+        )
+
+        if not hasattr(self, "machine_model"):
+            raise RuntimeError(
+                "machine dynamics not installed"
+            )
+
+        if speed_reference_hz is None:
+            if hasattr(
+                self.governor,
+                "sync_speed_reference_hz",
+            ):
+                speed_reference_hz = (
+                    self.governor
+                    .sync_speed_reference_hz
+                )
+            else:
+                speed_reference_hz = (
+                    self.machine_model
+                    .spec
+                    .nominal_frequency_hz
+                )
+
+        machine_state = (
+            self.machine_model.step(
+                speed_reference_hz=(
+                    speed_reference_hz
+                ),
+                load_reference_pu=(
+                    load_reference_pu
+                ),
+                electrical_power_pu=(
+                    electrical_power_pu
+                ),
+                dt_seconds=dt_seconds,
+            )
+        )
+
+        protection = (
+            self.mechanical_protection.evaluate(
+                MechanicalMeasurements(
+                    frequency_hz=(
+                        machine_state.frequency_hz
+                    ),
+                    acceleration_hz_per_s=(
+                        machine_state
+                        .acceleration_hz_per_s
+                    ),
+                    vibration_mm_s=(
+                        vibration_mm_s
+                    ),
+                    lube_oil_pressure_bar=(
+                        lube_oil_pressure_bar
+                    ),
+                    hydraulic_pressure_bar=(
+                        hydraulic_pressure_bar
+                    ),
+                    bearing_temperature_c=(
+                        bearing_temperature_c
+                    ),
+                    dt_seconds=dt_seconds,
+                    flame_proven=flame_proven,
+                    fuel_available=fuel_available,
+                    exhaust_temperature_c=(
+                        exhaust_temperature_c
+                    ),
+                    exhaust_spread_c=(
+                        exhaust_spread_c
+                    ),
+                )
+            )
+        )
+
+        if (
+            protection.hold_startup
+            and hasattr(
+                self,
+                "startup_sequencer",
+            )
+        ):
+            #
+            # Hold is deliberately not a trip.
+            # Startup state simply does not advance.
+            #
+            pass
+
+        return {
+            "machine_state": machine_state,
+            "mechanical_protection": protection,
+            "mechanical_trip": protection.tripped,
+            "startup_hold": protection.hold_startup,
+        }
+
     def evaluate_admission(
         self,
         *,
@@ -1374,6 +1538,127 @@ class CentralPlantMasterDCS:
         result["breaker_closed"] = True
         result["reason"] = (
             "52G_CLOSED_SYNCHRONIZED"
+        )
+
+        return result
+
+    def configure_unit_machine(
+        self,
+        *,
+        bay_id: str,
+        dynamic_spec,
+        mechanical_protection_spec,
+    ) -> None:
+        if bay_id not in self.bays:
+            raise KeyError(
+                f"unknown bay: {bay_id}"
+            )
+
+        self.bays[
+            bay_id
+        ].install_machine_dynamics(
+            dynamic_spec=dynamic_spec,
+            mechanical_protection_spec=(
+                mechanical_protection_spec
+            ),
+        )
+
+    def run_unit_machine_scan(
+        self,
+        *,
+        bay_id: str,
+        dt_seconds: float,
+        load_reference_pu: float,
+        electrical_power_pu: float,
+        vibration_mm_s: float,
+        lube_oil_pressure_bar: float,
+        hydraulic_pressure_bar: float,
+        bearing_temperature_c: float,
+        speed_reference_hz=None,
+        flame_proven=None,
+        fuel_available=None,
+        exhaust_temperature_c=None,
+        exhaust_spread_c=None,
+    ) -> dict:
+        """
+        Run machine dynamics and independent mechanical protection.
+
+        Mechanical trip:
+            -> selected unit 52G opens
+            -> optional ANSI-86 lockout according to protection spec
+            -> no other generator breaker opens
+            -> grid intertie remains untouched.
+        """
+        if bay_id not in self.bays:
+            raise KeyError(
+                f"unknown bay: {bay_id}"
+            )
+
+        bay = self.bays[bay_id]
+
+        result = bay.run_machine_scan(
+            dt_seconds=dt_seconds,
+            load_reference_pu=(
+                load_reference_pu
+            ),
+            electrical_power_pu=(
+                electrical_power_pu
+            ),
+            vibration_mm_s=(
+                vibration_mm_s
+            ),
+            lube_oil_pressure_bar=(
+                lube_oil_pressure_bar
+            ),
+            hydraulic_pressure_bar=(
+                hydraulic_pressure_bar
+            ),
+            bearing_temperature_c=(
+                bearing_temperature_c
+            ),
+            speed_reference_hz=(
+                speed_reference_hz
+            ),
+            flame_proven=flame_proven,
+            fuel_available=fuel_available,
+            exhaust_temperature_c=(
+                exhaust_temperature_c
+            ),
+            exhaust_spread_c=(
+                exhaust_spread_c
+            ),
+        )
+
+        protection = (
+            result["mechanical_protection"]
+        )
+
+        if protection.tripped:
+
+            self.trip_unit_breaker(
+                bay_id=bay_id,
+                reason=(
+                    f"{protection.trip_code}:"
+                    f"{protection.reason}"
+                ),
+                source=(
+                    "TURBINE_MECHANICAL_PROTECTION"
+                ),
+                lockout=(
+                    protection.lockout_86
+                ),
+            )
+
+            if hasattr(
+                bay,
+                "startup_sequencer",
+            ):
+                bay.startup_sequencer.trip(
+                    protection.reason
+                )
+
+        result["electrical_status"] = (
+            self.electrical_network.snapshot()
         )
 
         return result
