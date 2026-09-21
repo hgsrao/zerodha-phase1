@@ -351,3 +351,41 @@ def test_invalid_or_incomplete_state_fails_closed(
                 "UNKNOWN_BAY": 0.01,
             }
         )
+
+
+def test_offline_stg_allocation_moves_to_reserve(
+    hrsg,
+    base_allocations,
+    healthy_states,
+):
+    states = {
+        bay_id: dict(state)
+        for bay_id, state
+        in healthy_states.items()
+    }
+
+    states[
+        BPSTG_HEALTHCARE
+    ]["tripped_offline"] = True
+
+    result = hrsg.balance_capital(
+        bay_states=states,
+        base_allocations=base_allocations,
+    )
+
+    assert result.allocations[
+        BPSTG_HEALTHCARE
+    ] == pytest.approx(0.0)
+
+    assert result.reserve_cash == pytest.approx(
+        base_allocations[
+            BPSTG_HEALTHCARE
+        ]
+    )
+
+    assert (
+        sum(result.allocations.values())
+        + result.reserve_cash
+    ) == pytest.approx(
+        1_000_000.0
+    )

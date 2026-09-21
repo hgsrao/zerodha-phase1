@@ -577,7 +577,19 @@ class HeatRecoverySteamGenerator:
                 - recovered
             )
 
-        # Route recovered capital only to healthy STGs.
+        # An unavailable STG cannot deploy its base allocation.
+        # Unlike GTG exhaust recovery, its capital is not harvested
+        # into another turbine. It remains safely in plant reserve.
+        for stg_id in STEAM_TURBINE_BAYS:
+            if not self._is_unavailable(
+                bay_states[stg_id]
+            ):
+                continue
+
+            reserve_cash += allocations[stg_id]
+            allocations[stg_id] = 0.0
+
+        # Route recovered GTG capital only to healthy STGs.
         active_stgs = [
             bay_id
             for bay_id in STEAM_TURBINE_BAYS

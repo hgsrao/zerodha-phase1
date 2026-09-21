@@ -52,6 +52,11 @@ from revision5.governor import (
     BayTurbineClosedLoopGovernor,
 )
 
+from revision5.hrsg import (
+    HRSGBalanceResult,
+    HeatRecoverySteamGenerator,
+)
+
 from revision5.ccpp_protection_cubicles import (
     MasterGridProtectionMiCOM,
     BayExcitationAVR,
@@ -255,6 +260,15 @@ class TurbineBayPanel:
         )
 
         self.bay_capital = initial_capital
+
+        # Plant-level capital actually available after HRSG coupling.
+        #
+        # This is intentionally separate from bay_capital because
+        # update_capital() rejects zero. A tripped/cooling bay may
+        # therefore have effective_allocation == 0 while its last
+        # positive AVR configuration remains stored. Admission is
+        # blocked by protection before AVR sizing in that condition.
+        self.effective_allocation = initial_capital
 
         self.consecutive_stops = 0
         self.tripped_offline = False
@@ -500,6 +514,18 @@ class CentralPlantMasterDCS:
             )
         )
 
+        # HRSG sits between merit-order dispatch and physical bay
+        # capital/AVR configuration.
+        self.hrsg = HeatRecoverySteamGenerator(
+            base_plant_capital=total_capital
+        )
+
+        self.hrsg_last_balance: Optional[
+            HRSGBalanceResult
+        ] = None
+
+        self.hrsg_reserve_cash = 0.0
+
         self.state_store = EngineStateStore(
             db_path
         )
@@ -561,6 +587,163 @@ class CentralPlantMasterDCS:
             )
 
         self.current_bar_index = bar_index
+
+    def _hrsg_bay_states(
+        self,
+        bar_index: int,
+    ) -> Dict[str, dict]:
+        """
+        Translate physical bay protection state into the HRSG contract.
+        """
+        if bar_index < 0:
+            raise ValueError(
+                "bar_index must be non-negative"
+            )
+
+        return {
+            bay_id: {
+                "tripped_offline": (
+                    bay.tripped_offline
+                ),
+                "cooldown_bars_remaining": (
+                    bay.cooldown_remaining(
+                        bar_index
+                    )
+                ),
+            }
+            for bay_id, bay
+            in self.bays.items()
+        }
+
+    def apply_hrsg_balance(
+        self,
+        *,
+        bar_index: int,
+        bay_beta: Optional[
+            Mapping[str, float]
+        ] = None,
+    ) -> HRSGBalanceResult:
+        """
+        Convert dispatcher merit-order allocations into HRSG-constrained
+        effective bay allocations.
+
+        Capital conservation invariant:
+
+            sum(effective allocations) + reserve
+            == total plant capital
+
+        Correlation derating is retained as reserve and is never
+        normalized back into forced deployment.
+        """
+        if bar_index < 0:
+            raise ValueError(
+                "bar_index must be non-negative"
+            )
+
+        base_allocations = {
+            bay_id: (
+                self.dispatcher.get_allocation(
+                    bay_id
+                )
+            )
+            for bay_id in BAY_IDS
+        }
+
+        balance = self.hrsg.balance_capital(
+            bay_states=self._hrsg_bay_states(
+                bar_index
+            ),
+            base_allocations=(
+                base_allocations
+            ),
+            bay_beta=bay_beta,
+        )
+
+        for bay_id, allocation in (
+            balance.allocations.items()
+        ):
+            bay = self.bays[bay_id]
+
+            allocation = float(
+                allocation
+            )
+
+            bay.effective_allocation = (
+                allocation
+            )
+
+            # update_capital() deliberately requires positive capital.
+            #
+            # Zero means HRSG considers this bay unavailable. Existing
+            # ANSI-86/cooldown protection blocks admission before AVR
+            # sizing, so the previous positive AVR configuration is
+            # left untouched until the bay becomes available again.
+            if allocation > 0.0:
+                bay.update_capital(
+                    allocation
+                )
+
+        self.hrsg_last_balance = balance
+        self.hrsg_reserve_cash = float(
+            balance.reserve_cash
+        )
+
+        conserved = (
+            sum(
+                bay.effective_allocation
+                for bay in self.bays.values()
+            )
+            + self.hrsg_reserve_cash
+        )
+
+        if abs(
+            conserved - self.total_capital
+        ) > 1e-6:
+            raise RuntimeError(
+                "DCS/HRSG capital conservation "
+                "invariant violated"
+            )
+
+        return balance
+
+    def record_hrsg_return_snapshot(
+        self,
+        bay_returns: Mapping[
+            str,
+            float,
+        ],
+    ) -> None:
+        """
+        Feed one synchronous return snapshot into HRSG covariance logic.
+
+        Trade-close R outcomes are intentionally not routed here because
+        asynchronously closed trades are not synchronous observations
+        and therefore must not be used as pairwise correlation samples.
+        """
+        self.hrsg.record_return_snapshot(
+            bay_returns
+        )
+
+    def hrsg_status(self) -> dict:
+        """
+        Read-only supervisory state for telemetry/replay reports.
+        """
+        return {
+            "reserve_cash": (
+                self.hrsg_reserve_cash
+            ),
+            "effective_allocations": {
+                bay_id: (
+                    bay.effective_allocation
+                )
+                for bay_id, bay
+                in self.bays.items()
+            },
+            "has_balance": (
+                self.hrsg_last_balance
+                is not None
+            ),
+        }
 
     def evaluate_entry(
         self,
@@ -633,17 +816,13 @@ class CentralPlantMasterDCS:
                 ),
             }
 
-        allocation = (
-            self.dispatcher.get_allocation(
-                bay_id
-            )
+        # Plant merit-order request is passed through HRSG before
+        # bay-level AVR sizing and admission.
+        self.apply_hrsg_balance(
+            bar_index=bar_index
         )
 
         bay = self.bays[bay_id]
-
-        bay.update_capital(
-            allocation
-        )
 
         result = bay.evaluate_admission(
             symbol=symbol,
@@ -658,6 +837,20 @@ class CentralPlantMasterDCS:
             grid_return_fraction=(
                 nifty_15m_ret
             ),
+        )
+
+        # HRSG state is exposed on all bay-evaluated outcomes so replay
+        # and paper reports can audit capital routing even when admission
+        # is denied downstream.
+        result.update(
+            {
+                "hrsg_effective_allocation": (
+                    bay.effective_allocation
+                ),
+                "hrsg_reserve_cash": (
+                    self.hrsg_reserve_cash
+                ),
+            }
         )
 
         if result.get("admitted"):
