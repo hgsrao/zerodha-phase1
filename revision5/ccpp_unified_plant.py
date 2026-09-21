@@ -1,0 +1,797 @@
+"""
+Revision 5 CCPP Unified Plant Core
+===================================
+
+Execution-neutral integration of:
+
+* canonical 48-symbol / five-bay topology
+* Engine-A / Engine-B operating interlocks
+* persistent Engine-A one-fill-per-bay/day latch
+* frozen per-bay R-multiple PID/droop governors
+* MiCOM master-grid protection
+* SEL-300G bay protection
+* AVR lot sizing
+* dynamic merit-order capital allocation
+* machine-bay cooldown/trip state
+* Engine-A 15:15 square-off intent generation
+
+This module DOES NOT place broker orders.
+
+Historical replay, paper execution and future live execution must consume
+the same admission and square-off intents through separate adapters.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from datetime import date, datetime
+from math import isfinite
+from pathlib import Path
+from statistics import fmean, pstdev
+from typing import Any, Dict, Iterable, Mapping, Optional
+
+from revision5.topology import (
+    BAY_IDS,
+    FLEET_TOPOLOGY,
+    SYMBOL_TO_BAY,
+    bay_for_symbol,
+)
+
+from revision5.engine_state import (
+    ENGINE_A,
+    ENGINE_B,
+    EngineStateStore,
+    engine_a_squareoff_due,
+    trading_date,
+    validate_engine,
+)
+
+from revision5.governor import (
+    BAY_GOVERNOR_SPECS,
+    BayTurbineClosedLoopGovernor,
+)
+
+from revision5.ccpp_protection_cubicles import (
+    MasterGridProtectionMiCOM,
+    BayExcitationAVR,
+    BayUnitProtectionSEL300G,
+)
+
+
+logger = logging.getLogger("CCPP_Plant_R5")
+
+
+LOSS_COOLDOWN_BARS = 15
+TARGET_COOLDOWN_BARS = 3
+
+
+@dataclass(frozen=True)
+class SquareOffIntent:
+    engine_mode: str
+    symbol: str
+    bay_id: str
+    requested_at: datetime
+    reason: str
+    position_id: Optional[str] = None
+
+
+class DynamicBayLoadDispatcher:
+    """
+    Dynamic merit-order capital allocation.
+
+    Feedback input is R-multiple only.
+    This is controller state, not PID coefficient tuning.
+    """
+
+    def __init__(
+        self,
+        total_capital: float = 1_000_000.0,
+        min_floor: float = 0.08,
+        max_ceiling: float = 0.35,
+    ):
+        if total_capital <= 0:
+            raise ValueError("total_capital must be positive")
+
+        if not 0 < min_floor < max_ceiling <= 1:
+            raise ValueError("invalid dispatcher bounds")
+
+        self.total_capital = float(total_capital)
+        self.min_floor = float(min_floor)
+        self.max_ceiling = float(max_ceiling)
+
+        self.trade_history_r: Dict[str, list[float]] = {
+            bay_id: []
+            for bay_id in BAY_IDS
+        }
+
+        self.weights = {
+            bay_id: BAY_GOVERNOR_SPECS[bay_id].capital_weight
+            for bay_id in BAY_IDS
+        }
+
+    def register_trade(
+        self,
+        bay_id: str,
+        realized_r: float,
+    ) -> None:
+        if bay_id not in BAY_IDS:
+            raise ValueError(f"Unknown bay: {bay_id!r}")
+
+        if not isfinite(realized_r):
+            raise ValueError("realized_r must be finite")
+
+        history = self.trade_history_r[bay_id]
+        history.append(float(realized_r))
+
+        if len(history) > 20:
+            history.pop(0)
+
+        scores: Dict[str, float] = {}
+
+        for candidate_bay in BAY_IDS:
+            values = self.trade_history_r[candidate_bay]
+
+            if len(values) < 3:
+                scores[candidate_bay] = 1.0
+                continue
+
+            downside = [
+                value
+                for value in values
+                if value < 0.0
+            ]
+
+            if len(downside) > 1:
+                downside_dev = pstdev(downside)
+            else:
+                downside_dev = 0.5
+
+            score = 1.0 + (
+                fmean(values)
+                / max(0.2, downside_dev)
+            )
+
+            scores[candidate_bay] = max(
+                0.1,
+                score,
+            )
+
+        total_score = sum(scores.values())
+
+        raw_targets = {
+            bay_id: scores[bay_id] / total_score
+            for bay_id in BAY_IDS
+        }
+
+        clamped = {
+            bay_id: min(
+                self.max_ceiling,
+                max(
+                    self.min_floor,
+                    raw_targets[bay_id],
+                ),
+            )
+            for bay_id in BAY_IDS
+        }
+
+        clamped_total = sum(clamped.values())
+
+        for candidate_bay in BAY_IDS:
+            target_weight = (
+                clamped[candidate_bay]
+                / clamped_total
+            )
+
+            self.weights[candidate_bay] = (
+                0.85 * self.weights[candidate_bay]
+                + 0.15 * target_weight
+            )
+
+        # Normalize after smoothing so the portfolio remains exactly 100%.
+        weight_total = sum(self.weights.values())
+
+        self.weights = {
+            bay_id: weight / weight_total
+            for bay_id, weight in self.weights.items()
+        }
+
+    def get_allocation(self, bay_id: str) -> float:
+        if bay_id not in BAY_IDS:
+            raise ValueError(f"Unknown bay: {bay_id!r}")
+
+        return (
+            self.total_capital
+            * self.weights[bay_id]
+        )
+
+
+class TurbineBayPanel:
+    """
+    One decoupled turbine bay.
+
+    Contains:
+      * frozen Mark-V governor
+      * AVR sizing controller
+      * SEL-300G protection
+      * session trip/cooldown state
+
+    Cooldown is BAR-INDEX based.
+
+    It is never decremented because another symbol in the same bay
+    happened to be evaluated.
+    """
+
+    def __init__(
+        self,
+        bay_id: str,
+        total_plant_capital: float,
+    ):
+        if bay_id not in BAY_IDS:
+            raise ValueError(f"Unknown bay: {bay_id!r}")
+
+        self.bay_id = bay_id
+        self.spec = BAY_GOVERNOR_SPECS[bay_id]
+        self.symbols = FLEET_TOPOLOGY[bay_id]
+
+        self.governor = BayTurbineClosedLoopGovernor(
+            self.spec
+        )
+
+        initial_capital = (
+            total_plant_capital
+            * self.spec.capital_weight
+        )
+
+        self.avr = BayExcitationAVR(
+            bay_name=bay_id,
+            allocated_capital_inr=initial_capital,
+            min_notional_uel_inr=15_000.0,
+            max_notional_oel_inr=initial_capital * 0.40,
+        )
+
+        self.relay = BayUnitProtectionSEL300G(
+            bay_name=bay_id
+        )
+
+        self.bay_capital = initial_capital
+
+        self.consecutive_stops = 0
+        self.tripped_offline = False
+
+        # Entry allowed when bar_index >= this value.
+        self.cooldown_until_bar_exclusive = 0
+
+    def reset_session(self) -> None:
+        """
+        Reset session-scoped protection state.
+
+        Governor R-history intentionally survives the day boundary.
+        """
+        self.consecutive_stops = 0
+        self.tripped_offline = False
+        self.cooldown_until_bar_exclusive = 0
+
+    def update_capital(
+        self,
+        new_capital: float,
+    ) -> None:
+        if new_capital <= 0:
+            raise ValueError(
+                "bay capital must remain positive"
+            )
+
+        self.bay_capital = float(new_capital)
+
+        self.avr.allocated_capital_inr = (
+            self.bay_capital
+        )
+
+        self.avr.oel_max = (
+            self.bay_capital * 0.40
+        )
+
+    def cooldown_remaining(
+        self,
+        bar_index: int,
+    ) -> int:
+        if bar_index < 0:
+            raise ValueError(
+                "bar_index must be non-negative"
+            )
+
+        return max(
+            0,
+            self.cooldown_until_bar_exclusive
+            - bar_index,
+        )
+
+    def evaluate_admission(
+        self,
+        *,
+        symbol: str,
+        bar_index: int,
+        z_score: float,
+        price: float,
+        atr: float,
+        bid: float,
+        ask: float,
+        tick_age_s: float,
+        bar_range: float,
+        grid_return_fraction: float = 0.0,
+    ) -> dict:
+        if symbol not in self.symbols:
+            return {
+                "admitted": False,
+                "reason": (
+                    f"SYMBOL_NOT_IN_BAY:{symbol}"
+                ),
+            }
+
+        if self.tripped_offline:
+            return {
+                "admitted": False,
+                "reason": (
+                    f"ANSI_86_LOCKOUT:{self.bay_id}"
+                ),
+            }
+
+        remaining = self.cooldown_remaining(
+            bar_index
+        )
+
+        if remaining > 0:
+            return {
+                "admitted": False,
+                "reason": "BAY_COOLDOWN",
+                "cooldown_bars_remaining": remaining,
+            }
+
+        trip = self.relay.check_pre_synchronization(
+            symbol=symbol,
+            bid=bid,
+            ask=ask,
+            last_tick_age_sec=tick_age_s,
+            hist_atr=atr,
+            curr_bar_range=bar_range,
+        )
+
+        if trip.tripped:
+            return {
+                "admitted": False,
+                "reason": (
+                    f"SEL300G_TRIP:"
+                    f"{trip.ansi_code}:"
+                    f"{trip.reason}"
+                ),
+            }
+
+        dynamic_z = self.governor.dynamic_z(
+            grid_return_fraction
+        )
+
+        if z_score > dynamic_z:
+            return {
+                "admitted": False,
+                "reason": "MARK_V_GATE_CLOSED",
+                "z_score": float(z_score),
+                "dynamic_z": float(dynamic_z),
+            }
+
+        qty, avr_state = (
+            self.avr.calculate_lot_size(
+                asset_price=price,
+                asset_atr=atr,
+                z_strength=z_score,
+            )
+        )
+
+        if qty <= 0:
+            return {
+                "admitted": False,
+                "reason": f"AVR_CLAMP:{avr_state}",
+            }
+
+        stop_distance = max(
+            self.spec.atr_barrier * atr,
+            price * 0.0065,
+        )
+
+        target_distance = max(
+            self.spec.target_m * atr,
+            stop_distance * 1.5,
+        )
+
+        return {
+            "admitted": True,
+            "quantity": int(qty),
+            "stop_loss": round(
+                price - stop_distance,
+                2,
+            ),
+            "take_profit": round(
+                price + target_distance,
+                2,
+            ),
+            "dynamic_z": float(dynamic_z),
+            "avr_state": avr_state,
+            "bay_id": self.bay_id,
+            "symbol": symbol,
+        }
+
+    def register_outcome(
+        self,
+        *,
+        realized_r: float,
+        reason: str,
+        bar_index: int,
+    ) -> float:
+        if bar_index < 0:
+            raise ValueError(
+                "bar_index must be non-negative"
+            )
+
+        control_u = self.governor.register_trade(
+            realized_r
+        )
+
+        normalized_reason = reason.upper()
+
+        if (
+            "STOP" in normalized_reason
+            or realized_r < 0.0
+        ):
+            self.consecutive_stops += 1
+
+            self.cooldown_until_bar_exclusive = (
+                bar_index
+                + LOSS_COOLDOWN_BARS
+                + 1
+            )
+
+            if self.consecutive_stops >= 2:
+                self.tripped_offline = True
+
+        elif (
+            "TARGET" in normalized_reason
+            or realized_r > 0.0
+        ):
+            self.consecutive_stops = 0
+
+            self.cooldown_until_bar_exclusive = (
+                bar_index
+                + TARGET_COOLDOWN_BARS
+                + 1
+            )
+
+        return control_u
+
+
+class CentralPlantMasterDCS:
+    """
+    Unified five-bay Revision-5 supervisor.
+
+    No broker I/O is performed here.
+    """
+
+    def __init__(
+        self,
+        total_capital: float = 1_000_000.0,
+        db_path: str | Path = (
+            "revision5/r5_plant_state.sqlite3"
+        ),
+    ):
+        if total_capital <= 0:
+            raise ValueError(
+                "total_capital must be positive"
+            )
+
+        self.total_capital = float(
+            total_capital
+        )
+
+        self.grid_relay = (
+            MasterGridProtectionMiCOM()
+        )
+
+        self.dispatcher = (
+            DynamicBayLoadDispatcher(
+                total_capital=total_capital
+            )
+        )
+
+        self.state_store = EngineStateStore(
+            db_path
+        )
+
+        self.bays: Dict[
+            str,
+            TurbineBayPanel,
+        ] = {
+            bay_id: TurbineBayPanel(
+                bay_id,
+                total_capital,
+            )
+            for bay_id in BAY_IDS
+        }
+
+        self.current_trading_date: Optional[
+            date
+        ] = None
+
+        self.current_bar_index: Optional[
+            int
+        ] = None
+
+    def begin_bar(
+        self,
+        current_dt: datetime,
+        bar_index: int,
+    ) -> None:
+        if bar_index < 0:
+            raise ValueError(
+                "bar_index must be non-negative"
+            )
+
+        session_date = trading_date(
+            current_dt
+        )
+
+        if (
+            self.current_trading_date
+            != session_date
+        ):
+            self.current_trading_date = (
+                session_date
+            )
+
+            self.current_bar_index = None
+
+            for bay in self.bays.values():
+                bay.reset_session()
+
+        if (
+            self.current_bar_index is not None
+            and bar_index
+            < self.current_bar_index
+        ):
+            raise ValueError(
+                "bar_index moved backwards "
+                "within the same trading session"
+            )
+
+        self.current_bar_index = bar_index
+
+    def evaluate_entry(
+        self,
+        *,
+        engine_mode: str,
+        symbol: str,
+        bar_dt: datetime,
+        bar_index: int,
+        z_score: float,
+        price: float,
+        atr: float,
+        bid: float,
+        ask: float,
+        tick_age_s: float,
+        bar_range: float,
+        nifty_15m_ret: float = 0.0,
+        nifty_vol_z: float = 0.0,
+        fleet_equity_dd_pct: float = 0.0,
+    ) -> dict:
+        validate_engine(engine_mode)
+
+        self.begin_bar(
+            bar_dt,
+            bar_index,
+        )
+
+        try:
+            bay_id = bay_for_symbol(
+                symbol
+            )
+        except KeyError:
+            return {
+                "admitted": False,
+                "reason": (
+                    f"UNMAPPED_SYMBOL:{symbol}"
+                ),
+            }
+
+        allowed, reason = (
+            self.state_store.entry_allowed(
+                engine_mode,
+                bay_id,
+                bar_dt,
+            )
+        )
+
+        if not allowed:
+            return {
+                "admitted": False,
+                "reason": reason,
+            }
+
+        grid_check = (
+            self.grid_relay.evaluate_grid_intertie(
+                nifty_15m_return=nifty_15m_ret,
+                nifty_vol_z=nifty_vol_z,
+                fleet_equity_drawdown_pct=(
+                    fleet_equity_dd_pct
+                ),
+            )
+        )
+
+        if grid_check.tripped:
+            return {
+                "admitted": False,
+                "reason": (
+                    f"SUBSTATION_TRIP:"
+                    f"{grid_check.ansi_code}:"
+                    f"{grid_check.reason}"
+                ),
+            }
+
+        allocation = (
+            self.dispatcher.get_allocation(
+                bay_id
+            )
+        )
+
+        bay = self.bays[bay_id]
+
+        bay.update_capital(
+            allocation
+        )
+
+        result = bay.evaluate_admission(
+            symbol=symbol,
+            bar_index=bar_index,
+            z_score=z_score,
+            price=price,
+            atr=atr,
+            bid=bid,
+            ask=ask,
+            tick_age_s=tick_age_s,
+            bar_range=bar_range,
+            grid_return_fraction=(
+                nifty_15m_ret
+            ),
+        )
+
+        if result.get("admitted"):
+            result.update(
+                {
+                    "engine": engine_mode,
+                    "bay_id": bay_id,
+                    "symbol": symbol,
+                }
+            )
+
+        return result
+
+    def on_trade_filled(
+        self,
+        *,
+        engine_mode: str,
+        symbol: str,
+        filled_at: datetime,
+    ) -> bool:
+        """
+        Confirm a broker/replay fill.
+
+        Only a confirmed ENGINE_A fill consumes
+        the persistent bay allowance.
+        """
+        validate_engine(engine_mode)
+
+        bay_id = bay_for_symbol(
+            symbol
+        )
+
+        if engine_mode == ENGINE_A:
+            return (
+                self.state_store
+                .consume_engine_a_fill(
+                    bay_id,
+                    filled_at,
+                )
+            )
+
+        return True
+
+    def on_trade_closed(
+        self,
+        *,
+        symbol: str,
+        pnl_r: float,
+        reason: str,
+        closed_at: datetime,
+        bar_index: int,
+    ) -> None:
+        self.begin_bar(
+            closed_at,
+            bar_index,
+        )
+
+        bay_id = bay_for_symbol(
+            symbol
+        )
+
+        bay = self.bays[bay_id]
+
+        bay.register_outcome(
+            realized_r=pnl_r,
+            reason=reason,
+            bar_index=bar_index,
+        )
+
+        self.dispatcher.register_trade(
+            bay_id,
+            pnl_r,
+        )
+
+    def build_engine_a_squareoff_intents(
+        self,
+        *,
+        current_dt: datetime,
+        open_positions: Iterable[
+            Mapping[str, Any]
+        ],
+    ) -> list[SquareOffIntent]:
+        """
+        Build mandatory Engine-A liquidation intents.
+
+        This deliberately does NOT send orders.
+        Replay/paper/live adapters execute these
+        identical intents through their own I/O layer.
+        """
+        if not engine_a_squareoff_due(
+            current_dt
+        ):
+            return []
+
+        intents: list[
+            SquareOffIntent
+        ] = []
+
+        for position in open_positions:
+            engine_mode = position.get(
+                "engine_mode"
+            )
+
+            if engine_mode != ENGINE_A:
+                continue
+
+            symbol = str(
+                position["symbol"]
+            )
+
+            bay_id = bay_for_symbol(
+                symbol
+            )
+
+            position_id = position.get(
+                "position_id"
+            )
+
+            intents.append(
+                SquareOffIntent(
+                    engine_mode=ENGINE_A,
+                    symbol=symbol,
+                    bay_id=bay_id,
+                    requested_at=current_dt,
+                    reason=(
+                        "ENGINE_A_MANDATORY_"
+                        "SQUAREOFF_15_15_IST"
+                    ),
+                    position_id=(
+                        None
+                        if position_id is None
+                        else str(position_id)
+                    ),
+                )
+            )
+
+        return intents
