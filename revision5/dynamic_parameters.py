@@ -90,6 +90,96 @@ class AVRRuntimeProfile:
     z_strength_denominator: float
     z_strength_cap: float
 
+    @property
+    def control_stress(self) -> float:
+        # loading_fraction is already dynamically derated by R5.
+        return _clamp(
+            1.0
+            - (
+                float(self.loading_fraction)
+                / 0.15
+            ),
+            0.0,
+            1.0,
+        )
+
+    @property
+    def kp(self) -> float:
+        stress = self.control_stress
+        return _clamp(
+            0.80 + 0.60 * stress,
+            0.80,
+            1.40,
+        )
+
+    @property
+    def ki(self) -> float:
+        stress = self.control_stress
+        return _clamp(
+            0.15 / (1.0 + stress),
+            0.075,
+            0.15,
+        )
+
+    @property
+    def kd(self) -> float:
+        stress = self.control_stress
+        return _clamp(
+            0.10 + 0.10 * stress,
+            0.10,
+            0.20,
+        )
+
+    @property
+    def integral_clamp(self) -> float:
+        stress = self.control_stress
+        return _clamp(
+            0.50 - 0.20 * stress,
+            0.30,
+            0.50,
+        )
+
+    @property
+    def undervoltage_trip_pu(self) -> float:
+        # Stress narrows the safe voltage corridor.
+        return _clamp(
+            0.90 + 0.05 * self.control_stress,
+            0.90,
+            0.95,
+        )
+
+    @property
+    def overvoltage_trip_pu(self) -> float:
+        return _clamp(
+            1.10 - 0.05 * self.control_stress,
+            1.05,
+            1.10,
+        )
+
+    @property
+    def mvar_limit_pu(self) -> float:
+        return _clamp(
+            0.90 - 0.30 * self.control_stress,
+            0.60,
+            0.90,
+        )
+
+    @property
+    def excitation_min(self) -> float:
+        return _clamp(
+            0.10 + 0.10 * self.control_stress,
+            0.10,
+            0.20,
+        )
+
+    @property
+    def excitation_max(self) -> float:
+        return _clamp(
+            1.00 - 0.25 * self.control_stress,
+            0.75,
+            1.00,
+        )
+
 
 @dataclass(frozen=True)
 class UnitProtectionRuntimeProfile:

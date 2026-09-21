@@ -187,6 +187,15 @@ class BayTurbineClosedLoopGovernor:
 
         self.history_r: list[float] = []
 
+        # Fast inner governor loop: active only while a position exists.
+        self.position_active = False
+        self.inner_integral_error = 0.0
+        self.inner_last_error = 0.0
+        self.inner_last_control_u = 0.0
+
+        # Monotonic protective ratchet. It may advance only.
+        self.protected_r_floor = -1.0
+
     def register_trade(self, realized_r: float) -> float:
         if not isfinite(realized_r):
             raise ValueError("realized_r must be finite")
@@ -307,6 +316,281 @@ class BayTurbineClosedLoopGovernor:
                 self.integral_error,
             ),
         )
+
+    def evaluate_entry_request(
+        self,
+        *,
+        z_score: float,
+        grid_return_fraction: float = 0.0,
+    ) -> dict:
+        """
+        Final bay-governor ENTRY authority.
+
+        Upstream boxes provide the requested operating condition.
+        The governor owns the final strategic ENTRY/NO_ACTION state.
+        """
+        if not isfinite(z_score):
+            raise ValueError(
+                "z_score must be finite"
+            )
+
+        threshold = self.dynamic_z(
+            grid_return_fraction
+        )
+
+        admitted = float(z_score) <= threshold
+
+        return {
+            "action": (
+                "ENTRY"
+                if admitted
+                else "NO_ACTION"
+            ),
+            "reason": (
+                "GOVERNOR_ENTRY"
+                if admitted
+                else "GOVERNOR_ENTRY_NOT_REACHED"
+            ),
+            "z_score": float(z_score),
+            "dynamic_z": float(threshold),
+        }
+
+    def begin_position(
+        self,
+        *,
+        hard_stop_r: float = -1.0,
+    ) -> None:
+        if not isfinite(hard_stop_r):
+            raise ValueError(
+                "hard_stop_r must be finite"
+            )
+
+        self.position_active = True
+
+        self.inner_integral_error = 0.0
+        self.inner_last_error = 0.0
+        self.inner_last_control_u = 0.0
+
+        self.protected_r_floor = float(
+            hard_stop_r
+        )
+
+    def confirm_position_closed(self) -> None:
+        self.position_active = False
+        self.inner_integral_error = 0.0
+        self.inner_last_error = 0.0
+        self.inner_last_control_u = 0.0
+
+    def evaluate_position_control(
+        self,
+        *,
+        measured_r: float,
+        reference_r: float,
+        max_favorable_r: float,
+        elapsed_bars: int,
+        min_hold_bars: int,
+        max_hold_bars: int,
+        hard_stop_r: float,
+        trade_target_r: float,
+    ) -> dict:
+        """
+        Fast closed-loop governor.
+
+        output -> comparator -> PID -> HOLD/EXIT -> output feedback
+
+        protected_r_floor is the one-way ratchet. PID error may change
+        sign, but the secured protective floor never moves backwards.
+        """
+        values = (
+            measured_r,
+            reference_r,
+            max_favorable_r,
+            hard_stop_r,
+            trade_target_r,
+        )
+
+        if not all(
+            isfinite(float(v))
+            for v in values
+        ):
+            raise ValueError(
+                "governor position feedback "
+                "must be finite"
+            )
+
+        if elapsed_bars < 0:
+            raise ValueError(
+                "elapsed_bars must be non-negative"
+            )
+
+        if min_hold_bars < 0:
+            raise ValueError(
+                "min_hold_bars must be non-negative"
+            )
+
+        if max_hold_bars <= 0:
+            raise ValueError(
+                "max_hold_bars must be positive"
+            )
+
+        if max_hold_bars < min_hold_bars:
+            raise ValueError(
+                "max_hold_bars cannot be below "
+                "min_hold_bars"
+            )
+
+        if not self.position_active:
+            self.begin_position(
+                hard_stop_r=float(hard_stop_r)
+            )
+
+        measured_r = float(measured_r)
+        reference_r = float(reference_r)
+        max_favorable_r = float(
+            max_favorable_r
+        )
+
+        error = reference_r - measured_r
+
+        self.inner_integral_error = max(
+            -self.runtime_integral_clamp,
+            min(
+                self.runtime_integral_clamp,
+                self.inner_integral_error
+                + error,
+            ),
+        )
+
+        derivative = (
+            error
+            - self.inner_last_error
+        )
+
+        self.inner_last_error = error
+
+        control_u = (
+            self.runtime_kp * error
+            + self.runtime_ki
+            * self.inner_integral_error
+            + self.runtime_kd * derivative
+        )
+
+        self.inner_last_control_u = (
+            float(control_u)
+        )
+
+        #
+        # One-direction protective ratchet.
+        #
+        # Step and gap are derived from current dynamic governor values,
+        # not from a separate fixed trading constant.
+        #
+        ratchet_step = (
+            abs(self.runtime_target_r)
+            / max(
+                self.runtime_outcome_window,
+                1,
+            )
+        )
+
+        trailing_gap = max(
+            abs(
+                self.runtime_dynamic_offset_min
+            ),
+            abs(self.runtime_target_r),
+        )
+
+        desired_floor = max(
+            float(hard_stop_r),
+            max_favorable_r
+            - trailing_gap,
+        )
+
+        if desired_floor > self.protected_r_floor:
+            self.protected_r_floor = min(
+                desired_floor,
+                self.protected_r_floor
+                + ratchet_step,
+            )
+
+        #
+        # FSNL-equivalent target condition.
+        #
+        if measured_r >= float(trade_target_r):
+            action = "EXIT"
+            reason = "GOVERNOR_TARGET_REACHED"
+
+        elif measured_r <= float(hard_stop_r):
+            action = "EXIT"
+            reason = "GOVERNOR_HARD_STOP"
+
+        elif (
+            elapsed_bars >= min_hold_bars
+            and measured_r
+            <= self.protected_r_floor
+            and self.protected_r_floor
+            > float(hard_stop_r)
+        ):
+            action = "EXIT"
+            reason = "GOVERNOR_RATCHET_FLOOR"
+
+        elif elapsed_bars >= max_hold_bars:
+            action = "EXIT"
+            reason = "GOVERNOR_MAX_HOLD"
+
+        else:
+            #
+            # Comparator/PID path deviation protection.
+            # These thresholds are themselves derived from the active,
+            # dynamically scheduled governor parameters.
+            #
+            exit_error = max(
+                abs(self.runtime_target_r),
+                abs(
+                    self.runtime_dynamic_offset_max
+                ),
+            )
+
+            exit_control = max(
+                abs(self.runtime_target_r),
+                abs(
+                    self.runtime_ki
+                    * self.runtime_integral_clamp
+                ),
+            )
+
+            if (
+                elapsed_bars >= min_hold_bars
+                and error >= exit_error
+                and control_u >= exit_control
+            ):
+                action = "EXIT"
+                reason = "GOVERNOR_PATH_ERROR"
+            else:
+                action = "HOLD"
+                reason = "GOVERNOR_TRACKING"
+
+        return {
+            "action": action,
+            "reason": reason,
+            "measured_r": measured_r,
+            "reference_r": reference_r,
+            "error": float(error),
+            "integral_error": float(
+                self.inner_integral_error
+            ),
+            "derivative": float(derivative),
+            "control_u": float(control_u),
+            "protected_r_floor": float(
+                self.protected_r_floor
+            ),
+            "max_favorable_r": (
+                max_favorable_r
+            ),
+            "elapsed_bars": int(
+                elapsed_bars
+            ),
+        }
 
     def dynamic_z(
         self,

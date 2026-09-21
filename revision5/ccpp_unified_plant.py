@@ -371,6 +371,11 @@ class TurbineBayPanel:
         tick_age_s: float,
         bar_range: float,
         grid_return_fraction: float = 0.0,
+        bus_voltage_reference_pu: float = 1.0,
+        terminal_voltage_pu: float = 1.0,
+        mvar_reference_pu: float = 0.0,
+        measured_mvar_pu: float = 0.0,
+        avr_mode: str = "BUS_VOLTAGE",
     ) -> dict:
         if symbol not in self.symbols:
             return {
@@ -418,16 +423,56 @@ class TurbineBayPanel:
                 ),
             }
 
-        dynamic_z = self.governor.dynamic_z(
-            grid_return_fraction
+        governor_entry = (
+            self.governor.evaluate_entry_request(
+                z_score=z_score,
+                grid_return_fraction=(
+                    grid_return_fraction
+                ),
+            )
         )
 
-        if z_score > dynamic_z:
+        dynamic_z = governor_entry[
+            "dynamic_z"
+        ]
+
+        if governor_entry["action"] != "ENTRY":
             return {
                 "admitted": False,
-                "reason": "MARK_V_GATE_CLOSED",
+                "reason": (
+                    governor_entry["reason"]
+                ),
                 "z_score": float(z_score),
                 "dynamic_z": float(dynamic_z),
+            }
+
+        avr_control = self.avr.evaluate_control(
+            mode=avr_mode,
+            bus_voltage_reference_pu=(
+                bus_voltage_reference_pu
+            ),
+            terminal_voltage_pu=(
+                terminal_voltage_pu
+            ),
+            mvar_reference_pu=(
+                mvar_reference_pu
+            ),
+            measured_mvar_pu=(
+                measured_mvar_pu
+            ),
+        )
+
+        if avr_control["tripped"]:
+            return {
+                "admitted": False,
+                "reason": (
+                    "AVR_TRIP:"
+                    + avr_control["reason"]
+                ),
+                "dynamic_z": float(
+                    dynamic_z
+                ),
+                "avr_control": avr_control,
             }
 
         qty, avr_state = (
@@ -467,9 +512,118 @@ class TurbineBayPanel:
             ),
             "dynamic_z": float(dynamic_z),
             "avr_state": avr_state,
+            "avr_control": avr_control,
+            "governor_entry": governor_entry,
             "bay_id": self.bay_id,
             "symbol": symbol,
         }
+
+    def evaluate_position_control(
+        self,
+        *,
+        symbol: str,
+        current_r: float,
+        reference_r: float,
+        max_favorable_r: float,
+        elapsed_bars: int,
+        min_hold_bars: int,
+        max_hold_bars: int,
+        hard_stop_r: float,
+        trade_target_r: float,
+        bid: float,
+        ask: float,
+        tick_age_s: float,
+        atr: float,
+        bar_range: float,
+        bus_voltage_reference_pu: float = 1.0,
+        terminal_voltage_pu: float = 1.0,
+        mvar_reference_pu: float = 0.0,
+        measured_mvar_pu: float = 0.0,
+        avr_mode: str = "BUS_VOLTAGE",
+    ) -> dict:
+        """
+        Continuous physical-unit control:
+        Governor = HOLD/EXIT authority.
+        AVR = loading/excitation authority.
+        SEL300G = unit protection override.
+        """
+        if symbol not in self.symbols:
+            return {
+                "action": "EXIT",
+                "reason": (
+                    f"SYMBOL_NOT_IN_BAY:{symbol}"
+                ),
+            }
+
+        trip = self.relay.check_pre_synchronization(
+            symbol=symbol,
+            bid=bid,
+            ask=ask,
+            last_tick_age_sec=tick_age_s,
+            hist_atr=atr,
+            curr_bar_range=bar_range,
+        )
+
+        if trip.tripped:
+            return {
+                "action": "EXIT",
+                "reason": (
+                    f"SEL300G_TRIP:"
+                    f"{trip.ansi_code}:"
+                    f"{trip.reason}"
+                ),
+            }
+
+        avr_control = self.avr.evaluate_control(
+            mode=avr_mode,
+            bus_voltage_reference_pu=(
+                bus_voltage_reference_pu
+            ),
+            terminal_voltage_pu=(
+                terminal_voltage_pu
+            ),
+            mvar_reference_pu=(
+                mvar_reference_pu
+            ),
+            measured_mvar_pu=(
+                measured_mvar_pu
+            ),
+        )
+
+        if avr_control["tripped"]:
+            return {
+                "action": "EXIT",
+                "reason": (
+                    "AVR_TRIP:"
+                    + avr_control["reason"]
+                ),
+                "avr_control": avr_control,
+            }
+
+        governor_control = (
+            self.governor.evaluate_position_control(
+                measured_r=current_r,
+                reference_r=reference_r,
+                max_favorable_r=max_favorable_r,
+                elapsed_bars=elapsed_bars,
+                min_hold_bars=min_hold_bars,
+                max_hold_bars=max_hold_bars,
+                hard_stop_r=hard_stop_r,
+                trade_target_r=trade_target_r,
+            )
+        )
+
+        governor_control[
+            "avr_control"
+        ] = avr_control
+
+        governor_control[
+            "avr_load_factor"
+        ] = float(
+            self.avr.excitation_command
+        )
+
+        return governor_control
 
     def register_outcome(
         self,
@@ -516,6 +670,8 @@ class TurbineBayPanel:
                 + 1
             )
 
+        self.governor.confirm_position_closed()
+
         return control_u
 
 
@@ -544,6 +700,18 @@ class CentralPlantMasterDCS:
 
         self.grid_relay = (
             MasterGridProtectionMiCOM()
+        )
+
+        # Minimal Revision-5 electrical network:
+        # five generator breakers + one grid-intertie breaker.
+        from revision5.electrical_network import (
+            PlantElectricalNetwork,
+        )
+
+        self.electrical_network = (
+            PlantElectricalNetwork(
+                BAY_IDS
+            )
         )
 
         self.dispatcher = (
@@ -845,6 +1013,82 @@ class CentralPlantMasterDCS:
             ),
         }
 
+    def trip_unit_breaker(
+        self,
+        *,
+        bay_id: str,
+        reason: str,
+        source: str,
+        lockout: bool = False,
+    ) -> None:
+        """
+        Selective unit isolation.
+
+        No other turbine breaker and no grid breaker is operated.
+        """
+        if bay_id not in self.bays:
+            raise KeyError(
+                f"unknown bay: {bay_id}"
+            )
+
+        self.electrical_network.trip_unit(
+            bay_id,
+            reason=reason,
+            source=source,
+            lockout=lockout,
+        )
+
+        # Keep the existing bay-operability state consistent with
+        # the electrical breaker state.
+        self.bays[
+            bay_id
+        ].tripped_offline = True
+
+    def reset_unit_breaker(
+        self,
+        *,
+        bay_id: str,
+    ) -> None:
+        """
+        Explicit operator/reset path for an isolated unit.
+        """
+        self.electrical_network.reset_unit_lockout(
+            bay_id
+        )
+
+        self.electrical_network.close_unit_breaker(
+            bay_id
+        )
+
+        self.bays[
+            bay_id
+        ].tripped_offline = False
+
+    def open_grid_intertie(
+        self,
+        *,
+        reason: str,
+        source: str,
+    ) -> None:
+        """
+        Open only the grid breaker.
+
+        Healthy generating units remain electrically connected to
+        PLANT_BUS and therefore remain available for island/house load.
+        """
+        self.electrical_network.open_grid_intertie(
+            reason=reason,
+            source=source,
+        )
+
+    def close_grid_intertie(
+        self,
+    ) -> None:
+        self.electrical_network.close_grid_intertie()
+
+    def electrical_status(self) -> dict:
+        return self.electrical_network.snapshot()
+
     def evaluate_entry(
         self,
         *,
@@ -862,6 +1106,11 @@ class CentralPlantMasterDCS:
         nifty_15m_ret: float = 0.0,
         nifty_vol_z: float = 0.0,
         fleet_equity_dd_pct: float = 0.0,
+        bus_voltage_reference_pu: float = 1.0,
+        terminal_voltage_pu: float = 1.0,
+        mvar_reference_pu: float = 0.0,
+        measured_mvar_pu: float = 0.0,
+        avr_mode: str = "BUS_VOLTAGE",
         dynamic_environment=None,
     ) -> dict:
         validate_engine(engine_mode)
@@ -881,6 +1130,24 @@ class CentralPlantMasterDCS:
                 "admitted": False,
                 "reason": (
                     f"UNMAPPED_SYMBOL:{symbol}"
+                ),
+            }
+
+        if not (
+            self.electrical_network
+            .unit_available(
+                bay_id
+            )
+        ):
+            return {
+                "admitted": False,
+                "reason": (
+                    f"UNIT_BREAKER_OPEN:"
+                    f"{bay_id}"
+                ),
+                "electrical_mode": (
+                    self.electrical_network
+                    .mode.value
                 ),
             }
 
@@ -909,6 +1176,14 @@ class CentralPlantMasterDCS:
         )
 
         if grid_check.tripped:
+            self.open_grid_intertie(
+                reason=(
+                    f"{grid_check.ansi_code}:"
+                    f"{grid_check.reason}"
+                ),
+                source="MiCOM_GRID_PROTECTION",
+            )
+
             return {
                 "admitted": False,
                 "reason": (
@@ -939,7 +1214,47 @@ class CentralPlantMasterDCS:
             grid_return_fraction=(
                 nifty_15m_ret
             ),
+            bus_voltage_reference_pu=(
+                bus_voltage_reference_pu
+            ),
+            terminal_voltage_pu=(
+                terminal_voltage_pu
+            ),
+            mvar_reference_pu=(
+                mvar_reference_pu
+            ),
+            measured_mvar_pu=(
+                measured_mvar_pu
+            ),
+            avr_mode=avr_mode,
         )
+
+        if (
+            not result.get(
+                "admitted",
+                False,
+            )
+            and str(
+                result.get(
+                    "reason",
+                    "",
+                )
+            ).startswith(
+                "SEL300G_TRIP:"
+            )
+        ):
+            self.trip_unit_breaker(
+                bay_id=bay_id,
+                reason=str(
+                    result["reason"]
+                ),
+                source=(
+                    "SEL300G_UNIT_PROTECTION"
+                ),
+                # 86 lockout will be requested explicitly by severe
+                # elements such as 87G when relay coordination is wired.
+                lockout=False,
+            )
 
         # HRSG state is exposed on all bay-evaluated outcomes so replay
         # and paper reports can audit capital routing even when admission
@@ -963,6 +1278,123 @@ class CentralPlantMasterDCS:
                     "symbol": symbol,
                 }
             )
+
+        return result
+
+    def evaluate_position_control(
+        self,
+        *,
+        engine_mode: str,
+        symbol: str,
+        bar_dt: datetime,
+        bar_index: int,
+        current_r: float,
+        reference_r: float,
+        max_favorable_r: float,
+        elapsed_bars: int,
+        min_hold_bars: int,
+        max_hold_bars: int,
+        hard_stop_r: float,
+        trade_target_r: float,
+        bid: float,
+        ask: float,
+        tick_age_s: float,
+        atr: float,
+        bar_range: float,
+        nifty_15m_ret: float = 0.0,
+        nifty_vol_z: float = 0.0,
+        fleet_equity_dd_pct: float = 0.0,
+        bus_voltage_reference_pu: float = 1.0,
+        terminal_voltage_pu: float = 1.0,
+        mvar_reference_pu: float = 0.0,
+        measured_mvar_pu: float = 0.0,
+        avr_mode: str = "BUS_VOLTAGE",
+        dynamic_environment=None,
+    ) -> dict:
+        """
+        Continuous closed-loop control for an already-open position.
+
+        Governor owns HOLD/EXIT.
+        AVR controls permitted excitation/loading.
+        SEL/MiCOM may force EXIT.
+        """
+        validate_engine(engine_mode)
+
+        self.begin_bar(
+            bar_dt,
+            bar_index,
+            environment=dynamic_environment,
+        )
+
+        try:
+            bay_id = bay_for_symbol(symbol)
+        except KeyError:
+            return {
+                "action": "EXIT",
+                "reason": (
+                    f"UNMAPPED_SYMBOL:{symbol}"
+                ),
+            }
+
+        grid_check = (
+            self.grid_relay.evaluate_grid_intertie(
+                nifty_15m_return=nifty_15m_ret,
+                nifty_vol_z=nifty_vol_z,
+                fleet_equity_drawdown_pct=(
+                    fleet_equity_dd_pct
+                ),
+            )
+        )
+
+        if grid_check.tripped:
+            return {
+                "action": "EXIT",
+                "reason": (
+                    f"SUBSTATION_TRIP:"
+                    f"{grid_check.ansi_code}:"
+                    f"{grid_check.reason}"
+                ),
+            }
+
+        bay = self.bays[bay_id]
+
+        result = bay.evaluate_position_control(
+            symbol=symbol,
+            current_r=current_r,
+            reference_r=reference_r,
+            max_favorable_r=max_favorable_r,
+            elapsed_bars=elapsed_bars,
+            min_hold_bars=min_hold_bars,
+            max_hold_bars=max_hold_bars,
+            hard_stop_r=hard_stop_r,
+            trade_target_r=trade_target_r,
+            bid=bid,
+            ask=ask,
+            tick_age_s=tick_age_s,
+            atr=atr,
+            bar_range=bar_range,
+            bus_voltage_reference_pu=(
+                bus_voltage_reference_pu
+            ),
+            terminal_voltage_pu=(
+                terminal_voltage_pu
+            ),
+            mvar_reference_pu=(
+                mvar_reference_pu
+            ),
+            measured_mvar_pu=(
+                measured_mvar_pu
+            ),
+            avr_mode=avr_mode,
+        )
+
+        result.update(
+            {
+                "engine": engine_mode,
+                "bay_id": bay_id,
+                "symbol": symbol,
+            }
+        )
 
         return result
 

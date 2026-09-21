@@ -167,6 +167,25 @@ class BayExcitationAVR:
         self.z_strength_denominator = 1.80
         self.z_strength_cap = 1.50
 
+        # Native AVR inner-loop controller state.
+        self.runtime_kp = 0.80
+        self.runtime_ki = 0.15
+        self.runtime_kd = 0.10
+        self.runtime_integral_clamp = 0.50
+
+        self.undervoltage_trip_pu = 0.90
+        self.overvoltage_trip_pu = 1.10
+        self.mvar_limit_pu = 0.90
+
+        self.excitation_min = 0.10
+        self.excitation_max = 1.00
+
+        self.avr_integral_error = 0.0
+        self.avr_last_error = 0.0
+
+        # 1.0 means no AVR derating of otherwise permitted loading.
+        self.excitation_command = 1.0
+
         self.uel_min = self._base_uel_min
         self.oel_max = float(
             max_notional_oel_inr
@@ -275,7 +294,237 @@ class BayExcitationAVR:
             profile.z_strength_cap
         )
 
+        self.runtime_kp = float(
+            profile.kp
+        )
+        self.runtime_ki = float(
+            profile.ki
+        )
+        self.runtime_kd = float(
+            profile.kd
+        )
+        self.runtime_integral_clamp = float(
+            profile.integral_clamp
+        )
+
+        self.undervoltage_trip_pu = float(
+            profile.undervoltage_trip_pu
+        )
+        self.overvoltage_trip_pu = float(
+            profile.overvoltage_trip_pu
+        )
+        self.mvar_limit_pu = float(
+            profile.mvar_limit_pu
+        )
+
+        self.excitation_min = float(
+            profile.excitation_min
+        )
+        self.excitation_max = float(
+            profile.excitation_max
+        )
+
+        self.excitation_command = max(
+            self.excitation_min,
+            min(
+                self.excitation_max,
+                self.excitation_command,
+            ),
+        )
+
+        self.avr_integral_error = max(
+            -self.runtime_integral_clamp,
+            min(
+                self.runtime_integral_clamp,
+                self.avr_integral_error,
+            ),
+        )
+
         self._refresh_runtime_limits()
+
+    def evaluate_control(
+        self,
+        *,
+        mode: str = "BUS_VOLTAGE",
+        bus_voltage_reference_pu: float = 1.0,
+        terminal_voltage_pu: float = 1.0,
+        mvar_reference_pu: float = 0.0,
+        measured_mvar_pu: float = 0.0,
+    ) -> dict:
+        """
+        Continuous AVR feedback loop.
+
+        BUS_VOLTAGE / VOLTAGE:
+            error = synchronized bus reference - terminal voltage
+
+        MVAR:
+            error = requested MVAR - measured MVAR
+
+        AVR output is bidirectional. UEL/OEL and voltage protections
+        constrain or trip the actuator.
+        """
+        values = (
+            bus_voltage_reference_pu,
+            terminal_voltage_pu,
+            mvar_reference_pu,
+            measured_mvar_pu,
+        )
+
+        if not all(
+            isinstance(v, (int, float))
+            and v == v
+            and abs(float(v)) != float("inf")
+            for v in values
+        ):
+            raise ValueError(
+                "AVR feedback must be finite"
+            )
+
+        terminal_voltage_pu = float(
+            terminal_voltage_pu
+        )
+
+        if (
+            terminal_voltage_pu
+            <= self.undervoltage_trip_pu
+        ):
+            self.excitation_command = 0.0
+            return {
+                "tripped": True,
+                "reason": "ANSI_27_UNDERVOLTAGE",
+                "excitation_command": 0.0,
+            }
+
+        if (
+            terminal_voltage_pu
+            >= self.overvoltage_trip_pu
+        ):
+            self.excitation_command = 0.0
+            return {
+                "tripped": True,
+                "reason": "ANSI_59_OVERVOLTAGE",
+                "excitation_command": 0.0,
+            }
+
+        normalized_mode = str(mode).upper()
+
+        if normalized_mode in (
+            "BUS_VOLTAGE",
+            "VOLTAGE",
+        ):
+            error = (
+                float(
+                    bus_voltage_reference_pu
+                )
+                - terminal_voltage_pu
+            )
+
+        elif normalized_mode == "MVAR":
+            error = (
+                float(mvar_reference_pu)
+                - float(measured_mvar_pu)
+            )
+
+        else:
+            raise ValueError(
+                f"unsupported AVR mode: {mode!r}"
+            )
+
+        self.avr_integral_error = max(
+            -self.runtime_integral_clamp,
+            min(
+                self.runtime_integral_clamp,
+                self.avr_integral_error
+                + error,
+            ),
+        )
+
+        derivative = (
+            error
+            - self.avr_last_error
+        )
+        self.avr_last_error = error
+
+        delta_u = (
+            self.runtime_kp * error
+            + self.runtime_ki
+            * self.avr_integral_error
+            + self.runtime_kd * derivative
+        )
+
+        requested_command = (
+            self.excitation_command
+            + delta_u
+        )
+
+        limiter_state = "AVR_PID"
+
+        #
+        # MVAR/excitation limiter: do not continue driving farther
+        # into an already exceeded reactive-power limit.
+        #
+        if (
+            float(measured_mvar_pu)
+            > self.mvar_limit_pu
+            and requested_command
+            > self.excitation_command
+        ):
+            requested_command = (
+                self.excitation_command
+            )
+            limiter_state = "OEL_ACTIVE"
+
+        elif (
+            float(measured_mvar_pu)
+            < -self.mvar_limit_pu
+            and requested_command
+            < self.excitation_command
+        ):
+            requested_command = (
+                self.excitation_command
+            )
+            limiter_state = "UEL_ACTIVE"
+
+        command = max(
+            self.excitation_min,
+            min(
+                self.excitation_max,
+                requested_command,
+            ),
+        )
+
+        if command >= self.excitation_max:
+            limiter_state = "OEL_ACTIVE"
+
+        elif command <= self.excitation_min:
+            limiter_state = "UEL_ACTIVE"
+
+        self.excitation_command = float(
+            command
+        )
+
+        return {
+            "tripped": False,
+            "reason": limiter_state,
+            "mode": normalized_mode,
+            "error": float(error),
+            "integral_error": float(
+                self.avr_integral_error
+            ),
+            "derivative": float(
+                derivative
+            ),
+            "delta_u": float(delta_u),
+            "excitation_command": float(
+                self.excitation_command
+            ),
+            "terminal_voltage_pu": (
+                terminal_voltage_pu
+            ),
+            "measured_mvar_pu": float(
+                measured_mvar_pu
+            ),
+        }
 
     def calculate_lot_size(
         self,
@@ -302,6 +551,7 @@ class BayExcitationAVR:
         raw_notional = (
             self.allocated_capital
             * self.loading_fraction
+            * self.excitation_command
             * vol_scalar
             * min(
                 self.z_strength_cap,
