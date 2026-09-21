@@ -129,7 +129,7 @@ def test_calibration_payload_is_engine_scoped():
 
 def test_registry_accounting_is_reported_per_surface():
     assert REG.surface_counts() == {
-        "total_targets": 141, "fixed_targets": 33, "safety_params": 22,
+        "total_targets": 152, "fixed_targets": 44, "safety_params": 22,
         "in_house_eligible": 46, "external_eligible": 108, "shared_eligible": 46,
         "external_only_eligible": 62, "in_house_only_eligible": 0,
     }
@@ -163,7 +163,7 @@ def test_every_external_only_parameter_has_an_external_consumer_and_no_in_house_
     for name in sorted(REG.EXTERNAL_ONLY_NAMES):
         assert _consumers(name, EXTERNAL_SRC), f"{name}: no external consumer"
         assert not _consumers(name, IN_HOUSE_SRC), f"{name}: consumed in-house, cannot be EXTERNAL-only"
-    assert len(REG.EXTERNAL_ONLY_NAMES) == 72
+    assert len(REG.EXTERNAL_ONLY_NAMES) == 83
 
 
 def test_every_shared_optimizer_eligible_parameter_is_mentioned_by_both_engines():

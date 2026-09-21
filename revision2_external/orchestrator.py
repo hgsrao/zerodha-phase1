@@ -59,7 +59,11 @@ from revision2_external.startup_validation import validate_runtime_parameters, v
 from runtime.operating_mode import ExecutionGate
 from revision2_external.paper_execution import CostedPaperBrokerAdapter, ReplayIntentLedger
 from revision2.transaction_costs import leg_cost, paper_fill_price
+from revision5.plant_control import (
+    BayStatus, PlantControlChain, PlantControlError, PlantControlSnapshot,
+)
 from revision5.supervisory_bridge import Revision5SupervisoryBridge, SupervisorySnapshotError
+from revision5.topology import BAY_IDS as _R5_BAY_IDS, SYMBOL_TO_BAY as _R5_SYMBOL_TO_BAY
 
 SNAPSHOT_LOOKBACK_BARS = 300
 # F17: fixed PyPortfolioOpt maintenance policy, deliberately NOT calibratable.
@@ -104,6 +108,7 @@ class Revision2ExternalEngineOrchestrator:
         risk_profile: str = "development",
         session_schedule: Optional[Dict[str, Tuple[str, str]]] = None,
         supervisory_bridge: Optional[Revision5SupervisoryBridge] = None,
+        plant_control_mode: str = "SHADOW",
     ) -> None:
         if closed_loop_mode not in {"shadow", "active_paper"}:
             raise ValueError("closed_loop_mode must be 'shadow' or 'active_paper'")
@@ -266,6 +271,25 @@ class Revision2ExternalEngineOrchestrator:
         self.consumed_parameters.update(
             name for name in self.registry.params if name.startswith("cl_"))
 
+        # Plant-control chain (Nifty/VIX grid -> ECS supervisor -> sector dispatch -> governor
+        # references).  SHADOW only: it computes and records, and never alters admission,
+        # sizing, orders or the trade ledger.  ClosedLoopSupervisor above stays a supporting
+        # subsystem; it is only a one-way derate INPUT to the ECS supervisor.
+        from revision5.ccpp_unified_plant import DynamicBayLoadDispatcher
+        grid_provider = (self.grid_context_provider if grid_context_provider is not None
+                         else SealedGridContextProvider(pd.DataFrame({"timestamp": [], "close": []}),
+                                                        pd.DataFrame({"timestamp": [], "close": []})))
+        self.plant_control = PlantControlChain(
+            self.config, grid_provider,
+            DynamicBayLoadDispatcher(total_capital=float(starting_equity)), plant_control_mode)
+        self.plant_control_snapshots: List[PlantControlSnapshot] = []    # recorded on change only
+        self.plant_control_observer_failures: List[Dict[str, Any]] = []
+        self.plant_control_evaluations = 0
+        self.plant_control_state_counts: Dict[str, int] = {}
+        self._plant_control_last_key: Optional[Tuple[Any, ...]] = None
+        self.consumed_parameters.update(
+            name for name in self.registry.params if name.startswith(("grid_", "ecs_")))
+
         self.startup_certificate = self._issue_startup_certificate()
 
     def _build_safety_gate_config(self) -> SafetyGateConfig:
@@ -326,6 +350,45 @@ class Revision2ExternalEngineOrchestrator:
                 else (trade["entry_price"] - mark) * trade["quantity"]
             )
         return self._equity() + unrealized
+
+    def _plant_bay_status(self) -> Dict[str, BayStatus]:
+        """A bay is tripped only when it has universe symbols and every one is tripped."""
+        status = {}
+        for bay in _R5_BAY_IDS:
+            members = [s for s in self.symbols if _R5_SYMBOL_TO_BAY.get(s) == bay]
+            tripped = bool(members) and all(self.symbol_tripped.get(s, False) for s in members)
+            status[bay] = BayStatus(available=not tripped, tripped=tripped,
+                                    reason="ALL_SYMBOLS_TRIPPED" if tripped else "")
+        return status
+
+    def _plant_control_shadow_step(self, timestamp: object, max_gross_fraction: float) -> None:
+        """SHADOW plant-control evaluation, once per timestamp.  Read-only with respect to the
+        replay: no admission, sizing, order or ledger state is touched.  Only the chain's own
+        expected input error is contained (recorded); any other exception is a real defect."""
+        equity = self._equity()
+        gross = self._gross_exposure_notional()
+        try:
+            supporting = self.closed_loop.observe_portfolio_risk(
+                gross, equity, max_gross_fraction,
+                soft_budget_fraction=self.closed_loop.soft_budget_fraction)["suggested_new_risk_derate"]
+            snapshot = self.plant_control.evaluate(
+                timestamp, self._plant_bay_status(),
+                gross_exposure_fraction=gross / max(equity, 1.0),
+                gross_exposure_limit_fraction=max_gross_fraction,
+                supporting_derate=supporting)
+        except PlantControlError as exc:
+            self.plant_control_observer_failures.append({
+                "timestamp": str(timestamp), "error_type": type(exc).__name__, "error": str(exc)})
+            return
+        self.plant_control_evaluations += 1
+        self.plant_control_state_counts[snapshot.grid.state] = (
+            self.plant_control_state_counts.get(snapshot.grid.state, 0) + 1)
+        key = (snapshot.grid.state, snapshot.ecs.operating_mode,
+               round(snapshot.ecs.plant_demand_reference_pu, 9), snapshot.dispatch.feasible,
+               tuple(round(ref, 9) for _, ref in snapshot.dispatch.references_pu))
+        if key != self._plant_control_last_key:
+            self._plant_control_last_key = key
+            self.plant_control_snapshots.append(snapshot)
 
     def _gross_exposure_notional(self) -> float:
         return sum(t["quantity"] * self._last_close.get(s, t["entry_price"])
@@ -892,6 +955,7 @@ class Revision2ExternalEngineOrchestrator:
             for event in tick_events:
                 self._last_close[event.symbol] = float(symbol_bars[event.symbol].iloc[event.bar_idx]["close"])
             self._record_mtm(timestamp)
+            self._plant_control_shadow_step(timestamp, max_gross_fraction)
 
             # Box 8: refit PyPortfolioOpt weights periodically from real
             # trailing prices across the universe -- not every tick (that
@@ -1485,6 +1549,14 @@ class Revision2ExternalEngineOrchestrator:
             "gross_pnl": gross_pnl, "net_pnl": sum(t["net_pnl"] for t in self.completed_trades),
             "ending_equity": self.starting_equity + sum(t["net_pnl"] for t in self.completed_trades),
             "config_hash": self.config.config_hash, "safety_contract_hash": self.safety_contract.contract_hash,
+            "plant_control_shadow": {
+                "mode": self.plant_control.mode.value, "applied": False,
+                "plant_protection_connected": False, "bay_availability_source": "SYMBOL_TRIPS_ONLY",
+                "evaluations": self.plant_control_evaluations,
+                "grid_state_counts": dict(self.plant_control_state_counts),
+                "transitions": len(self.plant_control_snapshots),
+                "observer_failures": len(self.plant_control_observer_failures),
+            },
             "closed_loop_mode": self.closed_loop_mode,
             "pid_mode": self.pid_mode,
             "certification_audit": certification_audit,

@@ -66,6 +66,10 @@ class MacroGridSynchronizer:
         self.vix_min, self.vix_max = vix_operating_band
         self.trend_ema_period = trend_ema_period
 
+    def check_frequency(self, current_vix: float) -> bool:
+        """FREQUENCY match: India VIX inside the operating band (single owner of the band test)."""
+        return bool(self.vix_min <= current_vix <= self.vix_max)
+
     def check_synchronization(
         self,
         plant_close: np.ndarray,
@@ -88,7 +92,7 @@ class MacroGridSynchronizer:
 
         # 1. FREQUENCY MATCH: Check if Grid Volatility is stable
         # If VIX is outside operating band, market is either panicking or dead.
-        if not (self.vix_min <= current_vix <= self.vix_max):
+        if not self.check_frequency(current_vix):
             return SyncResult(
                 is_synchronized=False,
                 delta_phi=0.0,

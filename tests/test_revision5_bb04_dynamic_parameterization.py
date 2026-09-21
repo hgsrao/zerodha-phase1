@@ -159,7 +159,7 @@ def test_registry_identity_metadata_and_bounds():
     new = [spec for spec in registry.params.values()
            if "ENGINEERING_INITIAL_VALUE" in spec.notes and "BB04" in spec.notes]
     assert len(new) == 16
-    assert len(registry.params) == 141  # 136 + 5 BB08 fixed runtime controls
+    assert len(registry.params) == 152  # 141 + 11 fixed plant-control controls
     assert len(registry.calibratable_names()) == 108
     assert len(registry.calibratable_names("IN_HOUSE")) == 46
     for spec in new:

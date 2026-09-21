@@ -64,7 +64,7 @@ def test_registry_owns_all_parameters_with_labels_and_defaults():
 def test_surface_counts_and_identity_and_search_space():
     from revision2.calibration_supervisor import trading_search_space
     assert (len(REG.params), len(REG.fixed_target_names()), len(REG.safety_params),
-            len(REG.calibratable_names())) == (141, 33, 22, 108)
+            len(REG.calibratable_names())) == (152, 44, 22, 108)
     REG.verify_frozen_identity()
     external = set(trading_search_space(REG, engine="EXTERNAL").names)
     in_house = set(trading_search_space(REG, engine="IN_HOUSE").names)

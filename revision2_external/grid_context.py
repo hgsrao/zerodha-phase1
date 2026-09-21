@@ -40,6 +40,25 @@ class GridShadowObservation:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class CausalGridContext:
+    """The causal Nifty/VIX prefix available strictly before a decision time.
+
+    This is the single owner of the as-of data contract (strictly-earlier selection, timestamp
+    alignment, staleness and warm-up).  Both the per-stock ``observe`` and the plant-level
+    synchronizer consume it, so the contract exists exactly once.
+    """
+
+    available: bool
+    reason: str
+    decision: pd.Timestamp
+    source_timestamp: Optional[pd.Timestamp] = None
+    age_seconds: Optional[float] = None
+    nifty_prior: Optional[pd.DataFrame] = None
+    vix_prior: Optional[pd.DataFrame] = None
+    aligned: Optional[pd.DataFrame] = None
+
+
 class SealedGridContextProvider:
     """Supply a causally available Nifty/VIX regime observation.
 
@@ -64,6 +83,9 @@ class SealedGridContextProvider:
         self.max_staleness_seconds = float(max_staleness_seconds)
         self.minimum_aligned_bars = int(minimum_aligned_bars)
         self.synchronizer = synchronizer or MacroGridSynchronizer()
+        self._nifty_times = pd.DatetimeIndex(self.nifty["timestamp"])
+        self._vix_times = pd.DatetimeIndex(self.vix["timestamp"])
+        self._aligned_cache: dict = {}
 
     @staticmethod
     def _normalize(frame: pd.DataFrame, label: str) -> pd.DataFrame:
@@ -84,6 +106,50 @@ class SealedGridContextProvider:
     def _unavailable(symbol: str, decision: pd.Timestamp, direction: int, reason: str) -> GridShadowObservation:
         return GridShadowObservation(symbol, decision.isoformat(), direction, False, reason)
 
+    def causal_context(
+        self,
+        decision_timestamp: object,
+        *,
+        max_staleness_seconds: Optional[float] = None,
+        minimum_aligned_bars: Optional[int] = None,
+    ) -> CausalGridContext:
+        """Causal Nifty/VIX prefix strictly before ``decision_timestamp`` (must be tz-aware).
+
+        Reasons, in order: NOT_YET_AVAILABLE, TIMESTAMP_MISMATCH, STALE, WARMUP_INSUFFICIENT.
+        ``max_staleness_seconds`` / ``minimum_aligned_bars`` default to this provider's own values;
+        a plant-level caller may pass its own registry-owned limits.
+        """
+        decision = pd.Timestamp(decision_timestamp)
+        if decision.tzinfo is None:
+            raise ValueError("decision timestamp must include a timezone")
+        decision = decision.tz_convert("UTC")
+        staleness = self.max_staleness_seconds if max_staleness_seconds is None else float(max_staleness_seconds)
+        minimum = self.minimum_aligned_bars if minimum_aligned_bars is None else int(minimum_aligned_bars)
+
+        # Bars strictly earlier than the decision (positional, O(log n)); a bar stamped AT the
+        # decision time is excluded, so the contract is safe whether a source stamps open or close.
+        n_nifty = int(self._nifty_times.searchsorted(decision, side="left"))
+        n_vix = int(self._vix_times.searchsorted(decision, side="left"))
+        if n_nifty == 0 or n_vix == 0:
+            return CausalGridContext(False, "GRID_CONTEXT_NOT_YET_AVAILABLE", decision)
+        nifty_last, vix_last = self._nifty_times[n_nifty - 1], self._vix_times[n_vix - 1]
+        if nifty_last != vix_last:
+            return CausalGridContext(False, "GRID_CONTEXT_TIMESTAMP_MISMATCH", decision)
+        age = (decision - nifty_last).total_seconds()
+        if age > staleness:
+            return CausalGridContext(False, "GRID_CONTEXT_STALE", decision, nifty_last, age)
+
+        nifty_prior, vix_prior = self.nifty.iloc[:n_nifty], self.vix.iloc[:n_vix]
+        key = (n_nifty, n_vix)
+        aligned = self._aligned_cache.get(key)
+        if aligned is None:
+            aligned = nifty_prior.merge(vix_prior, on="timestamp", how="inner", suffixes=("_nifty", "_vix"))
+            self._aligned_cache = {key: aligned}      # only the latest completed bar is ever needed
+        if len(aligned) < minimum:
+            return CausalGridContext(False, "GRID_CONTEXT_WARMUP_INSUFFICIENT", decision, nifty_last, age)
+        return CausalGridContext(True, "GRID_CONTEXT_AVAILABLE", decision, nifty_last, age,
+                                 nifty_prior, vix_prior, aligned)
+
     def observe(
         self,
         symbol: str,
@@ -102,23 +168,12 @@ class SealedGridContextProvider:
             raise ValueError("decision timestamp must include a timezone")
         decision = decision.tz_convert("UTC")
 
-        nifty_prior = self.nifty[self.nifty["timestamp"] < decision]
-        vix_prior = self.vix[self.vix["timestamp"] < decision]
-        if nifty_prior.empty or vix_prior.empty:
-            return self._unavailable(symbol, decision, direction, "GRID_CONTEXT_NOT_YET_AVAILABLE")
-
-        nifty_last = nifty_prior.iloc[-1]
-        vix_last = vix_prior.iloc[-1]
-        if nifty_last.timestamp != vix_last.timestamp:
-            return self._unavailable(symbol, decision, direction, "GRID_CONTEXT_TIMESTAMP_MISMATCH")
-        source_timestamp = nifty_last.timestamp
-        age = decision - source_timestamp
-        if age.total_seconds() > self.max_staleness_seconds:
-            return self._unavailable(symbol, decision, direction, "GRID_CONTEXT_STALE")
-
-        context = nifty_prior.merge(vix_prior, on="timestamp", how="inner", suffixes=("_nifty", "_vix"))
-        if len(context) < self.minimum_aligned_bars:
-            return self._unavailable(symbol, decision, direction, "GRID_CONTEXT_WARMUP_INSUFFICIENT")
+        grid = self.causal_context(decision)
+        if not grid.available:
+            return self._unavailable(symbol, decision, direction, grid.reason)
+        nifty_prior, vix_prior, context = grid.nifty_prior, grid.vix_prior, grid.aligned
+        source_timestamp = grid.source_timestamp
+        age = pd.Timedelta(seconds=grid.age_seconds)
 
         # These labels are computed only after the source timestamp has been
         # verified as a completed, fresh Nifty/VIX bar.  ``*_prior`` contains

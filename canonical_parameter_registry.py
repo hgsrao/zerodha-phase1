@@ -68,7 +68,7 @@ class CanonicalParameterRegistry:
     # Engine applicability: BB04(16)+BB05-BB06(29)+three-controller(22)=67 parameters are EXTERNAL-only (62 optimizer-eligible,
     # 5 fixed); BB08 adds 5 fixed PositionManager controls (external portfolio optimizer). Optimizer surfaces are engine-scoped:
     # see surface_counts().
-    FROZEN_IDENTITY_SHA256 = "965184f27855c1f8eb7e5fc7f29cd5391e92e07aa074308778f6403f751cc6f9"
+    FROZEN_IDENTITY_SHA256 = "b00b5299815753477037c181c548545c10254f18869314b3e22852ba88bef360"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -149,6 +149,9 @@ class CanonicalParameterRegistry:
         "portfolio_weight_refit_bars", "portfolio_weight_lookback_minute_bars",
         "portfolio_min_15min_observations", "portfolio_aggressive_scale",
         "portfolio_optimizer_risk_free_rate",
+        # Plant control: PlantGridSynchronizer / ECSPlantSupervisor (revision5/plant_control.py)
+        "grid_vix_operating_min", "grid_vix_operating_max", "grid_vix_derate_start", "grid_vix_slope_bars", "grid_vix_slope_derate_fraction",
+        "grid_nifty_ema_period", "grid_nifty_deviation_derate_fraction", "grid_max_staleness_seconds", "grid_min_aligned_bars", "ecs_derate_demand_pu", "ecs_demand_restore_step_pu",
         # Studies PID / local signal weighting (CompositeStudySignal)
         "studies_pid_kp", "studies_pid_ki", "studies_pid_kd", "studies_pid_output_clamp",
         "studies_grading_horizon_bars", "studies_hit_rate_window_bars",
@@ -177,6 +180,18 @@ class CanonicalParameterRegistry:
         # Diagnostic-only meta parameter: same doctrine as the already-fixed
         # phase1/phase2 intensities it is multiplied with (no trading effect).
         "learning_rate_exploration_factor",
+        # Plant-control (grid synchronizer / ECS supervisor) controls: fixed, NOT_CALIBRATED.
+        "grid_vix_operating_min",
+        "grid_vix_operating_max",
+        "grid_vix_derate_start",
+        "grid_vix_slope_bars",
+        "grid_vix_slope_derate_fraction",
+        "grid_nifty_ema_period",
+        "grid_nifty_deviation_derate_fraction",
+        "grid_max_staleness_seconds",
+        "grid_min_aligned_bars",
+        "ecs_derate_demand_pu",
+        "ecs_demand_restore_step_pu",
     })
     APPROVED_CALIBRATABLE = set(Revision2ParameterManifest.all_68()) - FIXED_TARGET_NAMES
 
@@ -326,6 +341,18 @@ class CanonicalParameterRegistry:
                 0.0, -0.05, 0.20, False,
                 "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 annual risk-free rate passed explicitly to max_sharpe"
             ),
+            # Plant-control parameters: FIXED / NOT_CALIBRATED / external-engine only.
+            ParameterSpec("grid_vix_operating_min", "PlantControl", "float", 10.0, 5.0, 15.0, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; NEVER_CALIBRATE_SAFETY; PLANT-CONTROL India VIX lower operating bound: below it the grid is treated as dead (UNSYNCHRONIZED)"),
+            ParameterSpec("grid_vix_operating_max", "PlantControl", "float", 30.0, 20.0, 40.0, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; NEVER_CALIBRATE_SAFETY; PLANT-CONTROL India VIX upper operating bound: above it the grid is treated as panicking (UNSYNCHRONIZED)"),
+            ParameterSpec("grid_vix_derate_start", "PlantControl", "float", 24.0, 15.0, 30.0, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL India VIX level at which the plant is DERATED; must stay below grid_vix_operating_max (validated at construction)"),
+            ParameterSpec("grid_vix_slope_bars", "PlantControl", "int", 5, 3, 10, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL Lookback (completed grid bars) for the VIX rate-of-rise"),
+            ParameterSpec("grid_vix_slope_derate_fraction", "PlantControl", "float", 0.1, 0.05, 0.25, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL VIX rise over the slope lookback that DERATES the plant"),
+            ParameterSpec("grid_nifty_ema_period", "PlantControl", "int", 50, 20, 100, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL Nifty EMA period for the index deviation (voltage) measurement"),
+            ParameterSpec("grid_nifty_deviation_derate_fraction", "PlantControl", "float", 0.03, 0.01, 0.06, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL Absolute Nifty deviation from its EMA that DERATES the plant"),
+            ParameterSpec("grid_max_staleness_seconds", "PlantControl", "int", 1200, 900, 3600, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; NEVER_CALIBRATE_SAFETY; PLANT-CONTROL Maximum age of the latest completed Nifty/VIX bar before the grid is ISLANDED_SAFE"),
+            ParameterSpec("grid_min_aligned_bars", "PlantControl", "int", 63, 30, 200, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL Minimum aligned Nifty/VIX bars before a grid state may be produced (else ISLANDED_SAFE)"),
+            ParameterSpec("ecs_derate_demand_pu", "PlantControl", "float", 0.5, 0.1, 0.9, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL ECS plant demand reference while the grid is DERATED"),
+            ParameterSpec("ecs_demand_restore_step_pu", "PlantControl", "float", 0.1, 0.02, 0.5, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL Maximum ECS demand increase per evaluation when restoring after a reduction (reductions are immediate)"),
             ParameterSpec("trailing_stop_atr_mult", "MPC", "float", 5.5, 1.0, 8.0, True,
                            "Continuous exit-controller ATR trail multiplier (independent of the one-shot entry stop's stop_loss_atr_mult)"),
             ParameterSpec("drawdown_normal_threshold", "SafetyGates", "float", 0.10, 0.05, 0.20, True, "Normal drawdown threshold"),
@@ -483,10 +510,10 @@ class CanonicalParameterRegistry:
     def validate_contract(self) -> None:
         expected = Revision2ParameterManifest.all_68()
         # NOTE: Adding saturation_exit_bars (2025) expands from 68 → 69 total.
-        # BB04 adds 16, BB05-BB06 29, three-controller 22 and BB08 5 fixed controls:
-        # base_33() + revision2_35() = 33 + 108 = 141.
-        if len(expected) != 141 or len(set(expected)) != 141:
-            raise ValueError("Revision 2 target names must contain 141 unique values")
+        # BB04 adds 16, BB05-BB06 29, three-controller 22, BB08 5 and plant control 11
+        # fixed controls: base_33() + revision2_35() = 33 + 119 = 152.
+        if len(expected) != 152 or len(set(expected)) != 152:
+            raise ValueError("Revision 2 target names must contain 152 unique values")
         if set(expected) != set(self.params):
             raise ValueError("registry does not exactly match the Revision 2 manifest")
         if len(self.safety_params) != 22:

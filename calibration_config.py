@@ -213,6 +213,19 @@ class Revision2ParameterManifest:
             "portfolio_min_15min_observations",
             "portfolio_aggressive_scale",
             "portfolio_optimizer_risk_free_rate",
+            # Plant-control (grid synchronizer / ECS supervisor) operational controls.
+            # Engineering initial values, FIXED and NOT calibrated.
+            "grid_vix_operating_min",
+            "grid_vix_operating_max",
+            "grid_vix_derate_start",
+            "grid_vix_slope_bars",
+            "grid_vix_slope_derate_fraction",
+            "grid_nifty_ema_period",
+            "grid_nifty_deviation_derate_fraction",
+            "grid_max_staleness_seconds",
+            "grid_min_aligned_bars",
+            "ecs_derate_demand_pu",
+            "ecs_demand_restore_step_pu",
             "trailing_stop_atr_mult",
             "saturation_exit_bars",
             "drawdown_normal_threshold",
@@ -289,6 +302,7 @@ class Revision2ParameterManifest:
             "PositionManager",
             "P01D",
             "UnifiedExecution",
+            "PlantControl",
         ]
 
     def calibratable_45(self):
