@@ -43,7 +43,7 @@ class TestFixedAndSafetyInvariance(unittest.TestCase):
 
     def test_safety_contract_is_immutable_and_separate_from_target_surface(self):
         contract = SafetyContract.from_registry(self.registry)
-        self.assertEqual(len(contract.values), 20)
+        self.assertEqual(len(contract.values), 22)
         self.assertEqual(set(contract.values), set(self.registry.safety_params))
         self.assertFalse(set(contract.values) & set(self.registry.params))
         # Same registry -> same hash, every time.

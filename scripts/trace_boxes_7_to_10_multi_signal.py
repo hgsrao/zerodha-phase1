@@ -96,7 +96,11 @@ def main():
     trending_down = pd.Series(1000 * (0.9993 ** np.arange(60)) * (1 + rng.normal(0, 0.001, 60)), index=idx)
     flat = pd.Series(1000 * (1 + rng.normal(0, 0.0005, 60)), index=idx)
     for label, prices_a in [("A trending UP, B flat", trending_up), ("A trending DOWN, B flat", trending_down), ("A flat, B flat", flat)]:
-        weights = compute_portfolio_weights({"A": prices_a, "B": flat})
+        weights = compute_portfolio_weights(
+            {"A": prices_a, "B": flat},
+            min_observations=100,
+            risk_free_rate=0.0,
+        )
         print(f"  {label} -> weights: {({k: round(v, 3) for k, v in weights.items()})}")
 
     print()

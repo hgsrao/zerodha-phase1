@@ -154,6 +154,14 @@ class Revision2ParameterManifest:
             "capital_per_trade_fraction",
             "min_capital_buffer_fraction",
             "capital_allocation_mode",
+            # BB08 PositionManager operational controls.
+            # Explicit runtime parameters, engineering initial values,
+            # deliberately NOT part of the calibration surface yet.
+            "portfolio_weight_refit_bars",
+            "portfolio_weight_lookback_minute_bars",
+            "portfolio_min_15min_observations",
+            "portfolio_aggressive_scale",
+            "portfolio_optimizer_risk_free_rate",
             "trailing_stop_atr_mult",
             "saturation_exit_bars",
             "drawdown_normal_threshold",
@@ -195,6 +203,7 @@ class Revision2ParameterManifest:
             "max_concurrent_positions",
             "max_gross_exposure_fraction",
             "max_market_data_age_seconds",
+            "max_broker_offline_seconds",
             "max_exposure_per_symbol_fraction",
             "min_position_quantity",
             "max_position_quantity",
@@ -209,6 +218,7 @@ class Revision2ParameterManifest:
             "max_reconciliation_qty_diff",
             "max_slippage_fraction",
             "no_entry_cutoff_time",
+            "force_close_time",
         ]
 
     @staticmethod

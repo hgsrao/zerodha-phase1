@@ -31,8 +31,17 @@ from pypfopt.exceptions import OptimizationError
 from revision2.contracts import EffectiveConfig, ParameterUse, TradePlan
 
 
-INTRADAY_15MIN_PERIODS_PER_YEAR = 252 * 25
-MIN_15MIN_PRICE_OBSERVATIONS = 100
+# STRUCTURAL_NOT_PARAMETER constants.  These define the portfolio model's
+# sampling convention and numerical representation, not tunable strategy knobs.
+TRADING_DAYS_PER_YEAR = 252
+PORTFOLIO_15MIN_PERIODS_PER_DAY = 25
+INTRADAY_15MIN_PERIODS_PER_YEAR = TRADING_DAYS_PER_YEAR * PORTFOLIO_15MIN_PERIODS_PER_DAY
+PORTFOLIO_RESAMPLE_RULE = "15min"
+MIN_PORTFOLIO_ASSETS = 2
+PYPORTFOLIOOPT_WEIGHT_BOUNDS = (0.0, 1.0)
+PYPORTFOLIOOPT_CLEAN_CUTOFF = 0.0001
+PYPORTFOLIOOPT_CLEAN_ROUNDING = 5
+MAX_CONVICTION_DERATE = 1.0
 
 
 def _causal_15min_close_prices(price_history_by_symbol: Dict[str, pd.Series]) -> pd.DataFrame:
@@ -48,14 +57,19 @@ def _causal_15min_close_prices(price_history_by_symbol: Dict[str, pd.Series]) ->
         if not isinstance(series.index, pd.DatetimeIndex):
             return pd.DataFrame()
         series = series[~series.index.duplicated(keep="last")].sort_index()
-        resampled = series.resample("15min", label="right", closed="right").last().dropna()
+        resampled = series.resample(PORTFOLIO_RESAMPLE_RULE, label="right", closed="right").last().dropna()
         if len(resampled) > 1:
             resampled = resampled.iloc[:-1]
         completed[symbol] = resampled
     return pd.DataFrame(completed).dropna(how="any")
 
 
-def compute_portfolio_weights(price_history_by_symbol: Dict[str, pd.Series]) -> Dict[str, float]:
+def compute_portfolio_weights(
+    price_history_by_symbol: Dict[str, pd.Series],
+    *,
+    min_observations: int,
+    risk_free_rate: float,
+) -> Dict[str, float]:
     """Real max-Sharpe efficient-frontier weights from each symbol's own
     historical *completed 15-minute* close-price series. Annualisation is
     explicitly 252 trading days x 25 fifteen-minute bars, rather than the
@@ -74,11 +88,11 @@ def compute_portfolio_weights(price_history_by_symbol: Dict[str, pd.Series]) -> 
     numerically stable and reducing "Solution may be inaccurate" warnings.
     """
     symbols = list(price_history_by_symbol.keys())
-    if len(symbols) < 2:
+    if len(symbols) < MIN_PORTFOLIO_ASSETS:
         return {s: 1.0 for s in symbols}
 
     prices = _causal_15min_close_prices(price_history_by_symbol)
-    if len(prices) < MIN_15MIN_PRICE_OBSERVATIONS:
+    if len(prices) < int(min_observations):
         equal = 1.0 / len(symbols)
         return {s: equal for s in symbols}
 
@@ -104,9 +118,16 @@ def compute_portfolio_weights(price_history_by_symbol: Dict[str, pd.Series]) -> 
                 prices, frequency=INTRADAY_15MIN_PERIODS_PER_YEAR,
             )
 
-        ef = EfficientFrontier(mu, cov)
-        weights = ef.max_sharpe()
-        cleaned = ef.clean_weights()
+        ef = EfficientFrontier(
+            mu,
+            cov,
+            weight_bounds=PYPORTFOLIOOPT_WEIGHT_BOUNDS,
+        )
+        weights = ef.max_sharpe(risk_free_rate=float(risk_free_rate))
+        cleaned = ef.clean_weights(
+            cutoff=PYPORTFOLIOOPT_CLEAN_CUTOFF,
+            rounding=PYPORTFOLIOOPT_CLEAN_ROUNDING,
+        )
         return {s: float(cleaned.get(s, 0.0)) for s in symbols}
     except (OptimizationError, ValueError):
         equal = 1.0 / len(symbols)
@@ -144,6 +165,11 @@ class PyPortfolioOptPositionManagerBox:
         max_per_symbol = int(req("max_positions_per_symbol", "cap on positions in a single symbol", "quantity"))
         lot_map = req("lot_size_by_symbol", "per-symbol lot size", "quantity")
         allocation_mode = req("capital_allocation_mode", "capital allocation policy: equal vs aggressive", "quantity")
+        aggressive_scale = float(req(
+            "portfolio_aggressive_scale",
+            "BB08 aggressive allocation risk-budget multiplier",
+            "quantity",
+        ))
         # rebalance_frequency_minutes used to be req()'d here for coverage-
         # tracking only (never affected this method's real output -- the
         # real PyPortfolioOpt refit cadence is orchestrator.py's own
@@ -166,7 +192,7 @@ class PyPortfolioOptPositionManagerBox:
             return 0, trace
 
         usable_equity = available_equity * (1.0 - buffer_fraction)
-        allocation_scale = 1.5 if str(allocation_mode).lower() == "aggressive" else 1.0
+        allocation_scale = aggressive_scale if str(allocation_mode).lower() == "aggressive" else 1.0
         base_risk_budget = usable_equity * capital_fraction * size_multiplier * allocation_scale
 
         # Optimizer output is an allocation-quality signal, never permission
@@ -174,7 +200,11 @@ class PyPortfolioOptPositionManagerBox:
         # Equal weight is the neutral (1.0) reference.
         equal_weight = 1.0 / len(portfolio_weights) if portfolio_weights else 0.0
         symbol_weight = max(0.0, float(portfolio_weights.get(symbol, 0.0)))
-        conviction_derate = min(1.0, symbol_weight / equal_weight) if equal_weight > 0 else 0.0
+        conviction_derate = (
+            min(MAX_CONVICTION_DERATE, symbol_weight / equal_weight)
+            if equal_weight > 0
+            else 0.0
+        )
         risk_budget = base_risk_budget * conviction_derate
         raw_quantity = math.floor(risk_budget / risk_per_share)
 

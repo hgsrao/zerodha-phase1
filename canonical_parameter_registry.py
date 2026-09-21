@@ -60,7 +60,7 @@ class CanonicalParameterRegistry:
     # moved from 0.10% to 0.15%. Cross-session orders remain prohibited.
     # 2026-09-20: user-approved monotonic PA band defaults/ranges. Safety defaults unchanged.
     # BB04 expansion: 16 engineering-initial parameters; 85 targets / 63 eligible (not calibrated).
-    FROZEN_IDENTITY_SHA256 = "42d9b0a6fa8f82b3fb060be21ca5aa71a43f88dc6f23738c8fbf889b3d854bf1"
+    FROZEN_IDENTITY_SHA256 = "7f3616f8b948e821caa2ceb715f8a71b065e4e1db713c6b0f3623bb6136779ff"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -87,6 +87,11 @@ class CanonicalParameterRegistry:
         "max_retry_attempts",
         "max_sector_exposure_fraction",
         "max_symbol_concentration",
+        "portfolio_weight_refit_bars",
+        "portfolio_weight_lookback_minute_bars",
+        "portfolio_min_15min_observations",
+        "portfolio_aggressive_scale",
+        "portfolio_optimizer_risk_free_rate",
         "order_timeout_seconds",
         "order_type",
         "phase1_exploration_intensity",
@@ -170,6 +175,31 @@ class CanonicalParameterRegistry:
             ParameterSpec("capital_per_trade_fraction", "PositionManager", "float", 0.02, 0.005, 0.10, True, "Capital per trade fraction"),
             ParameterSpec("min_capital_buffer_fraction", "PositionManager", "float", 0.10, 0.05, 0.30, True, "Cash reserve fraction"),
             ParameterSpec("capital_allocation_mode", "PositionManager", "str", "equal", 0, 0, True, "Allocation mode"),
+            ParameterSpec(
+                "portfolio_weight_refit_bars", "PositionManager", "int",
+                500, 60, 2000, False,
+                "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 PyPortfolioOpt refit cadence in one-minute bars"
+            ),
+            ParameterSpec(
+                "portfolio_weight_lookback_minute_bars", "PositionManager", "int",
+                2000, 500, 10000, False,
+                "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 trailing one-minute history supplied to portfolio optimizer"
+            ),
+            ParameterSpec(
+                "portfolio_min_15min_observations", "PositionManager", "int",
+                100, 30, 500, False,
+                "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 minimum completed 15-minute observations before optimization"
+            ),
+            ParameterSpec(
+                "portfolio_aggressive_scale", "PositionManager", "float",
+                1.5, 1.0, 2.0, False,
+                "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 aggressive allocation risk-budget multiplier"
+            ),
+            ParameterSpec(
+                "portfolio_optimizer_risk_free_rate", "PositionManager", "float",
+                0.0, -0.05, 0.20, False,
+                "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 annual risk-free rate passed explicitly to max_sharpe"
+            ),
             ParameterSpec("trailing_stop_atr_mult", "MPC", "float", 5.5, 1.0, 8.0, True,
                            "Continuous exit-controller ATR trail multiplier (independent of the one-shot entry stop's stop_loss_atr_mult)"),
             ParameterSpec("drawdown_normal_threshold", "SafetyGates", "float", 0.10, 0.05, 0.20, True, "Normal drawdown threshold"),
@@ -212,6 +242,11 @@ class CanonicalParameterRegistry:
             ParameterSpec("max_concurrent_positions", "SafetyGates", "int", 5, 0, 0, False, "Concurrent positions cap"),
             ParameterSpec("max_gross_exposure_fraction", "SafetyGates", "float", 0.50, 0, 0, False, "Gross exposure cap"),
             ParameterSpec("max_market_data_age_seconds", "SafetyGates", "int", 30, 0, 0, False, "Market data age max"),
+            ParameterSpec(
+                "max_broker_offline_seconds", "SafetyGates", "int",
+                300, 0, 0, False,
+                "FIXED_SAFETY_ENVELOPE; BB07 Gate18 broker-offline circuit-breaker threshold"
+            ),
             ParameterSpec("max_exposure_per_symbol_fraction", "SafetyGates", "float", 0.15, 0, 0, False, "Per-symbol cap"),
             ParameterSpec("min_position_quantity", "SafetyGates", "int", 1, 0, 0, False, "Min qty"),
             ParameterSpec("max_position_quantity", "SafetyGates", "int", 100, 0, 0, False, "Max qty"),
@@ -226,6 +261,11 @@ class CanonicalParameterRegistry:
             ParameterSpec("max_reconciliation_qty_diff", "P01D", "int", 0, 0, 0, False, "Qty reconciliation diff"),
             ParameterSpec("max_slippage_fraction", "P01D", "float", 0.001, 0, 0, False, "Max slippage fraction"),
             ParameterSpec("no_entry_cutoff_time", "UnifiedExecution", "str", "15:20", 0, 0, False, "Cutoff time"),
+            ParameterSpec(
+                "force_close_time", "SafetyGates", "str",
+                "15:25", 0, 0, False,
+                "FIXED_SAFETY_ENVELOPE; BB07 forced-close threshold used by Gate17 and external orchestrator"
+            ),
         ]
 
         target_names = Revision2ParameterManifest.all_68()
@@ -273,13 +313,14 @@ class CanonicalParameterRegistry:
     def validate_contract(self) -> None:
         expected = Revision2ParameterManifest.all_68()
         # NOTE: Adding saturation_exit_bars (2025) expands from 68 → 69 total.
-        # BB04 adds 16: base_33() + revision2_35() = 33 + 52 = 85.
-        if len(expected) != 85 or len(set(expected)) != 85:
-            raise ValueError("Revision 2 target names must contain 85 unique values")
+        # BB04 added 16 and BB08 now adds 5 explicit fixed operational
+        # controls: base_33() + revision2_35() = 33 + 57 = 90.
+        if len(expected) != 90 or len(set(expected)) != 90:
+            raise ValueError("Revision 2 target names must contain 90 unique values")
         if set(expected) != set(self.params):
             raise ValueError("registry does not exactly match the Revision 2 manifest")
-        if len(self.safety_params) != 20:
-            raise ValueError("hardcoded safety layer must contain exactly 20 values")
+        if len(self.safety_params) != 22:
+            raise ValueError("hardcoded safety layer must contain exactly 22 values")
         if set(self.params) & set(self.safety_params):
             overlap = sorted(set(self.params) & set(self.safety_params))
             raise ValueError(f"target and safety surfaces must not overlap: {overlap}")
