@@ -652,7 +652,7 @@ def test_f11_cooldown_policy_is_not_calibratable():
 
     assert "bay_loss_cooldown_bars" not in registry.params
     assert "bay_loss_cooldown_bars" not in set(
-        trading_search_space(registry).names
+        trading_search_space(registry, engine="IN_HOUSE").names
     )
 
 
@@ -673,7 +673,7 @@ def test_f17_refit_cadence_is_not_calibratable():
     from revision2.calibration_supervisor import trading_search_space
 
     registry = CanonicalParameterRegistry()
-    search_names = set(trading_search_space(registry).names)
+    search_names = set(trading_search_space(registry, engine="IN_HOUSE").names)
 
     forbidden = {
         "rebalance_frequency_minutes",

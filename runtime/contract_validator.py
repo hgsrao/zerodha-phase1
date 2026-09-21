@@ -17,8 +17,15 @@ from runtime.operating_mode import (
 class ContractValidator:
     """Central validator for runtime config, calibration payloads, safety invariants, and orders."""
 
-    def __init__(self, registry: Optional[CanonicalParameterRegistry] = None):
+    def __init__(self, registry: Optional[CanonicalParameterRegistry] = None, *, engine: str):
+        """``engine`` ("IN_HOUSE" or "EXTERNAL") is mandatory: a calibration payload is
+        only valid for parameters the runtime's engine actually consumes.  An
+        engine-agnostic (union) check would admit another engine's parameters."""
         self.registry = registry or CanonicalParameterRegistry()
+        if engine is None:
+            raise ValueError("engine is required")
+        self.registry._check_engine(engine)
+        self.engine = engine
 
     def validate_runtime_config(self, config: RuntimeConfig) -> List[str]:
         gate = StartupGate()
@@ -41,7 +48,7 @@ class ContractValidator:
         return report["reasons"] if not report["passed"] else []
 
     def validate_calibration_payload(self, payload: Dict[str, Any]) -> List[str]:
-        return self.registry.validate_calibration_payload(payload)
+        return self.registry.validate_calibration_payload(payload, engine=self.engine)
 
     def validate_execution_payload(self, payload: Dict[str, Any]) -> List[str]:
         return self.registry.validate_execution_payload(payload)

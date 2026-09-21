@@ -62,7 +62,7 @@ class Revision2Orchestrator:
         self.symbol = symbol
         self.registry = registry or CanonicalParameterRegistry()
         overrides = calibration_overrides or {}
-        errors = self.registry.validate_calibration_payload(overrides)
+        errors = self.registry.validate_calibration_payload(overrides, engine="IN_HOUSE")
         if errors:
             raise ValueError(f"invalid calibration overrides: {errors}")
 
@@ -533,7 +533,7 @@ class Revision2Orchestrator:
         costs = self._transaction_costs()
         net_pnl = gross_pnl - costs["total_cost"]
 
-        target_names = set(self.registry.params)
+        target_names = set(self.registry.applicable_names("IN_HOUSE"))
         safety_names = set(self.registry.safety_params)
         coverage_target = sorted(target_names & self.consumed_parameters)
         coverage_missing = sorted(target_names - self.consumed_parameters)

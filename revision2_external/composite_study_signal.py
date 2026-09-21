@@ -79,12 +79,18 @@ import pandas as pd
 import talib
 from simple_pid import PID
 
+from revision2_external.bb05_bb06_parameters import default_config, require
+
 STUDY_NAMES = ("ichimoku", "bollinger", "stochastic", "session_vwap")
 
-_GRADING_HORIZON = 5   # bars after a vote before it's graded as hit/miss
-_HIT_RATE_WINDOW = 20  # bars of graded history averaged into a study's own hit rate
-_MIN_WEIGHT = 0.05     # a study can be down-weighted hard, never to zero (never silently deleted)
-_MAX_WEIGHT = 0.60     # and never let one study dominate the composite entirely
+# Grading horizon, hit-rate window and the PID gains/clamp are registry-owned
+# (studies_* in canonical_parameter_registry.py).  The weight bounds below are
+# FIXED_SAFETY_ENVELOPE values, deliberately not parameters.
+MIN_WEIGHT = 0.05  # a study can be down-weighted hard, never to zero (never silently deleted)
+MAX_WEIGHT = 0.60  # and never let one study dominate the composite entirely
+# Backward-compatible alias DERIVED from the registry default (not an owner);
+# existing tests use it as the default grading horizon.
+_GRADING_HORIZON = require(default_config(), "studies_grading_horizon_bars")
 
 
 def _clip(value: float, lo: float, hi: float) -> float:
@@ -191,9 +197,9 @@ def _indicator_inputs(timestamps: pd.Series, high: np.ndarray, low: np.ndarray,
 class _StudyState:
     weight: float
     pid: PID
-    vote_history: Deque[int] = field(default_factory=lambda: deque(maxlen=_GRADING_HORIZON + 1))
-    close_history: Deque[float] = field(default_factory=lambda: deque(maxlen=_GRADING_HORIZON + 1))
-    hit_history: Deque[int] = field(default_factory=lambda: deque(maxlen=_HIT_RATE_WINDOW))
+    vote_history: Deque[int]
+    close_history: Deque[float]
+    hit_history: Deque[int]
 
     @property
     def hit_rate(self) -> float:
@@ -206,9 +212,45 @@ class CompositeStudySignal:
     ContinuousExitController) -- mixing symbols would mix their hit-rate
     feedback and saturate weights regardless of either symbol's real behavior."""
 
-    def __init__(self, kp: float = 0.15, ki: float = 0.05, kd: float = 0.05, clamp: float = 0.15) -> None:
-        self.kp, self.ki, self.kd, self.clamp = kp, ki, kd, abs(clamp)
+    _NAMES = ("studies_pid_kp", "studies_pid_ki", "studies_pid_kd", "studies_pid_output_clamp",
+              "studies_grading_horizon_bars", "studies_hit_rate_window_bars")
+
+    def __init__(self, kp: float | None = None, ki: float | None = None, kd: float | None = None,
+                 clamp: float | None = None, config=None) -> None:
+        """Explicit kp/ki/kd/clamp override the config (legacy call style);
+        otherwise every control comes from the canonical registry."""
         self._symbols: Dict[str, Dict[str, _StudyState]] = {}
+        self.configure(config if config is not None else default_config())
+        if kp is not None:
+            self.kp = kp
+        if ki is not None:
+            self.ki = ki
+        if kd is not None:
+            self.kd = kd
+        if clamp is not None:
+            self.clamp = abs(clamp)
+
+    def configure(self, config) -> None:
+        """Refresh controls from ``config`` WITHOUT rebuilding any state.
+
+        Existing PID objects keep their integral/derivative memory; only their
+        tunings and output limits change.  Vote/close/hit histories are resized
+        in place keeping the newest entries (already-elapsed data only, so no
+        future information can enter).  All values validate before any mutation.
+        """
+        values = {name: require(config, name) for name in self._NAMES}
+        self.config = config
+        self.kp, self.ki, self.kd = (values[n] for n in self._NAMES[:3])
+        self.clamp = abs(values["studies_pid_output_clamp"])
+        self.grading_horizon = values["studies_grading_horizon_bars"]
+        self.hit_rate_window = values["studies_hit_rate_window_bars"]
+        for states in self._symbols.values():
+            for state in states.values():
+                state.pid.tunings = (self.kp, self.ki, self.kd)
+                state.pid.output_limits = (-self.clamp, self.clamp)
+                state.vote_history = deque(state.vote_history, maxlen=self.grading_horizon + 1)
+                state.close_history = deque(state.close_history, maxlen=self.grading_horizon + 1)
+                state.hit_history = deque(state.hit_history, maxlen=self.hit_rate_window)
 
     def _get_symbol_state(self, symbol: str) -> Dict[str, _StudyState]:
         if symbol not in self._symbols:
@@ -217,6 +259,9 @@ class CompositeStudySignal:
                     weight=1.0 / len(STUDY_NAMES),
                     pid=PID(Kp=self.kp, Ki=self.ki, Kd=self.kd, setpoint=0.5, sample_time=None,
                             output_limits=(-self.clamp, self.clamp)),
+                    vote_history=deque(maxlen=self.grading_horizon + 1),
+                    close_history=deque(maxlen=self.grading_horizon + 1),
+                    hit_history=deque(maxlen=self.hit_rate_window),
                 )
                 for name in STUDY_NAMES
             }
@@ -239,13 +284,13 @@ class CompositeStudySignal:
         current_close = float(close[-1])
         indicator_inputs = _indicator_inputs(bars["timestamp"], high, low, close, volume)
 
-        # Grade each study's vote from _GRADING_HORIZON bars ago, now that
+        # Grade each study's vote from ``grading_horizon`` bars ago, now that
         # horizon has genuinely elapsed -- no lookahead: only ever compares
         # a past vote to price movement that has actually happened by now.
         for name, state in states.items():
             state.vote_history.append(current_votes[name])
             state.close_history.append(current_close)
-            if len(state.vote_history) > _GRADING_HORIZON:
+            if len(state.vote_history) > self.grading_horizon:
                 past_vote = state.vote_history[0]
                 past_close = state.close_history[0]
                 if past_vote != 0:
@@ -273,7 +318,7 @@ class CompositeStudySignal:
             raw_output = float(state.pid(state.hit_rate, dt=1))
             adjustment = -raw_output
             base = 1.0 / len(STUDY_NAMES)
-            state.weight = _clip(base + adjustment, _MIN_WEIGHT, _MAX_WEIGHT)
+            state.weight = _clip(base + adjustment, MIN_WEIGHT, MAX_WEIGHT)
             weights[name] = state.weight
             weight_pid_audit[name] = {
                 "setpoint": float(cross_study_baseline),

@@ -55,8 +55,10 @@ class SearchSpace:
     is_int: Dict[str, bool]
 
     @staticmethod
-    def from_registry(registry: CanonicalParameterRegistry) -> "SearchSpace":
-        names = [n for n in registry.calibratable_names() if registry.get(n).param_type in ("int", "float")]
+    def from_registry(registry: CanonicalParameterRegistry, *, engine: str) -> "SearchSpace":
+        """``engine`` is mandatory: an optimizer may only search parameters its
+        engine actually consumes ("IN_HOUSE" or "EXTERNAL")."""
+        names = [n for n in registry.calibratable_names(engine) if registry.get(n).param_type in ("int", "float")]
         minimum = {n: float(registry.get(n).minimum) for n in names}
         maximum = {n: float(registry.get(n).maximum) for n in names}
         is_int = {n: registry.get(n).param_type == "int" for n in names}
@@ -328,7 +330,7 @@ class ThreePhaseCalibrationOrchestrator:
     def __init__(self, registry: CanonicalParameterRegistry, objective: Objective, seed: int = 0):
         self.registry = registry
         self.objective = objective
-        self.space = SearchSpace.from_registry(registry)
+        self.space = SearchSpace.from_registry(registry, engine=CanonicalParameterRegistry.ENGINE_IN_HOUSE)
         self.seed = seed
 
     def run(self, phase1_trials: Optional[int] = None, phase2_generations: int = 6, phase3_iterations: int = 20) -> CalibrationResult:

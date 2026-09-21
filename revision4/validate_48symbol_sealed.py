@@ -63,8 +63,8 @@ def _build_calibration_config(registry: CanonicalParameterRegistry, overrides=No
         except KeyError:
             invalid.append(f"unknown parameter {name}")
             continue
-        if not spec.calibratable:
-            invalid.append(f"immutable parameter {name}")
+        if not registry.is_calibratable(name, registry.ENGINE_IN_HOUSE):
+            invalid.append(f"immutable or non-in-house parameter {name}")
             continue
         if not hasattr(EffectiveConfig(), name):
             invalid.append(f"V3 config does not expose {name}")

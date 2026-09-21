@@ -69,7 +69,7 @@ class V3IntradayCalibrator:
             except KeyError:
                 invalid.append(f"unknown parameter {name}")
                 continue
-            if not spec.calibratable or spec.param_type not in ("int", "float"):
+            if not registry.is_calibratable(name, registry.ENGINE_IN_HOUSE) or spec.param_type not in ("int", "float"):
                 invalid.append(f"non-calibratable or non-numeric parameter {name}")
         if invalid:
             raise ValueError("invalid calibration surface: " + "; ".join(invalid))

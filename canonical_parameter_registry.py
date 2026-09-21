@@ -7,7 +7,7 @@ import hashlib
 import json
 import math
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from calibration_config import Revision2ParameterManifest
 
@@ -22,6 +22,11 @@ class ParameterSpec:
     maximum: Any
     calibratable: bool = True
     notes: str = ""
+    # Which engine(s) actually consume this parameter at runtime: "IN_HOUSE"
+    # (revision2/revision4), "EXTERNAL" (revision2_external + revision5) or
+    # "BOTH".  Deliberately independent of ``calibratable`` (may an optimizer
+    # move it at all?) -- an optimizer surface is calibratable AND applicable.
+    applicable_engines: str = "BOTH"
 
 
 class CanonicalParameterRegistry:
@@ -60,8 +65,9 @@ class CanonicalParameterRegistry:
     # moved from 0.10% to 0.15%. Cross-session orders remain prohibited.
     # 2026-09-20: user-approved monotonic PA band defaults/ranges. Safety defaults unchanged.
     # BB04 expansion: 16 engineering-initial parameters; 85 targets / 63 eligible (not calibrated).
-    # BB05-BB06 expansion: 29 engineering-initial parameters (5 fixed, non-optimizer); 114 targets / 87 eligible.
-    FROZEN_IDENTITY_SHA256 = "f499047bfe77e8b12feb650555702c81d0a9fef971a572ead235f94470b83a8b"
+    # Engine applicability: BB04(16)+BB05-BB06(29)+three-controller(22)=67 parameters are EXTERNAL-only (62 optimizer-eligible,
+    # 5 fixed); 136 targets. Optimizer surfaces are engine-scoped: see surface_counts().
+    FROZEN_IDENTITY_SHA256 = "e103019e83e384f7ddc9b410abdc860d3753386ba0d3450524d517519f0fc2ed"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -98,14 +104,69 @@ class CanonicalParameterRegistry:
         "symbols_to_trade",
         "trading_hours_end",
         "trading_hours_start",
-        # BB05/BB06 runtime-configurable but deliberately outside the optimizer:
-        # cost-model realism, numerical regularization, shadow/telemetry-only.
-        "mpc_base_slippage_fraction",
-        "mpc_shadow_r_gamma",
-        "mpc_slippage_vol_gain",
-        "id_variance_floor",
-        "id_initial_variance_regularizer",
     }
+    # ---- engine applicability (separate from calibration eligibility) ----
+    ENGINE_IN_HOUSE = "IN_HOUSE"
+    ENGINE_EXTERNAL = "EXTERNAL"
+    ENGINE_BOTH = "BOTH"
+    VALID_ENGINES = (ENGINE_IN_HOUSE, ENGINE_EXTERNAL)
+
+    # Parameters whose ONLY runtime consumer is the external engine
+    # (revision2_external, revision5).  Each was source-proved: the name has a
+    # consumer in revision2_external/revision5 and none anywhere in revision2/
+    # (the in-house engine) or revision4/.  They stay calibratable in
+    # principle; they simply are not part of the in-house search space.
+    EXTERNAL_ONLY_NAMES = frozenset({
+        # BB04 external Price-Action (revision2_external/indicators_talib.py)
+        "momentum_normalization_divisor", "pa_atr_absolute_floor",
+        "pa_atr_fallback_price_fraction", "pa_persistence_threshold_divisor",
+        "pa_persistence_bonus_gain", "pa_persistence_bonus_cap",
+        "pa_direction_activation_fraction", "pa_vwap_normalization_divisor",
+        "pa_volume_normalization_divisor", "pa_low_vol_ratio_boundary",
+        "pa_high_vol_ratio_boundary", "pa_persistence_lookback",
+        "pa_green_confidence_multiplier", "pa_amber_confidence_multiplier",
+        "pa_red_confidence_multiplier", "pa_auto_warmup_bars",
+        # BB05 (HMM regime / discrimination)
+        "id_feature_window", "id_refit_every_bars", "id_min_history_bars",
+        "id_volatility_window", "id_volatility_min_samples", "id_hmm_iterations",
+        "id_hmm_tolerance", "id_min_state_occupancy", "id_variance_ratio",
+        "id_slippage_cap", "id_slippage_gain", "id_reward_floor", "id_reward_gain",
+        "id_risk_floor", "id_risk_gain", "id_variance_floor",
+        "id_initial_variance_regularizer",
+        # BB06 (PID/MPC and continuous exit)
+        "mpc_entry_price_gain", "mpc_base_slippage_fraction", "mpc_time_decay_gain",
+        "mpc_shadow_r_gamma", "mpc_schedule_kp_gain", "mpc_schedule_ki_gain",
+        "mpc_schedule_kd_gain", "mpc_environment_lookback", "mpc_range_atr_period",
+        "mpc_range_fallback_fraction", "mpc_atr_floor_gain", "mpc_slippage_vol_gain",
+        # Studies PID / local signal weighting (CompositeStudySignal)
+        "studies_pid_kp", "studies_pid_ki", "studies_pid_kd", "studies_pid_output_clamp",
+        "studies_grading_horizon_bars", "studies_hit_rate_window_bars",
+        # CLOSED-LOOP SUPPORTING SUBSYSTEM (ClosedLoopSupervisor, ledger, profiler,
+        # HMM hysteresis).  NOT the ECS plant supervisor (grid -> sector demand),
+        # which has no coherent implementation yet.
+        "cl_outcome_min_history", "cl_confidence_offset_gain", "cl_confidence_offset_max",
+        "cl_dynamics_lookback_bars", "cl_dynamics_ema_span", "cl_response_time_min_bars",
+        "cl_response_time_max_bars", "cl_response_time_default_bars", "cl_damping_response_gain",
+        "cl_hmm_stress_enter", "cl_hmm_stress_exit", "cl_hmm_confirmation_bars",
+        "cl_hmm_smoothing_alpha", "cl_hmm_min_derate_step", "cl_hmm_deadband_derate",
+        "cl_portfolio_soft_budget_fraction",
+    })
+    # Consumed only by the in-house engine (revision2/, revision4/), never by the
+    # external engine.  learning_rate_exploration_factor feeds UnifiedExecutionBox's
+    # diagnostic exploration_bias, which every caller discards, so it is also FIXED
+    # (see FIXED_TARGET_NAMES): applicability does not imply optimizer eligibility.
+    IN_HOUSE_ONLY_NAMES = frozenset({"learning_rate_exploration_factor"})
+
+    # Runtime-configurable but deliberately never optimizer-eligible: cost-model
+    # realism, numerical regularization, shadow/telemetry-only.  Fixed regardless
+    # of engine applicability.
+    FIXED_TARGET_NAMES = FIXED_TARGET_NAMES | frozenset({
+        "mpc_base_slippage_fraction", "mpc_shadow_r_gamma", "mpc_slippage_vol_gain",
+        "id_variance_floor", "id_initial_variance_regularizer",
+        # Diagnostic-only meta parameter: same doctrine as the already-fixed
+        # phase1/phase2 intensities it is multiplied with (no trading effect).
+        "learning_rate_exploration_factor",
+    })
     APPROVED_CALIBRATABLE = set(Revision2ParameterManifest.all_68()) - FIXED_TARGET_NAMES
 
     def __init__(self):
@@ -144,6 +205,28 @@ class CanonicalParameterRegistry:
             ParameterSpec('mpc_range_fallback_fraction', 'MPC', 'float', 0.01, 0.005, 0.02, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Short-history range proxy fallback"),
             ParameterSpec('mpc_atr_floor_gain', 'MPC', 'float', 0.005, 0.0025, 0.01, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Volatility-scaled plan ATR floor before fixed envelope"),
             ParameterSpec('mpc_slippage_vol_gain', 'MPC', 'float', 0.5, 0.25, 1.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 DPC slippage volatility gain; advisory only"),
+            ParameterSpec('studies_pid_kp', 'PA', 'float', 0.15, 0.05, 0.3, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; STUDIES-PID Studies weight PID proportional gain"),
+            ParameterSpec('studies_pid_ki', 'PA', 'float', 0.05, 0.01, 0.15, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; STUDIES-PID Studies weight PID integral gain"),
+            ParameterSpec('studies_pid_kd', 'PA', 'float', 0.05, 0.01, 0.15, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; STUDIES-PID Studies weight PID derivative gain"),
+            ParameterSpec('studies_pid_output_clamp', 'PA', 'float', 0.15, 0.05, 0.25, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; STUDIES-PID Studies weight PID output/integral clamp"),
+            ParameterSpec('studies_grading_horizon_bars', 'PA', 'int', 5, 3, 10, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Bars before a study vote is graded"),
+            ParameterSpec('studies_hit_rate_window_bars', 'PA', 'int', 20, 10, 40, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Graded votes averaged into a study hit rate"),
+            ParameterSpec('cl_outcome_min_history', 'MPC', 'int', 20, 10, 40, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Outcome-ledger evidence scale, neutral-prior strength and active entry-quality gate"),
+            ParameterSpec('cl_confidence_offset_gain', 'MPC', 'float', 0.1, 0.05, 0.2, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Entry-quality confidence-offset gain"),
+            ParameterSpec('cl_confidence_offset_max', 'MPC', 'float', 0.05, 0.02, 0.08, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Entry-quality confidence-offset cap"),
+            ParameterSpec('cl_dynamics_lookback_bars', 'MPC', 'int', 60, 40, 120, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Symbol dynamics lookback"),
+            ParameterSpec('cl_dynamics_ema_span', 'MPC', 'int', 20, 10, 40, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Symbol dynamics EMA span"),
+            ParameterSpec('cl_response_time_min_bars', 'MPC', 'float', 5.0, 3.0, 10.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Reference-path response time lower bound"),
+            ParameterSpec('cl_response_time_max_bars', 'MPC', 'float', 45.0, 30.0, 60.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Reference-path response time upper bound"),
+            ParameterSpec('cl_response_time_default_bars', 'MPC', 'float', 20.0, 10.0, 30.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Nominal/fallback response time and gain-scale reference"),
+            ParameterSpec('cl_damping_response_gain', 'MPC', 'float', 2.0, 1.0, 3.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Damping-to-response-time gain"),
+            ParameterSpec('cl_hmm_stress_enter', 'MPC', 'float', 0.75, 0.7, 0.9, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM stress latch entry probability; range is an engineering stability envelope (NOT calibrated) disjoint from the exit range"),
+            ParameterSpec('cl_hmm_stress_exit', 'MPC', 'float', 0.55, 0.3, 0.65, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM stress latch release probability; range is an engineering stability envelope (NOT calibrated) kept strictly below the entry range so exit < enter always holds"),
+            ParameterSpec('cl_hmm_confirmation_bars', 'MPC', 'int', 3, 2, 6, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM latch/release confirmation bars"),
+            ParameterSpec('cl_hmm_smoothing_alpha', 'MPC', 'float', 0.25, 0.1, 0.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM posterior smoothing alpha"),
+            ParameterSpec('cl_hmm_min_derate_step', 'MPC', 'float', 0.15, 0.05, 0.25, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM minimum derate change"),
+            ParameterSpec('cl_hmm_deadband_derate', 'MPC', 'float', 0.9, 0.8, 0.95, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM derate snap-to-normal deadband"),
+            ParameterSpec('cl_portfolio_soft_budget_fraction', 'MPC', 'float', 0.75, 0.5, 0.9, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Portfolio soft exposure budget as a fraction of the hard limit"),
             ParameterSpec("momentum_normalization_divisor", "PA", "float", 3.0, 1.5, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Momentum amplitude"),
             ParameterSpec("pa_atr_absolute_floor", "PA", "float", 0.001, 0.0001, 0.01, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Absolute ATR fallback trigger and floor"),
             ParameterSpec("pa_atr_fallback_price_fraction", "PA", "float", 0.005, 0.0005, 0.01, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Price-relative ATR fallback"),
@@ -200,7 +283,7 @@ class CanonicalParameterRegistry:
             ParameterSpec("max_hold_bars", "MPC", "int", 60, 20, 120, True, "Maximum hold bars"),
             ParameterSpec("phase1_exploration_intensity", "UnifiedExecution", "int", 50, 30, 100, True, "Optimizer phase 1 exploration"),
             ParameterSpec("phase2_optimization_intensity", "UnifiedExecution", "int", 250, 100, 500, True, "Optimizer phase 2 intensity"),
-            ParameterSpec("learning_rate_exploration_factor", "UnifiedExecution", "float", 0.05, 0.01, 0.10, True, "Meta learning rate"),
+            ParameterSpec("learning_rate_exploration_factor", "UnifiedExecution", "float", 0.05, 0.01, 0.10, True, "Meta learning rate; DIAGNOSTIC_ONLY exploration_bias, never gates a trade; FIXED, not optimizer-eligible"),
             ParameterSpec("lot_size_by_symbol", "PositionManager", "dict", {}, 0, 0, True, "Per-symbol lot sizing"),
             ParameterSpec("max_positions_live", "PositionManager", "int", 5, 1, 12, True, "Max live positions"),
             ParameterSpec("max_positions_per_symbol", "PositionManager", "int", 1, 1, 3, True, "Max per symbol"),
@@ -269,6 +352,10 @@ class CanonicalParameterRegistry:
         calibratable = set(self.APPROVED_CALIBRATABLE) & set(target_names)
         for item in entries:
             item.calibratable = item.name in calibratable
+            if item.name in self.EXTERNAL_ONLY_NAMES:
+                item.applicable_engines = self.ENGINE_EXTERNAL
+            elif item.name in self.IN_HOUSE_ONLY_NAMES:
+                item.applicable_engines = self.ENGINE_IN_HOUSE
             self.params[item.name] = item
         for item in safety_entries:
             self.safety_params[item.name] = item
@@ -283,8 +370,48 @@ class CanonicalParameterRegistry:
     def hardcoded_20(self) -> List[str]:
         return sorted(self.safety_params)
 
-    def calibratable_names(self) -> List[str]:
-        return sorted([name for name, spec in self.params.items() if spec.calibratable])
+    def _check_engine(self, engine: Optional[str]) -> None:
+        if engine is not None and engine not in self.VALID_ENGINES:
+            raise ValueError(
+                f"unknown engine {engine!r}; expected one of {self.VALID_ENGINES} or None")
+
+    def is_calibratable(self, name: str, engine: Optional[str] = None) -> bool:
+        """True when ``name`` may be moved by an optimizer for ``engine``:
+        calibratable in principle AND consumed by that engine.  ``engine=None``
+        means "for any engine"."""
+        self._check_engine(engine)
+        spec = self.params[name]
+        if not spec.calibratable:
+            return False
+        return engine is None or spec.applicable_engines in (engine, self.ENGINE_BOTH)
+
+    def calibratable_names(self, engine: Optional[str] = None) -> List[str]:
+        """Optimizer-eligible names.  ``engine=None`` (legacy default) is the
+        union over engines; pass "IN_HOUSE" or "EXTERNAL" for the surface a
+        specific engine's optimizer may search."""
+        self._check_engine(engine)
+        return sorted(n for n in self.params if self.is_calibratable(n, engine))
+
+    def applicable_names(self, engine: str) -> List[str]:
+        """Every target parameter the given engine consumes (eligible or fixed),
+        used to scope parameter-coverage accounting per engine."""
+        self._check_engine(engine)
+        return sorted(n for n, s in self.params.items() if s.applicable_engines in (engine, self.ENGINE_BOTH))
+
+    def surface_counts(self) -> Dict[str, int]:
+        """Engine-scoped accounting (no single misleading "calibratable" number)."""
+        in_house = set(self.calibratable_names(self.ENGINE_IN_HOUSE))
+        external = set(self.calibratable_names(self.ENGINE_EXTERNAL))
+        return {
+            "total_targets": len(self.params),
+            "fixed_targets": len(self.fixed_target_names()),
+            "safety_params": len(self.safety_params),
+            "in_house_eligible": len(in_house),
+            "external_eligible": len(external),
+            "shared_eligible": len(in_house & external),
+            "external_only_eligible": len(external - in_house),
+            "in_house_only_eligible": len(in_house - external),
+        }
 
     def calibratable_45(self) -> List[str]:
         # Name kept for historical continuity (same reasoning as all_68()
@@ -296,7 +423,7 @@ class CanonicalParameterRegistry:
         # oos_calibration_engine.py, a discredited, unused scoring path
         # (see revision2/calibration_supervisor.py's own module docstring)
         # -- not part of any real calibration this project runs.
-        return self.calibratable_names()[:45]
+        return self.calibratable_names(self.ENGINE_IN_HOUSE)[:45]
 
     def hardcoded_names(self) -> List[str]:
         return self.hardcoded_20()
@@ -311,8 +438,8 @@ class CanonicalParameterRegistry:
         expected = Revision2ParameterManifest.all_68()
         # NOTE: Adding saturation_exit_bars (2025) expands from 68 → 69 total.
         # BB04 adds 16: base_33() + revision2_35() = 33 + 52 = 85.
-        if len(expected) != 114 or len(set(expected)) != 114:
-            raise ValueError("Revision 2 target names must contain 114 unique values")
+        if len(expected) != 136 or len(set(expected)) != 136:
+            raise ValueError("Revision 2 target names must contain 136 unique values")
         if set(expected) != set(self.params):
             raise ValueError("registry does not exactly match the Revision 2 manifest")
         if len(self.safety_params) != 20:
@@ -329,9 +456,20 @@ class CanonicalParameterRegistry:
         # tunable surface, not a bug.
         # Further expanded by saturation_exit_bars (2025) from 46 → 47, another
         # genuine calibratable addition to Box 6's exit control surface.
-        # BB04 now adds 16 eligible (NOT_CALIBRATED) parameters: 47 + 16 = 63.
-        if len(calibratable) != 87:
-            raise ValueError(f"optimizer surface must contain exactly 87 values; got {len(calibratable)}")
+        # BB04 adds 16, BB05-BB06 24 and the three-controller work 22 eligible
+        # (NOT_CALIBRATED) parameters, all EXTERNAL-only, on top of 46 shared ones
+        # (learning_rate_exploration_factor is now FIXED): 46 + 62 = 108 across
+        # engines.  The per-engine surfaces are the ones an optimizer may use:
+        # in-house 46, external 108 (46 shared + 62 external-only).
+        if len(calibratable) != 108:
+            raise ValueError(f"optimizer surface must contain exactly 108 values; got {len(calibratable)}")
+        counts = self.surface_counts()
+        if (counts["in_house_eligible"], counts["external_eligible"], counts["shared_eligible"],
+                counts["external_only_eligible"]) != (46, 108, 46, 62):
+            raise ValueError(f"engine-scoped optimizer surfaces changed unexpectedly: {counts}")
+        for name, spec in self.params.items():
+            if spec.applicable_engines not in (self.ENGINE_IN_HOUSE, self.ENGINE_EXTERNAL, self.ENGINE_BOTH):
+                raise ValueError(f"invalid applicable_engines for {name}: {spec.applicable_engines!r}")
         if set(self.APPROVED_CALIBRATABLE) != calibratable:
             missing = sorted(set(self.APPROVED_CALIBRATABLE) - calibratable)
             extra = sorted(calibratable - set(self.APPROVED_CALIBRATABLE))
@@ -357,13 +495,14 @@ class CanonicalParameterRegistry:
     def get(self, name: str) -> ParameterSpec:
         return self.params[name]
 
-    def validate_calibration_payload(self, payload: Dict[str, Any]) -> List[str]:
+    def validate_calibration_payload(self, payload: Dict[str, Any], engine: Optional[str] = None) -> List[str]:
         if not isinstance(payload, dict):
             return ["calibration payload must be a dictionary"]
 
         reasons: List[str] = []
         allowed = set(self.params)
-        calibratable = set(self.calibratable_names())
+        self._check_engine(engine)
+        calibratable = set(self.calibratable_names(engine))
 
         unknown = sorted(set(payload.keys()) - allowed)
         if unknown:
@@ -379,7 +518,8 @@ class CanonicalParameterRegistry:
                 continue
 
             if name not in calibratable:
-                reasons.append(f"parameter {name} is not part of the approved calibration surface")
+                reasons.append(f"parameter {name} is not part of the approved calibration surface"
+                               + (f" for engine {engine}" if engine else ""))
                 continue
 
             expected_type = spec.param_type

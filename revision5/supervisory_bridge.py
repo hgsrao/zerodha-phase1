@@ -422,7 +422,8 @@ class Revision5SupervisoryBridge:
                 {
                     "entry_confidence_threshold":
                         requested_entry_conf
-                }
+                },
+                engine="EXTERNAL",
             )
         )
 
