@@ -1,26 +1,33 @@
 """
-Revision 5 Heat Recovery Steam Generator (HRSG) Subsystem
-=========================================================
-Thermodynamic Analogue:
-  Captures surplus margin / exhaust capital from high-cycling gas turbine bays
-  (GTG1_HEAVY_INDUSTRY, GTG2_TECH_TELECOM) and injects regulated steam pressure
-  into baseload / damped steam turbine bays (CSTG1_BFSI, CSTG2_CONSUMER_AUTO, BPSTG_HEALTHCARE).
+Revision 5 Heat Recovery Steam Generator (HRSG)
+================================================
 
-Core Responsibilities:
-  1. Exhaust Capital Recovery:
-     Reallocates idle capacity when GTGs trip or enter dampening cooldowns.
-  2. Economizer Covariance Damper:
-     Pinch-point correlation monitor: penalizes bay weights when cross-bay
-     pairwise correlation rho exceeds the critical threshold (rho_crit = 0.65).
-  3. Superheater Excursion Boost:
-     Grants controlled AVR lot-sizing headroom to high-expectancy STG bays.
+Portfolio-control analogue of CCPP heat recovery.
+
+IMPORTANT:
+This module does NOT claim physical thermal efficiency.
+
+Its recovery_fraction, correlation threshold and superheat limits are
+frozen Revision-5 design constants pending replay/calibration evidence.
+
+Functions:
+1. Recover a controlled fraction of capital from unavailable GTG bays.
+2. Route recovered capacity only to healthy steam-turbine bays.
+3. Attenuate highly correlated bay allocations.
+4. Hold curtailed/damped capital in reserve rather than forcibly
+   redeploying it.
+5. Recommend bounded steam-bay AVR headroom.
+
+No broker I/O occurs here.
 """
 
 from __future__ import annotations
 
-import logging
-from typing import Dict, List, Tuple
-import numpy as np
+from collections import deque
+from dataclasses import dataclass
+from math import isfinite, sqrt
+from statistics import fmean
+from typing import Deque, Dict, Mapping, Optional, Tuple
 
 from revision5.topology import (
     BAY_IDS,
@@ -31,146 +38,695 @@ from revision5.topology import (
     BPSTG_HEALTHCARE,
 )
 
-logger = logging.getLogger("CCPP_HRSG_R5")
-if not logger.handlers:
-    ch = logging.StreamHandler()
-    ch.setFormatter(logging.Formatter("[%(asctime)s][%(levelname)s][%(name)s] %(message)s"))
-    logger.addHandler(ch)
-    logger.setLevel(logging.INFO)
 
-GAS_TURBINE_BAYS = (GTG1_HEAVY_INDUSTRY, GTG2_TECH_TELECOM)
-STEAM_TURBINE_BAYS = (CSTG1_BFSI, CSTG2_CONSUMER_AUTO, BPSTG_HEALTHCARE)
+GAS_TURBINE_BAYS = (
+    GTG1_HEAVY_INDUSTRY,
+    GTG2_TECH_TELECOM,
+)
+
+STEAM_TURBINE_BAYS = (
+    CSTG1_BFSI,
+    CSTG2_CONSUMER_AUTO,
+    BPSTG_HEALTHCARE,
+)
+
+
+@dataclass(frozen=True)
+class HRSGBalanceResult:
+    allocations: Dict[str, float]
+    reserve_cash: float
+    curtailed_gtg_capital: float
+    recovered_capital: float
+    correlation_penalties: Dict[str, float]
 
 
 class HeatRecoverySteamGenerator:
-    """CCPP Heat Recovery Steam Generator (HRSG) and Thermal Covariance Balancer."""
+    """
+    Execution-neutral HRSG capital-coupling controller.
+
+    recovery_fraction:
+        Fraction of curtailed GTG capital made available to healthy STGs.
+        This is NOT thermodynamic plant efficiency.
+
+    rho_crit:
+        Pairwise return-correlation threshold at which economizer
+        attenuation begins.
+
+    min_penalty_factor:
+        Maximum allowed correlation derating. 0.70 means a bay may be
+        reduced to 70% of its pre-damper allocation.
+
+    max_superheat_boost:
+        Maximum recommended STG AVR headroom factor above baseline.
+        The plant integration layer must still obey its hard AVR/OEL limit.
+    """
 
     def __init__(
         self,
+        *,
         base_plant_capital: float = 1_000_000.0,
+        recovery_fraction: float = 0.60,
         rho_crit: float = 0.65,
+        min_penalty_factor: float = 0.70,
         max_superheat_boost: float = 0.15,
+        correlation_window: int = 30,
+        min_correlation_samples: int = 6,
     ):
-        self.base_plant_capital = base_plant_capital
-        self.rho_crit = rho_crit
-        self.max_superheat_boost = max_superheat_boost
+        if base_plant_capital <= 0:
+            raise ValueError(
+                "base_plant_capital must be positive"
+            )
 
-        # Rolling returns buffer per bay for cross-bay correlation tracking
-        self.bay_returns: Dict[str, List[float]] = {b: [] for b in BAY_IDS}
+        if not 0.0 <= recovery_fraction <= 1.0:
+            raise ValueError(
+                "recovery_fraction must be in [0, 1]"
+            )
 
-    def record_bay_return(self, bay_id: str, ret: float) -> None:
-        """Record trade return for correlation tracking."""
-        if bay_id in self.bay_returns:
-            self.bay_returns[bay_id].append(float(ret))
-            if len(self.bay_returns[bay_id]) > 30:
-                self.bay_returns[bay_id].pop(0)
+        if not -1.0 < rho_crit < 1.0:
+            raise ValueError(
+                "rho_crit must be strictly between -1 and 1"
+            )
 
-    def calculate_cross_bay_correlations(self) -> Dict[Tuple[str, str], float]:
-        """Compute rolling pairwise correlation across active bays."""
-        correlations: Dict[Tuple[str, str], float] = {}
-        for i, bay_a in enumerate(BAY_IDS):
-            for bay_b in BAY_IDS[i + 1:]:
-                ret_a = self.bay_returns[bay_a]
-                ret_b = self.bay_returns[bay_b]
-                min_len = min(len(ret_a), len(ret_b))
-                if min_len < 6:
-                    correlations[(bay_a, bay_b)] = 0.0
+        if not 0.0 < min_penalty_factor <= 1.0:
+            raise ValueError(
+                "min_penalty_factor must be in (0, 1]"
+            )
+
+        if not 0.0 <= max_superheat_boost <= 1.0:
+            raise ValueError(
+                "max_superheat_boost must be in [0, 1]"
+            )
+
+        if correlation_window < min_correlation_samples:
+            raise ValueError(
+                "correlation_window must be >= min_correlation_samples"
+            )
+
+        if min_correlation_samples < 2:
+            raise ValueError(
+                "min_correlation_samples must be >= 2"
+            )
+
+        self.base_plant_capital = float(
+            base_plant_capital
+        )
+
+        self.recovery_fraction = float(
+            recovery_fraction
+        )
+
+        self.rho_crit = float(rho_crit)
+
+        self.min_penalty_factor = float(
+            min_penalty_factor
+        )
+
+        self.max_superheat_boost = float(
+            max_superheat_boost
+        )
+
+        self.correlation_window = int(
+            correlation_window
+        )
+
+        self.min_correlation_samples = int(
+            min_correlation_samples
+        )
+
+        # Synchronous per-bar/per-observation snapshots.
+        # This avoids falsely correlating returns from different timestamps.
+        self._return_snapshots: Deque[
+            Dict[str, float]
+        ] = deque(
+            maxlen=self.correlation_window
+        )
+
+    @staticmethod
+    def _validate_bay(
+        bay_id: str,
+    ) -> None:
+        if bay_id not in BAY_IDS:
+            raise ValueError(
+                f"Unknown Revision-5 bay: {bay_id!r}"
+            )
+
+    def record_return_snapshot(
+        self,
+        bay_returns: Mapping[str, float],
+    ) -> None:
+        """
+        Record one synchronous return observation.
+
+        Returns are decimal fractions:
+            +0.01 = +1%
+            -0.01 = -1%
+        """
+        if not bay_returns:
+            raise ValueError(
+                "bay_returns cannot be empty"
+            )
+
+        snapshot: Dict[str, float] = {}
+
+        for bay_id, value in bay_returns.items():
+            self._validate_bay(bay_id)
+
+            value = float(value)
+
+            if not isfinite(value):
+                raise ValueError(
+                    "bay return must be finite"
+                )
+
+            snapshot[bay_id] = value
+
+        self._return_snapshots.append(
+            snapshot
+        )
+
+    @staticmethod
+    def _pearson(
+        xs: list[float],
+        ys: list[float],
+    ) -> float:
+        if len(xs) != len(ys):
+            raise ValueError(
+                "correlation inputs must align"
+            )
+
+        if len(xs) < 2:
+            return 0.0
+
+        mean_x = fmean(xs)
+        mean_y = fmean(ys)
+
+        dx = [
+            value - mean_x
+            for value in xs
+        ]
+
+        dy = [
+            value - mean_y
+            for value in ys
+        ]
+
+        var_x = fmean(
+            value * value
+            for value in dx
+        )
+
+        var_y = fmean(
+            value * value
+            for value in dy
+        )
+
+        if var_x <= 1e-15 or var_y <= 1e-15:
+            return 0.0
+
+        covariance = fmean(
+            x * y
+            for x, y in zip(dx, dy)
+        )
+
+        corr = covariance / sqrt(
+            var_x * var_y
+        )
+
+        return max(
+            -1.0,
+            min(1.0, corr),
+        )
+
+    def calculate_cross_bay_correlations(
+        self,
+    ) -> Dict[Tuple[str, str], float]:
+
+        result: Dict[
+            Tuple[str, str],
+            float,
+        ] = {}
+
+        for index, bay_a in enumerate(
+            BAY_IDS
+        ):
+            for bay_b in BAY_IDS[
+                index + 1:
+            ]:
+                xs: list[float] = []
+                ys: list[float] = []
+
+                for snapshot in (
+                    self._return_snapshots
+                ):
+                    if (
+                        bay_a in snapshot
+                        and bay_b in snapshot
+                    ):
+                        xs.append(
+                            snapshot[bay_a]
+                        )
+                        ys.append(
+                            snapshot[bay_b]
+                        )
+
+                if (
+                    len(xs)
+                    < self.min_correlation_samples
+                ):
+                    result[
+                        (bay_a, bay_b)
+                    ] = 0.0
+
+                    continue
+
+                result[
+                    (bay_a, bay_b)
+                ] = self._pearson(
+                    xs,
+                    ys,
+                )
+
+        return result
+
+    def compute_economizer_penalties(
+        self,
+        bay_beta: Optional[
+            Mapping[str, float]
+        ] = None,
+    ) -> Dict[str, float]:
+        """
+        Return multiplicative allocation factors.
+
+        Without beta information:
+            both highly correlated bays are damped.
+
+        With beta information:
+            only the higher-beta member of a correlated pair is damped.
+            Equal beta values damp both.
+        """
+        if bay_beta is not None:
+            for bay_id, beta in bay_beta.items():
+                self._validate_bay(
+                    bay_id
+                )
+
+                if not isfinite(
+                    float(beta)
+                ):
+                    raise ValueError(
+                        "bay beta must be finite"
+                    )
+
+        penalties = {
+            bay_id: 1.0
+            for bay_id in BAY_IDS
+        }
+
+        correlations = (
+            self.calculate_cross_bay_correlations()
+        )
+
+        for (
+            bay_a,
+            bay_b,
+        ), corr in correlations.items():
+
+            if corr <= self.rho_crit:
+                continue
+
+            severity = (
+                (corr - self.rho_crit)
+                / (1.0 - self.rho_crit)
+            )
+
+            damper = (
+                1.0
+                - severity
+                * (
+                    1.0
+                    - self.min_penalty_factor
+                )
+            )
+
+            damper = max(
+                self.min_penalty_factor,
+                min(1.0, damper),
+            )
+
+            if (
+                bay_beta is not None
+                and bay_a in bay_beta
+                and bay_b in bay_beta
+            ):
+                beta_a = float(
+                    bay_beta[bay_a]
+                )
+
+                beta_b = float(
+                    bay_beta[bay_b]
+                )
+
+                if beta_a > beta_b:
+                    penalties[bay_a] = min(
+                        penalties[bay_a],
+                        damper,
+                    )
+
+                elif beta_b > beta_a:
+                    penalties[bay_b] = min(
+                        penalties[bay_b],
+                        damper,
+                    )
+
                 else:
-                    arr_a = np.array(ret_a[-min_len:], dtype=np.float64)
-                    arr_b = np.array(ret_b[-min_len:], dtype=np.float64)
-                    std_a = float(np.std(arr_a))
-                    std_b = float(np.std(arr_b))
-                    if std_a > 1e-6 and std_b > 1e-6:
-                        corr = float(np.corrcoef(arr_a, arr_b)[0, 1])
-                        correlations[(bay_a, bay_b)] = float(np.clip(corr, -1.0, 1.0))
-                    else:
-                        correlations[(bay_a, bay_b)] = 0.0
-        return correlations
+                    penalties[bay_a] = min(
+                        penalties[bay_a],
+                        damper,
+                    )
 
-    def compute_economizer_penalties(self) -> Dict[str, float]:
-        """
-        Pinch-Point Economizer:
-        If cross-bay correlation exceeds rho_crit, compute a dampening factor [0.70, 1.0].
-        """
-        corrs = self.calculate_cross_bay_correlations()
-        penalties = {b: 1.0 for b in BAY_IDS}
+                    penalties[bay_b] = min(
+                        penalties[bay_b],
+                        damper,
+                    )
 
-        for (bay_a, bay_b), corr in corrs.items():
-            if corr > self.rho_crit:
-                excess = corr - self.rho_crit
-                damper = max(0.70, 1.0 - (excess * 0.80))
-                penalties[bay_a] = min(penalties[bay_a], damper)
-                penalties[bay_b] = min(penalties[bay_b], damper)
-                logger.warning(
-                    f"HRSG Economizer Tripped: {bay_a} <-> {bay_b} rho={corr:.2f} > {self.rho_crit}. "
-                    f"Applying thermal damper {damper:.2f}"
+            else:
+                penalties[bay_a] = min(
+                    penalties[bay_a],
+                    damper,
+                )
+
+                penalties[bay_b] = min(
+                    penalties[bay_b],
+                    damper,
                 )
 
         return penalties
 
-    def harvest_exhaust_capital(
+    @staticmethod
+    def _cooldown_remaining(
+        state: Mapping[str, object],
+    ) -> int:
+        value = state.get(
+            "cooldown_bars_remaining",
+            0,
+        )
+
+        try:
+            remaining = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "cooldown_bars_remaining "
+                "must be an integer"
+            ) from exc
+
+        if remaining < 0:
+            raise ValueError(
+                "cooldown_bars_remaining "
+                "cannot be negative"
+            )
+
+        return remaining
+
+    def _is_unavailable(
         self,
-        bay_states: Dict[str, dict],
-        base_allocations: Dict[str, float],
-    ) -> Dict[str, float]:
-        """
-        Exhaust Capital Recirculation:
-        If a GTG bay is offline or cooling down, harvest its unused capital allocation
-        and route it into healthy steam turbine (STG) bays according to their baseload weights.
-        """
-        harvested_capital = 0.0
-        adjusted_allocations = dict(base_allocations)
+        state: Mapping[str, object],
+    ) -> bool:
 
-        # 1. Harvest idle exhaust capital from disabled/cooling gas turbines
-        for gtg_id in GAS_TURBINE_BAYS:
-            state = bay_states.get(gtg_id, {})
-            is_offline = state.get("tripped_offline", False)
-            in_cooldown = state.get("cooldown_cycles", 0) > 5
+        return bool(
+            state.get(
+                "tripped_offline",
+                False,
+            )
+        ) or (
+            self._cooldown_remaining(
+                state
+            )
+            > 0
+        )
 
-            if is_offline or in_cooldown:
-                surplus = adjusted_allocations[gtg_id] * 0.60  # Harvest 60% of dormant capital
-                adjusted_allocations[gtg_id] -= surplus
-                harvested_capital += surplus
-                logger.info(
-                    f"HRSG Flue-Gas Heat Captured: Harvesting ₹{surplus:,.2f} from {gtg_id} (offline/cooldown)"
+    def balance_capital(
+        self,
+        *,
+        bay_states: Mapping[
+            str,
+            Mapping[str, object],
+        ],
+        base_allocations: Mapping[
+            str,
+            float,
+        ],
+        bay_beta: Optional[
+            Mapping[str, float]
+        ] = None,
+    ) -> HRSGBalanceResult:
+        """
+        Apply GTG recovery + covariance damping.
+
+        Conservation rule:
+
+            active allocations + reserve cash
+            == base plant capital
+
+        The controller never scales allocations upward merely to force
+        100% deployment.
+        """
+        if set(bay_states) != set(BAY_IDS):
+            raise ValueError(
+                "bay_states must contain exactly "
+                "the five Revision-5 bays"
+            )
+
+        if set(base_allocations) != set(
+            BAY_IDS
+        ):
+            raise ValueError(
+                "base_allocations must contain "
+                "exactly the five Revision-5 bays"
+            )
+
+        allocations: Dict[
+            str,
+            float,
+        ] = {}
+
+        for bay_id in BAY_IDS:
+            amount = float(
+                base_allocations[bay_id]
+            )
+
+            if (
+                not isfinite(amount)
+                or amount < 0.0
+            ):
+                raise ValueError(
+                    "allocations must be "
+                    "finite and non-negative"
                 )
 
-        # 2. Inject harvested steam pressure into operational Steam Turbine Bays
-        if harvested_capital > 0:
-            active_stgs = [
-                b for b in STEAM_TURBINE_BAYS
-                if not bay_states.get(b, {}).get("tripped_offline", False)
+            allocations[bay_id] = amount
+
+        starting_allocated = sum(
+            allocations.values()
+        )
+
+        if (
+            starting_allocated
+            > self.base_plant_capital
+            + 1e-6
+        ):
+            raise ValueError(
+                "base allocations exceed "
+                "plant capital"
+            )
+
+        reserve_cash = (
+            self.base_plant_capital
+            - starting_allocated
+        )
+
+        curtailed_gtg_capital = 0.0
+        recovered_capital = 0.0
+
+        # Remove unavailable GTG allocations.
+        for gtg_id in GAS_TURBINE_BAYS:
+            if not self._is_unavailable(
+                bay_states[gtg_id]
+            ):
+                continue
+
+            source_capital = (
+                allocations[gtg_id]
+            )
+
+            allocations[gtg_id] = 0.0
+
+            curtailed_gtg_capital += (
+                source_capital
+            )
+
+            recovered = (
+                source_capital
+                * self.recovery_fraction
+            )
+
+            recovered_capital += recovered
+
+            # Unrecovered portion remains reserve.
+            reserve_cash += (
+                source_capital
+                - recovered
+            )
+
+        # Route recovered capital only to healthy STGs.
+        active_stgs = [
+            bay_id
+            for bay_id in STEAM_TURBINE_BAYS
+            if not self._is_unavailable(
+                bay_states[bay_id]
+            )
+        ]
+
+        if recovered_capital > 0.0:
+            if not active_stgs:
+                reserve_cash += (
+                    recovered_capital
+                )
+
+            else:
+                baseload_total = sum(
+                    base_allocations[
+                        bay_id
+                    ]
+                    for bay_id
+                    in active_stgs
+                )
+
+                if baseload_total > 0.0:
+                    for bay_id in (
+                        active_stgs
+                    ):
+                        share = (
+                            recovered_capital
+                            * base_allocations[
+                                bay_id
+                            ]
+                            / baseload_total
+                        )
+
+                        allocations[
+                            bay_id
+                        ] += share
+
+                else:
+                    equal_share = (
+                        recovered_capital
+                        / len(active_stgs)
+                    )
+
+                    for bay_id in (
+                        active_stgs
+                    ):
+                        allocations[
+                            bay_id
+                        ] += equal_share
+
+        penalties = (
+            self.compute_economizer_penalties(
+                bay_beta=bay_beta
+            )
+        )
+
+        # Correlation derating goes to reserve.
+        for bay_id in BAY_IDS:
+            before = allocations[
+                bay_id
             ]
-            if active_stgs:
-                stg_share = harvested_capital / len(active_stgs)
-                for b in active_stgs:
-                    adjusted_allocations[b] += stg_share
-                    logger.info(f"HRSG Steam Injection: Routing ₹{stg_share:,.2f} to {b}")
 
-        # 3. Apply Pinch-point economizer penalties
-        penalties = self.compute_economizer_penalties()
-        for b in BAY_IDS:
-            adjusted_allocations[b] *= penalties[b]
+            after = (
+                before
+                * penalties[bay_id]
+            )
 
-        # 4. Normalize sum of allocations to base_plant_capital
-        total_adj = sum(adjusted_allocations.values())
-        if total_adj > 0:
-            scale = self.base_plant_capital / total_adj
-            for b in BAY_IDS:
-                adjusted_allocations[b] = round(adjusted_allocations[b] * scale, 2)
+            allocations[bay_id] = after
+            reserve_cash += (
+                before - after
+            )
 
-        return adjusted_allocations
+        conserved = (
+            sum(allocations.values())
+            + reserve_cash
+        )
 
-    def get_superheat_headroom(self, bay_id: str, win_rate_r: float) -> float:
+        if abs(
+            conserved
+            - self.base_plant_capital
+        ) > 1e-6:
+            raise RuntimeError(
+                "HRSG capital conservation "
+                "invariant violated"
+            )
+
+        return HRSGBalanceResult(
+            allocations=allocations,
+            reserve_cash=reserve_cash,
+            curtailed_gtg_capital=(
+                curtailed_gtg_capital
+            ),
+            recovered_capital=(
+                recovered_capital
+            ),
+            correlation_penalties=(
+                penalties
+            ),
+        )
+
+    def superheat_headroom_factor(
+        self,
+        *,
+        bay_id: str,
+        recent_expectancy_r: float,
+    ) -> float:
         """
-        Superheater Duct Firing:
-        Expands AVR lot sizing ceiling by up to 15% when a steam bay maintains strong expectancy.
-        """
-        if bay_id not in STEAM_TURBINE_BAYS:
-            return 1.0  # Gas turbines do not receive steam superheat
+        Return a bounded STG headroom recommendation.
 
-        if win_rate_r >= 0.60:
-            return 1.0 + self.max_superheat_boost
-        elif win_rate_r >= 0.45:
-            return 1.0 + (self.max_superheat_boost * 0.50)
+        +0.60 means +0.60R average expectancy,
+        NOT a 60% win rate.
+
+        This factor must still be clamped by the hard AVR/OEL
+        protection layer when integration occurs.
+        """
+        self._validate_bay(
+            bay_id
+        )
+
+        expectancy = float(
+            recent_expectancy_r
+        )
+
+        if not isfinite(
+            expectancy
+        ):
+            raise ValueError(
+                "recent_expectancy_r "
+                "must be finite"
+            )
+
+        if bay_id not in (
+            STEAM_TURBINE_BAYS
+        ):
+            return 1.0
+
+        if expectancy >= 0.60:
+            return (
+                1.0
+                + self.max_superheat_boost
+            )
+
+        if expectancy >= 0.45:
+            return (
+                1.0
+                + 0.50
+                * self.max_superheat_boost
+            )
+
         return 1.0
