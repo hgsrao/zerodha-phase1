@@ -96,7 +96,7 @@ def main() -> None:
         raise ValueError("end-exclusive must be after start")
 
     registry = CanonicalParameterRegistry()
-    errors = registry.validate_calibration_payload({"max_hold_bars": args.max_hold_bars})
+    errors = registry.validate_calibration_payload({"max_hold_bars": args.max_hold_bars}, engine="EXTERNAL")
     if errors:
         raise ValueError(f"invalid max_hold_bars: {errors}")
     manifest = DatasetManifest.load(str(MANIFEST_PATH))

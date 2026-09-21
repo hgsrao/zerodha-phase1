@@ -63,7 +63,7 @@ def validate_search_surface(registry: CanonicalParameterRegistry, names: tuple[s
         except KeyError:
             invalid.append(f"{name}: unknown parameter")
             continue
-        if not spec.calibratable or spec.param_type not in {"int", "float"}:
+        if not registry.is_calibratable(name, registry.ENGINE_EXTERNAL) or spec.param_type not in {"int", "float"}:
             invalid.append(f"{name}: not a numeric calibratable economic parameter")
     if invalid:
         raise ValueError("invalid calibration surface: " + "; ".join(invalid))
@@ -130,7 +130,7 @@ def _run_replay(
     bars: dict[str, pd.DataFrame],
     params: dict[str, Any],
 ) -> dict[str, Any]:
-    errors = registry.validate_calibration_payload(params)
+    errors = registry.validate_calibration_payload(params, engine="EXTERNAL")
     if errors:
         raise ValueError("candidate violates registry calibration contract: " + "; ".join(errors))
     orchestrator = Revision2ExternalEngineOrchestrator(

@@ -159,12 +159,14 @@ def test_registry_identity_metadata_and_bounds():
     new = [spec for spec in registry.params.values()
            if "ENGINEERING_INITIAL_VALUE" in spec.notes and "BB04" in spec.notes]
     assert len(new) == 16
-    assert len(registry.params) == 114
-    assert len(registry.calibratable_names()) == 87
+    assert len(registry.params) == 136
+    assert len(registry.calibratable_names()) == 108
+    assert len(registry.calibratable_names("IN_HOUSE")) == 46
     for spec in new:
         assert spec.black_box == "PA"
         assert spec.minimum <= spec.default <= spec.maximum
         assert spec.calibratable
+        assert spec.applicable_engines == "EXTERNAL"
         assert "NOT_CALIBRATED" in spec.notes
         for invalid in (spec.minimum - 1, spec.maximum + 1):
             values = {key: item.default for key, item in registry.params.items()}

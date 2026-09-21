@@ -31,18 +31,18 @@ def _quadratic_objective(space, target_unit):
 
 
 class TestSearchSpace(unittest.TestCase):
-    def test_space_covers_the_46_numeric_calibratable_parameters(self):
+    def test_space_covers_the_45_numeric_calibratable_parameters(self):
         registry = CanonicalParameterRegistry()
-        space = SearchSpace.from_registry(registry)
-        # 47 calibratable minus the one string-typed one (capital_allocation_mode).
-        self.assertEqual(len(space.names), 46)
+        space = SearchSpace.from_registry(registry, engine="IN_HOUSE")
+        # 46 in-house calibratable minus the one string-typed one (capital_allocation_mode).
+        self.assertEqual(len(space.names), 45)
         self.assertNotIn("capital_allocation_mode", space.names)
         for name in space.names:
-            self.assertIn(name, registry.calibratable_names())
+            self.assertIn(name, registry.calibratable_names("IN_HOUSE"))
 
     def test_unit_vector_round_trip(self):
         registry = CanonicalParameterRegistry()
-        space = SearchSpace.from_registry(registry)
+        space = SearchSpace.from_registry(registry, engine="IN_HOUSE")
         point = space.random_point(__import__("random").Random(1))
         vec = space.to_unit_vector(point)
         self.assertTrue(np.all(vec >= -1e-9) and np.all(vec <= 1 + 1e-9))
@@ -55,7 +55,7 @@ class TestSearchAlgorithmsOnSyntheticObjective(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.registry = CanonicalParameterRegistry()
-        cls.space = SearchSpace.from_registry(cls.registry)
+        cls.space = SearchSpace.from_registry(cls.registry, engine="IN_HOUSE")
         cls.target = np.full(len(cls.space.names), 0.7)
         # staticmethod() prevents the plain closure from being turned into a
         # bound method (with an implicit `self`) when accessed via `self.`.

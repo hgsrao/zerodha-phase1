@@ -84,7 +84,7 @@ def test_full_engine_runs_on_real_data_and_produces_real_trades():
     # correctly, because it always was.
     expected_missing = {
         "data_validation_mode",  # Pandera certification has no strict/lenient mode toggle
-        "learning_rate_exploration_factor", "phase1_exploration_intensity", "phase2_optimization_intensity",
+        "phase1_exploration_intensity", "phase2_optimization_intensity",
         "max_symbol_concentration",  # replaced by PyPortfolioOpt weights
     }
     assert set(coverage["target_missing"]) == expected_missing, (

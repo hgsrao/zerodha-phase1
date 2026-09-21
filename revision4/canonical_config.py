@@ -21,7 +21,7 @@ class CanonicalConfigBuilder:
         self.registry.verify_frozen_identity()
         print(f"✓ Canonical registry loaded and verified (ECS_REVISION_2_PARAMETER_SURFACE_V3)")
         print(f"  Total parameters: {self.registry.total_target_surface()}")
-        print(f"  Calibratable: {len(self.registry.calibratable_names())}")
+        print(f"  Calibratable: {len(self.registry.calibratable_names(self.registry.ENGINE_IN_HOUSE))}")
         print(f"  Safety (immutable): {len(self.registry.hardcoded_names())}")
 
     def get_calibratable_config(self, overrides: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -39,7 +39,7 @@ class CanonicalConfigBuilder:
 
         # Add only calibratable parameters
         for name, spec in self.registry.params.items():
-            if spec.calibratable:
+            if self.registry.is_calibratable(name, self.registry.ENGINE_IN_HOUSE):
                 config[name] = overrides.get(name, spec.default) if overrides else spec.default
 
         return config
@@ -59,7 +59,7 @@ class CanonicalConfigBuilder:
 
         # Add calibratable parameters with optional overrides
         for name, spec in self.registry.params.items():
-            if spec.calibratable:
+            if self.registry.is_calibratable(name, self.registry.ENGINE_IN_HOUSE):
                 config_dict[name] = (
                     calibratable_overrides.get(name, spec.default)
                     if calibratable_overrides
@@ -111,7 +111,7 @@ class CanonicalConfigBuilder:
 
     def get_calibratable_params(self) -> Dict[str, ParameterSpec]:
         """Get only the 47 calibratable parameters."""
-        calibratable_names = self.registry.calibratable_names()
+        calibratable_names = self.registry.calibratable_names(self.registry.ENGINE_IN_HOUSE)
         return {name: self.registry.params[name] for name in calibratable_names}
 
     def get_safety_params(self) -> Dict[str, ParameterSpec]:
@@ -125,7 +125,7 @@ class CanonicalConfigBuilder:
         print("="*80)
 
         print(f"\nTotal Parameters: {self.registry.total_target_surface()}")
-        print(f"  Calibratable: {len(self.registry.calibratable_names())}")
+        print(f"  Calibratable: {len(self.registry.calibratable_names(self.registry.ENGINE_IN_HOUSE))}")
         print(f"  Safety (fixed): {len(self.registry.hardcoded_names())}")
 
         # Group by box

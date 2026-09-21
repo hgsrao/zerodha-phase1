@@ -42,7 +42,7 @@ from gates_framework import EntryDecisionEngine, EntrySignal, SafetyGateConfig, 
 from revision2.boxes import P01DBox, SafetyGatesTargetBox
 from revision2.contracts import EffectiveConfig, MarketSnapshot, SafetyContract, StartupCertificate, StartupNotCertifiedError
 from revision2.portfolio_orchestrator import SECTOR_MAP, _ClockEvent
-from revision2_external.composite_study_signal import CompositeStudySignal
+from revision2_external.composite_study_signal import CompositeStudySignal, MAX_WEIGHT, MIN_WEIGHT
 from revision2_external.closed_loop_control import ClosedLoopSupervisor, HMMRiskHysteresis, regime_risk_derate
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars, certify_session_completeness
@@ -133,7 +133,7 @@ class Revision2ExternalEngineOrchestrator:
         if risk_profile == "trial":
             self.registry = self.registry.trial_profile()
         overrides = calibration_overrides or {}
-        errors = self.registry.validate_calibration_payload(overrides)
+        errors = self.registry.validate_calibration_payload(overrides, engine="EXTERNAL")
         if errors:
             raise ValueError(f"invalid calibration overrides: {errors}")
 
@@ -190,7 +190,7 @@ class Revision2ExternalEngineOrchestrator:
         # defaults, not yet exposed as registry-calibratable parameters
         # (same "disclosed first cut, not swept" discipline this
         # project's own prior chart-studies work used for its thresholds).
-        self.chart_studies = CompositeStudySignal()
+        self.chart_studies = CompositeStudySignal(config=self.config)
         self.final_execution_controller = FinalExecutionController()
         self.id_box = HMMIntelligentDiscriminationBox(config=self.config)
         self.mpc = SimplePIDModelPredictiveControlBox(pid_enabled=pid_mode == "enabled")
@@ -251,14 +251,18 @@ class Revision2ExternalEngineOrchestrator:
             "pid_kp_exit", "pid_ki_exit", "pid_kd_exit", "pid_integral_max_clamp",
             "pid_integral_window_bars", "trailing_stop_atr_mult", "saturation_exit_bars",
             "mpc_time_decay_gain", "mpc_shadow_r_gamma", "mpc_base_slippage_fraction",
+            "studies_pid_kp", "studies_pid_ki", "studies_pid_kd", "studies_pid_output_clamp",
+            "studies_grading_horizon_bars", "studies_hit_rate_window_bars",
         })
         self._exit_controller_states: Dict[str, ExitControllerState] = {}
         # Three-loop supervisory layer. ``shadow`` records comparators only;
         # ``active_paper`` permits bounded, one-way paper actuations only:
         # entry/portfolio loops can reduce size, and the path loop can only
         # tighten a stop. Neither mode can weaken a safety constraint.
-        self.closed_loop = ClosedLoopSupervisor()
+        self.closed_loop = ClosedLoopSupervisor(config=self.config)
         self._hmm_risk_hysteresis: Dict[str, HMMRiskHysteresis] = {}
+        self.consumed_parameters.update(
+            name for name in self.registry.params if name.startswith("cl_"))
 
         self.startup_certificate = self._issue_startup_certificate()
 
@@ -629,7 +633,7 @@ class Revision2ExternalEngineOrchestrator:
             # These bounds are owned by CompositeStudySignal.  This is a
             # passive audit label only; it cannot influence the controller.
             study_weights_clamped = any(
-                weight <= 0.05 + 1e-12 or weight >= 0.60 - 1e-12
+                weight <= MIN_WEIGHT + 1e-12 or weight >= MAX_WEIGHT - 1e-12
                 for weight in study_weights.values()
             )
             self._record_controller_event("EXIT_PROTECTION_UPDATE", timestamp, symbol, {
@@ -812,6 +816,7 @@ class Revision2ExternalEngineOrchestrator:
             for idx in range(min(warmup, len(bars))):
                 snapshot = MarketSnapshot(symbol, str(bars.iloc[idx]["timestamp"]), bars.iloc[:idx + 1])
                 warm_signal, _ = self.pa.evaluate(snapshot, self.config)
+                self.chart_studies.configure(self.config)
                 self.chart_studies.evaluate(symbol, snapshot.bars)
                 if warm_signal.direction == 0:
                     self.id_box._current_regime(symbol, float(bars.iloc[idx]["close"]))
@@ -951,6 +956,8 @@ class Revision2ExternalEngineOrchestrator:
                 # merged with PA's confidence, never touching entry
                 # (ID/MPC) at all. See continuous_exit_controller.py's
                 # module docstring for the two-track design.
+                self.chart_studies.configure(self.config)
+                self.closed_loop.configure(self.config)
                 composite_result = self.chart_studies.evaluate(symbol, snapshot.bars)
                 chart_studies_confidence = float(composite_result["confidence"])
 
@@ -978,6 +985,7 @@ class Revision2ExternalEngineOrchestrator:
                 # its own sealed out-of-sample study earns that authority.
                 regime_observation = self.id_box.latest_regime_observation(symbol)
                 hysteresis = self._hmm_risk_hysteresis.setdefault(symbol, HMMRiskHysteresis())
+                hysteresis.configure(self.config)  # controls refresh; latch/filter state preserved
                 self._record_controller_event("HMM_REGIME_RISK_SHADOW", timestamp, symbol, {
                     "candidate_id": f"candidate-preview-{self._controller_sequence + 1}",
                     "id_approved": decision.approved, "id_reason": decision.reason,
@@ -1176,7 +1184,7 @@ class Revision2ExternalEngineOrchestrator:
                 size_mult *= pid_info["entry_timing_multiplier"]
                 if (
                     self.closed_loop_mode == "active_paper"
-                    and entry_quality["symbol_regime_samples"] >= 20
+                    and entry_quality["symbol_regime_samples"] >= self.closed_loop.outcomes.minimum_history
                     and float(decision.confidence) < float(self.config.require("entry_confidence_threshold"))
                     + float(entry_quality["suggested_confidence_offset"])
                 ):
@@ -1196,6 +1204,7 @@ class Revision2ExternalEngineOrchestrator:
                 equity_now = self._equity()
                 portfolio_observation = self.closed_loop.observe_portfolio_risk(
                     self._gross_exposure_notional(), equity_now, max_gross_fraction,
+                    soft_budget_fraction=self.closed_loop.soft_budget_fraction,
                 )
                 self._record_controller_event("PORTFOLIO_RISK_COMPARATOR", timestamp, symbol, {
                     "candidate_id": candidate_id, **portfolio_observation,
@@ -1419,7 +1428,7 @@ class Revision2ExternalEngineOrchestrator:
         gross_pnl = self.broker.realized_pnl
         assert abs(gross_pnl - sum(t["pnl"] for t in self.completed_trades)) < 1e-6
 
-        target_names = set(self.registry.params)
+        target_names = set(self.registry.applicable_names("EXTERNAL"))
         safety_names = set(self.registry.safety_params)
         coverage_target = sorted(target_names & self.consumed_parameters)
 

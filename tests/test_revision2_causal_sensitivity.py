@@ -111,11 +111,9 @@ class TestCausalEndToEndSensitivity(unittest.TestCase):
         # behavior, not a bug fix.
         "max_positions_live": "single-symbol run never has concurrent positions to cap",
         "max_positions_per_symbol": "permanently masked by the single-position-per-symbol guard in both orchestrators, not just this fixture",
-        # Optimizer/meta-learning control, not a per-bar trading parameter:
-        # it governs how an optimizer explores the search space, not any
-        # single backtest's decisions. Its causal effect belongs in a test
-        # of the optimizer loop, not a single orchestrator run.
-        "learning_rate_exploration_factor": "optimizer-level meta-parameter, not a per-bar trading input",
+        # learning_rate_exploration_factor is no longer listed here: it is now FIXED
+        # (non-calibratable, diagnostic-only exploration_bias), so it can no longer be
+        # overridden through a calibration payload and needs no inertness guard.
         # Verified (see this file's own investigation): with the fixed,
         # non-calibratable max_symbol_concentration at its default (0.05),
         # the concentration cap is the binding sizing constraint across the
@@ -171,7 +169,7 @@ class TestCausalEndToEndSensitivity(unittest.TestCase):
     }
 
     def test_every_calibratable_parameter_changes_the_real_trade_ledger(self):
-        calibratable = sorted(self.registry.calibratable_names())
+        calibratable = sorted(self.registry.calibratable_names("IN_HOUSE"))
         # Sweep the authoritative current registry rather than asserting
         # a historical fixed count.
         self.assertGreater(len(calibratable), 0)

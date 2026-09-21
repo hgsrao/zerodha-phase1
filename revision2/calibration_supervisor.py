@@ -46,8 +46,8 @@ from revision2.optimizer import CMAES, RandomSearch, SearchSpace, TPESampler, Tr
 from revision2.portfolio_orchestrator import Revision2PortfolioOrchestrator
 
 # Optimizer-run controls, not trading behavior — excluded from the trading
-# search space even though learning_rate_exploration_factor is numerically
-# calibratable in the canonical registry. Its only current runtime effect
+# search space (learning_rate_exploration_factor is now also FIXED in the
+# canonical registry; this set stays as defence in depth). Its only runtime effect
 # is a diagnostic exploration_bias value in UnifiedExecutionBox, never a
 # trading decision, so calibrating it as if it changed trade outcomes would
 # be spending search budget on a parameter the ledger can't see.
@@ -77,8 +77,8 @@ CALIBRATION_CONTROL_PARAMS = {
 DEAD_PARAMS_UNTIL_MULTI_LOT_SUPPORT = {"max_positions_per_symbol"}
 
 
-def trading_search_space(registry: CanonicalParameterRegistry) -> SearchSpace:
-    space = SearchSpace.from_registry(registry)
+def trading_search_space(registry: CanonicalParameterRegistry, *, engine: str) -> SearchSpace:
+    space = SearchSpace.from_registry(registry, engine=engine)
     excluded = CALIBRATION_CONTROL_PARAMS | DEAD_PARAMS_UNTIL_MULTI_LOT_SUPPORT
     keep = [n for n in space.names if n not in excluded]
     return SearchSpace(
@@ -456,7 +456,7 @@ class CalibrationSupervisor:
         self.starting_equity = starting_equity
         self.sector_map = sector_map
         self.orchestrator_class = orchestrator_class
-        self.space = trading_search_space(registry)
+        self.space = trading_search_space(registry, engine=CanonicalParameterRegistry.ENGINE_IN_HOUSE)
         excluded = getattr(orchestrator_class, "INACTIVE_CALIBRATION_PARAMETERS", frozenset())
         self.space = SearchSpace(
             names=[n for n in self.space.names if n not in excluded],

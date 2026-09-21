@@ -47,15 +47,17 @@ def _symbol_bars(seed: int, rows: int = 300) -> pd.DataFrame:
 class TestCalibrationControlSeparation(unittest.TestCase):
     def test_learning_rate_excluded_from_trading_search_space(self):
         registry = CanonicalParameterRegistry()
-        space = trading_search_space(registry)
+        space = trading_search_space(registry, engine="IN_HOUSE")
         for name in CALIBRATION_CONTROL_PARAMS:
             self.assertNotIn(name, space.names)
         # It's excluded FROM the trading search, not deleted from the
         # registry — the canonical count and frozen identity hash are
-        # untouched by this exclusion (47 after the trailing-stop and
-        # saturation-exit additions; see FROZEN_IDENTITY_SHA256's comment).
-        self.assertIn("learning_rate_exploration_factor", registry.calibratable_names())
-        self.assertEqual(len(registry.calibratable_names()), 47)
+        # untouched by this exclusion.  It is a diagnostic-only meta parameter and is
+        # FIXED in the registry (never optimizer-eligible for any engine).
+        self.assertIn("learning_rate_exploration_factor", registry.params)
+        self.assertIn("learning_rate_exploration_factor", registry.fixed_target_names())
+        self.assertNotIn("learning_rate_exploration_factor", registry.calibratable_names())
+        self.assertEqual(len(registry.calibratable_names("IN_HOUSE")), 46)
 
     def test_max_positions_per_symbol_excluded_from_trading_search_space(self):
         # It's a genuine registry parameter and passes PositionManagerBox's
@@ -65,7 +67,7 @@ class TestCalibrationControlSeparation(unittest.TestCase):
         # -- see DEAD_PARAMS_UNTIL_MULTI_LOT_SUPPORT's comment and
         # tests/test_revision2_causal_sensitivity.py for the causal proof.
         registry = CanonicalParameterRegistry()
-        space = trading_search_space(registry)
+        space = trading_search_space(registry, engine="IN_HOUSE")
         self.assertNotIn("max_positions_per_symbol", space.names)
         self.assertIn("max_positions_per_symbol", registry.calibratable_names())
 

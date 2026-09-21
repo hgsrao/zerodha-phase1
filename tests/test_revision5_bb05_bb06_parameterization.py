@@ -39,8 +39,8 @@ OLD_LITERALS = {
     "mpc_range_fallback_fraction": 0.01, "mpc_atr_floor_gain": 0.005,
     "mpc_slippage_vol_gain": 0.5,
 }
-NON_OPTIMIZER = {"mpc_base_slippage_fraction", "mpc_shadow_r_gamma", "mpc_slippage_vol_gain",
-                 "id_variance_floor", "id_initial_variance_regularizer"}
+NON_OPTIMIZER = {"mpc_shadow_r_gamma", "mpc_slippage_vol_gain", "mpc_base_slippage_fraction",
+                 "id_variance_floor", "id_initial_variance_regularizer"}  # fixed regardless of engine
 
 
 def cfg(**overrides):
@@ -64,11 +64,14 @@ def test_registry_owns_all_parameters_with_labels_and_defaults():
 def test_surface_counts_and_identity_and_search_space():
     from revision2.calibration_supervisor import trading_search_space
     assert (len(REG.params), len(REG.fixed_target_names()), len(REG.safety_params),
-            len(REG.calibratable_names())) == (114, 27, 20, 87)
+            len(REG.calibratable_names())) == (136, 28, 20, 108)
     REG.verify_frozen_identity()
-    names = set(trading_search_space(REG).names)
+    external = set(trading_search_space(REG, engine="EXTERNAL").names)
+    in_house = set(trading_search_space(REG, engine="IN_HOUSE").names)
     for name in OLD_LITERALS:
-        assert (name in names) == (name not in NON_OPTIMIZER), name
+        assert REG.params[name].applicable_engines == "EXTERNAL", name
+        assert name not in in_house, name
+        assert (name in external) == (name not in NON_OPTIMIZER), name
         assert REG.params[name].calibratable == (name not in NON_OPTIMIZER)
 
 

@@ -53,7 +53,7 @@ def validated_parameter_specs(parameter_names: Iterable[str]) -> Dict[str, Param
         except KeyError:
             failures.append(f"unknown parameter {name}")
             continue
-        if not spec.calibratable or spec.param_type not in {"int", "float"}:
+        if not registry.is_calibratable(name, registry.ENGINE_IN_HOUSE) or spec.param_type not in {"int", "float"}:
             failures.append(f"non-calibratable or non-numeric parameter {name}")
             continue
         specs[name] = spec

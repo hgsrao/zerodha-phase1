@@ -161,6 +161,28 @@ class Revision2ParameterManifest:
             "mpc_range_fallback_fraction",
             "mpc_atr_floor_gain",
             "mpc_slippage_vol_gain",
+            "studies_pid_kp",
+            "studies_pid_ki",
+            "studies_pid_kd",
+            "studies_pid_output_clamp",
+            "studies_grading_horizon_bars",
+            "studies_hit_rate_window_bars",
+            "cl_outcome_min_history",
+            "cl_confidence_offset_gain",
+            "cl_confidence_offset_max",
+            "cl_dynamics_lookback_bars",
+            "cl_dynamics_ema_span",
+            "cl_response_time_min_bars",
+            "cl_response_time_max_bars",
+            "cl_response_time_default_bars",
+            "cl_damping_response_gain",
+            "cl_hmm_stress_enter",
+            "cl_hmm_stress_exit",
+            "cl_hmm_confirmation_bars",
+            "cl_hmm_smoothing_alpha",
+            "cl_hmm_min_derate_step",
+            "cl_hmm_deadband_derate",
+            "cl_portfolio_soft_budget_fraction",
             "momentum_normalization_divisor",
             "pa_atr_absolute_floor",
             "pa_atr_fallback_price_fraction",
@@ -261,7 +283,7 @@ class Revision2ParameterManifest:
 
     def calibratable_45(self):
         from canonical_parameter_registry import CanonicalParameterRegistry
-        return CanonicalParameterRegistry().calibratable_names()[:45]
+        return CanonicalParameterRegistry().calibratable_names("IN_HOUSE")[:45]
 
 
 # ============================================================================

@@ -14,8 +14,28 @@ before any actuator is permitted to consume them.
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List
+
+from revision2_external.bb05_bb06_parameters import default_config, require
+
+# Values below are NOT registry parameters, by design:
+#   STRUCTURAL: the neutral win rate is the definition of "no evidence"; the
+#     derate map derate = 0.5 + win_rate; persistence phi must lie in (0, 1)
+#     for a finite half-life; the dynamics lookback floor; numerical guards.
+#   FIXED_SAFETY_ENVELOPE: entry derate never below 0.5 and never above 1.0
+#     (a supervisory derate can only reduce, never add, risk); a latched HMM
+#     stress applies derate 0.0.
+#   TELEMETRY_ONLY: gain-scale bounds (suggested_pid_gain_scale feeds nothing).
+_NEUTRAL_WIN_RATE = 0.5
+_ENTRY_DERATE_BOUNDS = (0.5, 1.0)
+_PERSISTENCE_BOUNDS = (0.05, 0.99)
+_PERSISTENCE_FALLBACK = 0.5
+_MINIMUM_LOOKBACK_FLOOR = 20
+_GAIN_SCALE_BOUNDS = (0.5, 1.5)
+_LATCHED_DERATE = 0.0
+# Registry-derived compatibility alias (not an owner).
+_DEFAULT_RESPONSE_TIME_BARS = require(default_config(), "cl_response_time_default_bars")
 
 
 def _clip(value: float, low: float, high: float) -> float:
@@ -46,22 +66,56 @@ class HMMRiskHysteresis:
     *shadow* halt recommendation, and a lower sustained posterior to release
     it.  The output is always a one-way brake in the inclusive [0, 1] range.
     """
-    enter_stress_probability: float = 0.75
-    exit_stress_probability: float = 0.55
-    confirmation_bars: int = 3
-    smoothing_alpha: float = 0.25
-    minimum_derate_step: float = 0.15
+    enter_stress_probability: float | None = None
+    exit_stress_probability: float | None = None
+    confirmation_bars: int | None = None
+    smoothing_alpha: float | None = None
+    minimum_derate_step: float | None = None
+    deadband_derate: float | None = None
     filtered_probability: float | None = None
     stressed_latched: bool = False
     enter_count: int = 0
     exit_count: int = 0
     applied_derate: float = 1.0
 
+    _CONFIG_FIELDS = (
+        ("enter_stress_probability", "cl_hmm_stress_enter"),
+        ("exit_stress_probability", "cl_hmm_stress_exit"),
+        ("confirmation_bars", "cl_hmm_confirmation_bars"),
+        ("smoothing_alpha", "cl_hmm_smoothing_alpha"),
+        ("minimum_derate_step", "cl_hmm_min_derate_step"),
+        ("deadband_derate", "cl_hmm_deadband_derate"),
+    )
+
     def __post_init__(self) -> None:
+        # Unspecified controls come from the canonical registry; explicit
+        # constructor values (research scripts) keep their historical meaning.
+        config = default_config()
+        for attribute, name in self._CONFIG_FIELDS:
+            if getattr(self, attribute) is None:
+                setattr(self, attribute, require(config, name))
+        self._validate()
+
+    def configure(self, config) -> None:
+        """Refresh the six controls from ``config``; latch, counters and the
+        filtered posterior are preserved.  Validates before mutating."""
+        values = {attribute: require(config, name) for attribute, name in self._CONFIG_FIELDS}
+        previous = {attribute: getattr(self, attribute) for attribute, _ in self._CONFIG_FIELDS}
+        for attribute, value in values.items():
+            setattr(self, attribute, value)
+        try:
+            self._validate()
+        except ValueError:
+            for attribute, value in previous.items():
+                setattr(self, attribute, value)
+            raise
+
+    def _validate(self) -> None:
         if not 0.0 <= self.exit_stress_probability < self.enter_stress_probability <= 1.0:
             raise ValueError("hysteresis requires 0 <= exit < enter <= 1")
         if (self.confirmation_bars < 1 or not 0.0 < self.smoothing_alpha <= 1.0
-                or not 0.0 < self.minimum_derate_step <= 1.0):
+                or not 0.0 < self.minimum_derate_step <= 1.0
+                or not 0.0 < self.deadband_derate <= 1.0):
             raise ValueError("invalid hysteresis confirmation or smoothing")
 
     def update(self, observation: Dict[str, Any]) -> Dict[str, Any]:
@@ -95,10 +149,10 @@ class HMMRiskHysteresis:
         raw_derate = 1.0 - filtered
         # Snap insignificant stress to the normal baseline, avoiding a
         # stream of pointless 0.97/0.95 resize proposals.
-        if raw_derate >= 0.90:
+        if raw_derate >= self.deadband_derate:
             raw_derate = 1.0
         if self.stressed_latched:
-            self.applied_derate = 0.0
+            self.applied_derate = _LATCHED_DERATE
         elif abs(raw_derate - self.applied_derate) >= self.minimum_derate_step:
             self.applied_derate = raw_derate
         return {
@@ -135,7 +189,7 @@ class TradeReferencePath:
     target_r: float
     max_hold_bars: int
     curve_gamma: float = 1.0
-    response_time_bars: float = 20.0
+    response_time_bars: float = _DEFAULT_RESPONSE_TIME_BARS
 
     def progress(self, bars_held: int) -> float:
         """Causal first-order response curve normalized at max hold.
@@ -184,15 +238,24 @@ class CausalOutcomeLedger:
     and in-memory for paper replay; persistence is a separate audit concern.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, config=None) -> None:
         self._outcomes: List[Dict[str, Any]] = []
+        self.configure(config if config is not None else default_config())
+
+    def configure(self, config) -> None:
+        """Refresh evidence controls; recorded outcomes are untouched."""
+        values = [require(config, n) for n in
+                  ("cl_outcome_min_history", "cl_confidence_offset_gain", "cl_confidence_offset_max")]
+        self.minimum_history, self.confidence_offset_gain, self.confidence_offset_max = values
 
     def record(self, outcome: Dict[str, Any]) -> None:
         if "net_pnl" not in outcome or "symbol" not in outcome:
             raise ValueError("outcome ledger requires symbol and net_pnl")
         self._outcomes.append(dict(outcome))
 
-    def profile(self, symbol: str, side: str, regime: str = "unknown", minimum_history: int = 20) -> Dict[str, Any]:
+    def profile(self, symbol: str, side: str, regime: str = "unknown", minimum_history: int | None = None) -> Dict[str, Any]:
+        if minimum_history is None:
+            minimum_history = self.minimum_history
         all_rows = [row for row in self._outcomes if row.get("side") == side]
         local_rows = [
             row for row in all_rows
@@ -204,7 +267,7 @@ class CausalOutcomeLedger:
         # pretend symbol characteristic.  Evidence earns influence only as
         # its sample count grows.
         global_wins = sum(float(row["net_pnl"]) > 0.0 for row in all_rows)
-        global_win_rate = (global_wins + 0.5 * minimum_history) / (len(all_rows) + minimum_history)
+        global_win_rate = (global_wins + _NEUTRAL_WIN_RATE * minimum_history) / (len(all_rows) + minimum_history)
         local_win_rate = (
             sum(float(row["net_pnl"]) > 0.0 for row in local_rows) / len(local_rows)
             if local_rows else global_win_rate
@@ -220,10 +283,12 @@ class CausalOutcomeLedger:
             "global_win_rate": global_win_rate,
             "symbol_regime_win_rate": local_win_rate,
             "pooled_win_rate": pooled_win_rate,
-            "suggested_entry_derate": _clip(0.5 + pooled_win_rate, 0.5, 1.0),
+            "suggested_entry_derate": _clip(_NEUTRAL_WIN_RATE + pooled_win_rate, *_ENTRY_DERATE_BOUNDS),
             # This is a future-entry correction, not a new safety limit.
             # It becomes actionable only after enough completed evidence.
-            "suggested_confidence_offset": _clip((0.5 - pooled_win_rate) * 0.10, 0.0, 0.05),
+            "suggested_confidence_offset": _clip(
+                (_NEUTRAL_WIN_RATE - pooled_win_rate) * self.confidence_offset_gain,
+                0.0, self.confidence_offset_max),
         }
 
 
@@ -237,15 +302,30 @@ class SymbolDynamicsProfiler:
     position's future bars.
     """
 
-    def __init__(self, lookback_bars: int = 60, ema_span: int = 20) -> None:
-        self.lookback_bars = max(20, int(lookback_bars))
-        self.ema_span = max(2, int(ema_span))
+    def __init__(self, lookback_bars: int | None = None, ema_span: int | None = None, config=None) -> None:
+        self.configure(config if config is not None else default_config())
+        if lookback_bars is not None:
+            self.lookback_bars = max(_MINIMUM_LOOKBACK_FLOOR, int(lookback_bars))
+        if ema_span is not None:
+            self.ema_span = max(2, int(ema_span))
+
+    def configure(self, config) -> None:
+        """Stateless estimator: controls are refreshed for the next estimate."""
+        names = ("cl_dynamics_lookback_bars", "cl_dynamics_ema_span", "cl_response_time_min_bars",
+                 "cl_response_time_max_bars", "cl_response_time_default_bars", "cl_damping_response_gain")
+        values = [require(config, n) for n in names]
+        if values[2] >= values[3]:
+            raise ValueError("response-time minimum must be below maximum")
+        self.lookback_bars = max(_MINIMUM_LOOKBACK_FLOOR, int(values[0]))
+        self.ema_span = max(2, int(values[1]))
+        (self.response_time_min, self.response_time_max,
+         self.response_time_default, self.damping_gain) = values[2:]
 
     def estimate(self, bars: Any) -> Dict[str, Any]:
         closes = [float(value) for value in list(bars["close"])[-self.lookback_bars:]]
         if len(closes) < 3:
             return {
-                "sample_bars": len(closes), "response_time_bars": 20.0,
+                "sample_bars": len(closes), "response_time_bars": self.response_time_default,
                 "deviation_persistence": None, "directional_efficiency": 0.0,
                 "damping_ratio": 1.0, "suggested_pid_gain_scale": 1.0,
             }
@@ -257,11 +337,12 @@ class SymbolDynamicsProfiler:
             deviations.append(close - ema)
         previous, current = deviations[:-1], deviations[1:]
         denominator = sum(value * value for value in previous)
-        persistence = sum(a * b for a, b in zip(previous, current)) / denominator if denominator > 1e-12 else 0.5
+        persistence = sum(a * b for a, b in zip(previous, current)) / denominator if denominator > 1e-12 else _PERSISTENCE_FALLBACK
         # A stable, finite half-life requires 0 < phi < 1. Out-of-range
         # samples fall back to the closest defensible bounded response.
-        bounded_phi = _clip(persistence, 0.05, 0.99)
-        base_response_time = _clip(math.log(0.5) / math.log(bounded_phi), 5.0, 45.0)
+        bounded_phi = _clip(persistence, *_PERSISTENCE_BOUNDS)
+        base_response_time = _clip(math.log(0.5) / math.log(bounded_phi),
+                                  self.response_time_min, self.response_time_max)
         absolute_path = sum(abs(b - a) for a, b in zip(closes[:-1], closes[1:]))
         efficiency = abs(closes[-1] - closes[0]) / absolute_path if absolute_path > 1e-12 else 0.0
         damping = _clip(1.0 - efficiency, 0.0, 1.0)
@@ -269,10 +350,11 @@ class SymbolDynamicsProfiler:
         # trajectory breach becomes meaningful. Without this correction a
         # mean-reverting/noisy symbol can be assigned the minimum half-life
         # and be force-exited precisely because it is noisy.
-        response_time = _clip(base_response_time * (1.0 + 2.0 * damping), 5.0, 45.0)
+        response_time = _clip(base_response_time * (1.0 + self.damping_gain * damping),
+                              self.response_time_min, self.response_time_max)
         # Recorded for future PID gain scheduling research. It is not yet
         # fed into the PID gains, avoiding unvalidated mid-trade retuning.
-        gain_scale = _clip(20.0 / response_time, 0.5, 1.5)
+        gain_scale = _clip(self.response_time_default / response_time, *_GAIN_SCALE_BOUNDS)
         return {
             "sample_bars": len(closes), "base_response_time_bars": base_response_time,
             "response_time_bars": response_time,
@@ -284,9 +366,22 @@ class SymbolDynamicsProfiler:
 class ClosedLoopSupervisor:
     """Owns the three causal loop calculations, not trade execution."""
 
-    def __init__(self) -> None:
-        self.outcomes = CausalOutcomeLedger()
-        self.dynamics_profiler = SymbolDynamicsProfiler()
+    def __init__(self, config=None) -> None:
+        config = config if config is not None else default_config()
+        self.outcomes = CausalOutcomeLedger(config=config)
+        self.dynamics_profiler = SymbolDynamicsProfiler(config=config)
+        self.soft_budget_fraction = require(config, "cl_portfolio_soft_budget_fraction")
+        self.response_time_default = require(config, "cl_response_time_default_bars")
+
+    def configure(self, config) -> None:
+        """Per-evaluation refresh of every supervisory control.  Recorded
+        outcomes are preserved; reference paths already frozen into open
+        trades are NOT re-derived (they are entry-time snapshots)."""
+        soft = require(config, "cl_portfolio_soft_budget_fraction")
+        default_rt = require(config, "cl_response_time_default_bars")
+        self.outcomes.configure(config)
+        self.dynamics_profiler.configure(config)
+        self.soft_budget_fraction, self.response_time_default = soft, default_rt
 
     def entry_snapshot(
         self, symbol: str, side: str, entry_price: float, stop_price: float,
@@ -300,7 +395,7 @@ class ClosedLoopSupervisor:
         path = TradeReferencePath(
             symbol=symbol, side=side, entry_price=float(entry_price), initial_risk=risk,
             target_r=target_r, max_hold_bars=max(1, int(max_hold_bars)),
-            response_time_bars=float((dynamics or {}).get("response_time_bars", 20.0)),
+            response_time_bars=float((dynamics or {}).get("response_time_bars", self.response_time_default)),
         )
         return {
             "regime": regime,
@@ -332,10 +427,13 @@ class ClosedLoopSupervisor:
         )
 
     @staticmethod
-    def observe_portfolio_risk(gross_exposure: float, equity: float, hard_limit_fraction: float) -> Dict[str, Any]:
+    def observe_portfolio_risk(gross_exposure: float, equity: float, hard_limit_fraction: float,
+                               soft_budget_fraction: float | None = None) -> Dict[str, Any]:
+        if soft_budget_fraction is None:
+            soft_budget_fraction = require(default_config(), "cl_portfolio_soft_budget_fraction")
         exposure_fraction = gross_exposure / max(float(equity), 1.0)
         hard_limit = max(float(hard_limit_fraction), 1e-12)
-        soft_budget = 0.75 * hard_limit
+        soft_budget = float(soft_budget_fraction) * hard_limit
         if exposure_fraction <= soft_budget:
             derate = 1.0
         else:

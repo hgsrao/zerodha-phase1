@@ -102,7 +102,7 @@ class TestRevision2ParameterSensitivity(unittest.TestCase):
         return tuple(outputs)
 
     def test_pa_parameters_are_sensitive(self):
-        pa_names = sorted(n for n, s in self.registry.params.items() if s.black_box == "PA" and s.calibratable)
+        pa_names = sorted(n for n, s in self.registry.params.items() if s.black_box == "PA" and self.registry.is_calibratable(n, "IN_HOUSE"))
         self.assertGreater(len(pa_names), 0)
         default_output = self._pa_sweep(self._config())
         for name in pa_names:
@@ -135,7 +135,7 @@ class TestRevision2ParameterSensitivity(unittest.TestCase):
         return tuple(outputs)
 
     def test_id_parameters_are_sensitive(self):
-        id_names = sorted(n for n, s in self.registry.params.items() if s.black_box == "ID" and s.calibratable)
+        id_names = sorted(n for n, s in self.registry.params.items() if s.black_box == "ID" and self.registry.is_calibratable(n, "IN_HOUSE"))
         id_names += ["entry_confidence_threshold", "min_risk_reward_ratio"]  # read by ID even though registry-owned elsewhere
         default_output = self._id_sweep(self._config())
         for name in id_names:
@@ -194,7 +194,7 @@ class TestRevision2ParameterSensitivity(unittest.TestCase):
         # (Earlier: minimum_absolute_profit_rupees was replaced by
         # minimum_profit_margin_over_cost, black_box="SafetyGates" -- see
         # SafetyGatesTargetBox.evaluate_post_sizing()'s own comment.)
-        mpc_names = sorted(n for n, s in self.registry.params.items() if s.black_box == "MPC" and s.calibratable)
+        mpc_names = sorted(n for n, s in self.registry.params.items() if s.black_box == "MPC" and self.registry.is_calibratable(n, "IN_HOUSE"))
         # Registry is authoritative; a fixed numeric count becomes stale
         # whenever the reviewed parameter surface changes.
         self.assertGreater(len(mpc_names), 0)
@@ -242,7 +242,7 @@ class TestRevision2ParameterSensitivity(unittest.TestCase):
     def test_position_manager_calibratable_parameters_are_sensitive(self):
         pm_names = sorted(
             n for n, s in self.registry.params.items()
-            if s.black_box == "PositionManager" and s.calibratable and s.param_type in ("int", "float")
+            if s.black_box == "PositionManager" and self.registry.is_calibratable(n, "IN_HOUSE") and s.param_type in ("int", "float")
         )
         self.assertGreater(len(pm_names), 0)
         default_output = self._position_sweep(self._config())
