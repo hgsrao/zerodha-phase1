@@ -1,3 +1,4 @@
+import dataclasses
 """
 P01D Sovereign Authorization Gate Tests
 """
@@ -182,7 +183,7 @@ class TestP01DAuthorization:
         token = p01d_gate.authorize(request, broker_snapshot)
 
         # Simulate expiry (set expires_at to past)
-        expired_token = token._replace(expires_at_ms=int(time.time() * 1000) - 1000)
+        expired_token = dataclasses.replace(token, expires_at_ms=int(time.time() * 1000) - 1000) if hasattr(token, "__dataclass_fields__") else token._replace(expires_at_ms=int(time.time() * 1000) - 1000)
 
         is_valid, error = p01d_gate.verify_token_before_submission(expired_token, broker_snapshot.version)
 

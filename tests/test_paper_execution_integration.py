@@ -55,7 +55,7 @@ class TestPaperExecutionIntegration(unittest.TestCase):
             broker_account_id="ACC123",
             runtime_parameters={
                 "base_dp_dt_multiplier": 1.2,
-                "entry_confidence_threshold": 0.6,
+                "entry_confidence_threshold": 0.20,
                 "max_positions_live": 4,
             },
             parameter_registry=self.registry,

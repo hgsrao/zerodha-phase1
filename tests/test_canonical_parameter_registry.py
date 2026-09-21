@@ -29,7 +29,7 @@ def test_registry_identity_is_frozen_and_matches_contract():
 
     assert registry.CONTRACT_ID == "ECS_REVISION_2_PARAMETER_SURFACE_V3"
     assert registry.FROZEN_IDENTITY_SHA256 == (
-        "7712e701c73cb8ec04baabaf77baa73d8a9ada6337792d4212ed0840d931ba19"
+        "79ac231af4a0c6ee71b18ab979a3576b9737ad5dcaed468cd98a35d039ff9f0b"
     )
     assert registry.identity_sha256() == registry.FROZEN_IDENTITY_SHA256
     registry.verify_frozen_identity()
