@@ -86,6 +86,42 @@ class UpstreamAdmissionSnapshot:
     consumed_parameters: Tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class BB03CertificationSnapshot:
+    """Information-only record of a successful external BB03 certification."""
+
+    symbol: str
+    input_rows: int
+    output_rows: int
+    exact_duplicates_removed: int
+    authority: str = "INFORMATION_ONLY"
+
+
+@dataclass(frozen=True)
+class BB04AnalyticsSnapshot:
+    """Information-only copy of BB04 analytics; it is not a trade decision."""
+
+    symbol: str
+    timestamp: str
+    direction: int
+    confidence: float
+    momentum: float
+    volatility: float
+    vwap_deviation: float
+    volume_confirmation: float
+    exit_confidence: float
+    quality_band: str
+    authority: str = "INFORMATION_ONLY"
+
+
+@dataclass(frozen=True)
+class BB03BB04SupervisorySnapshot:
+    """Typed upstream certification and analytics state exposed to R5."""
+
+    certification: BB03CertificationSnapshot
+    analytics: BB04AnalyticsSnapshot
+
+
 class Revision5SupervisoryBridge:
     """
     Fail-closed boundary between the legacy DPC and Revision 5.
@@ -172,6 +208,70 @@ class Revision5SupervisoryBridge:
             consumed_parameters=tuple(
                 use.parameter for use in trace
             ),
+        )
+
+    def snapshot_bb03_bb04(
+        self,
+        *,
+        certification_audit: Mapping[str, object],
+        analytics_signal: object,
+    ) -> BB03BB04SupervisorySnapshot:
+        """Expose BB03/BB04 outputs as immutable supervisory information.
+
+        The caller supplies only a successful BB03 audit and BB04 signal.
+        This method neither evaluates an entry nor touches any R5 plant
+        control, protection, or governor object.
+        """
+        required_audit = (
+            "input_rows",
+            "output_rows",
+            "exact_duplicates_removed",
+        )
+        missing = [
+            name for name in required_audit
+            if name not in certification_audit
+        ]
+        if missing:
+            raise ValueError(
+                "BB03 audit missing: " + ", ".join(missing)
+            )
+
+        symbol = str(getattr(analytics_signal, "symbol"))
+        direction = int(getattr(analytics_signal, "direction"))
+        if direction not in (-1, 0, 1):
+            raise ValueError("BB04 direction must be -1, 0, or 1")
+
+        def finite_signal_field(name: str) -> float:
+            return self._finite_float(
+                "BB04 " + name,
+                getattr(analytics_signal, name),
+            )
+
+        certification = BB03CertificationSnapshot(
+            symbol=symbol,
+            input_rows=int(certification_audit["input_rows"]),
+            output_rows=int(certification_audit["output_rows"]),
+            exact_duplicates_removed=int(
+                certification_audit["exact_duplicates_removed"]
+            ),
+        )
+        analytics = BB04AnalyticsSnapshot(
+            symbol=symbol,
+            timestamp=str(getattr(analytics_signal, "timestamp")),
+            direction=direction,
+            confidence=finite_signal_field("confidence"),
+            momentum=finite_signal_field("momentum"),
+            volatility=finite_signal_field("volatility"),
+            vwap_deviation=finite_signal_field("vwap_deviation"),
+            volume_confirmation=finite_signal_field(
+                "volume_confirmation"
+            ),
+            exit_confidence=finite_signal_field("exit_confidence"),
+            quality_band=str(getattr(analytics_signal, "quality_band")),
+        )
+        return BB03BB04SupervisorySnapshot(
+            certification=certification,
+            analytics=analytics,
         )
 
     def evaluate(

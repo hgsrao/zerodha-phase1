@@ -181,6 +181,7 @@ class Revision2ExternalEngineOrchestrator:
         self.entry_candidate_observations = EntryCandidateObservationLedger()
         self._controller_sequence = 0
         self._trade_sequence = 0
+        self.bb03_bb04_supervisory_by_symbol: Dict[str, Any] = {}
 
         self.pa = TALibPredictiveAnalyticsBox()
         # Box 4b, the Chart-Studies Confirmation Layer -- gains/clamp/
@@ -784,7 +785,12 @@ class Revision2ExternalEngineOrchestrator:
         certified: Dict[str, pd.DataFrame] = {}
         certification_audit: Dict[str, Dict[str, int]] = {}
         for symbol, bars in symbol_bars.items():
-            frame, audit = certify_bars(bars)
+            frame, audit = certify_bars(
+                bars,
+                validation_mode=str(
+                    self.config.require("data_validation_mode")
+                ),
+            )
             certified[symbol] = frame
             certification_audit[symbol] = audit
         symbol_bars = certified
@@ -905,6 +911,14 @@ class Revision2ExternalEngineOrchestrator:
                 )
                 signal, trace = self.pa.evaluate(snapshot, self.config)
                 self._record(trace)
+                self.bb03_bb04_supervisory_by_symbol[symbol] = (
+                    self.supervisory_bridge.snapshot_bb03_bb04(
+                        certification_audit=(
+                            certification_audit[symbol]
+                        ),
+                        analytics_signal=signal,
+                    )
+                )
                 funnel["pa_signals"] += 1  # deprecated compatibility alias for pa_evaluations
                 funnel["pa_evaluations"] += 1
                 funnel["directional_signals"] += int(signal.direction != 0)

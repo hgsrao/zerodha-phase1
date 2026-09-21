@@ -49,7 +49,16 @@ BAR_SCHEMA = pa.DataFrameSchema(
 )
 
 
-def certify_bars(frame: pd.DataFrame, timezone: str = "Asia/Kolkata") -> Tuple[pd.DataFrame, Dict[str, int]]:
+def certify_bars(
+    frame: pd.DataFrame,
+    timezone: str = "Asia/Kolkata",
+    validation_mode: str = "strict",
+) -> Tuple[pd.DataFrame, Dict[str, int]]:
+    """Certify a frame under the fixed canonical BB03 validation mode."""
+    if validation_mode != "strict":
+        raise ValueError(
+            "BB03 only accepts the fixed strict validation mode"
+        )
     if frame is None or frame.empty:
         raise ValueError("market data is empty")
     columns = {str(c).lower(): c for c in frame.columns}
