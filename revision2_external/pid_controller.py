@@ -48,6 +48,11 @@ from collections import deque
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from simple_pid import PID
+from revision2_external.bb05_bb06_parameters import require
+
+# Fixed protective floors; never calibratable.
+_ENTRY_TIMING_FLOOR = 0.3
+_EXIT_TIGHTNESS_FLOOR = 0.5
 from revision2.transaction_costs import paper_fill_price
 
 from revision2.contracts import EffectiveConfig, IDDecision, ParameterUse, PASignal, TradePlan
@@ -80,6 +85,7 @@ class SimplePIDModelPredictiveControlBox:
             pid = PID(Kp=kp, Ki=ki, Kd=kd, setpoint=target, sample_time=None, output_limits=(-abs(clamp), abs(clamp)))
             store[symbol] = pid
         store[symbol].tunings = (kp, ki, kd)
+        store[symbol].output_limits = (-abs(clamp), abs(clamp))
         return store[symbol]
 
     def _confidence_baseline(self, symbol: str, current_confidence: float, window: int) -> float:
@@ -126,6 +132,8 @@ class SimplePIDModelPredictiveControlBox:
         being consumed only for parameter-coverage bookkeeping.
         """
         history = self._confidence_history.setdefault(symbol, deque(maxlen=window))
+        if history.maxlen != window:
+            history = self._confidence_history[symbol] = deque(history, maxlen=window)
         baseline = (sum(history) / len(history)) if history else current_confidence
         history.append(current_confidence)
         return baseline
@@ -136,7 +144,7 @@ class SimplePIDModelPredictiveControlBox:
         trace: List[ParameterUse] = []
 
         def req(name: str, calculation: str, output_field: str) -> Any:
-            value = config.require(name)
+            value = require(config, name) if name.startswith("mpc_") else config.require(name)
             trace.append(ParameterUse(name, "MPC", value, calculation, output_field))
             return value
 
@@ -159,7 +167,13 @@ class SimplePIDModelPredictiveControlBox:
         # equivalent -- fixing the entry-PID saturation bug gave it a real job.
         pid_window = int(req("pid_integral_window_bars", "rolling window for the entry PID's adaptive confidence baseline", "timing_quality"))
         integral_clamp = float(req("pid_integral_max_clamp", "clamp applied to the PID integral/output term", "timing_quality"))
+        # Retained from bf091fd unchanged: coverage-bookkeeping read only.  The
+        # value is not consumed by simple-pid (see audit: pre-existing debt).
         req("pid_derivative_smoothing", "smoothing window for the PID derivative term (BoundedPID only; simple-pid derivative is single-step)", "timing_quality")
+        entry_price_gain = req("mpc_entry_price_gain", "market reference adjustment", "entry_price")
+        base_slippage = req("mpc_base_slippage_fraction", "shared paper fill base", "entry_price")
+        for name in ("mpc_schedule_kp_gain", "mpc_schedule_ki_gain", "mpc_schedule_kd_gain"):
+            req(name, "entry PID gain scheduling", "timing_quality")
 
         if not decision.approved:
             return None, {}, trace
@@ -178,16 +192,16 @@ class SimplePIDModelPredictiveControlBox:
         confidence_baseline = self._confidence_baseline(signal.symbol, decision.confidence, pid_window)
         if self.pid_enabled:
             err_delta = float(decision.confidence - confidence_baseline)
-            kp_e, ki_e, kd_e = DynamicParameterController.get_tier3_pid_schedule(kp_entry, ki_entry, kd_entry, err_delta)
+            kp_e, ki_e, kd_e = DynamicParameterController.get_tier3_pid_schedule(kp_entry, ki_entry, kd_entry, err_delta, config=config)
             entry_pid = self._get_pid(self._entry_pids, signal.symbol, kp_e, ki_e, kd_e, target=confidence_baseline, clamp=integral_clamp)
             entry_pid.setpoint = confidence_baseline  # keep in sync on every call, not just at first construction
             entry_adjustment = entry_pid(decision.confidence, dt=1)
-            entry_timing_multiplier = _np_clip(1.0 - abs(entry_adjustment), 0.3, 1.0)
+            entry_timing_multiplier = _np_clip(1.0 - abs(entry_adjustment), _ENTRY_TIMING_FLOOR, 1.0)
 
             exit_pid = self._get_pid(self._exit_pids, signal.symbol, kp_exit, ki_exit, kd_exit, target=confidence_baseline, clamp=integral_clamp)
             exit_pid.setpoint = confidence_baseline  # keep in sync on every call, not just at first construction
             exit_adjustment = exit_pid(decision.confidence, dt=1)
-            exit_tightness = _np_clip(1.0 - abs(exit_adjustment), 0.5, 1.0)
+            exit_tightness = _np_clip(1.0 - abs(exit_adjustment), _EXIT_TIGHTNESS_FLOOR, 1.0)
             entry_p, entry_i, entry_d = entry_pid.components
             exit_p, exit_i, exit_d = exit_pid.components
         else:
@@ -201,8 +215,8 @@ class SimplePIDModelPredictiveControlBox:
         # merely an internal plan field.  The broker subsequently applies
         # its normal adverse fill exactly once.  This keeps planned entry
         # and expected paper fill aligned in both PID modes.
-        execution_market_price = float(entry_price) * (1.0 + entry_adjustment * 0.001)
-        effective_entry = paper_fill_price(execution_market_price, side, slippage_cost_mult * 0.0005)
+        execution_market_price = float(entry_price) * (1.0 + entry_adjustment * entry_price_gain)
+        effective_entry = paper_fill_price(execution_market_price, side, slippage_cost_mult * base_slippage)
         stop_distance *= exit_tightness
         target_distance *= exit_tightness
 

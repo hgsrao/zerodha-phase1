@@ -159,8 +159,8 @@ def test_registry_identity_metadata_and_bounds():
     new = [spec for spec in registry.params.values()
            if "ENGINEERING_INITIAL_VALUE" in spec.notes and "BB04" in spec.notes]
     assert len(new) == 16
-    assert len(registry.params) == 85
-    assert len(registry.calibratable_names()) == 63
+    assert len(registry.params) == 114
+    assert len(registry.calibratable_names()) == 87
     for spec in new:
         assert spec.black_box == "PA"
         assert spec.minimum <= spec.default <= spec.maximum
