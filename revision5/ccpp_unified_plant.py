@@ -1287,6 +1287,39 @@ class CentralPlantMasterDCS:
             for bay_id in BAY_IDS
         }
 
+        # Frozen R5 five-machine plant model.
+        #
+        # These profiles are engineering simulation candidates.
+        # They are intentionally separate from strategy logic.
+        from revision5.machine_archetypes import (
+            MACHINE_ARCHETYPES,
+            validate_machine_archetypes,
+        )
+
+        validate_machine_archetypes(BAY_IDS)
+
+        self.machine_archetypes = MACHINE_ARCHETYPES
+
+        for bay_id, bay in self.bays.items():
+            profile = self.machine_archetypes[
+                bay_id
+            ]
+
+            bay.install_machine_dynamics(
+                dynamic_spec=profile.dynamics,
+                mechanical_protection_spec=(
+                    profile.protection
+                ),
+            )
+
+        from revision5.bay_feasibility import (
+            BayFeasibilityChecker,
+        )
+
+        self.bay_feasibility_checker = (
+            BayFeasibilityChecker()
+        )
+
         # Revision-5 native dynamic control system.
         #
         # No Revision-2/3/4 controller is imported or called.
@@ -1662,6 +1695,69 @@ class CentralPlantMasterDCS:
         )
 
         return result
+
+    def audit_bay_feasibility(
+        self,
+        *,
+        bay_id: str,
+        previous_load_fraction: float,
+        requested_load_fraction: float,
+        elapsed_online_bars: int,
+        elapsed_offline_bars: int,
+        machine_available: bool = True,
+    ):
+        """
+        Read-only operating-feasibility audit.
+
+        It does not generate a trade direction and does not replace
+        Governor ENTRY/HOLD/EXIT authority.
+        """
+        from revision5.bay_feasibility import (
+            BayFeasibilityInput,
+        )
+
+        if bay_id not in self.bays:
+            raise KeyError(
+                f"unknown bay: {bay_id}"
+            )
+
+        breaker_closed = (
+            self.electrical_network
+            .unit_available(
+                bay_id
+            )
+        )
+
+        return (
+            self.bay_feasibility_checker
+            .evaluate(
+                envelope=(
+                    self.machine_archetypes[
+                        bay_id
+                    ].operating
+                ),
+                state=BayFeasibilityInput(
+                    previous_load_fraction=(
+                        previous_load_fraction
+                    ),
+                    requested_load_fraction=(
+                        requested_load_fraction
+                    ),
+                    elapsed_online_bars=(
+                        elapsed_online_bars
+                    ),
+                    elapsed_offline_bars=(
+                        elapsed_offline_bars
+                    ),
+                    generator_breaker_closed=(
+                        breaker_closed
+                    ),
+                    machine_available=(
+                        machine_available
+                    ),
+                ),
+            )
+        )
 
     def begin_bar(
         self,
