@@ -59,7 +59,8 @@ class CanonicalParameterRegistry:
     # Recomputed and verified when the approved intraday-only Gate16 default
     # moved from 0.10% to 0.15%. Cross-session orders remain prohibited.
     # 2026-09-20: user-approved monotonic PA band defaults/ranges. Safety defaults unchanged.
-    FROZEN_IDENTITY_SHA256 = "79ac231af4a0c6ee71b18ab979a3576b9737ad5dcaed468cd98a35d039ff9f0b"
+    # BB04 expansion: 16 engineering-initial parameters; 85 targets / 63 eligible (not calibrated).
+    FROZEN_IDENTITY_SHA256 = "42d9b0a6fa8f82b3fb060be21ca5aa71a43f88dc6f23738c8fbf889b3d854bf1"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -106,6 +107,22 @@ class CanonicalParameterRegistry:
 
     def _build_registry(self):
         entries = [
+            ParameterSpec("momentum_normalization_divisor", "PA", "float", 3.0, 1.5, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Momentum amplitude"),
+            ParameterSpec("pa_atr_absolute_floor", "PA", "float", 0.001, 0.0001, 0.01, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Absolute ATR fallback trigger and floor"),
+            ParameterSpec("pa_atr_fallback_price_fraction", "PA", "float", 0.005, 0.0005, 0.01, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Price-relative ATR fallback"),
+            ParameterSpec("pa_persistence_threshold_divisor", "PA", "float", 2.0, 1.0, 3.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Persistence qualification normalization"),
+            ParameterSpec("pa_persistence_bonus_gain", "PA", "float", 0.1, 0.0, 0.25, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Persistence strength gain"),
+            ParameterSpec("pa_persistence_bonus_cap", "PA", "float", 2.0, 1.0, 2.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Persistence bonus input ceiling"),
+            ParameterSpec("pa_direction_activation_fraction", "PA", "float", 0.2, 0.0, 1.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Directional activation fraction"),
+            ParameterSpec("pa_vwap_normalization_divisor", "PA", "float", 3.0, 1.5, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 VWAP amplitude"),
+            ParameterSpec("pa_volume_normalization_divisor", "PA", "float", 3.0, 1.5, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Volume confirmation amplitude"),
+            ParameterSpec("pa_low_vol_ratio_boundary", "PA", "float", 0.7, 0.5, 0.9, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Low volatility regime boundary"),
+            ParameterSpec("pa_high_vol_ratio_boundary", "PA", "float", 1.5, 1.1, 2.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 High volatility regime boundary"),
+            ParameterSpec("pa_persistence_lookback", "PA", "int", 5, 1, 10, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Persistence observation window"),
+            ParameterSpec("pa_green_confidence_multiplier", "PA", "float", 1.1, 1.0, 1.25, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Green band confidence gain"),
+            ParameterSpec("pa_amber_confidence_multiplier", "PA", "float", 0.85, 0.7, 1.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Amber band confidence gain"),
+            ParameterSpec("pa_red_confidence_multiplier", "PA", "float", 0.5, 0.25, 0.75, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Red band confidence gain"),
+            ParameterSpec("pa_auto_warmup_bars", "PA", "int", 60, 30, 120, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Automatic calibration warmup length"),
             ParameterSpec("base_dp_dt_multiplier", "PA", "float", 1.0, 0.5, 2.0, True, "Base price momentum multiplier"),
             ParameterSpec("base_dv_dt_multiplier", "PA", "float", 1.0, 0.5, 2.0, True, "Base volume momentum multiplier"),
             ParameterSpec("entry_confidence_threshold", "PA", "float", 0.15, 0.02, 0.35, True, "Minimum signal confidence"),
@@ -256,9 +273,9 @@ class CanonicalParameterRegistry:
     def validate_contract(self) -> None:
         expected = Revision2ParameterManifest.all_68()
         # NOTE: Adding saturation_exit_bars (2025) expands from 68 → 69 total.
-        # base_33() + revision2_35() now = 33 + 36 = 69 (was 68 before saturation_exit_bars).
-        if len(expected) != 69 or len(set(expected)) != 69:
-            raise ValueError("Revision 2 target names must contain 69 unique values")
+        # BB04 adds 16: base_33() + revision2_35() = 33 + 52 = 85.
+        if len(expected) != 85 or len(set(expected)) != 85:
+            raise ValueError("Revision 2 target names must contain 85 unique values")
         if set(expected) != set(self.params):
             raise ValueError("registry does not exactly match the Revision 2 manifest")
         if len(self.safety_params) != 20:
@@ -275,8 +292,9 @@ class CanonicalParameterRegistry:
         # tunable surface, not a bug.
         # Further expanded by saturation_exit_bars (2025) from 46 → 47, another
         # genuine calibratable addition to Box 6's exit control surface.
-        if len(calibratable) != 47:
-            raise ValueError(f"optimizer surface must contain exactly 47 values; got {len(calibratable)}")
+        # BB04 now adds 16 eligible (NOT_CALIBRATED) parameters: 47 + 16 = 63.
+        if len(calibratable) != 63:
+            raise ValueError(f"optimizer surface must contain exactly 63 values; got {len(calibratable)}")
         if set(self.APPROVED_CALIBRATABLE) != calibratable:
             missing = sorted(set(self.APPROVED_CALIBRATABLE) - calibratable)
             extra = sorted(calibratable - set(self.APPROVED_CALIBRATABLE))

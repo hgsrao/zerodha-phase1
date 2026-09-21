@@ -130,7 +130,24 @@ class Revision2ParameterManifest:
 
     @staticmethod
     def revision2_35():
+        # Historical method name retained; BB04 names only, values owned by registry.
         return [
+            "momentum_normalization_divisor",
+            "pa_atr_absolute_floor",
+            "pa_atr_fallback_price_fraction",
+            "pa_persistence_threshold_divisor",
+            "pa_persistence_bonus_gain",
+            "pa_persistence_bonus_cap",
+            "pa_direction_activation_fraction",
+            "pa_vwap_normalization_divisor",
+            "pa_volume_normalization_divisor",
+            "pa_low_vol_ratio_boundary",
+            "pa_high_vol_ratio_boundary",
+            "pa_persistence_lookback",
+            "pa_green_confidence_multiplier",
+            "pa_amber_confidence_multiplier",
+            "pa_red_confidence_multiplier",
+            "pa_auto_warmup_bars",
             "lot_size_by_symbol",
             "max_positions_live",
             "max_positions_per_symbol",

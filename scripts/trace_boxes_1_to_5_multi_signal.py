@@ -84,7 +84,7 @@ def main():
     combined = pd.concat([warmup_frame, frame], ignore_index=True)
     warmup_len = len(warmup_frame)
     pa = TALibPredictiveAnalyticsBox()
-    pa.calibrate(SYMBOL, combined.iloc[:warmup_len])
+    pa.calibrate(SYMBOL, combined.iloc[:warmup_len], config)
     signals = []
     for bar_idx in range(warmup_len, warmup_len + 5):
         snapshot = MarketSnapshot(symbol=SYMBOL, timestamp=str(combined.iloc[bar_idx]["timestamp"]),

@@ -800,7 +800,7 @@ class Revision2ExternalEngineOrchestrator:
                 raise ValueError("precomputed clock does not match certified frames")
 
         for symbol, bars in symbol_bars.items():
-            self.pa.calibrate(symbol, bars.iloc[:warmup])
+            self.pa.calibrate(symbol, bars.iloc[:warmup], self.config)
             self.id_box.calibrate(symbol, bars.iloc[:0])
             # Replay warmup through sensor histories and eligible planner PIDs,
             # with no order construction, portfolio allocation, or submission.

@@ -32,6 +32,7 @@ import numpy as np
 import pandas as pd
 import talib
 
+from canonical_parameter_registry import CanonicalParameterRegistry
 from revision2.contracts import EffectiveConfig, MarketSnapshot, ParameterUse, PASignal
 
 
@@ -39,31 +40,53 @@ def _np_clip(value: float, lo: float, hi: float) -> float:
     return float(max(lo, min(hi, value)))
 
 
+# STRUCTURAL_NOT_PARAMETER: denominator/non-finite guard, not a market floor.
+_NUMERICAL_EPSILON = 1e-6
+
+
+def _valid_period(period: int, size: int) -> int:
+    # TA-Lib period domain and available observations; no operating horizon here.
+    return max(1, min(period, size - 1))
+
+
 class TALibPredictiveAnalyticsBox:
     def __init__(self) -> None:
         self._history: Dict[str, deque] = {}
         self._scale: Dict[str, Dict[str, float]] = {}
+        self._warmup: Dict[str, pd.DataFrame] = {}
+        self._atr_period: Dict[str, int] = {}
 
-    def calibrate(self, symbol: str, warmup_bars: pd.DataFrame) -> None:
+    def calibrate(self, symbol: str, warmup_bars: pd.DataFrame,
+                  config: EffectiveConfig | None = None) -> None:
+        # Existing two-argument callers use the canonical default, never legacy 14.
+        atr_period = int(config.require("atr_calculation_period") if config is not None
+                         else CanonicalParameterRegistry().get("atr_calculation_period").default)
+        if warmup_bars.empty:
+            raise ValueError("BB04 calibration requires at least one bar")
+        self._warmup[symbol] = warmup_bars.copy()
+        self._atr_period[symbol] = atr_period
         close = warmup_bars["close"].to_numpy(dtype=float)
         high = warmup_bars["high"].to_numpy(dtype=float)
         low = warmup_bars["low"].to_numpy(dtype=float)
         volume = warmup_bars["volume"].to_numpy(dtype=float)
 
         returns = pd.Series(close).pct_change().dropna()
-        dp_scale = float(returns.std()) or 1e-6
+        dp_scale = float(returns.std())
+        dp_scale = dp_scale if math.isfinite(dp_scale) and dp_scale > 0 else _NUMERICAL_EPSILON
         vol_pct_change = pd.Series(volume).pct_change().replace([np.inf, -np.inf], np.nan).dropna()
-        dv_scale = float(vol_pct_change.std()) or 1e-6
+        dv_scale = float(vol_pct_change.std())
+        dv_scale = dv_scale if math.isfinite(dv_scale) and dv_scale > 0 else _NUMERICAL_EPSILON
 
-        atr_period = min(14, max(2, len(close) - 1))
+        atr_period = _valid_period(atr_period, len(close))
         atr_series = talib.ATR(high, low, close, timeperiod=atr_period)
-        baseline_atr = float(np.nanmean(atr_series)) if np.isfinite(atr_series).any() else 1e-6
-        baseline_vol = baseline_atr / close[-1] if close[-1] else 1e-6
+        baseline_atr = float(np.nanmean(atr_series)) if np.isfinite(atr_series).any() else _NUMERICAL_EPSILON
+        baseline_vol = baseline_atr / close[-1] if close[-1] else _NUMERICAL_EPSILON
 
-        self._scale[symbol] = {"dp_scale": dp_scale, "dv_scale": dv_scale, "baseline_vol": max(baseline_vol, 1e-6)}
+        self._scale[symbol] = {"dp_scale": dp_scale, "dv_scale": dv_scale, "baseline_vol": max(baseline_vol, _NUMERICAL_EPSILON)}
 
     def _scale_for(self, symbol: str) -> Dict[str, float]:
-        return self._scale.get(symbol, {"dp_scale": 1e-3, "dv_scale": 1.0, "baseline_vol": 1e-3})
+        # evaluate() always calibrates first; no unreachable anonymous operating defaults.
+        return self._scale[symbol]
 
     def evaluate(self, snapshot: MarketSnapshot, config: EffectiveConfig) -> Tuple[PASignal, List[ParameterUse]]:
         trace: List[ParameterUse] = []
@@ -94,6 +117,23 @@ class TALibPredictiveAnalyticsBox:
         persistence_requirement = float(req("signal_persistence_requirement", "consecutive-direction persistence bonus", "confidence"))
         entry_threshold = float(req("entry_confidence_threshold", "directional bias floor", "direction"))
 
+        momentum_normalization_divisor = float(req("momentum_normalization_divisor", "Momentum amplitude", "momentum"))
+        pa_atr_absolute_floor = float(req("pa_atr_absolute_floor", "Absolute ATR fallback trigger and floor", "volatility"))
+        pa_atr_fallback_price_fraction = float(req("pa_atr_fallback_price_fraction", "Price-relative ATR fallback", "volatility"))
+        pa_persistence_threshold_divisor = float(req("pa_persistence_threshold_divisor", "Persistence qualification normalization", "confidence"))
+        pa_persistence_bonus_gain = float(req("pa_persistence_bonus_gain", "Persistence strength gain", "confidence"))
+        pa_persistence_bonus_cap = float(req("pa_persistence_bonus_cap", "Persistence bonus input ceiling", "confidence"))
+        pa_direction_activation_fraction = float(req("pa_direction_activation_fraction", "Directional activation fraction", "direction"))
+        pa_vwap_normalization_divisor = float(req("pa_vwap_normalization_divisor", "VWAP amplitude", "vwap_deviation"))
+        pa_volume_normalization_divisor = float(req("pa_volume_normalization_divisor", "Volume confirmation amplitude", "volume_confirmation"))
+        pa_low_vol_ratio_boundary = float(req("pa_low_vol_ratio_boundary", "Low volatility regime boundary", "confidence"))
+        pa_high_vol_ratio_boundary = float(req("pa_high_vol_ratio_boundary", "High volatility regime boundary", "confidence"))
+        pa_persistence_lookback = int(req("pa_persistence_lookback", "Persistence observation window", "confidence"))
+        pa_green_confidence_multiplier = float(req("pa_green_confidence_multiplier", "Green band confidence gain", "confidence"))
+        pa_amber_confidence_multiplier = float(req("pa_amber_confidence_multiplier", "Amber band confidence gain", "confidence"))
+        pa_red_confidence_multiplier = float(req("pa_red_confidence_multiplier", "Red band confidence gain", "confidence"))
+        pa_auto_warmup_bars = int(req("pa_auto_warmup_bars", "Automatic calibration warmup length", "confidence"))
+
         bars = snapshot.bars
         n = len(bars)
         close = bars["close"].to_numpy(dtype=float)
@@ -102,7 +142,10 @@ class TALibPredictiveAnalyticsBox:
         low = bars["low"].to_numpy(dtype=float)
 
         if snapshot.symbol not in self._scale:
-            self.calibrate(snapshot.symbol, bars.iloc[: max(30, min(n, 60))])
+            self.calibrate(snapshot.symbol, bars.iloc[:pa_auto_warmup_bars], config)
+        elif self._atr_period[snapshot.symbol] != atr_period:
+            # Reuse original warmup only: changing the horizon must not introduce future bars.
+            self.calibrate(snapshot.symbol, self._warmup[snapshot.symbol], config)
         scale = self._scale_for(snapshot.symbol)
 
         # Momentum via talib.ROC: ((close[-1]/close[-period])-1)*100, the
@@ -112,14 +155,14 @@ class TALibPredictiveAnalyticsBox:
         roc_series = talib.ROC(close, timeperiod=roc_period)
         raw_momentum = float(roc_series[-1]) / 100.0 if np.isfinite(roc_series[-1]) else 0.0
         momentum_z = raw_momentum / (scale["dp_scale"] * math.sqrt(max(momentum_period, 1)))
-        momentum = _np_clip(momentum_z / 3.0, -1, 1) * dp_mult
+        momentum = _np_clip(momentum_z / momentum_normalization_divisor, -1, 1) * dp_mult
 
         # VWAP deviation: no TA-Lib equivalent, direct calculation.
         vwap_window_close = close[max(0, n - vwap_period):]
         vwap_window_vol = volume[max(0, n - vwap_period):]
         vwap = float(np.average(vwap_window_close, weights=vwap_window_vol)) if vwap_window_vol.sum() > 0 else float(vwap_window_close.mean())
         raw_vwap_dev = (close[-1] - vwap) / vwap if vwap else 0.0
-        vwap_deviation = _np_clip((raw_vwap_dev / scale["dp_scale"]) / 3.0, -1, 1)
+        vwap_deviation = _np_clip((raw_vwap_dev / scale["dp_scale"]) / pa_vwap_normalization_divisor, -1, 1)
 
         # Volatility via talib.ATR (Wilder-smoothed), a real, documented
         # difference from the original's simple-mean True Range.
@@ -128,19 +171,19 @@ class TALibPredictiveAnalyticsBox:
         atr_series = talib.ATR(high, low, close, timeperiod=atr_talib_period)
         atr = float(atr_series[-1]) if np.isfinite(atr_series[-1]) else 0.0
         # BUGFIX: Ensure ATR has minimum value to prevent zero volatility
-        if atr < 0.001 and close[-1] > 0:
-            atr = max(0.001, close[-1] * 0.005)
+        if atr < pa_atr_absolute_floor and close[-1] > 0:
+            atr = max(pa_atr_absolute_floor, close[-1] * pa_atr_fallback_price_fraction)
         volatility = atr / close[-1] if close[-1] else 0.0
         volatility_score = _np_clip((scale["baseline_vol"] - volatility) / scale["baseline_vol"], -1, 1)
 
         avg_vol = volume[:-1].mean() if len(volume) > 1 else (volume[-1] if len(volume) else 1.0)
         raw_vol_confirm = (volume[-1] - avg_vol) / avg_vol if avg_vol else 0.0
-        volume_confirmation = _np_clip((raw_vol_confirm / scale["dv_scale"]) / 3.0, -1, 1) * dv_mult
+        volume_confirmation = _np_clip((raw_vol_confirm / scale["dv_scale"]) / pa_volume_normalization_divisor, -1, 1) * dv_mult
 
         vol_ratio = volatility / scale["baseline_vol"] if scale["baseline_vol"] else 1.0
-        if vol_ratio < 0.7:
+        if vol_ratio < pa_low_vol_ratio_boundary:
             regime_mult = low_vol_mult
-        elif vol_ratio < 1.5:
+        elif vol_ratio < pa_high_vol_ratio_boundary:
             regime_mult = med_vol_mult
         else:
             regime_mult = high_vol_mult
@@ -155,30 +198,31 @@ class TALibPredictiveAnalyticsBox:
         ) / total_weight
         raw_signal *= regime_mult * vol_regime_mult
 
-        history = self._history.setdefault(snapshot.symbol, deque(maxlen=max(entry_smoothing, exit_smoothing, 20)))
+        # 20 is a storage reserve, above all configured smoothing/persistence maxima.
+        history = self._history.setdefault(snapshot.symbol, deque(maxlen=max(entry_smoothing, exit_smoothing, pa_persistence_lookback, 20)))
         history.append(raw_signal)
         smoothed = sum(list(history)[-entry_smoothing:]) / min(len(history), entry_smoothing)
         exit_smoothed = sum(list(history)[-exit_smoothing:]) / min(len(history), exit_smoothing)
 
-        recent = list(history)[-5:]
+        recent = list(history)[-pa_persistence_lookback:]
         same_direction = sum(1 for x in recent if (x > 0) == (smoothed > 0)) if recent else 0
-        if len(recent) and same_direction / len(recent) >= (persistence_requirement / 2.0):
-            smoothed *= 1.0 + 0.1 * min(persistence_requirement, 2.0)
+        if len(recent) and same_direction / len(recent) >= (persistence_requirement / pa_persistence_threshold_divisor):
+            smoothed *= 1.0 + pa_persistence_bonus_gain * min(persistence_requirement, pa_persistence_bonus_cap)
 
         confidence = _np_clip(abs(smoothed), 0.0, 1.0)
         if confidence >= green_threshold:
             quality_band = "green"
-            confidence = _np_clip(confidence * 1.10, 0.0, 1.0)
+            confidence = _np_clip(confidence * pa_green_confidence_multiplier, 0.0, 1.0)
         elif confidence >= amber_lower:
             quality_band = "amber"
-            confidence *= 0.85
+            confidence *= pa_amber_confidence_multiplier
         elif confidence <= red_threshold:
             quality_band = "red"
-            confidence *= 0.5
+            confidence *= pa_red_confidence_multiplier
         else:
             quality_band = "neutral"
 
-        direction = 0 if abs(smoothed) < entry_threshold * 0.2 else (1 if smoothed > 0 else -1)
+        direction = 0 if abs(smoothed) < entry_threshold * pa_direction_activation_fraction else (1 if smoothed > 0 else -1)
 
         signal = PASignal(
             symbol=snapshot.symbol, timestamp=snapshot.timestamp, direction=direction,
