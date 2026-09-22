@@ -4,6 +4,12 @@ Branch: `codex/r5-plant-control-shadow` — base `89ee76615416b995c19a366e83fe7a
 (`codex/r5-integration-bb01-bb10`, BB01–BB10 integrated, 612 passed / 0 failed).
 Mode: **SHADOW only.** No calibration, no Optuna, no paper actuation, no live mode.
 
+**Update (branch `codex/r5-paper-apply-blocker-closure`, from frozen checkpoint `425024c`):** both
+PAPER_APPLY blockers recorded in section 10 are now **CLOSED**. See section 11 for the closure
+record; sections 1–9 below are the original SHADOW-certification audit and are left as originally
+written except where section 11 explicitly supersedes them (section 9's test counts and section
+7's two closed-blocker bullets).
+
 ## 1. Chain and authority
 
 ```
@@ -109,12 +115,17 @@ the SHADOW ledger-unchanged replay test. Broad-suite results are in the accompan
 ## 7. Known debt / not done
 
 * PAPER_APPLY (consuming references in a governor or admission path) is intentionally not implemented.
-* Bay availability in replay is derived from symbol trips only. The R5 `CentralPlantMasterDCS` protection/trip state is
-  NOT connected and is not faked; every ECS output and the report state `plant_protection_connected=False`,
-  `bay_availability_source=SYMBOL_TRIPS_ONLY`, so nothing claims physical-plant protection integration.
+* **[CLOSED by section 11, BLOCKER 1]** Bay availability can now be read from a real, attached
+  `CentralPlantMasterDCS` (`revision5/protection_snapshot.py`). The replay engine still does not
+  instantiate one itself by default: with no `real_plant_dcs` argument (the unchanged default),
+  bay availability still comes from symbol trips only, and the report still states
+  `plant_protection_connected=False`, `bay_availability_source=SYMBOL_TRIPS_ONLY` -- an explicit,
+  never-faked fallback, not a claim of physical-plant protection integration.
 * The plant demand does not yet gate admissions; that is the future, separately approved PAPER_APPLY step.
-* Merit weights come from a `DynamicBayLoadDispatcher` instance that is not fed R-multiples by the replay (no
-  `register_trade` wiring in SHADOW), so weights stay at their initial capital weights until that is approved.
+* **[CLOSED by section 11, BLOCKER 2]** `DynamicBayLoadDispatcher.register_trade()` is now fed the
+  authoritative realized-R outcome of every external-replay close, exactly once per close, within
+  one process/replay run. Durable cross-process receipt recovery is still not implemented (see
+  section 11's explicit remaining limitations).
 * Thresholds are engineering initial values and have not been calibrated or validated.
 
 ## 8. Pre-commit review
@@ -245,14 +256,179 @@ Booleans, strings and enum values are not numeric. It forces no mathematical ide
 * Registry: 152 targets / 44 fixed / 22 safety / 108 optimizer-eligible (46 shared + 62 external-only; in-house 46,
   external 108), identity `b00b5299815753477037c181c548545c10254f18869314b3e22852ba88bef360`.
 
-## 10. PAPER_APPLY blockers (do not block SHADOW certification)
+## 10. PAPER_APPLY blockers -- CLOSED (see section 11)
 
-PAPER_APPLY BLOCKER 1:
-CentralPlantMasterDCS plant/bay protection state is not yet connected to ECS bay availability.
+PAPER_APPLY BLOCKER 1 -- CLOSED:
+CentralPlantMasterDCS plant/bay protection state can now be connected to ECS bay availability through
+an immutable `PlantProtectionSnapshot` (`revision5/protection_snapshot.py`). Not attached by default.
 
-PAPER_APPLY BLOCKER 2:
-DynamicBayLoadDispatcher.register_trade() is not yet wired to realized-R trade-close feedback.
+PAPER_APPLY BLOCKER 2 -- CLOSED:
+DynamicBayLoadDispatcher.register_trade() is now wired to the authoritative external-replay
+realized-R trade-close feedback, exactly once per close, separately from local governor feedback.
 
-Both are documented and visible in the outputs (`plant_protection_connected=False`,
-`bay_availability_source=SYMBOL_TRIPS_ONLY`, static initial merit weights). They are acceptable for this SHADOW
-checkpoint because nothing consumes the plant references; each must be resolved before any explicit paper actuation is approved.
+Both were originally documented and visible in the outputs (`plant_protection_connected=False`,
+`bay_availability_source=SYMBOL_TRIPS_ONLY`, static initial merit weights), acceptable for the SHADOW
+checkpoint because nothing consumed the plant references. Section 11 records how each was closed and
+proven, and the remaining prerequisites before PAPER_APPLY can be approved.
+
+## 11. PAPER_APPLY blocker closure (branch `codex/r5-paper-apply-blocker-closure`)
+
+Base: frozen SHADOW checkpoint `425024cb644fcad9fa87fd9612d73c9c077d999e` (this branch's only ancestor
+beyond that commit is the work described here). Still SHADOW-only: PAPER_APPLY remains refused at
+`PlantControlChain` construction; no broker/order/live-trading code was touched or added.
+
+### 11A. BLOCKER 1 -- real protection -> ECS bay availability
+
+Architecture (read-only, exactly as specified):
+
+```
+real R5 plant (CentralPlantMasterDCS)
+        |
+build_plant_protection_snapshot()     -> immutable PlantProtectionSnapshot   (revision5/protection_snapshot.py)
+        |
+derive_bay_status_and_master_block()  -> (bay_status, plant_protection_tripped, source)
+        |
+ECSPlantSupervisor.evaluate()         -> bay availability mask / plant demand   (revision5/plant_control.py, unchanged core logic)
+```
+
+Source-audited authoritative state (existing, native R5; nothing re-implemented or re-evaluated):
+
+| State | Owner | Read via |
+|---|---|---|
+| Master/MiCOM block | `CentralPlantMasterDCS.grid_relay` (`MasterGridProtectionMiCOM`), `CentralPlantMasterDCS.electrical_network` | `grid_relay.master_breaker_open`, `electrical_network.grid_connected` |
+| Bay trip/lockout | `TurbineBayPanel.tripped_offline`, `PlantElectricalNetwork`'s `CircuitBreaker.lockout_86`/`unit_available()` | direct read, no re-evaluation |
+| Cooldown | `TurbineBayPanel.cooldown_remaining(bar_index)` | called with the plant's OWN `current_bar_index` (0 before its first bar) -- an external replay bar/timestamp is never accepted, so external replay can never advance/expire/clear native cooldown |
+| Startup/dispatch-ready, mechanical trip | `TurbineStartupSequencer.state` (`DISPATCH_READY`, `TRIPPED`) via `TurbineBayPanel.startup_sequencer` (optional; `None` -> both reported `Optional[bool]=None`, "unknown", never assumed healthy or tripped) | direct read |
+
+`protection_snapshot.py` contains none of the protection logic that decided this state -- it is a
+translation/read layer only, source-audited against `ccpp_unified_plant.py`, `ccpp_protection_cubicles.py`,
+`machine_dynamics.py` and `startup_synchronization.py`. Per-bay reason priority (first match wins,
+matching the real plant's own precedence in `TurbineBayPanel.evaluate_admission`/`run_synchronizing_control`):
+`ANSI_86_LOCKOUT` > `UNIT_TRIPPED_OFFLINE` > `GEN_BREAKER_OPEN` > `BAY_COOLDOWN` >
+`MECHANICAL_PROTECTION_TRIP` > `UNIT_NOT_DISPATCH_READY` > healthy (`available=True`).
+
+**External replay fallback.** `Revision2ExternalEngineOrchestrator` gained one new, optional,
+default-`None` constructor argument, `real_plant_dcs`. With no real plant supplied (the unchanged
+default -- the external engine still does not instantiate a `CentralPlantMasterDCS`),
+`build_plant_protection_snapshot(None)` returns the explicit fallback
+(`connected=False, source="SYMBOL_TRIPS_ONLY"`), `derive_bay_status_and_master_block` passes the
+existing `_plant_bay_status()` (symbol-trip) result through **unchanged**, and
+`plant_protection_tripped=None` (never assumed healthy). Nothing about `CentralPlantMasterDCS` state
+is fabricated. `ECSPlantOutput.plant_protection_connected`/`bay_availability_source` are now driven by
+this real telemetry (`ECSPlantSupervisor.evaluate` and `PlantControlChain.evaluate` gained one new,
+backward-compatible, default-preserving keyword argument, `bay_availability_source`) instead of a
+hardcoded string, and the orchestrator's `report["plant_control_shadow"]` reads the same live fields
+instead of a hardcoded `False`/`"SYMBOL_TRIPS_ONLY"`.
+
+**Authority is structurally one-directional and never mixed.** A connected snapshot
+(`snapshot.connected is True`) ignores the fallback bay status entirely; a disconnected snapshot
+never reads real-plant state. This is what makes "a healthy real plant cannot override an existing
+symbol-trip fallback" and "a false legacy trip flag cannot clear a real master block" true by
+construction, not by an ad hoc precedence rule: the two inputs are never merged, so neither can ever
+override the other's own path. ECS's own `plant_protection_tripped=True` handling (pre-existing,
+unmodified) still forces plant demand to 0 and is still the sole place a master block acts; ECS
+cannot clear a trip and creates no trade, unchanged from the original audit.
+
+### 11B. BLOCKER 2 -- authoritative realized-R close -> `DynamicBayLoadDispatcher`
+
+Source-audited: the native R5 close path (`CentralPlantMasterDCS.on_trade_closed`) already calls both
+`bay.register_outcome()` (-> `BayTurbineClosedLoopGovernor.register_trade`) and
+`self.dispatcher.register_trade(bay_id, pnl_r)` -- untouched, not disturbed. The external-replay close
+path (`Revision2ExternalEngineOrchestrator._execute_exit`) did neither. The realized-R equation reused
+verbatim (not reinvented) is `ContinuousExitController._r_multiple`: `signed_move / initial_risk` where
+`initial_risk = abs(entry_price - initial_stop_price)` and `signed_move` is signed by trade side --
+called as `self.exit_controller._r_multiple(state, filled_exit_price)`.
+
+Wiring added, all inside `revision2_external/orchestrator.py`:
+
+* `self._bay_governors: Dict[bay_id, BayTurbineClosedLoopGovernor]` -- five dedicated local-governor
+  feedback objects (frozen specs, same `BAY_GOVERNOR_SPECS` as native R5), owned by the orchestrator,
+  independent of any attached `real_plant_dcs`.
+* `_execute_exit`, immediately before `del self.open_trades[symbol]` (after the authoritative fill
+  `result["passed"]`, after `completed_trades`/closed-loop bookkeeping, i.e. after the trade is truly
+  closed): computes `realized_r` via the equation above, resolves `bay_id = bay_for_symbol(symbol)`
+  (the real topology function; a symbol outside the certified 48-symbol universe -- a synthetic
+  test-only symbol -- is skipped exactly like the native plant's own `UNMAPPED_SYMBOL` path, never
+  given an invented bay), and calls `_register_realized_r_close_feedback`.
+* `_register_realized_r_close_feedback` feeds **both**, separately, once each:
+  `self.plant_control.dispatch_controller.merit_source.register_trade(bay_id, realized_r)` (plant-level
+  merit/dispatch feedback -- the SAME `DynamicBayLoadDispatcher` instance `SectorDispatchController`
+  already reads) and `self._bay_governors[bay_id].register_trade(realized_r)` (local governor
+  feedback). Neither replaces the other.
+
+**Exactly-once receipt.** `self._close_feedback_receipts: Dict[key, "PENDING"|"DONE"]`, keyed by
+`trade_id` (real trades always carry one) or, when absent (a minimal test fixture), by the `open_trades`
+record's own object identity. State machine: absent -> `PENDING` -> `DONE`. A key already present
+(`PENDING` or `DONE`) is a silent no-op -- never fed twice. If either `register_trade` call raises
+after the key is marked `PENDING`, the receipt is left at `PENDING` forever (never advanced, never
+removed) and the exception still propagates unmodified -- no broad exception swallowing anywhere in
+this path. Scope, exactly as specified: one process/replay run only; no persistent restart recovery
+was invented.
+
+**Position-reconciliation precondition (new, source-proved necessary by the fixture failures below).**
+`_verify_broker_position_reconciles`, called first inside `_execute_exit`, raises
+`PositionReconciliationError` (never caught/swallowed by replay code) when the broker's actual
+position for the symbol does not have the same sign and at least the same magnitude as the ledger's
+`open_trades[symbol]` expects to close -- i.e. before any order is submitted, not after. This is what
+makes "authoritative close" a real precondition for the close-feedback call, and it is what a genuine
+retried/duplicate `_execute_exit` call hits (the position is already flat after the first, real close),
+so a duplicate external close is rejected before it could ever reach the dispatcher a second time.
+
+### 11C. Governor feedback vs dispatcher feedback
+
+`self._bay_governors[bay_id]` (`BayTurbineClosedLoopGovernor.register_trade`) and
+`self.plant_control.dispatch_controller.merit_source` (`DynamicBayLoadDispatcher.register_trade`) are
+two distinct, independently-constructed objects (asserted directly in tests: `governor is not
+dispatcher`). Both receive the identical `realized_r` value from the same close, each exactly once;
+neither call can substitute for the other, and neither is rebuilt afterward
+(`test_dispatcher_merit_weights_change_causally_via_real_closes_without_rebuilding_controller`).
+
+### 11D. Fixture corrections
+
+Three pre-existing external-engine test fixtures constructed `open_trades[symbol]` directly without a
+matching broker position. The new `_verify_broker_position_reconciles` precondition correctly rejects
+the resulting fake exit (it would open/flip a position, not close one) -- source-proved to be the
+correct, not-to-be-weakened behaviour, not a bug in the new check:
+
+* `tests_external/test_trade_ledger_holding_time.py::test_completed_trade_ledger_includes_causal_holding_time`
+* `tests_external/test_orchestrator_end_to_end.py::test_exit_stop_ratchet_armed_from_a_close_is_not_retroactively_checked_inside_that_bar`
+* `tests_external/test_orchestrator_end_to_end.py::test_regime_stressed_exit_fires_once_minimum_hold_is_met`
+
+Each now also seeds `orch.broker.positions[symbol] = {"quantity": ..., "avg_price": ...}` matching the
+ledger's `open_trades[symbol]`, consistent with every other fixture in the suite (e.g.
+`tests_external/test_audit_remediation.py`'s `open_position()` helper, which already submits a real
+`broker.place_order` entry and was never broken). A fourth pre-existing test
+(`tests_external/test_audit_remediation.py::test_s4_simultaneous_candidates_compete_as_batch_not_symbol_order`)
+uses synthetic, non-topology symbols (`"AAA"`, `"BBB"`) and required no fixture change -- it is exactly
+the case the `bay_for_symbol` `KeyError` guard (11B) exists to skip cleanly.
+
+### 11E. Focused tests
+
+* `tests/test_r5_paper_apply_blocker_closure.py` (new, 20 tests): requirements 1-19 from the closure
+  brief, one-to-one (two tests cover requirement 2's lockout and mechanical-trip halves separately).
+* `tests/test_revision5_plant_control.py`: 55 tests, still passing unchanged (backward-compatible
+  additive changes only), including the real-data SHADOW-ledger-unchanged replay.
+* `tests_external/test_trade_ledger_holding_time.py`, `tests_external/test_orchestrator_end_to_end.py`,
+  `tests_external/test_audit_remediation.py`, `tests_external/test_compact_replay_telemetry.py`:
+  62 tests, all passing (fixture corrections above; includes the synthetic-symbol test).
+
+### 11F. Broad regression and `git diff --check`
+
+`pytest tests/ tests_external/ -q --ignore=tests/legacy_quarantine
+--ignore=tests_external/test_broker_adapter_kite.py --ignore=tests_external/test_data_loader_arctic.py`
+(same exclusions as section 9, no new exclusions added): **687 passed, 0 failed** in 483s
+(612 pre-existing baseline + 55 pre-existing plant-control tests + 20 new blocker-closure tests).
+`git diff --check`: clean (no whitespace errors).
+
+### 11G. Remaining prerequisites before PAPER_APPLY (unchanged from before this closure)
+
+* External replay without an attached native R5 plant still uses the explicit `SYMBOL_TRIPS_ONLY`
+  fallback (attaching `real_plant_dcs` is available but not the default; the replay engine still does
+  not instantiate a `CentralPlantMasterDCS` itself).
+* Exactly-once dispatch/governor close feedback is process/replay-run scoped only; durable
+  cross-process receipt/state recovery across a restart is not implemented.
+* `PAPER_APPLY` remains refused at `PlantControlChain` construction; nothing here consumes a
+  `GovernorDispatchReference` or gates an admission.
+* No live broker actuation is enabled anywhere in this branch.
+* No calibration/Optuna/profitability tuning was performed; all new logic is either structural
+  (bounded floats/enums) or read-only telemetry.

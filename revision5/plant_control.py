@@ -247,9 +247,13 @@ class ECSPlantSupervisor:
         gross_exposure_limit_fraction: float,
         supporting_derate: float = 1.0,
         plant_protection_tripped: Optional[bool] = None,
+        bay_availability_source: str = "SYMBOL_TRIPS_ONLY",
     ) -> ECSPlantOutput:
         """``plant_protection_tripped``: True/False when a real plant protection state is connected;
-        ``None`` (default) means NOT connected -- recorded in the output, never assumed healthy."""
+        ``None`` (default) means NOT connected -- recorded in the output, never assumed healthy.
+        ``bay_availability_source`` is purely descriptive telemetry the caller supplies (e.g.
+        ``revision5.protection_snapshot.CONNECTED_SOURCE``/``FALLBACK_SOURCE``); it does not change
+        this method's behaviour, only what is recorded about where ``bay_status`` came from."""
         for name, value in (("gross_exposure_fraction", gross_exposure_fraction),
                             ("gross_exposure_limit_fraction", gross_exposure_limit_fraction),
                             ("supporting_derate", supporting_derate)):
@@ -302,7 +306,8 @@ class ECSPlantSupervisor:
         else:
             mode = ECSOperatingMode.NORMAL
         return ECSPlantOutput(mode.value, demand, 1.0 - demand, mask, tuple(reasons), grid.state,
-                              plant_protection_connected=protection_connected)
+                              plant_protection_connected=protection_connected,
+                              bay_availability_source=bay_availability_source)
 
 
 # ------------------------------------------------------------------------ dispatch
@@ -448,12 +453,14 @@ class PlantControlChain:
         self, decision_timestamp: object, bay_status: Mapping[str, BayStatus], *,
         gross_exposure_fraction: float, gross_exposure_limit_fraction: float,
         supporting_derate: float = 1.0, plant_protection_tripped: Optional[bool] = None,
+        bay_availability_source: str = "SYMBOL_TRIPS_ONLY",
     ) -> PlantControlSnapshot:
         grid = self.synchronizer.evaluate(decision_timestamp)
         ecs = self.ecs.evaluate(
             grid, bay_status, gross_exposure_fraction=gross_exposure_fraction,
             gross_exposure_limit_fraction=gross_exposure_limit_fraction,
-            supporting_derate=supporting_derate, plant_protection_tripped=plant_protection_tripped)
+            supporting_derate=supporting_derate, plant_protection_tripped=plant_protection_tripped,
+            bay_availability_source=bay_availability_source)
         dispatch = self.dispatch_controller.dispatch(ecs)
         return PlantControlSnapshot(self.mode.value, grid, ecs, dispatch,
                                     build_governor_references(dispatch, self.mode))

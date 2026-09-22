@@ -59,11 +59,15 @@ from revision2_external.startup_validation import validate_runtime_parameters, v
 from runtime.operating_mode import ExecutionGate
 from revision2_external.paper_execution import CostedPaperBrokerAdapter, ReplayIntentLedger
 from revision2.transaction_costs import leg_cost, paper_fill_price
+from revision5.governor import BAY_GOVERNOR_SPECS, BayTurbineClosedLoopGovernor
 from revision5.plant_control import (
     BayStatus, PlantControlChain, PlantControlError, PlantControlSnapshot,
 )
+from revision5.protection_snapshot import build_plant_protection_snapshot, derive_bay_status_and_master_block
 from revision5.supervisory_bridge import Revision5SupervisoryBridge, SupervisorySnapshotError
-from revision5.topology import BAY_IDS as _R5_BAY_IDS, SYMBOL_TO_BAY as _R5_SYMBOL_TO_BAY
+from revision5.topology import (
+    BAY_IDS as _R5_BAY_IDS, SYMBOL_TO_BAY as _R5_SYMBOL_TO_BAY, bay_for_symbol as _r5_bay_for_symbol,
+)
 
 SNAPSHOT_LOOKBACK_BARS = 300
 # F17: fixed PyPortfolioOpt maintenance policy, deliberately NOT calibratable.
@@ -76,9 +80,21 @@ SNAPSHOT_LOOKBACK_BARS = 300
 # exit_bar + BAY_LOSS_COOLDOWN_BARS.  Session rollover clears the latch.
 BAY_LOSS_COOLDOWN_BARS = 15
 
+# Float-quantity tolerance for the broker/ledger position-reconciliation check below.
+_POSITION_RECONCILIATION_EPS = 1e-6
+
 
 class ExternalEngineStartupNotCertifiedError(StartupNotCertifiedError):
     pass
+
+
+class PositionReconciliationError(RuntimeError):
+    """Raised when an authoritative exit would close a broker position that does not actually
+    match this orchestrator's own ``open_trades`` ledger (missing, short, or insufficient
+    quantity).  Never caught/swallowed by replay code: a mismatch here means the exit order would
+    open or flip a position instead of closing the one the ledger believes exists, which must stop
+    the run rather than silently corrupt the SHADOW ledger/P&L and the realized-R close feedback
+    that depends on it."""
 
 
 class Revision2ExternalEngineOrchestrator:
@@ -109,7 +125,14 @@ class Revision2ExternalEngineOrchestrator:
         session_schedule: Optional[Dict[str, Tuple[str, str]]] = None,
         supervisory_bridge: Optional[Revision5SupervisoryBridge] = None,
         plant_control_mode: str = "SHADOW",
+        real_plant_dcs: Optional[Any] = None,
     ) -> None:
+        # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
+        # Default None -- unchanged behaviour: this replay engine does not instantiate a real plant,
+        # so protection state uses the explicit SYMBOL_TRIPS_ONLY fallback (see protection_snapshot.py).
+        # When supplied, its EXISTING protection/availability state is read (never mutated, never
+        # re-evaluated) for ECS bay availability on every plant-control step.
+        self.real_plant_dcs = real_plant_dcs
         if closed_loop_mode not in {"shadow", "active_paper"}:
             raise ValueError("closed_loop_mode must be 'shadow' or 'active_paper'")
         if telemetry_mode not in {"full", "compact"}:
@@ -287,8 +310,25 @@ class Revision2ExternalEngineOrchestrator:
         self.plant_control_evaluations = 0
         self.plant_control_state_counts: Dict[str, int] = {}
         self._plant_control_last_key: Optional[Tuple[Any, ...]] = None
+        # Updated on every plant-control step (not only on state change), so the final report
+        # always reflects the most recent protection connection/source, not a stale default.
+        self._plant_protection_connected = False
+        self._plant_protection_source = "SYMBOL_TRIPS_ONLY"
         self.consumed_parameters.update(
             name for name in self.registry.params if name.startswith(("grid_", "ecs_")))
+
+        # Realized-R trade-close feedback (BLOCKER 2).  Two distinct, separately-owned feedback
+        # paths, both fed the same realized-R outcome exactly once per authoritative close:
+        #   * self._bay_governors[bay_id].register_trade(r)              -- local governor feedback
+        #   * self.plant_control.dispatch_controller.merit_source.register_trade(bay_id, r)
+        #                                                                 -- plant-level dispatch feedback
+        # Neither replaces the other; see _register_realized_r_close_feedback.
+        self._bay_governors: Dict[str, BayTurbineClosedLoopGovernor] = {
+            bay_id: BayTurbineClosedLoopGovernor(BAY_GOVERNOR_SPECS[bay_id]) for bay_id in _R5_BAY_IDS
+        }
+        # Exactly-once (this process/replay run only) close-feedback receipts, keyed per trade.
+        # See _register_realized_r_close_feedback for the state-machine contract.
+        self._close_feedback_receipts: Dict[str, str] = {}
 
         self.startup_certificate = self._issue_startup_certificate()
 
@@ -364,23 +404,35 @@ class Revision2ExternalEngineOrchestrator:
     def _plant_control_shadow_step(self, timestamp: object, max_gross_fraction: float) -> None:
         """SHADOW plant-control evaluation, once per timestamp.  Read-only with respect to the
         replay: no admission, sizing, order or ledger state is touched.  Only the chain's own
-        expected input error is contained (recorded); any other exception is a real defect."""
+        expected input error is contained (recorded); any other exception is a real defect.
+
+        Bay availability/protection: a real ``self.real_plant_dcs`` (None by default) is read
+        through an immutable ``PlantProtectionSnapshot`` -- its EXISTING state only, never
+        re-evaluated or faked here.  When it is not attached, the existing symbol-trip fallback
+        (``_plant_bay_status``) is used unchanged, and that fallback path never sees or is
+        overridden by real-plant state (see ``derive_bay_status_and_master_block``)."""
         equity = self._equity()
         gross = self._gross_exposure_notional()
+        protection = build_plant_protection_snapshot(self.real_plant_dcs)
+        bay_status, plant_protection_tripped, bay_availability_source = derive_bay_status_and_master_block(
+            protection, self._plant_bay_status())
         try:
             supporting = self.closed_loop.observe_portfolio_risk(
                 gross, equity, max_gross_fraction,
                 soft_budget_fraction=self.closed_loop.soft_budget_fraction)["suggested_new_risk_derate"]
             snapshot = self.plant_control.evaluate(
-                timestamp, self._plant_bay_status(),
+                timestamp, bay_status,
                 gross_exposure_fraction=gross / max(equity, 1.0),
                 gross_exposure_limit_fraction=max_gross_fraction,
-                supporting_derate=supporting)
+                supporting_derate=supporting, plant_protection_tripped=plant_protection_tripped,
+                bay_availability_source=bay_availability_source)
         except PlantControlError as exc:
             self.plant_control_observer_failures.append({
                 "timestamp": str(timestamp), "error_type": type(exc).__name__, "error": str(exc)})
             return
         self.plant_control_evaluations += 1
+        self._plant_protection_connected = snapshot.ecs.plant_protection_connected
+        self._plant_protection_source = snapshot.ecs.bay_availability_source
         self.plant_control_state_counts[snapshot.grid.state] = (
             self.plant_control_state_counts.get(snapshot.grid.state, 0) + 1)
         key = (snapshot.grid.state, snapshot.ecs.operating_mode,
@@ -426,7 +478,58 @@ class Revision2ExternalEngineOrchestrator:
             circuit_breaker_triggered=False,
         )
 
+    def _verify_broker_position_reconciles(self, symbol: str, trade: Dict[str, Any]) -> None:
+        """Fail closed: an authoritative close may only ever close the position this orchestrator's
+        own ledger believes is open.  A missing/short/insufficient broker position means the exit
+        order would open or flip a position instead of closing one -- never silently execute that.
+        This is a precondition for the realized-R close feedback below, never weakened to make a
+        badly-seeded caller pass."""
+        position = self.broker.get_position(symbol)
+        held = float(position.get("quantity", 0.0))
+        expected_sign = 1.0 if trade["side"] == "BUY" else -1.0
+        required = float(trade["quantity"])
+        if held * expected_sign < required - _POSITION_RECONCILIATION_EPS:
+            raise PositionReconciliationError(
+                f"{symbol}: ledger open_trades expects a {trade['side']} position of at least "
+                f"{required} to close, but the broker holds {held}; refusing to execute an exit "
+                f"that would open or flip a position instead of closing the existing one"
+            )
+
+    @staticmethod
+    def _close_feedback_key(symbol: str, trade: Dict[str, Any]) -> str:
+        """Idempotency key for one authoritative close.  A real trade always carries a
+        ``trade_id`` (unique per entry, see the real entry flow); when one is absent (a minimal
+        test fixture) the identity of the ``trade`` record itself is the key, since a genuine
+        retry of the SAME close would be invoked with that SAME ``open_trades[symbol]`` record,
+        while two distinct real trades on the same symbol are always distinct dict objects."""
+        trade_id = trade.get("trade_id")
+        if trade_id is not None:
+            return f"trade_id:{trade_id}"
+        return f"symbol_object:{symbol}:{id(trade)}"
+
+    def _register_realized_r_close_feedback(
+        self, *, symbol: str, trade: Dict[str, Any], bay_id: str, realized_r: float,
+    ) -> None:
+        """Feed one authoritative realized-R close to both separately-owned feedback paths,
+        exactly once per close, within this process/replay run only (no persistent cross-restart
+        receipt is implemented -- that remains future work).
+
+        State machine per receipt key: absent -> PENDING -> DONE.  A retried/duplicate call for a
+        key that is already PENDING or DONE is a silent no-op (never fed twice).  If either
+        ``register_trade`` call raises after the receipt is marked PENDING, the receipt is left at
+        PENDING (never advanced to DONE, never removed), so a retry is still blocked from feeding
+        the same close again -- and the exception still propagates unmodified; this never swallows
+        an unexpected error."""
+        key = self._close_feedback_key(symbol, trade)
+        if key in self._close_feedback_receipts:
+            return
+        self._close_feedback_receipts[key] = "PENDING"
+        self.plant_control.dispatch_controller.merit_source.register_trade(bay_id, realized_r)
+        self._bay_governors[bay_id].register_trade(realized_r)
+        self._close_feedback_receipts[key] = "DONE"
+
     def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
+        self._verify_broker_position_reconciles(symbol, trade)
         close_side = "SELL" if trade["side"] == "BUY" else "BUY"
         self._exit_orders_submitted += 1
         result = self.broker.place_order(
@@ -552,6 +655,25 @@ class Revision2ExternalEngineOrchestrator:
                 "net_pnl": completed["net_pnl"], "entry_quality_profile": closed_loop_profile,
             })
             self._equity_curve.append(self._equity())
+            # Authoritative realized-R close -> plant-level dispatch feedback (BLOCKER 2) and local
+            # governor feedback.  Only here: after the authoritative exit fill (result["passed"]),
+            # after position/ledger reconciliation (_verify_broker_position_reconciles, above) and
+            # after completed_trades/closed_loop bookkeeping is safe.  del self.open_trades[symbol]
+            # below is what makes this trade "truly closed"; the feedback call happens just before it.
+            if state is not None:
+                risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
+                if risk > 0.0:
+                    try:
+                        bay_id = _r5_bay_for_symbol(symbol)
+                    except KeyError:
+                        # Symbol outside the certified 48-symbol R5 topology (e.g. a synthetic
+                        # test-only symbol): there is no R5 bay to feed, exactly like the native
+                        # plant's own UNMAPPED_SYMBOL admission path.  Never invent a bay mapping.
+                        bay_id = None
+                    if bay_id is not None:
+                        realized_r = self.exit_controller._r_multiple(state, float(result["filled_price"]))
+                        self._register_realized_r_close_feedback(
+                            symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r)
             del self.open_trades[symbol]
             self._exit_controller_states.pop(symbol, None)
             self._record_mtm(timestamp)
@@ -1551,7 +1673,8 @@ class Revision2ExternalEngineOrchestrator:
             "config_hash": self.config.config_hash, "safety_contract_hash": self.safety_contract.contract_hash,
             "plant_control_shadow": {
                 "mode": self.plant_control.mode.value, "applied": False,
-                "plant_protection_connected": False, "bay_availability_source": "SYMBOL_TRIPS_ONLY",
+                "plant_protection_connected": self._plant_protection_connected,
+                "bay_availability_source": self._plant_protection_source,
                 "evaluations": self.plant_control_evaluations,
                 "grid_state_counts": dict(self.plant_control_state_counts),
                 "transitions": len(self.plant_control_snapshots),

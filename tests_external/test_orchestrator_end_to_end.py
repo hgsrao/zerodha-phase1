@@ -149,6 +149,9 @@ def test_exit_stop_ratchet_armed_from_a_close_is_not_retroactively_checked_insid
         "planned_entry_price": 100.0, "planned_stop_price": 95.0,
         "planned_target_price": 150.0,
     }
+    # The exit's position-reconciliation guard requires the broker to actually hold the long
+    # position this ledger record believes is open (see _verify_broker_position_reconciles).
+    orch.broker.positions["INFY"] = {"quantity": 10, "avg_price": 100.0}
     signal = PASignal(
         symbol="INFY", timestamp="2024-01-02 09:21:00", direction=1,
         confidence=0.6, momentum=0.1, volatility=0.01, vwap_deviation=0.0,
@@ -209,6 +212,9 @@ def test_regime_stressed_exit_fires_once_minimum_hold_is_met():
         "side": "BUY", "entry_price": 1000.0, "quantity": 100, "stop_price": 900.0, "target_price": 1200.0,
         "minimum_hold_bars": 2, "maximum_hold_bars": 60, "entry_timestamp": "2024-01-02 09:20:00",
     }
+    # The exit's position-reconciliation guard requires the broker to actually hold the long
+    # position this ledger record believes is open (see _verify_broker_position_reconciles).
+    orch.broker.positions["INFY"] = {"quantity": 100, "avg_price": 1000.0}
     orch._exit_controller_states["INFY"] = orch.exit_controller.open_position("BUY", 1000.0, 900.0, 1200.0, 60)
     orch.id_box._current_regime = lambda symbol, latest_close: "stressed"
 

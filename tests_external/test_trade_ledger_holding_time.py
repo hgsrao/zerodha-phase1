@@ -14,5 +14,8 @@ def test_completed_trade_ledger_includes_causal_holding_time():
         "planned_target_price": 110.0,
     }
     orchestrator.open_trades["INFY"] = trade
+    # The exit's position-reconciliation guard requires the broker to actually hold the long
+    # position this close believes is open (see _verify_broker_position_reconciles).
+    orchestrator.broker.positions["INFY"] = {"quantity": 10, "avg_price": 100.0}
     orchestrator._execute_exit("INFY", "2023-09-01 10:07:00", trade, 101.0, "test_exit")
     assert orchestrator.completed_trades[-1]["bars_held"] == 7
