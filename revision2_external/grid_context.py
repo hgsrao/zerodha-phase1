@@ -64,9 +64,9 @@ class SealedGridContextProvider:
 
     The Nifty and VIX feeds are expected to be 15-minute bars.  At a stock
     decision timestamp, the provider considers only context bars strictly
-    earlier than that timestamp.  This conservative convention is safe even
-    when a source does not document whether its timestamp marks bar open or
-    bar close.
+    earlier than that timestamp. Inputs must carry availability timestamps,
+    not raw candle-start timestamps. The R5 paper runner delays source stamps
+    by the full 15-minute interval before constructing this provider.
     """
 
     def __init__(

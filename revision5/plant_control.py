@@ -29,8 +29,8 @@ Authority boundaries (enforced by tests):
   its portfolio derate may only be passed in as an additional one-way input.
 
 This module has no broker, order or execution imports.  ``PlantControlMode`` has no live
-value, and ``PAPER_APPLY`` is defined only as the future consumption boundary: constructing
-a chain in that mode is refused until it is explicitly approved.
+value. ``PAPER_APPLY`` emits references for the external paper replay admission cap;
+the chain itself never submits orders or applies references.
 
 Every operational value is registry-owned (``PlantControl`` black box, ENGINEERING_INITIAL_VALUE,
 NOT_CALIBRATED).  The [0, 1] demand range and the sum/ceiling invariants are structural.
@@ -58,7 +58,7 @@ class PlantControlError(ValueError):
 
 class PlantControlMode(str, Enum):
     SHADOW = "SHADOW"
-    PAPER_APPLY = "PAPER_APPLY"   # future consumption boundary; refused until approved
+    PAPER_APPLY = "PAPER_APPLY"   # bounded external paper admission only
 
 
 class PlantGridStateName(str, Enum):
@@ -408,7 +408,8 @@ def build_governor_references(
     dispatch: DispatchResult, mode: PlantControlMode = PlantControlMode.SHADOW
 ) -> Tuple[GovernorDispatchReference, ...]:
     return tuple(
-        GovernorDispatchReference(bay, ref, dispatch.plant_demand_reference_pu, mode.value, applied=False)
+        GovernorDispatchReference(bay, ref, dispatch.plant_demand_reference_pu, mode.value, applied=False,
+                                  authority="PAPER_ENTRY_CAP" if mode is PlantControlMode.PAPER_APPLY else "INFORMATION_ONLY")
         for bay, ref in dispatch.references_pu
     )
 
@@ -429,8 +430,8 @@ class PlantControlSnapshot:
 class PlantControlChain:
     """Grid synchronizer -> ECS supervisor -> sector dispatch -> governor references.
 
-    Default and only implemented mode is SHADOW: everything is calculated and recorded and
-    nothing is applied.  PAPER_APPLY is refused until separately approved; there is no live mode.
+    Default mode is SHADOW. PAPER_APPLY computes references for a bounded paper
+    admission consumer; there is no live mode and this chain alone never actuates.
     """
 
     def __init__(self, config, grid_provider: SealedGridContextProvider, merit_source,
@@ -439,8 +440,6 @@ class PlantControlChain:
             self.mode = PlantControlMode(mode)
         except ValueError as exc:
             raise PlantControlError(f"unknown plant control mode {mode!r}") from exc
-        if self.mode is not PlantControlMode.SHADOW:
-            raise PlantControlError("only SHADOW plant control is enabled; PAPER_APPLY requires explicit approval")
         self.synchronizer = PlantGridSynchronizer(config, grid_provider)
         self.ecs = ECSPlantSupervisor(config)
         self.dispatch_controller = SectorDispatchController(merit_source)

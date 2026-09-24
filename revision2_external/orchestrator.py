@@ -61,7 +61,7 @@ from revision2_external.paper_execution import CostedPaperBrokerAdapter, ReplayI
 from revision2.transaction_costs import leg_cost, paper_fill_price
 from revision5.governor import BAY_GOVERNOR_SPECS, BayTurbineClosedLoopGovernor
 from revision5.plant_control import (
-    BayStatus, PlantControlChain, PlantControlError, PlantControlSnapshot,
+    BayStatus, PlantControlChain, PlantControlError, PlantControlSnapshot, PlantControlMode,
 )
 from revision5.protection_snapshot import build_plant_protection_snapshot, derive_bay_status_and_master_block
 from revision5.supervisory_bridge import Revision5SupervisoryBridge, SupervisorySnapshotError
@@ -133,6 +133,10 @@ class Revision2ExternalEngineOrchestrator:
         # When supplied, its EXISTING protection/availability state is read (never mutated, never
         # re-evaluated) for ECS bay availability on every plant-control step.
         self.real_plant_dcs = real_plant_dcs
+        if plant_control_mode == PlantControlMode.PAPER_APPLY:
+            from revision5.ccpp_unified_plant import CentralPlantMasterDCS
+            if not isinstance(real_plant_dcs, CentralPlantMasterDCS) or grid_context_provider is None:
+                raise PlantControlError("PAPER_APPLY requires an attached R5 plant and real grid context provider")
         if closed_loop_mode not in {"shadow", "active_paper"}:
             raise ValueError("closed_loop_mode must be 'shadow' or 'active_paper'")
         if telemetry_mode not in {"full", "compact"}:
@@ -189,9 +193,8 @@ class Revision2ExternalEngineOrchestrator:
         if self.config.require("order_type") != "MARKET":
             raise ValueError("External replay supports MARKET orders only")
         self.sector_map = dict(sector_map) if sector_map is not None else dict(SECTOR_MAP)
-        # The provider is shadow-only in this release.  It records a causal,
-        # timestamp-aligned Nifty/VIX assessment but is not an entry gate and
-        # cannot alter quantity, stops, targets, or safety policy.
+        # The per-stock observation remains shadow telemetry. The plant-level
+        # PAPER_APPLY consumer uses the same causal provider to cap new admissions.
         self.grid_context_provider = grid_context_provider
         self.grid_shadow_observations: List[Dict[str, Any]] = []
         # Audit ledger for controller comparators and, in ``active_paper``
@@ -295,7 +298,8 @@ class Revision2ExternalEngineOrchestrator:
             name for name in self.registry.params if name.startswith("cl_"))
 
         # Plant-control chain (Nifty/VIX grid -> ECS supervisor -> sector dispatch -> governor
-        # references).  SHADOW only: it computes and records, and never alters admission,
+        # references). SHADOW computes and records; explicit PAPER_APPLY adds a bounded admission cap.
+        # SHADOW never alters admission,
         # sizing, orders or the trade ledger.  ClosedLoopSupervisor above stays a supporting
         # subsystem; it is only a one-way derate INPUT to the ECS supervisor.
         from revision5.ccpp_unified_plant import DynamicBayLoadDispatcher
@@ -305,6 +309,11 @@ class Revision2ExternalEngineOrchestrator:
         self.plant_control = PlantControlChain(
             self.config, grid_provider,
             DynamicBayLoadDispatcher(total_capital=float(starting_equity)), plant_control_mode)
+        self._paper_plant_snapshot = None
+        self._paper_plant_timestamp = None
+        self._paper_admission_evaluations = 0
+        self._paper_admission_rejections = 0
+        self._paper_admission_caps = 0
         self.plant_control_snapshots: List[PlantControlSnapshot] = []    # recorded on change only
         self.plant_control_observer_failures: List[Dict[str, Any]] = []
         self.plant_control_evaluations = 0
@@ -402,15 +411,19 @@ class Revision2ExternalEngineOrchestrator:
         return status
 
     def _plant_control_shadow_step(self, timestamp: object, max_gross_fraction: float) -> None:
-        """SHADOW plant-control evaluation, once per timestamp.  Read-only with respect to the
-        replay: no admission, sizing, order or ledger state is touched.  Only the chain's own
-        expected input error is contained (recorded); any other exception is a real defect.
+        """Evaluate plant control once per timestamp and publish a current reference.
+
+        SHADOW only observes; PAPER_APPLY consumes this reference in the admission cap.
+        An expected input error clears the current reference and is recorded; unexpected
+        defects propagate. The historical method name is retained for existing callers.
 
         Bay availability/protection: a real ``self.real_plant_dcs`` (None by default) is read
         through an immutable ``PlantProtectionSnapshot`` -- its EXISTING state only, never
         re-evaluated or faked here.  When it is not attached, the existing symbol-trip fallback
         (``_plant_bay_status``) is used unchanged, and that fallback path never sees or is
         overridden by real-plant state (see ``derive_bay_status_and_master_block``)."""
+        self._paper_plant_snapshot = None  # a failed evaluation must never reuse an earlier reference
+        self._paper_plant_timestamp = None
         equity = self._equity()
         gross = self._gross_exposure_notional()
         protection = build_plant_protection_snapshot(self.real_plant_dcs)
@@ -430,6 +443,8 @@ class Revision2ExternalEngineOrchestrator:
             self.plant_control_observer_failures.append({
                 "timestamp": str(timestamp), "error_type": type(exc).__name__, "error": str(exc)})
             return
+        self._paper_plant_snapshot = snapshot
+        self._paper_plant_timestamp = timestamp
         self.plant_control_evaluations += 1
         self._plant_protection_connected = snapshot.ecs.plant_protection_connected
         self._plant_protection_source = snapshot.ecs.bay_availability_source
@@ -441,6 +456,45 @@ class Revision2ExternalEngineOrchestrator:
         if key != self._plant_control_last_key:
             self._plant_control_last_key = key
             self.plant_control_snapshots.append(snapshot)
+
+    def _assert_paper_plant_broker(self):
+        if self.plant_control.mode is PlantControlMode.PAPER_APPLY:
+            if type(self.broker) is not CostedPaperBrokerAdapter or self.broker.environment != "paper":
+                raise PlantControlError("PAPER_APPLY requires the offline CostedPaperBrokerAdapter")
+
+    def _paper_plant_entry_limit(self, symbol, quantity, entry_price, timestamp):
+        """Fresh, fail-closed paper-only cap. Re-read protection and used budgets per candidate."""
+        if self.plant_control.mode is PlantControlMode.SHADOW:
+            return quantity
+        self._assert_paper_plant_broker()
+        self._paper_admission_evaluations += 1
+        snapshot = self._paper_plant_snapshot
+        result = {"quantity": 0, "reason": "PAPER_PLANT_REFERENCE_UNAVAILABLE"}
+        if (snapshot is not None and self._paper_plant_timestamp == timestamp
+                and snapshot.ecs.plant_protection_connected):
+            protection = build_plant_protection_snapshot(self.real_plant_dcs)
+            bay_id = _R5_SYMBOL_TO_BAY.get(symbol)
+            if protection.connected and not protection.master_block and bay_id is not None:
+                bay = protection.bay(bay_id)
+                if bay.available and not self.symbol_tripped.get(symbol, False):
+                    reference = next(ref for ref in snapshot.governor_references if ref.bay_id == bay_id)
+                    bay_notional = sum(
+                        t["quantity"] * self._last_close.get(s, t["entry_price"])
+                        for s, t in self.open_trades.items() if _R5_SYMBOL_TO_BAY.get(s) == bay_id)
+                    result = self._bay_governors[bay_id].cap_dispatch_entry(
+                        reference, requested_quantity=quantity, entry_price=entry_price,
+                        equity=self._equity(), gross_limit_fraction=float(self.safety_contract.values["max_gross_exposure_fraction"]),
+                        bay_notional=bay_notional, gross_notional=self._gross_exposure_notional())
+                else:
+                    result["reason"] = "PAPER_PLANT_BAY_BLOCKED"
+            else:
+                result["reason"] = "PAPER_PLANT_PROTECTION_UNAVAILABLE_OR_BLOCKED"
+        allowed = min(quantity, result["quantity"])
+        self._paper_admission_rejections += int(allowed <= 0)
+        self._paper_admission_caps += int(0 < allowed < quantity)
+        self._record_controller_event("PLANT_CONTROL_PAPER_ADMISSION", timestamp, symbol,
+                                      {"requested_quantity": quantity, **result})
+        return allowed
 
     def _gross_exposure_notional(self) -> float:
         return sum(t["quantity"] * self._last_close.get(s, t["entry_price"])
@@ -529,6 +583,7 @@ class Revision2ExternalEngineOrchestrator:
         self._close_feedback_receipts[key] = "DONE"
 
     def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
+        self._assert_paper_plant_broker()
         self._verify_broker_position_reconciles(symbol, trade)
         close_side = "SELL" if trade["side"] == "BUY" else "BUY"
         self._exit_orders_submitted += 1
@@ -975,6 +1030,7 @@ class Revision2ExternalEngineOrchestrator:
         self, symbol_bars: Dict[str, pd.DataFrame], warmup: int = 60,
         precomputed_clock: Optional[List[_ClockEvent]] = None,
     ) -> Dict[str, Any]:
+        self._assert_paper_plant_broker()
         # Box 3: Pandera certification, once per symbol, before the loop --
         # bars don't change during a backtest, so re-validating them every
         # iteration (the per-bar design the in-house box uses) is pure
@@ -1444,6 +1500,16 @@ class Revision2ExternalEngineOrchestrator:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "position_sizing_zero")
                     continue
 
+                if self.plant_control.mode is PlantControlMode.PAPER_APPLY:
+                    # Use the greater of planned price and the actual costed replay fill price.
+                    cap_price = max(float(plan.entry_price), paper_fill_price(
+                        float(pid_info["execution_market_price"]), plan.side, self.broker.slippage_fraction))
+                    quantity = self._paper_plant_entry_limit(symbol, quantity, cap_price, timestamp)
+                    if quantity <= 0:
+                        self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "plant_control_paper_cap")
+                        funnel["portfolio_cap_rejections"] += 1
+                        continue
+
                 real_notional = plan.entry_price * quantity
                 if self._gross_exposure_notional() + real_notional > equity_now * max_gross_fraction:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "gross_exposure_cap")
@@ -1493,34 +1559,6 @@ class Revision2ExternalEngineOrchestrator:
                     seen_recent=self._intent_ledger.seen_recent(symbol, order.side, current_time),
                     proposed_notional=real_notional,
                 )
-                # GRID GATE INTEGRATION: DISABLED PENDING REAL DATA INJECTION
-                # Status: Fail-closed logic is implemented, but orchestrator never initializes:
-                # - self.grid_sync (no synchronizer attached)
-                # - self.nifty_prices (no market index data)
-                # - self.vix_prices (no volatility index data)
-                # Result: Would reject ALL entries (zero trades), which is fail-safe but not useful.
-                # Enable only when real, timestamp-aligned NIFTY/VIX data is injected.
-
-                if False:  # DISABLED
-                    if not hasattr(self, 'grid_sync') or self.grid_sync is None:
-                        funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
-                        continue
-
-                    try:
-                        grid_ok, grid_state = self.grid_sync.check_grid_synchronization(
-                            self.nifty_prices[max(0, bar_idx - 500):bar_idx + 1] if bar_idx < len(self.nifty_prices) else self.nifty_prices,
-                            float(self.vix_prices[bar_idx]) if bar_idx < len(self.vix_prices) else 20.0,
-                            trade_direction=signal.direction if hasattr(signal, 'direction') else 1
-                        )
-                        if not grid_ok:
-                            funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
-                            continue
-                    except Exception as e:
-                        import logging
-                        logger = logging.getLogger(__name__)
-                        logger.critical(f"Grid sync error (FAIL-CLOSED): {e}")
-                        funnel["grid_rejected"] = funnel.get("grid_rejected", 0) + 1
-                        continue
                 funnel["gates_evaluated"] += 1
                 if not gate_result["passed"]:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_gate",
@@ -1528,7 +1566,7 @@ class Revision2ExternalEngineOrchestrator:
                     funnel["gates_rejected"] += 1
                     continue
                 funnel["gates_passed"] += 1
-                quantity = max(0, int(gate_result["adjusted_quantity"]))
+                quantity = min(quantity, max(0, int(gate_result["adjusted_quantity"])))
                 if quantity <= 0:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_quantity_zero")
                     continue
@@ -1542,6 +1580,10 @@ class Revision2ExternalEngineOrchestrator:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "execution_gate")
                     funnel["safety_rejections"] += 1
                     continue
+
+                if self.plant_control.mode is PlantControlMode.PAPER_APPLY:
+                    # Recheck protection immediately before submission; safety gates may only reduce.
+                    quantity = self._paper_plant_entry_limit(symbol, quantity, cap_price, timestamp)
 
                 # Derating/clamping can only round DOWN to a valid symbol lot.
                 lot_size = max(1, int(self.config.require("lot_size_by_symbol").get(symbol, 1)))
@@ -1671,8 +1713,20 @@ class Revision2ExternalEngineOrchestrator:
             "gross_pnl": gross_pnl, "net_pnl": sum(t["net_pnl"] for t in self.completed_trades),
             "ending_equity": self.starting_equity + sum(t["net_pnl"] for t in self.completed_trades),
             "config_hash": self.config.config_hash, "safety_contract_hash": self.safety_contract.contract_hash,
+            "plant_control": {
+                "mode": self.plant_control.mode.value, "applied": self._paper_admission_evaluations > 0,
+                "plant_protection_connected": self._plant_protection_connected,
+                "bay_availability_source": self._plant_protection_source,
+                "evaluations": self.plant_control_evaluations,
+                "paper_admission_evaluations": self._paper_admission_evaluations,
+                "paper_admission_rejections": self._paper_admission_rejections,
+                "paper_admission_caps": self._paper_admission_caps,
+                "grid_state_counts": dict(self.plant_control_state_counts),
+                "transitions": len(self.plant_control_snapshots),
+                "observer_failures": len(self.plant_control_observer_failures),
+            },
             "plant_control_shadow": {
-                "mode": self.plant_control.mode.value, "applied": False,
+                "mode": self.plant_control.mode.value, "applied": self._paper_admission_evaluations > 0,
                 "plant_protection_connected": self._plant_protection_connected,
                 "bay_availability_source": self._plant_protection_source,
                 "evaluations": self.plant_control_evaluations,

@@ -3,6 +3,7 @@ clarabel==0.11.1
 cvxpy==1.9.2
 kiteconnect==5.2.1
 numpy==2.5.2
+optuna==5.0.0
 osqp==1.1.3
 pandas==2.3.3
 pandera==0.33.1

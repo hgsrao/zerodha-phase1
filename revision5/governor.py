@@ -196,6 +196,35 @@ class BayTurbineClosedLoopGovernor:
         # Monotonic protective ratchet. It may advance only.
         self.protected_r_floor = -1.0
 
+    def cap_dispatch_entry(
+        self, reference, *, requested_quantity: int, entry_price: float,
+        equity: float, gross_limit_fraction: float, bay_notional: float,
+        gross_notional: float,
+    ) -> dict:
+        """Consume a paper dispatch reference as an additional upper cap only.
+
+        The external strategy and execution governor must already approve the request.
+        This does not change native z-score admission, PID state, exits, or safety limits.
+        References are fractions of the existing total gross-exposure budget.
+        """
+        values = (entry_price, equity, gross_limit_fraction, bay_notional, gross_notional,
+                  reference.dispatch_reference_pu, reference.plant_demand_reference_pu)
+        if (reference.bay_id != self.spec.bay_id or reference.mode != "PAPER_APPLY"
+                or not all(isfinite(v) for v in values)
+                or entry_price <= 0 or equity <= 0 or gross_limit_fraction <= 0
+                or min(bay_notional, gross_notional) < 0
+                or not 0 <= reference.dispatch_reference_pu <= reference.plant_demand_reference_pu <= 1):
+            return {"quantity": 0, "reason": "INVALID_DISPATCH_REFERENCE"}
+        budget = equity * gross_limit_fraction
+        remaining = max(0.0, min(
+            budget * reference.dispatch_reference_pu - bay_notional,
+            budget * reference.plant_demand_reference_pu - gross_notional,
+        ))
+        quantity = min(max(0, int(requested_quantity)), int(remaining / entry_price))
+        return {"quantity": quantity, "reason": "PAPER_DISPATCH_CAP" if quantity else "PAPER_DISPATCH_HOLD",
+                "remaining_notional": remaining, "bay_cap_notional": budget * reference.dispatch_reference_pu,
+                "plant_cap_notional": budget * reference.plant_demand_reference_pu}
+
     def register_trade(self, realized_r: float) -> float:
         if not isfinite(realized_r):
             raise ValueError("realized_r must be finite")

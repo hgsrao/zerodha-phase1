@@ -1,6 +1,6 @@
 {
   "built_at": "2026-09-02T14:30:34.060099+00:00",
-  "data_dir": "/home/shrinivas/ECS_Complete/P01D_CHART_STUDIES_V10_HISTORICAL_REPLAY_20260825/DATA_1MIN_48_20230703_20260824",
+  "data_dir": "/home/srinivas/projects/zerodha-phase1/data/frozen_48_1min_20230703_20260824",
   "files": [
     {
       "filename": "NSE_ADANIENT_minute_2023-07-03_2026-08-24.csv",

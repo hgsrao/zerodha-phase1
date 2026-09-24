@@ -459,12 +459,13 @@ def test_closed_loop_supervisor_is_not_the_ecs_plant_supervisor():
 
 # ------------------------------------------------------------------- mode + registry
 
-def test_only_shadow_is_enabled_and_there_is_no_live_mode():
+def test_shadow_default_and_explicit_paper_apply_have_no_live_mode():
     nifty, vix = grid_frames()
     provider = SealedGridContextProvider(nifty, vix)
     assert PlantControlChain(cfg(), provider, DynamicBayLoadDispatcher()).mode is PlantControlMode.SHADOW
     assert {m.value for m in PlantControlMode} == {"SHADOW", "PAPER_APPLY"}
-    for bad in ("PAPER_APPLY", PlantControlMode.PAPER_APPLY, "LIVE", "shadow"):
+    assert PlantControlChain(cfg(), provider, DynamicBayLoadDispatcher(), "PAPER_APPLY").mode is PlantControlMode.PAPER_APPLY
+    for bad in ("LIVE", "shadow"):
         with pytest.raises(PlantControlError):
             PlantControlChain(cfg(), provider, DynamicBayLoadDispatcher(), bad)
 
@@ -571,7 +572,7 @@ def test_shadow_mode_leaves_the_replay_trade_ledger_unchanged():
     assert synced and any(s.ecs.plant_demand_reference_pu > 0.0 for s in synced)
 
 
-def test_orchestrator_only_accepts_shadow_plant_control():
+def test_orchestrator_requires_connected_inputs_for_paper_apply():
     from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
     with pytest.raises(PlantControlError):
         Revision2ExternalEngineOrchestrator(["INFY"], CanonicalParameterRegistry(), plant_control_mode="PAPER_APPLY")
