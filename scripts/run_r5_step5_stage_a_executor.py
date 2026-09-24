@@ -20,8 +20,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import fcntl
 import json
 import os
+import shlex
+import time
 import subprocess
 import sys
 import tempfile
@@ -164,6 +167,9 @@ def remote_text(
         str(ssh_key),
         "-o",
         "BatchMode=yes",
+        "-o", "ConnectTimeout=10",
+        "-o", "ServerAliveInterval=15",
+        "-o", "ServerAliveCountMax=2",
         laptop,
         command,
     ])
@@ -220,10 +226,10 @@ def verify_remote_control_plane(
         ssh_key,
         laptop,
         'cd "$HOME/projects/zerodha-phase1" '
-        '&& git rev-parse --short HEAD',
+        '&& git rev-parse HEAD',
     )
 
-    if remote_commit != "3e5e4f6":
+    if remote_commit != "3e5e4f6766bceae5579dae6ba4e241c012dc113f":
         raise SystemExit(
             f"REMOTE_ENGINE_PARENT: FAIL "
             f"{remote_commit}"
@@ -646,20 +652,8 @@ def load_valid_existing_result(
     if not result_path.is_file():
         return None
 
-    try:
-        result = json.loads(
-            result_path.read_text()
-        )
-
-        validate_candidate_result(
-            result,
-            spec,
-            protocol_sha,
-            worker_sha,
-        )
-
-    except Exception:
-        return None
+    result = json.loads(result_path.read_text())
+    validate_candidate_result(result, spec, protocol_sha, worker_sha)
 
     return result
 
@@ -740,29 +734,6 @@ def log_path(
     )
 
 
-def ensure_remote_payloads(
-    ssh_key: Path,
-    laptop: str,
-    protocol_path: Path,
-    worker_path: Path,
-) -> None:
-    run_checked([
-        "scp",
-        "-i",
-        str(ssh_key),
-        str(worker_path),
-        f"{laptop}:{REMOTE_WORKER}",
-    ])
-
-    run_checked([
-        "scp",
-        "-i",
-        str(ssh_key),
-        str(protocol_path),
-        f"{laptop}:{REMOTE_PROTOCOL}",
-    ])
-
-
 def launch_local(
     spec: dict,
     params_path: Path,
@@ -813,106 +784,148 @@ def launch_local(
     return process, handle
 
 
+# Runs on the laptop using only the standard library. A durable claim precedes
+# spawning: a lost SSH acknowledgement cannot cause a second candidate launch.
+REMOTE_CONTROL = r"""
+import json, os, pathlib, subprocess, sys
+job = json.loads(sys.argv[1])
+action = sys.argv[2]
+base = pathlib.Path(job["job_path"])
+result = pathlib.Path(job["result_path"])
+
+def emit(status, **extra):
+    print(json.dumps(dict(status=status, **extra)), flush=True)
+
+if base.exists():
+    saved = json.loads((base / "identity.json").read_text())
+    if saved != job:
+        raise SystemExit("REMOTE_JOB_IDENTITY_MISMATCH")
+    if result.is_file():
+        emit("COMPLETE")
+    elif (base / "exit.json").exists():
+        emit("FAILED", **json.loads((base / "exit.json").read_text()))
+    elif (base / "pid.json").exists():
+        pid = json.loads((base / "pid.json").read_text())["pid"]
+        try:
+            cmd = pathlib.Path("/proc", str(pid), "cmdline").read_bytes()
+            alive = str(base).encode() in cmd
+        except FileNotFoundError:
+            alive = False
+        emit("RUNNING" if alive else "AMBIGUOUS", pid=pid)
+    else:
+        emit("AMBIGUOUS")
+elif result.is_file():
+    # Recover results produced by the original foreground executor as well.
+    emit("COMPLETE")
+elif action == "probe":
+    emit("ABSENT")
+else:
+    base.mkdir()  # Exclusive claim; never silently retry a partial launch.
+    with (base / "identity.json").open("x") as f:
+        json.dump(job, f)
+        f.flush()
+        os.fsync(f.fileno())
+    runner = r'''
+import json, os, pathlib, subprocess, sys
+job = json.loads(sys.argv[1])
+base = pathlib.Path(job["job_path"])
+def save(name, value):
+    tmp = base / (name + ".tmp")
+    with tmp.open("w") as f:
+        json.dump(value, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, base / name)
+save("pid.json", {"pid": os.getpid()})
+try:
+    rc = subprocess.call(job["argv"], stdin=subprocess.DEVNULL)
+    if rc == 0:
+        os.replace(job["pending_path"], job["result_path"])
+    save("exit.json", {"returncode": rc})
+except BaseException as exc:
+    save("exit.json", {"returncode": -1, "error": str(exc)})
+'''
+    with open(job["log_path"], "ab", buffering=0) as log:
+        proc = subprocess.Popen([sys.executable, "-c", runner, json.dumps(job)],
+                                stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                                start_new_session=True, close_fds=True)
+    emit("RUNNING", pid=proc.pid)
+"""
+
+
+def remote_job_status(job, ssh_key, laptop, remote_python, action="probe"):
+    command = shlex.join([
+        remote_python, "-c", REMOTE_CONTROL, json.dumps(job), action,
+    ])
+    return json.loads(remote_text(ssh_key, laptop, command))
+
+
 def launch_remote(
-    spec: dict,
-    params_path: Path,
-    result: Path,
-    log: Path,
-    ssh_key: Path,
-    laptop: str,
-    remote_python: str,
-    protocol_sha: str,
+    spec, params_path, result, log, ssh_key, laptop, remote_python, protocol_sha,
 ):
-    number = int(
-        spec["trial_number"]
-    )
-
-    remote_params = (
-        f"/tmp/r5_step5_trial_"
-        f"{number:03d}_params.json"
-    )
-
-    remote_result = (
-        f"/tmp/r5_step5_trial_"
-        f"{number:03d}_result.json"
-    )
-
-    run_checked([
-        "scp",
-        "-i",
-        str(ssh_key),
-        str(params_path),
-        f"{laptop}:{remote_params}",
-    ])
-
-    remote_text(
-        ssh_key,
-        laptop,
-        f"rm -f {remote_result}",
-    )
-
-    log.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    result.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    result.unlink(
-        missing_ok=True,
-    )
-
-    handle = log.open("w")
-
-    remote_command = (
-        f'{remote_python} '
-        f'{REMOTE_WORKER} '
-        f'--root "$HOME/projects/zerodha-phase1" '
-        f'--protocol {REMOTE_PROTOCOL} '
-        f'--expected-protocol-sha {protocol_sha} '
-        f'--stage A '
-        f'--params {remote_params} '
-        f'--output {remote_result}'
-    )
-
-    process = subprocess.Popen(
-        [
-            "ssh",
-            "-i",
-            str(ssh_key),
-            "-o",
-            "BatchMode=yes",
-            laptop,
-            remote_command,
-        ],
-        stdout=handle,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-
-    return (
-        process,
-        handle,
-        remote_result,
-    )
+    number = int(spec["trial_number"])
+    prefix = f"/tmp/r5_step5_trial_{number:03d}"
+    # Preserve legacy result paths for recovery, but bind each job to its inputs.
+    job = {
+        "job_path": prefix + ".job",
+        "result_path": prefix + "_result.json",
+        "pending_path": prefix + "_result.pending.json",
+        "log_path": prefix + ".log",
+        "params_sha256": canonical_hash(spec["params"]),
+        "protocol_sha256": protocol_sha,
+        "laptop": laptop,
+        "argv": [remote_python, REMOTE_WORKER,
+                 "--root", str(Path(remote_python).parents[3] / "projects/zerodha-phase1"),
+                 "--protocol", REMOTE_PROTOCOL,
+                 "--expected-protocol-sha", protocol_sha, "--stage", "A",
+                 "--params", prefix + "_params.json",
+                 "--output", prefix + "_result.pending.json"],
+    }
+    record = result.parent.parent / "jobs" / f"trial_{number:03d}.json"
+    if record.exists():
+        saved = json.loads(record.read_text())
+        if saved["job"] != job:
+            raise SystemExit("LOCAL_REMOTE_JOB_IDENTITY_MISMATCH")
+    else:
+        atomic_json(record, {"job": job, "status": "INTENT"})
+    status = remote_job_status(job, ssh_key, laptop, remote_python)
+    if status["status"] == "ABSENT":
+        run_checked(["scp", "-i", str(ssh_key), "-o", "BatchMode=yes",
+                     str(params_path), f"{laptop}:{prefix}_params.json"])
+        status = remote_job_status(job, ssh_key, laptop, remote_python, "launch")
+    saved = json.loads(record.read_text())
+    atomic_json(record, {**saved, **status})
+    return {"job": job, "record": record, "status": status,
+            "node": "laptop", "remote_python": remote_python}
 
 
-def copy_remote_result(
-    ssh_key: Path,
-    laptop: str,
-    remote_result: str,
-    local_result: Path,
-) -> None:
-    run_checked([
-        "scp",
-        "-i",
-        str(ssh_key),
-        f"{laptop}:{remote_result}",
-        str(local_result),
-    ])
+def copy_remote_result(ssh_key, laptop, remote_result, local_result,
+                       spec, protocol_sha, worker_sha):
+    local_result.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(dir=local_result.parent, suffix=".download")
+    os.close(fd)
+    temporary = Path(name)
+    try:
+        run_checked(["scp", "-i", str(ssh_key), "-o", "BatchMode=yes",
+                     f"{laptop}:{remote_result}", str(temporary)])
+        validate_candidate_result(json.loads(temporary.read_text()), spec,
+                                  protocol_sha, worker_sha)
+        os.replace(temporary, local_result)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def wait_remote(info, ssh_key, laptop):
+    status = info["status"]
+    while status["status"] == "RUNNING":
+        time.sleep(10)
+        # Transport failures leave durable state intact for a later resume.
+        status = remote_job_status(info["job"], ssh_key, laptop,
+                                   info["remote_python"])
+        saved = json.loads(info["record"].read_text())
+        atomic_json(info["record"], {**saved, **status})
+    if status["status"] != "COMPLETE":
+        raise SystemExit(f"REMOTE_JOB_REQUIRES_INSPECTION: {status}")
 
 
 def execute_batch(
@@ -997,28 +1010,10 @@ def execute_batch(
             }
 
         elif node == "laptop":
-            (
-                proc,
-                handle,
-                remote_result,
-            ) = launch_remote(
-                spec,
-                params_paths[number],
-                local_result,
-                logfile,
-                ssh_key,
-                laptop,
-                remote_python,
-                protocol_sha,
+            processes[number] = launch_remote(
+                spec, params_paths[number], local_result, logfile,
+                ssh_key, laptop, remote_python, protocol_sha,
             )
-
-            processes[number] = {
-                "process": proc,
-                "handle": handle,
-                "node": node,
-                "remote_result":
-                    remote_result,
-            }
 
         else:
             raise SystemExit(
@@ -1029,6 +1024,10 @@ def execute_batch(
 
     for number in sorted(processes):
         info = processes[number]
+
+        if info["node"] == "laptop":
+            wait_remote(info, ssh_key, laptop)
+            continue
 
         rc = info["process"].wait()
 
@@ -1056,11 +1055,13 @@ def execute_batch(
             copy_remote_result(
                 ssh_key,
                 laptop,
-                info["remote_result"],
+                info["job"]["result_path"],
                 result_path(
                     state_dir,
                     number,
                 ),
+                next(s for s in batch["trials"] if s["trial_number"] == number),
+                protocol_sha, worker_sha,
             )
 
     results = {}
@@ -1279,6 +1280,15 @@ def main() -> None:
         / "stage_a_state.json"
     )
 
+    execution_lock = None
+    if args.execute:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        execution_lock = (state_dir / "executor.lock").open("a")
+        try:
+            fcntl.flock(execution_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise SystemExit("EXECUTOR_ALREADY_RUNNING")
+
     if state_path.is_file():
         state = json.loads(
             state_path.read_text()
@@ -1337,13 +1347,6 @@ def main() -> None:
         )
 
         return
-
-    ensure_remote_payloads(
-        ssh_key,
-        args.laptop,
-        protocol_path,
-        worker_path,
-    )
 
     batches_executed = 0
 
