@@ -126,6 +126,7 @@ class Revision2ExternalEngineOrchestrator:
         supervisory_bridge: Optional[Revision5SupervisoryBridge] = None,
         plant_control_mode: str = "SHADOW",
         real_plant_dcs: Optional[Any] = None,
+        paper_journal: Optional[Any] = None,
     ) -> None:
         # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
         # Default None -- unchanged behaviour: this replay engine does not instantiate a real plant,
@@ -133,6 +134,9 @@ class Revision2ExternalEngineOrchestrator:
         # When supplied, its EXISTING protection/availability state is read (never mutated, never
         # re-evaluated) for ECS bay availability on every plant-control step.
         self.real_plant_dcs = real_plant_dcs
+        self.paper_journal = paper_journal
+        self._native_timestamp = None
+        self._native_bar_index = -1
         if plant_control_mode == PlantControlMode.PAPER_APPLY:
             from revision5.ccpp_unified_plant import CentralPlantMasterDCS
             if not isinstance(real_plant_dcs, CentralPlantMasterDCS) or grid_context_provider is None:
@@ -339,6 +343,12 @@ class Revision2ExternalEngineOrchestrator:
         # See _register_realized_r_close_feedback for the state-machine contract.
         self._close_feedback_receipts: Dict[str, str] = {}
 
+        if self.plant_control.mode == PlantControlMode.PAPER_APPLY:
+            # One owner for outcome feedback: dispatch and caps consume the native objects.
+            self._bay_governors = {key: bay.governor for key, bay in self.real_plant_dcs.bays.items()}
+            self.plant_control.dispatch_controller.merit_source = self.real_plant_dcs.dispatcher
+        if paper_journal is not None and self.plant_control.mode != PlantControlMode.PAPER_APPLY:
+            raise PlantControlError("Durable replay requires PAPER_APPLY")
         self.startup_certificate = self._issue_startup_certificate()
 
     def _build_safety_gate_config(self) -> SafetyGateConfig:
@@ -422,6 +432,18 @@ class Revision2ExternalEngineOrchestrator:
         re-evaluated or faked here.  When it is not attached, the existing symbol-trip fallback
         (``_plant_bay_status``) is used unchanged, and that fallback path never sees or is
         overridden by real-plant state (see ``derive_bay_status_and_master_block``)."""
+        if self.plant_control.mode == PlantControlMode.PAPER_APPLY:
+            ts = pd.Timestamp(timestamp)
+            if self._native_timestamp is not None and ts < self._native_timestamp:
+                raise PlantControlError("Native plant clock moved backwards")
+            if ts != self._native_timestamp:
+                self._native_bar_index += 1
+                self.real_plant_dcs.begin_bar(ts.to_pydatetime(), self._native_bar_index)
+                self._native_timestamp = ts
+            self._record_controller_event("NATIVE_PLANT_STATE", timestamp, "PLANT", {
+                "protection": asdict(build_plant_protection_snapshot(self.real_plant_dcs)),
+                "clock_basis": "unique_portfolio_timestamp",
+            })
         self._paper_plant_snapshot = None  # a failed evaluation must never reuse an earlier reference
         self._paper_plant_timestamp = None
         equity = self._equity()
@@ -562,7 +584,7 @@ class Revision2ExternalEngineOrchestrator:
         return f"symbol_object:{symbol}:{id(trade)}"
 
     def _register_realized_r_close_feedback(
-        self, *, symbol: str, trade: Dict[str, Any], bay_id: str, realized_r: float,
+        self, *, symbol: str, trade: Dict[str, Any], bay_id: str, realized_r: float, reason: str = "CLOSE",
     ) -> None:
         """Feed one authoritative realized-R close to both separately-owned feedback paths,
         exactly once per close, within this process/replay run only (no persistent cross-restart
@@ -579,7 +601,11 @@ class Revision2ExternalEngineOrchestrator:
             return
         self._close_feedback_receipts[key] = "PENDING"
         self.plant_control.dispatch_controller.merit_source.register_trade(bay_id, realized_r)
-        self._bay_governors[bay_id].register_trade(realized_r)
+        if self.plant_control.mode == PlantControlMode.PAPER_APPLY:
+            self.real_plant_dcs.bays[bay_id].register_outcome(
+                realized_r=realized_r, reason=reason, bar_index=max(0, self._native_bar_index))
+        else:
+            self._bay_governors[bay_id].register_trade(realized_r)
         self._close_feedback_receipts[key] = "DONE"
 
     def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
@@ -728,7 +754,7 @@ class Revision2ExternalEngineOrchestrator:
                     if bay_id is not None:
                         realized_r = self.exit_controller._r_multiple(state, float(result["filled_price"]))
                         self._register_realized_r_close_feedback(
-                            symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r)
+                            symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r, reason=reason)
             del self.open_trades[symbol]
             self._exit_controller_states.pop(symbol, None)
             self._record_mtm(timestamp)
@@ -1031,6 +1057,8 @@ class Revision2ExternalEngineOrchestrator:
         precomputed_clock: Optional[List[_ClockEvent]] = None,
     ) -> Dict[str, Any]:
         self._assert_paper_plant_broker()
+        if self.paper_journal is not None:
+            self.paper_journal.bind(self, symbol_bars, warmup)
         # Box 3: Pandera certification, once per symbol, before the loop --
         # bars don't change during a backtest, so re-validating them every
         # iteration (the per-bar design the in-house box uses) is pure
@@ -1133,6 +1161,8 @@ class Revision2ExternalEngineOrchestrator:
             for event in tick_events:
                 self._last_close[event.symbol] = float(symbol_bars[event.symbol].iloc[event.bar_idx]["close"])
             self._record_mtm(timestamp)
+            if self.paper_journal is not None:
+                self.paper_journal.before_tick(self, timestamp)
             self._plant_control_shadow_step(timestamp, max_gross_fraction)
 
             # Box 8: refit PyPortfolioOpt weights periodically from real
@@ -1689,11 +1719,16 @@ class Revision2ExternalEngineOrchestrator:
                 else:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "paper_fill_rejected")
 
+            if self.paper_journal is not None:
+                self.paper_journal.checkpoint(self, timestamp)
+
         for symbol in list(self.open_trades.keys()):
             bars = symbol_bars[symbol]
             final_close = float(bars.iloc[len(bars) - 1]["close"])
             self._execute_exit(symbol, bars.iloc[len(bars) - 1].get("timestamp", ""), self.open_trades[symbol], final_close, "end_of_run_reconciliation")
 
+        if self.paper_journal is not None:
+            self.paper_journal.checkpoint(self, "FINAL")
         self.entry_candidate_observations.finalize_pending()
         gross_pnl = self.broker.realized_pnl
         assert abs(gross_pnl - sum(t["pnl"] for t in self.completed_trades)) < 1e-6

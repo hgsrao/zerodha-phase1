@@ -32,9 +32,16 @@ def main():
     parser.add_argument('--bars', type=int, default=800)
     parser.add_argument('--mode', choices=['PAPER_APPLY','SHADOW'], default='PAPER_APPLY')
     parser.add_argument('--compare-shadow', action='store_true')
+    parser.add_argument('--journal', type=Path, help='Durable paper SQLite journal; rerun identical command to recover')
+    parser.add_argument('--plant-commands', type=Path, help='Sealed JSON list of tick-indexed trip/reset commands')
+    parser.add_argument('--crash-after-open-checkpoint', action='store_true', help='Harness: terminate worker after committing an open position')
     parser.add_argument('--grid-manifest', type=Path, default=ROOT/'local_workspace/records/grid-manifest-local.json')
     parser.add_argument('--report-dir', type=Path, default=ROOT/'local_workspace/validation/paper_replay')
     args = parser.parse_args()
+    if args.journal and (args.compare_shadow or args.mode != 'PAPER_APPLY'):
+        parser.error('--journal requires PAPER_APPLY without --compare-shadow')
+    if (args.plant_commands or args.crash_after_open_checkpoint) and not args.journal:
+        parser.error('Plant commands/crash injection require --journal')
     if args.bars <= 60:parser.error('--bars must exceed the 60-bar warmup')
     import pandas as pd
     from market_data_loader import MarketDataLoader
@@ -67,13 +74,27 @@ def main():
     summary = {}
     for mode in modes:
         plant = CentralPlantMasterDCS(total_capital=1_000_000,db_path=':memory:')
+        journal = None
+        if args.journal:
+            from revision5.paper_state_journal import PaperStateJournal
+            def after_commit(journal, engine):
+                if args.crash_after_open_checkpoint and engine.open_trades:
+                    import os
+                    os._exit(73)
+            journal = PaperStateJournal(args.journal,
+                commands=json.loads(args.plant_commands.read_text()) if args.plant_commands else (),
+                after_commit=after_commit)
         orch = Revision2ExternalEngineOrchestrator(symbols,grid_context_provider=provider,
-            real_plant_dcs=plant,plant_control_mode=mode,closed_loop_mode='active_paper',telemetry_mode='compact')
+            real_plant_dcs=plant,plant_control_mode=mode,paper_journal=journal,closed_loop_mode='active_paper',telemetry_mode='compact')
         report = orch.run(data,warmup=60)
         report['replay_inputs'] = {'stock_manifest_hash':manifest.manifest_hash,
             'grid_manifest':str(args.grid_manifest.resolve()),'grid_availability_delay_minutes':15,
             'latest_common_date':str(end),
-            'bars':{s:len(f) for s,f in data.items()},'restart_semantics':'fresh in-memory replay only'}
+            'bars':{s:len(f) for s,f in data.items()},'restart_semantics':'verified prefix reconstruction' if journal else 'fresh in-memory replay only',
+            'reconciled_checkpoints':journal.reconciled_checkpoints if journal else 0,
+            'durable_checkpoints':journal.cursor if journal else 0}
+        if journal:
+            journal.close()
         (args.report_dir/f'{mode.lower()}.json').write_text(json.dumps(report,indent=2,default=str))
         summary[mode] = {k:report[k] for k in ['fills','completed_trades','net_pnl','safety_violations','plant_control']}
     (args.report_dir/'summary.json').write_text(json.dumps(summary,indent=2,default=str))
