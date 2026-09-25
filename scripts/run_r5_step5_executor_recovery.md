@@ -34,5 +34,5 @@ absolute batch-index limit. Once Batch 0 is COMPLETE, executing again can
 release Trials 2–3. During hardening, use only `--plan-only` against production
 state. Resume validation uses copied state and launch-blocking mocks.
 
-Validation: `python -m pytest -q tests/test_r5_step5_stage_a_executor.py`.
+Validation: `python -m pytest -q scripts/run_r5_step5_executor_tests.py`.
 These tests run tiny synthetic detached processes, never candidate replay.
