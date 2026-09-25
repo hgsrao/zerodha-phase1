@@ -2479,3 +2479,115 @@ class CentralPlantMasterDCS:
             )
 
         return intents
+
+
+# ============================================================================
+# SPEEDTRONIC MARK V EXECUTIVE CONTROLLER INTEGRATION
+# ============================================================================
+
+from dataclasses import dataclass
+from typing import Dict, Any, Optional
+
+@dataclass(frozen=True)
+class MarkVTelemetryInputs:
+    bay_id: str
+    raw_signal_present: bool
+    signal_side: str              # "BUY" or "SELL"
+    
+    # 5 Limiters feeding Minimum Value Gate (MVG) [0.0, 1.0]
+    fsrn_speed_droop: float       # Frequency/droop error limiter
+    fsrt_exhaust_temp: float      # HRSG thermal / MTM drawdown limiter
+    fsra_acceleration: float      # Velocity / candle slew rate limiter
+    fsrs_startup_ramp: float      # Market opening warmup schedule
+    fsrm_manual_stop: float       # Operator manual run valve
+    
+    # Grid Synchronizer & Safety
+    sync_bus_aligned: bool        # Nifty grid / liquidity spread alignment (52G)
+    master_protective_trip: bool  # ANSI 86 Lockout
+    current_position_lots: int    # Active in-market lots
+    fsrmin_floor: float = 0.15    # Flameout floor for clean exits
+
+
+class MarkVExecutiveController:
+    """Speedtronic Mark V TMR Core for CCPP unified plant bays."""
+
+    def evaluate(self, inp: MarkVTelemetryInputs) -> Dict[str, Any]:
+        # 1. Master Protective Trip Check (ANSI 86 Lockout)
+        if inp.master_protective_trip:
+            action = "EXIT" if inp.current_position_lots > 0 else "LOCKOUT"
+            return {
+                "action": action,
+                "admitted": False,
+                "fsr_selected": 0.0,
+                "effective_fsr": inp.fsrmin_floor if action == "EXIT" else 0.0,
+                "controlling_limiter": "ANSI_86_MASTER_PROTECTIVE_TRIP",
+                "fsr_multiplier": 0.0,
+                "reason": "ANSI 86 master protective trip active",
+            }
+
+        # 2. Minimum Value Gate (MVG) Selection across all 5 limiters
+        limiters = {
+            "FSRN_SPEED_DROOP": inp.fsrn_speed_droop,
+            "FSRT_EXHAUST_TEMP": inp.fsrt_exhaust_temp,
+            "FSRA_ACCELERATION": inp.fsra_acceleration,
+            "FSRS_STARTUP_RAMP": inp.fsrs_startup_ramp,
+            "FSRM_MANUAL_STOP": inp.fsrm_manual_stop,
+        }
+        controlling_limiter, fsr_selected = min(limiters.items(), key=lambda x: x[1])
+
+        # 3. Maximum Value Gate (MaxVG) Floor Enforcement for Flameout Protection
+        effective_fsr = max(inp.fsrmin_floor, fsr_selected)
+
+        # 4. Auto-Synchronizer Check (Breaker 52G Alignment)
+        if not inp.sync_bus_aligned:
+            action = "EXIT" if (inp.current_position_lots > 0 and fsr_selected < 0.25) else "HOLD"
+            return {
+                "action": action,
+                "admitted": False,
+                "fsr_selected": round(fsr_selected, 4),
+                "effective_fsr": round(effective_fsr, 4),
+                "controlling_limiter": "SYNCHRO_BUS_MISALIGNED_52G",
+                "fsr_multiplier": 0.0,
+                "reason": "Grid out of sync: 52G generator breaker open",
+            }
+
+        # 5. Core FSR State Machine (ENTRY, HOLD, EXIT)
+        if inp.current_position_lots == 0:
+            # Standby -> Evaluating Synchronization & Admission
+            if inp.raw_signal_present and fsr_selected >= 0.60:
+                action = f"ENTRY_{inp.signal_side}"
+                admitted = True
+                fsr_mult = fsr_selected
+                reason = f"FSR {fsr_selected:.2f} >= 0.60 hurdle cleared"
+            else:
+                action = "HOLD_STANDBY"
+                admitted = False
+                fsr_mult = 0.0
+                reason = f"FSR {fsr_selected:.2f} < 0.60 entry hurdle" if inp.raw_signal_present else "No signal"
+        else:
+            # Unit on grid carrying load
+            if fsr_selected < 0.25:
+                action = "EXIT"
+                admitted = False
+                fsr_mult = 0.0
+                reason = f"FSR {fsr_selected:.2f} < 0.25 cutoff -> Unwind position"
+            elif fsr_selected < 0.60:
+                action = "HOLD_LOAD_SHED"
+                admitted = False
+                fsr_mult = fsr_selected / 0.60  # Continuous partial load shed
+                reason = f"FSR throttled to {fsr_selected:.2f} by {controlling_limiter}"
+            else:
+                action = "HOLD_BASE_LOAD"
+                admitted = False
+                fsr_mult = 1.0
+                reason = "Base load generation steady"
+
+        return {
+            "action": action,
+            "admitted": admitted,
+            "fsr_selected": round(fsr_selected, 4),
+            "effective_fsr": round(effective_fsr, 4),
+            "controlling_limiter": controlling_limiter,
+            "fsr_multiplier": round(fsr_mult, 4),
+            "reason": reason,
+        }
