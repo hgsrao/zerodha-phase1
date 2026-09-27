@@ -40,21 +40,39 @@ class CausalEntryExpectancyLedger:
         candidate_id = str(outcome.get("candidate_id", ""))
         if not candidate_id:
             raise ValueError("entry outcome requires candidate_id")
-        candidate = self._pending.pop(candidate_id, None)
+        candidate = self._pending.get(candidate_id)
         if candidate is None:
             return None
+        # Validate the whole outcome BEFORE consuming the pending candidate: an invalid outcome
+        # must be rejected without losing the pre-entry evidence it would have been paired with.
         for field in ("net_pnl", "pnl", "costs", "exit_reason", "bars_held"):
-            if field not in outcome:
+            if outcome.get(field) is None:
                 raise ValueError(f"entry outcome requires {field}")
+        numbers = {}
+        for field in ("pnl", "costs", "net_pnl", "bars_held"):
+            value = outcome[field]
+            if isinstance(value, bool):
+                raise ValueError(f"entry outcome has non-numeric {field}")
+            try:
+                numbers[field] = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"entry outcome has non-numeric {field}") from exc
+            if not math.isfinite(numbers[field]):
+                raise ValueError(f"entry outcome has non-finite {field}")
+        if numbers["bars_held"] < 0 or not numbers["bars_held"].is_integer():
+            raise ValueError("entry outcome bars_held must be a non-negative integer")
+        if not isinstance(outcome["exit_reason"], str) or not outcome["exit_reason"].strip():
+            raise ValueError("entry outcome requires a non-empty exit_reason")
+        del self._pending[candidate_id]
         resolved = {
             **candidate,
             "trade_id": outcome.get("trade_id"),
             "exit_timestamp": outcome.get("exit_timestamp"),
             "exit_reason": outcome["exit_reason"],
-            "bars_held": int(outcome["bars_held"]),
-            "gross_pnl": float(outcome["pnl"]),
-            "costs": float(outcome["costs"]),
-            "net_pnl": float(outcome["net_pnl"]),
+            "bars_held": int(numbers["bars_held"]),
+            "gross_pnl": numbers["pnl"],
+            "costs": numbers["costs"],
+            "net_pnl": numbers["net_pnl"],
             "mfe_r": outcome.get("mfe_r"),
             "mae_r": outcome.get("mae_r"),
             "terminal_bar_excursion": outcome.get("terminal_bar_excursion"),

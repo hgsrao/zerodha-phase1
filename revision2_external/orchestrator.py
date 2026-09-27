@@ -694,22 +694,13 @@ class Revision2ExternalEngineOrchestrator:
                     "shadow_net_pnl": shadow_pnl - shadow_costs,
                 }
                 completed["shadow_r_trajectory"] = shadow
-            self.completed_trades.append(completed)
-            entry_evidence = self.entry_expectancy_ledger.record_outcome({
-                "candidate_id": completed["candidate_id"], "trade_id": completed["trade_id"],
-                "exit_timestamp": completed["exit_timestamp"], "exit_reason": reason,
-                "bars_held": completed["bars_held"], "pnl": completed["pnl"],
-                "costs": completed["costs"], "net_pnl": completed["net_pnl"],
-                "mfe_r": completed.get("mfe_r"), "mae_r": completed.get("mae_r"),
-                "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
-            })
-            if entry_evidence is not None:
-                self._record_controller_event("ENTRY_EXPECTANCY_OUTCOME", timestamp, symbol, entry_evidence)
-            closed_loop_profile = self.closed_loop.record_outcome(
-                completed, regime=trade.get("closed_loop", {}).get("regime", "unknown"),
-            )
 
-            # --- CLOSED-LOOP INTER-BOX FEEDBACK (Box 10 -> Box 6/8) ---
+            # ---- 1. Authoritative close bookkeeping --------------------------------------
+            # The broker position is already flat.  Everything that keeps this engine's ledger,
+            # P&L and protection state consistent with the broker happens first, before any
+            # research telemetry can raise.  A later defect still propagates, but can no longer
+            # leave a flat broker position recorded as open.
+            self.completed_trades.append(completed)
             _pnl = float(completed.get("net_pnl", 0.0))
             if _pnl < 0:
                 _c_losses = self.symbol_consecutive_losses.get(symbol, 0) + 1
@@ -722,6 +713,10 @@ class Revision2ExternalEngineOrchestrator:
             elif _pnl > 0:
                 # Any profitable exit breaks consecutive loss streak
                 self.symbol_consecutive_losses[symbol] = 0
+            self._equity_curve.append(self._equity())
+            del self.open_trades[symbol]
+            self._exit_controller_states.pop(symbol, None)
+            self._record_mtm(timestamp)
             self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
                 "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
                 "exit_reason": reason, "net_pnl": completed["net_pnl"], "pnl": pnl, "costs": trade_costs,
@@ -731,16 +726,12 @@ class Revision2ExternalEngineOrchestrator:
                 "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
                 "shadow_r_trajectory": shadow,
             })
-            self._record_controller_event("OUTCOME_LEDGER_UPDATE", timestamp, symbol, {
-                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
-                "net_pnl": completed["net_pnl"], "entry_quality_profile": closed_loop_profile,
-            })
-            self._equity_curve.append(self._equity())
-            # Authoritative realized-R close -> plant-level dispatch feedback (BLOCKER 2) and local
-            # governor feedback.  Only here: after the authoritative exit fill (result["passed"]),
-            # after position/ledger reconciliation (_verify_broker_position_reconciles, above) and
-            # after completed_trades/closed_loop bookkeeping is safe.  del self.open_trades[symbol]
-            # below is what makes this trade "truly closed"; the feedback call happens just before it.
+
+            # ---- 2. Authoritative realized-R close feedback -------------------------------
+            # Plant-level dispatch feedback (BLOCKER 2) and local governor feedback: after the
+            # authoritative exit fill, after position/ledger reconciliation and after the engine
+            # ledger above already records the trade as closed.  Exactly-once receipts still apply;
+            # an exception here propagates with the ledger already consistent with the broker.
             if state is not None:
                 risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
                 if risk > 0.0:
@@ -755,9 +746,34 @@ class Revision2ExternalEngineOrchestrator:
                         realized_r = self.exit_controller._r_multiple(state, float(result["filled_price"]))
                         self._register_realized_r_close_feedback(
                             symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r, reason=reason)
-            del self.open_trades[symbol]
-            self._exit_controller_states.pop(symbol, None)
-            self._record_mtm(timestamp)
+
+            # ---- 3. Research telemetry (never part of the authoritative books) -------------
+            if completed["bars_held"] is None:
+                # Without exit-controller state the holding period is unknown.  It is never
+                # fabricated: the pre-entry evidence stays pending instead of being paired
+                # with an invented outcome.
+                self._record_controller_event("ENTRY_EXPECTANCY_OUTCOME_UNAVAILABLE", timestamp, symbol, {
+                    "candidate_id": completed["candidate_id"], "trade_id": completed["trade_id"],
+                    "reason": "bars_held_unknown_without_exit_controller_state",
+                })
+            else:
+                entry_evidence = self.entry_expectancy_ledger.record_outcome({
+                    "candidate_id": completed["candidate_id"], "trade_id": completed["trade_id"],
+                    "exit_timestamp": completed["exit_timestamp"], "exit_reason": reason,
+                    "bars_held": completed["bars_held"], "pnl": completed["pnl"],
+                    "costs": completed["costs"], "net_pnl": completed["net_pnl"],
+                    "mfe_r": completed.get("mfe_r"), "mae_r": completed.get("mae_r"),
+                    "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
+                })
+                if entry_evidence is not None:
+                    self._record_controller_event("ENTRY_EXPECTANCY_OUTCOME", timestamp, symbol, entry_evidence)
+            closed_loop_profile = self.closed_loop.record_outcome(
+                completed, regime=trade.get("closed_loop", {}).get("regime", "unknown"),
+            )
+            self._record_controller_event("OUTCOME_LEDGER_UPDATE", timestamp, symbol, {
+                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+                "net_pnl": completed["net_pnl"], "entry_quality_profile": closed_loop_profile,
+            })
 
     def _record_controller_event(self, event_type: str, timestamp: object, symbol: str, payload: Dict[str, Any]) -> None:
         """Record controller state and any bounded paper-only actuation."""
@@ -1578,10 +1594,9 @@ class Revision2ExternalEngineOrchestrator:
                     suggested_quantity=quantity, position_notional=real_notional,
                     risk_reward_ratio=abs(plan.target_price - plan.entry_price) / max(abs(plan.entry_price - plan.stop_price), 1e-12),
                 )
-                try:
-                    current_time = datetime.fromisoformat(str(next_ts))
-                except Exception:
-                    current_time = datetime.now()
+                # Replay event time only.  A wall-clock fallback would make every time-of-day
+                # and de-duplication gate depend on when the replay happens to run.
+                current_time = self._replay_event_time(next_ts)
                 gate_result = self.entry_decision_engine.evaluate_pre_submit(
                     state, signal=entry_signal, current_time=current_time, proposed_quantity=quantity,
                     target_price=plan.entry_price, fill_price=plan.entry_price, expected_qty=quantity,
@@ -1831,9 +1846,30 @@ class Revision2ExternalEngineOrchestrator:
         # end show up as "unconsumed" despite being load-bearing.
         self.consumed_parameters.add("trading_hours_start")
         self.consumed_parameters.add("trading_hours_end")
+        # Fail closed: a timestamp that cannot be placed on the exchange clock is never inside
+        # the trading window.  The fault is recorded, never silently treated as tradeable.
         try:
-            raw = str(timestamp)
-            time_part = (raw.split("T")[-1] if "T" in raw else raw.split(" ")[-1])[:5]
-            return start <= time_part <= end
-        except Exception:
-            return True
+            time_part = self._exchange_local_time(timestamp).strftime("%H:%M")
+        except (TypeError, ValueError) as exc:
+            self._record_controller_event("TRADING_WINDOW_FAULT", timestamp, "PLANT", {
+                "error_type": type(exc).__name__, "error": str(exc), "in_window": False})
+            return False
+        return start <= time_part <= end
+
+    @staticmethod
+    def _exchange_local_time(timestamp: object) -> pd.Timestamp:
+        """Exchange-local (Asia/Kolkata) time.  A tz-aware value keeps its instant; a tz-naive
+        replay value is read as exchange-local, the same rule as PlantGridSynchronizer."""
+        ts = pd.Timestamp(timestamp)
+        if pd.isna(ts):
+            raise ValueError(f"timestamp is not a valid instant: {timestamp!r}")
+        return ts.tz_localize("Asia/Kolkata") if ts.tzinfo is None else ts.tz_convert("Asia/Kolkata")
+
+    @staticmethod
+    def _replay_event_time(timestamp: object) -> datetime:
+        """Deterministic replay event time for gate evaluation.  Never the wall clock: an
+        unparseable replay timestamp is a data defect and stops the run."""
+        ts = pd.Timestamp(timestamp)
+        if pd.isna(ts):
+            raise ValueError(f"replay event timestamp is not a valid instant: {timestamp!r}")
+        return datetime.fromisoformat(ts.isoformat())
