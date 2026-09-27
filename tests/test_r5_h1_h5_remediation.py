@@ -39,7 +39,7 @@ def test_h2_plant_cap_reaches_the_configured_gross_limit_across_evaluations():
             orch._plant_control_shadow_step(ts, limit)
             quantity = orch._paper_plant_entry_limit(symbol, 10**9, 100.0, ts)
             if quantity > 0:
-                trade = orch.open_trades.setdefault(symbol, {"quantity": 0, "entry_price": 100.0})
+                trade = orch.open_trades.setdefault(symbol, {"side": "BUY", "quantity": 0, "entry_price": 100.0})
                 trade["quantity"] += quantity
                 orch._last_close[symbol] = 100.0
     gross = orch._gross_exposure_notional()
@@ -57,7 +57,7 @@ def test_h2_plant_cap_still_enforces_the_per_bay_dispatch_ceiling():
             orch._plant_control_shadow_step(ts, limit)
             quantity = orch._paper_plant_entry_limit(symbol, 10**9, 100.0, ts)
             if quantity > 0:
-                trade = orch.open_trades.setdefault(symbol, {"quantity": 0, "entry_price": 100.0})
+                trade = orch.open_trades.setdefault(symbol, {"side": "BUY", "quantity": 0, "entry_price": 100.0})
                 trade["quantity"] += quantity
                 orch._last_close[symbol] = 100.0
     ceiling = orch.plant_control.dispatch_controller.merit_source.max_ceiling
@@ -68,7 +68,7 @@ def test_h2_ecs_demand_is_a_loading_reference_not_a_second_headroom():
     """Exposure no longer lowers the ECS demand reference; it is reported only."""
     symbols = [symbols_for_bay(BAY_IDS[0])[0]]
     orch, ts, limit = _paper_engine(symbols)
-    orch.open_trades[symbols[0]] = {"quantity": 1000, "entry_price": 100.0}
+    orch.open_trades[symbols[0]] = {"side": "BUY", "quantity": 1000, "entry_price": 100.0}
     orch._last_close[symbols[0]] = 100.0
     orch._plant_control_shadow_step(ts, limit)
     ecs = orch._paper_plant_snapshot.ecs

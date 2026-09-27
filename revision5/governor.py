@@ -136,6 +136,18 @@ if abs(
     raise RuntimeError("Revision-5 initial capital weights must sum to 1.0")
 
 
+@dataclass
+class _InnerLoopState:
+    """Fast inner-loop state of ONE open position."""
+
+    active: bool = False
+    integral_error: float = 0.0
+    last_error: float = 0.0
+    last_control_u: float = 0.0
+    # Monotonic protective ratchet. It may advance only.
+    protected_r_floor: float = -1.0
+
+
 class BayTurbineClosedLoopGovernor:
     """
     Frozen Mark-V-style closed-loop governor.
@@ -187,14 +199,40 @@ class BayTurbineClosedLoopGovernor:
 
         self.history_r: list[float] = []
 
-        # Fast inner governor loop: active only while a position exists.
-        self.position_active = False
-        self.inner_integral_error = 0.0
-        self.inner_last_error = 0.0
-        self.inner_last_control_u = 0.0
+        # Fast inner governor loop: one independent state per open position.  A bay
+        # trades several symbols concurrently, so one shared integrator/ratchet would
+        # mix unrelated positions.  The legacy single-position API uses the ``None`` key.
+        self._inner_states: Dict[object, _InnerLoopState] = {}
 
-        # Monotonic protective ratchet. It may advance only.
-        self.protected_r_floor = -1.0
+    def inner_state(self, position_id=None) -> _InnerLoopState:
+        """Read-only copy of one position's inner-loop state (inactive default)."""
+        state = self._inner_states.get(position_id)
+        return _InnerLoopState(**vars(state)) if state is not None else _InnerLoopState()
+
+    @property
+    def open_position_ids(self) -> tuple:
+        return tuple(key for key, state in self._inner_states.items() if state.active)
+
+    # Legacy single-position views (position_id=None).
+    @property
+    def position_active(self) -> bool:
+        return self.inner_state().active
+
+    @property
+    def inner_integral_error(self) -> float:
+        return self.inner_state().integral_error
+
+    @property
+    def inner_last_error(self) -> float:
+        return self.inner_state().last_error
+
+    @property
+    def inner_last_control_u(self) -> float:
+        return self.inner_state().last_control_u
+
+    @property
+    def protected_r_floor(self) -> float:
+        return self.inner_state().protected_r_floor
 
     def cap_dispatch_entry(
         self, reference, *, requested_quantity: int, entry_price: float,
@@ -512,23 +550,36 @@ class BayTurbineClosedLoopGovernor:
         *,
         z_score: float,
         grid_return_fraction: float = 0.0,
+        side: str = "BUY",
     ) -> dict:
         """
         Final bay-governor ENTRY authority.
 
         Upstream boxes provide the requested operating condition.
         The governor owns the final strategic ENTRY/NO_ACTION state.
+
+        Side symmetry: the threshold is defined for a BUY (z at or below
+        dynamic_z).  A SELL mirrors both the z-score and the grid return, so
+        an over-extended price (+z) with an adverse (rising) grid is the
+        short-side equivalent of an oversold price with a falling grid.
         """
         if not isfinite(z_score):
             raise ValueError(
                 "z_score must be finite"
             )
+        if side not in ("BUY", "SELL"):
+            raise ValueError("side must be BUY or SELL")
+        if not isfinite(grid_return_fraction):
+            raise ValueError("grid_return_fraction must be finite")
+
+        sign = 1.0 if side == "BUY" else -1.0
+        signed_z = sign * float(z_score)
 
         threshold = self.dynamic_z(
-            grid_return_fraction
+            sign * float(grid_return_fraction)
         )
 
-        admitted = float(z_score) <= threshold
+        admitted = signed_z <= threshold
 
         return {
             "action": (
@@ -542,6 +593,8 @@ class BayTurbineClosedLoopGovernor:
                 else "GOVERNOR_ENTRY_NOT_REACHED"
             ),
             "z_score": float(z_score),
+            "signed_z": signed_z,
+            "side": side,
             "dynamic_z": float(threshold),
         }
 
@@ -549,27 +602,20 @@ class BayTurbineClosedLoopGovernor:
         self,
         *,
         hard_stop_r: float = -1.0,
+        position_id=None,
     ) -> None:
         if not isfinite(hard_stop_r):
             raise ValueError(
                 "hard_stop_r must be finite"
             )
 
-        self.position_active = True
-
-        self.inner_integral_error = 0.0
-        self.inner_last_error = 0.0
-        self.inner_last_control_u = 0.0
-
-        self.protected_r_floor = float(
-            hard_stop_r
+        self._inner_states[position_id] = _InnerLoopState(
+            active=True,
+            protected_r_floor=float(hard_stop_r),
         )
 
-    def confirm_position_closed(self) -> None:
-        self.position_active = False
-        self.inner_integral_error = 0.0
-        self.inner_last_error = 0.0
-        self.inner_last_control_u = 0.0
+    def confirm_position_closed(self, position_id=None) -> None:
+        self._inner_states.pop(position_id, None)
 
     def evaluate_position_control(
         self,
@@ -582,9 +628,10 @@ class BayTurbineClosedLoopGovernor:
         max_hold_bars: int,
         hard_stop_r: float,
         trade_target_r: float,
+        position_id=None,
     ) -> dict:
         """
-        Fast closed-loop governor.
+        Fast closed-loop governor for one position (``position_id``).
 
         output -> comparator -> PID -> HOLD/EXIT -> output feedback
 
@@ -629,10 +676,13 @@ class BayTurbineClosedLoopGovernor:
                 "min_hold_bars"
             )
 
-        if not self.position_active:
+        state = self._inner_states.get(position_id)
+        if state is None or not state.active:
             self.begin_position(
-                hard_stop_r=float(hard_stop_r)
+                hard_stop_r=float(hard_stop_r),
+                position_id=position_id,
             )
+            state = self._inner_states[position_id]
 
         measured_r = float(measured_r)
         reference_r = float(reference_r)
@@ -642,30 +692,30 @@ class BayTurbineClosedLoopGovernor:
 
         error = reference_r - measured_r
 
-        self.inner_integral_error = max(
+        state.integral_error = max(
             -self.runtime_integral_clamp,
             min(
                 self.runtime_integral_clamp,
-                self.inner_integral_error
+                state.integral_error
                 + error,
             ),
         )
 
         derivative = (
             error
-            - self.inner_last_error
+            - state.last_error
         )
 
-        self.inner_last_error = error
+        state.last_error = error
 
         control_u = (
             self.runtime_kp * error
             + self.runtime_ki
-            * self.inner_integral_error
+            * state.integral_error
             + self.runtime_kd * derivative
         )
 
-        self.inner_last_control_u = (
+        state.last_control_u = (
             float(control_u)
         )
 
@@ -696,10 +746,10 @@ class BayTurbineClosedLoopGovernor:
             - trailing_gap,
         )
 
-        if desired_floor > self.protected_r_floor:
-            self.protected_r_floor = min(
+        if desired_floor > state.protected_r_floor:
+            state.protected_r_floor = min(
                 desired_floor,
-                self.protected_r_floor
+                state.protected_r_floor
                 + ratchet_step,
             )
 
@@ -717,8 +767,8 @@ class BayTurbineClosedLoopGovernor:
         elif (
             elapsed_bars >= min_hold_bars
             and measured_r
-            <= self.protected_r_floor
-            and self.protected_r_floor
+            <= state.protected_r_floor
+            and state.protected_r_floor
             > float(hard_stop_r)
         ):
             action = "EXIT"
@@ -767,12 +817,12 @@ class BayTurbineClosedLoopGovernor:
             "reference_r": reference_r,
             "error": float(error),
             "integral_error": float(
-                self.inner_integral_error
+                state.integral_error
             ),
             "derivative": float(derivative),
             "control_u": float(control_u),
             "protected_r_floor": float(
-                self.protected_r_floor
+                state.protected_r_floor
             ),
             "max_favorable_r": (
                 max_favorable_r
@@ -834,6 +884,10 @@ class BayTurbineClosedLoopGovernor:
             "last_error": self.last_error,
             "last_control_u": self.last_control_u,
             "history_r": tuple(self.history_r),
+            "inner_positions": {
+                str(key): dict(vars(state))
+                for key, state in sorted(self._inner_states.items(), key=lambda kv: str(kv[0]))
+            },
         }
 
 

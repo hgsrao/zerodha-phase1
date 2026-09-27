@@ -256,6 +256,24 @@ class Revision2ParameterManifest:
             "symbols_to_trade",
             "exclude_symbols",
             "data_validation_mode",
+            # Governor authority / Mark V limiter / MiCOM (revision5/governor_authority.py)
+            "gov_z_window_bars",
+            "mv_fsr_entry_threshold",
+            "mv_fsr_exit_threshold",
+            "mv_fsrt_drawdown_span",
+            "mv_fsrt_slope",
+            "mv_fsra_base",
+            "mv_fsra_slope",
+            "mv_fsrs_warmup_bars",
+            "mv_fsrs_floor",
+            "mv_vibration_damper_start",
+            "mv_vibration_damper_gain",
+            "mv_exhaust_spread_hold",
+            "mv_exhaust_spread_trip",
+            "mv_fsr_min_floor",
+            "mv_fsrm_manual_limit",
+            "gov_telemetry_atr_bars",
+            "micom_nifty_vol_z_window",
         ]
 
     @staticmethod
