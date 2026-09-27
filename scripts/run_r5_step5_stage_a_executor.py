@@ -1171,7 +1171,7 @@ def main() -> None:
 
     parser.add_argument(
         "--laptop",
-        default="shrinivas@192.168.0.207",
+        default=os.environ.get("R5_WORKER_SSH_TARGET"),
     )
 
     parser.add_argument(
