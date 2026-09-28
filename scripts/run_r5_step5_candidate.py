@@ -1080,6 +1080,19 @@ def main() -> None:
                         block_results[i][
                             "plant_control"
                         ],
+                    "governor_authority":
+                        block_results[i][
+                            "governor_authority"
+                        ],
+                    "micom":
+                        block_results[i][
+                            "micom"
+                        ],
+                    # Completed paper trades, for offline loss attribution.
+                    "trades":
+                        block_results[i][
+                            "trades"
+                        ],
                     "block_fingerprint":
                         block_results[i][
                             "block_fingerprint"

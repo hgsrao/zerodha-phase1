@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Loss attribution for an R5 replay report (offline, read-only).
 
-Reads one or more replay report JSON files written by ``scripts/run_r5_paper_replay.py`` (the
+Reads replay reports from ``scripts/run_r5_paper_replay.py`` or Step 5 candidate outputs (the
 ``trades`` list of completed paper trades) and decomposes the result so a structural loss can
 be located before any further calibration:
 
@@ -125,9 +125,15 @@ def main(argv=None) -> int:
     trades: List[Dict[str, Any]] = []
     for path in args.reports:
         report = json.loads(path.read_text())
-        if not isinstance(report.get("trades"), list):
-            raise SystemExit(f"{path}: report has no 'trades' list")
-        trades.extend(report["trades"])
+        if isinstance(report.get("trades"), list):                 # replay report
+            trades.extend(report["trades"])
+        elif isinstance(report.get("blocks"), list) and all(       # Step 5 candidate output
+                isinstance(b.get("trades"), list) for b in report["blocks"]):
+            for block in report["blocks"]:
+                trades.extend(block["trades"])
+        else:
+            raise SystemExit(f"{path}: no 'trades' list (replay report) or per-block 'trades' "
+                             "(Step 5 candidate output)")
     result = attribute(trades)
     if args.markdown:
         args.markdown.write_text(to_markdown(result, [str(p) for p in args.reports]))
