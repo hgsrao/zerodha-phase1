@@ -36,9 +36,6 @@ import optuna
 
 ROOT = Path(__file__).resolve().parents[1]
 
-BASELINE_TAG = "r5-step5-baseline-seal-20260924"
-BASELINE_COMMIT = "096f8e7d550e25ac78e5ceaff70adb05006e8384"
-
 REMOTE_WORKER = "/tmp/run_r5_step5_candidate.py"
 REMOTE_PROTOCOL = "/tmp/step5_sealed_calibration_protocol.json"
 
@@ -122,19 +119,11 @@ def atomic_json(path: Path, value: Any) -> None:
             os.unlink(temp_name)
 
 
-def verify_baseline_ancestry() -> None:
-    tagged = command_output([
-        "git",
-        "-C",
-        str(ROOT),
-        "rev-parse",
-        f"{BASELINE_TAG}^{{commit}}",
-    ])
-
-    if tagged != BASELINE_COMMIT:
-        raise SystemExit(
-            "BASELINE_TAG_IDENTITY: FAIL"
-        )
+def verify_baseline_ancestry(protocol: dict) -> None:
+    # The sealed engine commit named by the protocol itself must be an ancestor of HEAD.
+    # (V1 anchored on the tagged tooling commit 096f8e7; V2 anchors on its own frozen
+    # engine parent, so one executor serves every protocol version.)
+    baseline = protocol["frozen_parent"]["commit"]
 
     result = subprocess.run(
         [
@@ -143,7 +132,7 @@ def verify_baseline_ancestry() -> None:
             str(ROOT),
             "merge-base",
             "--is-ancestor",
-            BASELINE_COMMIT,
+            baseline,
             "HEAD",
         ],
         stdout=subprocess.DEVNULL,
@@ -1209,8 +1198,6 @@ def main() -> None:
             "--max-batches must be >= 1"
         )
 
-    verify_baseline_ancestry()
-
     protocol_path = Path(
         args.protocol
     ).resolve()
@@ -1251,6 +1238,8 @@ def main() -> None:
     protocol = json.loads(
         protocol_path.read_text()
     )
+
+    verify_baseline_ancestry(protocol)
 
     host = command_output(
         ["hostname"]
@@ -1324,10 +1313,8 @@ def main() -> None:
                 protocol_sha,
             "worker_sha256":
                 worker_sha,
-            "baseline_tag":
-                BASELINE_TAG,
             "baseline_commit":
-                BASELINE_COMMIT,
+                protocol["frozen_parent"]["commit"],
             "remote":
                 remote,
             "completed_batches":
