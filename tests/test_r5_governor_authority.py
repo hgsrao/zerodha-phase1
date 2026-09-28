@@ -434,3 +434,77 @@ def test_micom_recloses_when_healthy_and_daily_latch_resets_next_session():
     assert orch._micom_trip["ansi_code"] == "ANSI 67"                    # latched for the session
     orch.real_plant_dcs.begin_bar((ts + pd.Timedelta(days=3)).to_pydatetime(), 0)
     assert not orch.real_plant_dcs.grid_relay.master_breaker_open
+
+
+# ------------------------------------------- trend candidates: overspeed limit + ranked FSRN
+
+from revision5.governor_authority import causal_percentile_rank
+
+
+def test_trend_overspeed_admits_momentum_and_blocks_overextension_symmetrically():
+    gov = _governor()
+    limit = -gov.runtime_base_z                       # ~ +1.9 sigma in the trade direction (no feedback yet)
+    for side, sign in (("BUY", 1.0), ("SELL", -1.0)):
+        ok = gov.evaluate_entry_request(z_score=sign * (limit - 0.5), side=side, entry_mode="trend_overspeed")
+        hot = gov.evaluate_entry_request(z_score=sign * (limit + 0.5), side=side, entry_mode="trend_overspeed")
+        assert ok["action"] == "ENTRY"
+        assert hot["action"] == "NO_ACTION" and hot["reason"] == "GOVERNOR_OVERSPEED_LIMIT"
+
+
+def test_trend_overspeed_limit_tightens_under_adverse_grid():
+    gov = _governor()
+    calm = gov.evaluate_entry_request(z_score=1.0, side="BUY", entry_mode="trend_overspeed")
+    stressed = gov.evaluate_entry_request(z_score=1.0, grid_return_fraction=-0.2, side="BUY",
+                                          entry_mode="trend_overspeed")
+    assert stressed["signed_z_limit"] < calm["signed_z_limit"]
+
+
+def test_mean_reversion_remains_the_governor_default_and_unknown_modes_fail():
+    gov = _governor()
+    assert gov.evaluate_entry_request(z_score=-5.0)["entry_mode"] == "mean_reversion"
+    with pytest.raises(ValueError):
+        gov.evaluate_entry_request(z_score=0.0, entry_mode="breakout")
+
+
+def test_causal_percentile_rank():
+    assert causal_percentile_rank([0.1, 0.2, 0.3, 0.4], 0.35, 4) == 0.75
+    assert causal_percentile_rank([0.2] * 4, 0.2, 4) == 1.0
+    assert causal_percentile_rank([0.1, 0.2], 0.3, 4) is None          # warming up
+    assert causal_percentile_rank([0.1, float("nan"), 0.2, 0.3], 0.3, 4) is None
+    assert causal_percentile_rank([0.1, 0.2, 0.3, 0.4], float("nan"), 4) is None
+
+
+def _trending_pipeline(monkeypatch):
+    """Full-authority replay whose bars have real dispersion and whose grid covers every bar."""
+    import numpy as np
+    from tests_external.test_audit_remediation import signal
+    from revision2.contracts import IDDecision
+    grid_times = pd.date_range("2024-02-28 00:00", periods=5 * 96, freq="15min", tz="Asia/Kolkata")
+    nifty = [21000.0 * (1 + 0.001 * ((i % 7) - 3)) for i in range(len(grid_times))]
+    provider = SealedGridContextProvider(pd.DataFrame({"timestamp": grid_times, "close": nifty}),
+                                         pd.DataFrame({"timestamp": grid_times, "close": 15.0}))
+    orch = Engine(["INFY"], grid_context_provider=provider,
+                  real_plant_dcs=CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:"),
+                  plant_control_mode="PAPER_APPLY", closed_loop_mode="active_paper",
+                  governor_authority="full")
+    monkeypatch.setattr(orch.pa, "evaluate", lambda snapshot, cfg: (signal(), []))
+    monkeypatch.setattr(orch.id_box, "evaluate", lambda *a, **kw: (IDDecision(True, "fixture", .8, 2, .6), []))
+    monkeypatch.setattr(orch.id_box, "_current_regime", lambda *a: "calm")
+    i = np.arange(90)
+    close = 1000.0 + 0.05 * i + 0.8 * np.sin(i / 3.0)
+    open_ = np.concatenate([[close[0]], close[:-1]])
+    frame = pd.DataFrame({
+        "timestamp": pd.date_range("2024-03-01 10:00", periods=90, freq="min", tz="Asia/Kolkata"),
+        "open": open_, "close": close, "high": np.maximum(open_, close) + 0.3,
+        "low": np.minimum(open_, close) - 0.3, "volume": 1000.0})
+    return orch, orch.run({"INFY": frame}, warmup=30)
+
+
+def test_full_authority_with_the_real_governor_decision_admits_momentum_candidates(monkeypatch):
+    """Regression: the mean-reversion comparator and raw-confidence FSRN vetoed every momentum
+    candidate (0 of 3559 on real data).  The real decision path must be able to admit."""
+    orch, report = _trending_pipeline(monkeypatch)
+    decisions = report["governor_authority"]["entry_decisions"]
+    assert decisions, "no governor entry decisions recorded"
+    assert report["fills"] > 0, decisions
+    assert not any(k.startswith("NO_ACTION:GOVERNOR_ENTRY_NOT_REACHED") for k in decisions)

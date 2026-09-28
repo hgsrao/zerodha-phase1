@@ -20,7 +20,8 @@ completed bars supplied by the caller and nothing later):
 
 Mark V limiters (each clamped to [0, 1]):
 
-    FSRN  signal conviction              min(PA, ID, studies) at entry; side-aligned in position
+    FSRN  signal conviction              side-aligned min of PA and studies conviction, each as its
+                                         causal percentile rank over gov_z_window_bars
     FSRT  exhaust temperature            1 - (mark-to-market drawdown / span) * slope
     FSRA  acceleration                   base - slope * velocity
     FSRS  startup ramp                   floor -> 1 over the first warm-up bars of the session
@@ -237,10 +238,25 @@ def minimum_value_gate(values: Mapping[str, float], floor: float) -> Dict[str, A
             "fsr_selected": selected, "fsr_effective": max(float(floor), selected)}
 
 
+def causal_percentile_rank(prior: Sequence[float], value: float, window: int) -> Optional[float]:
+    """Fraction of the ``window`` values observed BEFORE this bar that are <= ``value``.
+
+    Places a confidence on its own recent distribution, so FSRN is on the same [0, 1] scale as
+    the Mark V thresholds whatever the absolute scale of the upstream signal.  None until a full
+    window of prior values exists, or when any value is non-finite (the caller fails closed).
+    """
+    if len(prior) < window or not isfinite(float(value)):
+        return None
+    recent = [float(x) for x in list(prior)[-window:]]
+    if not all(isfinite(x) for x in recent):
+        return None
+    return sum(1 for x in recent if x <= float(value)) / window
+
+
 def side_aligned_conviction(side: str, *, pa_direction: int, pa_confidence: float,
                             studies_direction: Optional[int], studies_confidence: float) -> float:
-    """In-position FSRN: a signal that opposes the open side contributes zero conviction; a
-    neutral or aligned signal contributes its confidence."""
+    """FSRN from two conviction measures (normally their causal percentile ranks): a signal that
+    opposes ``side`` contributes zero; a neutral or aligned signal contributes its value."""
     expected = 1 if side == "BUY" else -1
     pa = 0.0 if int(pa_direction) == -expected else _unit("pa_confidence", pa_confidence)
     studies = (0.0 if studies_direction is not None and int(studies_direction) == -expected
@@ -253,14 +269,16 @@ def side_aligned_conviction(side: str, *, pa_direction: int, pa_confidence: floa
 def entry_decision(governor, cfg: GovernorAuthorityConfig, *, side: str, telemetry: BarTelemetry,
                    conviction: float, drawdown: float, session_bar: int,
                    grid_return_fraction: float = 0.0,
-                   bay_exhaust_spread: Optional[float] = None) -> Dict[str, Any]:
+                   bay_exhaust_spread: Optional[float] = None,
+                   entry_mode: str = "mean_reversion") -> Dict[str, Any]:
     """The governor's ENTRY / NO_ACTION decision.  Fails closed to NO_ACTION."""
     base = {"side": side, "bay_exhaust_spread": bay_exhaust_spread}
     if not telemetry.available:
         return {**base, "action": "NO_ACTION", "reason": telemetry.reason, "size_multiplier": 0.0}
     try:
         comparator = governor.evaluate_entry_request(
-            z_score=telemetry.z_score, grid_return_fraction=grid_return_fraction, side=side)
+            z_score=telemetry.z_score, grid_return_fraction=grid_return_fraction, side=side,
+            entry_mode=entry_mode)
         gate = minimum_value_gate(limiters(cfg, conviction=conviction, drawdown=drawdown,
                                            velocity=telemetry.velocity, session_bar=session_bar),
                                   cfg.fsr_min_floor)

@@ -551,12 +551,25 @@ class BayTurbineClosedLoopGovernor:
         z_score: float,
         grid_return_fraction: float = 0.0,
         side: str = "BUY",
+        entry_mode: str = "mean_reversion",
     ) -> dict:
         """
         Final bay-governor ENTRY authority.
 
         Upstream boxes provide the requested operating condition.
         The governor owns the final strategic ENTRY/NO_ACTION state.
+
+        ``entry_mode`` states what kind of candidate is being governed:
+
+        * ``mean_reversion`` -- the candidate buys weakness.  ENTRY when the
+          side-signed z is at or below ``dynamic_z`` (price stretched at least
+          |dynamic_z| sigma AGAINST the trade).
+        * ``trend_overspeed`` -- the candidate follows momentum (the external
+          replay engine's PA signals).  The governor is an overspeed limit:
+          ENTRY unless the side-signed z already exceeds ``-base_z`` plus the
+          same feedback offset and grid droop that move ``dynamic_z``.  Adverse
+          grid droop and poor realized R lower both limits, so both modes tighten
+          under the same stress.
 
         Side symmetry: the threshold is defined for a BUY (z at or below
         dynamic_z).  A SELL mirrors both the z-score and the grid return, so
@@ -569,6 +582,8 @@ class BayTurbineClosedLoopGovernor:
             )
         if side not in ("BUY", "SELL"):
             raise ValueError("side must be BUY or SELL")
+        if entry_mode not in ("mean_reversion", "trend_overspeed"):
+            raise ValueError("entry_mode must be mean_reversion or trend_overspeed")
         if not isfinite(grid_return_fraction):
             raise ValueError("grid_return_fraction must be finite")
 
@@ -579,7 +594,16 @@ class BayTurbineClosedLoopGovernor:
             sign * float(grid_return_fraction)
         )
 
-        admitted = signed_z <= threshold
+        if entry_mode == "mean_reversion":
+            limit = threshold
+            admitted = signed_z <= limit
+            blocked_reason = "GOVERNOR_ENTRY_NOT_REACHED"
+        else:
+            # Mirror only the base setting: limit = -base_z + feedback_offset - droop_penalty.
+            # Poor realized R and an adverse grid lower the limit, exactly as they lower dynamic_z.
+            limit = threshold - 2.0 * self.runtime_base_z
+            admitted = signed_z <= limit
+            blocked_reason = "GOVERNOR_OVERSPEED_LIMIT"
 
         return {
             "action": (
@@ -590,12 +614,14 @@ class BayTurbineClosedLoopGovernor:
             "reason": (
                 "GOVERNOR_ENTRY"
                 if admitted
-                else "GOVERNOR_ENTRY_NOT_REACHED"
+                else blocked_reason
             ),
             "z_score": float(z_score),
             "signed_z": signed_z,
             "side": side,
+            "entry_mode": entry_mode,
             "dynamic_z": float(threshold),
+            "signed_z_limit": float(limit),
         }
 
     def begin_position(

@@ -25,11 +25,23 @@ provider. `scripts/run_r5_paper_replay.py` defaults to `--governor-authority ful
 The PA, ID and MPC chain still generates the candidate: its side, plan stop, target and hold
 limits. Every candidate is then decided by the governor after the pre-sizing safety check.
 
-1. **Comparator.** A side-symmetric z-score is compared with `dynamic_z` (outer realized-R PID
-   plus grid droop). The grid input is the NIFTY deviation from its EMA at that timestamp. If the
-   grid reference is unavailable, the result is NO_ACTION.
+1. **Comparator: overspeed limit.** PA candidates follow momentum, so the governor runs in
+   `trend_overspeed` mode. It admits unless the side-signed z already exceeds
+   `-base_z + feedback_offset - droop`, which is about +1.9σ in the trade direction at rest.
+   The feedback offset comes from the outer realized-R PID, and the droop from the NIFTY deviation
+   from its EMA. Poor realized R and an adverse grid both lower the limit. If the grid reference
+   is unavailable, the result is NO_ACTION.
+
+   The earlier mean-reversion comparator admitted only prices at least 1.9σ *against* the trade.
+   On real data it vetoed every momentum candidate (block 1, trial 0: 0 of 3559).
+   `mean_reversion` remains the governor's default for the native plant.
 2. **Mark V minimum value gate.** FSR_selected = min(FSRN, FSRT, FSRA, FSRS, FSRM):
-   - FSRN: min(ID confidence, side-aligned PA confidence, side-aligned studies confidence)
+   - FSRN: the side-aligned minimum of PA and chart-studies conviction. Each is taken as its causal
+     percentile rank over the preceding `gov_z_window_bars` bars. At entry PA uses `confidence`;
+     in position it uses `exit_confidence`.
+     - Why ranks: raw confidences sit around 0.15–0.4, below the 0.60 hurdle, so raw values
+       blocked almost everything. A rank of 0.60 means the top 40% of recent conviction.
+     - ID confidence is dropped from the minimum because it is the PA confidence itself.
    - FSRT: 1 - (portfolio MTM drawdown / span) × slope
    - FSRA: base - slope × velocity, where velocity = |ΔClose| / ATR
    - FSRS: session warm-up ramp from the causal session-bar index

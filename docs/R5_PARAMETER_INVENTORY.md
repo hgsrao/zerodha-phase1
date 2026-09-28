@@ -218,7 +218,7 @@ Every other row is an operating value that is not yet registry-owned.
 | DEFAULT_ARGUMENT | 35 |
 | INLINE_LITERAL | 383 |
 | NAMED_CONSTANT | 121 |
-| NUMERICAL_GUARD | 1096 |
+| NUMERICAL_GUARD | 1098 |
 
 | file | count (non-guard) |
 |---|---:|
@@ -276,10 +276,10 @@ Every other row is an operating value that is not yet registry-owned.
 | `revision5/ccpp_protection_cubicles.py:788` | BayUnitProtectionSEL300G.apply_runtime_profile | 120.0 | INLINE_LITERAL |
 | `revision5/ccpp_protection_cubicles.py:797` | BayUnitProtectionSEL300G.apply_runtime_profile | 0.005 | INLINE_LITERAL |
 | `revision5/ccpp_protection_cubicles.py:806` | BayUnitProtectionSEL300G.apply_runtime_profile | 3.5 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:2` | <module> | 0.15 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:3` | <module> | 0.25 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:74` | <module> | 15 | NAMED_CONSTANT |
-| `revision5/ccpp_unified_plant.py:75` | <module> | 3 | NAMED_CONSTANT |
+| `revision5/ccpp_unified_plant.py:70` | <module> | 15 | NAMED_CONSTANT |
+| `revision5/ccpp_unified_plant.py:71` | <module> | 3 | NAMED_CONSTANT |
+| `revision5/ccpp_unified_plant.py:74` | <module> | 0.15 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:75` | <module> | 0.25 | INLINE_LITERAL |
 | `revision5/ccpp_unified_plant.py:98` | DynamicBayLoadDispatcher.__init__ | 1000000.0 | DEFAULT_ARGUMENT |
 | `revision5/ccpp_unified_plant.py:99` | DynamicBayLoadDispatcher.__init__ | 0.08 | DEFAULT_ARGUMENT |
 | `revision5/ccpp_unified_plant.py:100` | DynamicBayLoadDispatcher.__init__ | 0.35 | DEFAULT_ARGUMENT |
@@ -540,7 +540,7 @@ Every other row is an operating value that is not yet registry-owned.
 | `revision5/governor.py:121` | <module> | 1.4 | INLINE_LITERAL |
 | `revision5/governor.py:122` | <module> | 2.5 | INLINE_LITERAL |
 | `revision5/governor.py:123` | <module> | 0.12 | INLINE_LITERAL |
-| `revision5/governor.py:848` | BayTurbineClosedLoopGovernor.dynamic_z | 0.25 | INLINE_LITERAL |
+| `revision5/governor.py:874` | BayTurbineClosedLoopGovernor.dynamic_z | 0.25 | INLINE_LITERAL |
 | `revision5/hrsg.py:87` | HeatRecoverySteamGenerator.__init__ | 1000000.0 | DEFAULT_ARGUMENT |
 | `revision5/hrsg.py:88` | HeatRecoverySteamGenerator.__init__ | 0.6 | DEFAULT_ARGUMENT |
 | `revision5/hrsg.py:89` | HeatRecoverySteamGenerator.__init__ | 0.65 | DEFAULT_ARGUMENT |
@@ -668,13 +668,13 @@ Every other row is an operating value that is not yet registry-owned.
 | `revision5/startup_synchronization.py:281` | SynchrocheckRelay25.evaluate | 360.0 | INLINE_LITERAL |
 | `revision5/startup_synchronization.py:470` | AutoSynchronizerSpec.validate | 180 | INLINE_LITERAL |
 | `revision5/startup_synchronization.py:640` | AutomaticSynchronizer25A.step | 360.0 | INLINE_LITERAL |
-| `revision2_external/orchestrator.py:79` | <module> | 300 | NAMED_CONSTANT |
-| `revision2_external/orchestrator.py:88` | <module> | 15 | NAMED_CONSTANT |
-| `revision2_external/orchestrator.py:123` | Revision2ExternalEngineOrchestrator.__init__ | 1000000.0 | DEFAULT_ARGUMENT |
-| `revision2_external/orchestrator.py:511` | Revision2ExternalEngineOrchestrator._plant_control_shadow_step | 9 | INLINE_LITERAL |
-| `revision2_external/orchestrator.py:512` | Revision2ExternalEngineOrchestrator._plant_control_shadow_step | 9 | INLINE_LITERAL |
-| `revision2_external/orchestrator.py:1318` | Revision2ExternalEngineOrchestrator.run | 60 | DEFAULT_ARGUMENT |
-| `revision2_external/orchestrator.py:1974` | Revision2ExternalEngineOrchestrator.run | 60 | INLINE_LITERAL |
+| `revision2_external/orchestrator.py:80` | <module> | 300 | NAMED_CONSTANT |
+| `revision2_external/orchestrator.py:89` | <module> | 15 | NAMED_CONSTANT |
+| `revision2_external/orchestrator.py:124` | Revision2ExternalEngineOrchestrator.__init__ | 1000000.0 | DEFAULT_ARGUMENT |
+| `revision2_external/orchestrator.py:516` | Revision2ExternalEngineOrchestrator._plant_control_shadow_step | 9 | INLINE_LITERAL |
+| `revision2_external/orchestrator.py:517` | Revision2ExternalEngineOrchestrator._plant_control_shadow_step | 9 | INLINE_LITERAL |
+| `revision2_external/orchestrator.py:1341` | Revision2ExternalEngineOrchestrator.run | 60 | DEFAULT_ARGUMENT |
+| `revision2_external/orchestrator.py:1998` | Revision2ExternalEngineOrchestrator.run | 60 | INLINE_LITERAL |
 | `revision2_external/dynamic_parameter_controller.py:13` | <module> | 0.5 | NAMED_CONSTANT |
 | `revision2_external/dynamic_parameter_controller.py:13` | <module> | 2.5 | NAMED_CONSTANT |
 | `revision2_external/dynamic_parameter_controller.py:14` | <module> | 0.0025 | NAMED_CONSTANT |

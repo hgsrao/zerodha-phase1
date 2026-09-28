@@ -30,7 +30,7 @@ from revision2_external.dynamic_parameter_controller import DynamicParameterCont
 import itertools
 import math
 from dataclasses import replace, asdict
-from collections import Counter
+from collections import Counter, deque
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -64,7 +64,8 @@ from revision5.ccpp_protection_cubicles import nifty_intertie_measurements
 from revision5.governor import BAY_GOVERNOR_SPECS, BayTurbineClosedLoopGovernor
 from revision5.governor_authority import (
     PARAMETER_NAMES as GOVERNOR_AUTHORITY_PARAMETERS, BarTelemetry, GovernorAuthorityConfig,
-    GovernorInputError, bar_telemetry, entry_decision as governor_entry_decision, exhaust_spread,
+    GovernorInputError, bar_telemetry, causal_percentile_rank, entry_decision as governor_entry_decision,
+    exhaust_spread,
     position_decision as governor_position_decision, side_aligned_conviction,
 )
 from revision5.plant_control import (
@@ -376,6 +377,10 @@ class Revision2ExternalEngineOrchestrator:
         self._session_bar_index: Dict[str, Any] = {}
         self._governor_entry_counts: Counter[str] = Counter()
         self._governor_position_counts: Counter[str] = Counter()
+        # FSRN inputs: each conviction measure placed on its own causal distribution (percentile
+        # rank over the governor's z window), updated on every evaluated bar including warm-up.
+        self._conviction_history: Dict[str, Dict[str, deque]] = {}
+        self._conviction_rank: Dict[str, Dict[str, Optional[float]]] = {}
         # MiCOM substation protection (PAPER_APPLY with the native plant): evaluated every
         # portfolio timestamp from the causal NIFTY grid and the daily fleet MTM drawdown.
         self.micom_vol_z_window = int(require(self.config, "micom_nifty_vol_z_window"))
@@ -641,6 +646,27 @@ class Revision2ExternalEngineOrchestrator:
         deviation = snapshot.grid.nifty_deviation
         return None if deviation is None or not math.isfinite(float(deviation)) else float(deviation)
 
+    def _observe_conviction(self, symbol: str, signal, composite_result) -> None:
+        """Rank this bar's PA entry, PA exit and chart-studies confidences against the values seen
+        on the preceding ``gov_z_window_bars`` bars (causal), then record them."""
+        window = self.governor_config.z_window_bars
+        history = self._conviction_history.setdefault(
+            symbol, {key: deque(maxlen=window) for key in ("pa", "pa_exit", "studies")})
+        current = {"pa": float(signal.confidence), "pa_exit": float(signal.exit_confidence),
+                   "studies": float(composite_result["confidence"])}
+        self._conviction_rank[symbol] = {
+            key: causal_percentile_rank(history[key], value, window) for key, value in current.items()}
+        for key, value in current.items():
+            history[key].append(value)
+
+    def _governor_conviction(self, symbol: str, side: str, signal, composite_result, pa_key: str) -> float:
+        ranks = self._conviction_rank.get(symbol) or {}
+        if ranks.get(pa_key) is None or ranks.get("studies") is None:
+            raise GovernorInputError("conviction history warming up")
+        return side_aligned_conviction(
+            side, pa_direction=int(signal.direction), pa_confidence=ranks[pa_key],
+            studies_direction=(composite_result or {}).get("direction"), studies_confidence=ranks["studies"])
+
     def _governor_entry(self, symbol, timestamp, bar_idx, side, signal, decision, composite_result,
                         chart_studies_confidence) -> Dict[str, Any]:
         bay_id, governor = self._governor_for(symbol)
@@ -651,10 +677,7 @@ class Revision2ExternalEngineOrchestrator:
             return {"bay_id": bay_id, "action": "NO_ACTION", "reason": "GRID_REFERENCE_UNAVAILABLE",
                     "size_multiplier": 0.0}
         try:
-            conviction = min(float(decision.confidence), side_aligned_conviction(
-                side, pa_direction=int(signal.direction), pa_confidence=float(signal.confidence),
-                studies_direction=composite_result.get("direction"),
-                studies_confidence=float(chart_studies_confidence)))
+            conviction = self._governor_conviction(symbol, side, signal, composite_result, "pa")
         except (GovernorInputError, TypeError, ValueError) as exc:
             return {"bay_id": bay_id, "action": "NO_ACTION", "reason": f"INVALID_GOVERNOR_INPUT:{exc}",
                     "size_multiplier": 0.0}
@@ -662,7 +685,10 @@ class Revision2ExternalEngineOrchestrator:
         result = governor_entry_decision(
             governor, self.governor_config, side=side, telemetry=telemetry, conviction=conviction,
             drawdown=self._current_drawdown(), session_bar=self._governor_session_bar(symbol, bar_idx),
-            grid_return_fraction=grid_return, bay_exhaust_spread=self._bay_exhaust_spread.get(bay_id))
+            grid_return_fraction=grid_return, bay_exhaust_spread=self._bay_exhaust_spread.get(bay_id),
+            # PA candidates follow momentum: the governor limits overspeed rather than
+            # demanding a mean-reversion dip (which vetoed every momentum candidate).
+            entry_mode="trend_overspeed")
         return {"bay_id": bay_id, "grid_return_fraction": grid_return, "conviction": conviction, **result}
 
     def _governor_position_step(self, symbol, timestamp, trade, bar, signal, held_bars, composite_result,
@@ -685,10 +711,7 @@ class Revision2ExternalEngineOrchestrator:
             if valid_risk:
                 trade["governor_mfe_r"] = mfe_r
             try:
-                conviction = side_aligned_conviction(
-                    trade["side"], pa_direction=int(signal.direction), pa_confidence=float(signal.exit_confidence),
-                    studies_direction=(composite_result or {}).get("direction"),
-                    studies_confidence=float(chart_studies_confidence))
+                conviction = self._governor_conviction(symbol, trade["side"], signal, composite_result, "pa_exit")
             except (GovernorInputError, TypeError, ValueError):
                 conviction = math.nan              # rejected by the gate below: fail closed to EXIT
             telemetry = self._governor_telemetry.get(symbol)
@@ -1358,7 +1381,7 @@ class Revision2ExternalEngineOrchestrator:
                 snapshot = MarketSnapshot(symbol, str(bars.iloc[idx]["timestamp"]), bars.iloc[:idx + 1])
                 warm_signal, _ = self.pa.evaluate(snapshot, self.config)
                 self.chart_studies.configure(self.config)
-                self.chart_studies.evaluate(symbol, snapshot.bars)
+                self._observe_conviction(symbol, warm_signal, self.chart_studies.evaluate(symbol, snapshot.bars))
                 if warm_signal.direction == 0:
                     self.id_box._current_regime(symbol, float(bars.iloc[idx]["close"]))
                     continue
@@ -1523,6 +1546,7 @@ class Revision2ExternalEngineOrchestrator:
                 self.closed_loop.configure(self.config)
                 composite_result = self.chart_studies.evaluate(symbol, snapshot.bars)
                 chart_studies_confidence = float(composite_result["confidence"])
+                self._observe_conviction(symbol, signal, composite_result)
 
                 held = bar_idx - entry_bar_index.get(symbol, bar_idx)
                 self._maybe_exit(
