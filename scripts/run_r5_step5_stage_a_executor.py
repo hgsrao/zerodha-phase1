@@ -209,6 +209,7 @@ def verify_remote_control_plane(
     protocol_sha: str,
     worker_sha: str,
     expected_remote_host: str,
+    expected_engine_commit: str,
 ) -> dict:
     remote_host = remote_text(
         ssh_key,
@@ -229,7 +230,7 @@ def verify_remote_control_plane(
         '&& git rev-parse HEAD',
     )
 
-    if remote_commit != "3e5e4f6766bceae5579dae6ba4e241c012dc113f":
+    if not remote_commit.startswith(expected_engine_commit):
         raise SystemExit(
             f"REMOTE_ENGINE_PARENT: FAIL "
             f"{remote_commit}"
@@ -1273,6 +1274,7 @@ def main() -> None:
         protocol["distributed_execution"][
             "secondary_worker"
         ],
+        protocol["frozen_parent"]["commit"],
     )
 
     state_path = (

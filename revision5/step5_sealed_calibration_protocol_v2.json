@@ -1,0 +1,388 @@
+{
+  "block_execution_contract": {
+    "fresh_central_plant_master_dcs_per_block": true,
+    "fresh_orchestrator_per_block": true,
+    "future_or_validation_rows_may_not_influence_block_state": true,
+    "grid_context": "verified causal prefix through the block end; SealedGridContextProvider remains authoritative for availability",
+    "grid_rows_after_block_end_parsed": false,
+    "reason": "Revision2ExternalEngineOrchestrator.build_clock uses range(warmup, len(bars)-1); one real successor row is therefore required to evaluate the final target-session bar without synthetic timestamps or engine modification.",
+    "starting_equity_per_block": 1000000.0,
+    "state_carry_between_blocks": false,
+    "stock_post_block_boundary_row_may_generate_orders": false,
+    "stock_post_block_boundary_row_may_influence_indicators": false,
+    "stock_post_block_boundary_row_on_trading_clock": false,
+    "stock_post_block_boundary_row_purpose": "engine next-timestamp/session-boundary sentinel only",
+    "stock_post_block_boundary_row_scored": false,
+    "stock_post_block_boundary_row_source": "the single immediate next verified real 1-minute bar following the final target-session bar",
+    "stock_post_block_boundary_rows_per_symbol": 1,
+    "stock_rows_after_boundary_sentinel_parsed": false,
+    "stock_warmup_bars_per_symbol": 60,
+    "stock_warmup_source": "exactly the 60 immediately preceding verified real 1-minute bars for each symbol before the first target-session bar",
+    "synthetic_rows_allowed": false,
+    "target_sessions_are_scored_in_full": true,
+    "warmup_may_cross_previous_session_boundary": true,
+    "warmup_rows_are_scored": false
+  },
+  "contamination_rules": {
+    "2026_selection_data": false,
+    "oos_used_for_parameter_selection": false,
+    "retired_or_quarantined_2026_outputs": false,
+    "synthetic_market_data": false,
+    "synthetic_objective_scores": false,
+    "validation_used_for_candidate_ranking": false
+  },
+  "created_date": "2026-09-28",
+  "distributed_execution": {
+    "coordinator": "srinivas-B760M-AORUS-ELITE-AX",
+    "cross_machine_equivalence": {
+      "candidate_a_sha256": null,
+      "candidate_b_sha256": null,
+      "paper_apply_reference_sha256": null,
+      "status": "PENDING"
+    },
+    "engine_parent_commit": "9114becc683419db705dfda9bf04e5713604b499",
+    "fresh_central_plant_master_dcs_per_block": true,
+    "fresh_process_per_candidate": true,
+    "live_broker_access": false,
+    "reference_worker": "srinivas-B760M-AORUS-ELITE-AX",
+    "secondary_worker": "shrinivas-Blade",
+    "shared_plant_state_between_blocks": false,
+    "transport": "SSH process execution",
+    "worker_tooling_identity": "Each run records Git HEAD, protocol SHA256 and worker-script SHA256. Tracked engine content must remain identical to frozen parent 9114bec; only Step-5 protocol/tooling files may differ."
+  },
+  "engine": {
+    "broker_network_access": false,
+    "closed_loop_mode": "active_paper",
+    "governor_authority": "full",
+    "grid_provider": "SealedGridContextProvider",
+    "live_trading": false,
+    "orchestrator": "Revision2ExternalEngineOrchestrator",
+    "plant": "CentralPlantMasterDCS",
+    "plant_mode": "PAPER_APPLY"
+  },
+  "frozen_parent": {
+    "commit": "9114becc683419db705dfda9bf04e5713604b499",
+    "tag": "r5-step5-v2-engine-20260928"
+  },
+  "grid_dataset": {
+    "availability_delay_minutes": 15,
+    "feeds": {
+      "INDIA_VIX_15MIN": {
+        "sha256": "9992deda85005fdb9ee2d6684f8a84a3cabd3f591655450207aeeaacbe7c1a8d",
+        "timestamp_column": "date"
+      },
+      "NIFTY_50_15MIN": {
+        "sha256": "c2e78705f61b5bad66257890ed1ec0cd3703571e721c16e1b2d2128ee4ea5443",
+        "timestamp_column": "timestamp"
+      }
+    },
+    "local_manifest": "local_workspace/records/grid-manifest-local.json",
+    "timestamp_policy": "source timestamps are conservatively treated as bar starts; availability is source timestamp plus 15 minutes"
+  },
+  "immutable_during_step5": [
+    "all safety parameters",
+    "all plant-control parameters",
+    "grid synchronization parameters",
+    "broker/execution safety contracts",
+    "dataset partitions",
+    "objective function",
+    "trial count",
+    "random seed",
+    "sampling-block construction"
+  ],
+  "objective": {
+    "minimum_completed_trades": 20,
+    "purpose": "training ranking only",
+    "score": "net_pnl - 1000000 * mtm_max_drawdown_fraction"
+  },
+  "optimizer": {
+    "candidate_parallelism": 2,
+    "jobs": 2,
+    "n_startup_trials": 2,
+    "name": "Optuna TPESampler",
+    "parallel_unit": "independent complete candidate replay; symbols within a candidate are never split",
+    "proposal_rule": "Generate trial numbers in ascending order before dispatching each batch; record completed results only after both workers return; tell Optuna in ascending trial-number order.",
+    "scheduler": "synchronous_two_trial_batches",
+    "seed": 20260924,
+    "trial_zero": "canonical current defaults",
+    "trials": 8
+  },
+  "periods": {
+    "fresh_oos_rule": "Acquire and seal post-2026-08-24 data only after the winning configuration and validation result are frozen.",
+    "selection_excluded_start": "2026-01-01",
+    "train_end_exclusive": "2025-07-01",
+    "train_start": "2023-09-01",
+    "validation_end_exclusive": "2026-01-01",
+    "validation_start": "2025-07-01"
+  },
+  "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V2",
+  "registry_identity_sha256": "482544d5a45af9687607c986089f863c92ecc5444fba1cff899772bfc8e853d5",
+  "sampling_plan": {
+    "common_training_sessions": 453,
+    "construction": "Five consecutive sessions drawn from deterministic interior chronological quantiles of sessions common to all 48 symbols plus NIFTY and VIX.",
+    "stage_a": [
+      {
+        "block": 1,
+        "center_index": 113,
+        "end": "2024-02-19",
+        "sessions": [
+          "2024-02-13",
+          "2024-02-14",
+          "2024-02-15",
+          "2024-02-16",
+          "2024-02-19"
+        ],
+        "start": "2024-02-13"
+      },
+      {
+        "block": 2,
+        "center_index": 226,
+        "end": "2024-08-05",
+        "sessions": [
+          "2024-07-30",
+          "2024-07-31",
+          "2024-08-01",
+          "2024-08-02",
+          "2024-08-05"
+        ],
+        "start": "2024-07-30"
+      },
+      {
+        "block": 3,
+        "center_index": 339,
+        "end": "2025-01-16",
+        "sessions": [
+          "2025-01-10",
+          "2025-01-13",
+          "2025-01-14",
+          "2025-01-15",
+          "2025-01-16"
+        ],
+        "start": "2025-01-10"
+      }
+    ],
+    "stage_b": [
+      {
+        "block": 1,
+        "center_index": 65,
+        "end": "2023-12-11",
+        "sessions": [
+          "2023-12-05",
+          "2023-12-06",
+          "2023-12-07",
+          "2023-12-08",
+          "2023-12-11"
+        ],
+        "start": "2023-12-05"
+      },
+      {
+        "block": 2,
+        "center_index": 129,
+        "end": "2024-03-12",
+        "sessions": [
+          "2024-03-05",
+          "2024-03-06",
+          "2024-03-07",
+          "2024-03-11",
+          "2024-03-12"
+        ],
+        "start": "2024-03-05"
+      },
+      {
+        "block": 3,
+        "center_index": 194,
+        "end": "2024-06-19",
+        "sessions": [
+          "2024-06-12",
+          "2024-06-13",
+          "2024-06-14",
+          "2024-06-18",
+          "2024-06-19"
+        ],
+        "start": "2024-06-12"
+      },
+      {
+        "block": 4,
+        "center_index": 258,
+        "end": "2024-09-19",
+        "sessions": [
+          "2024-09-13",
+          "2024-09-16",
+          "2024-09-17",
+          "2024-09-18",
+          "2024-09-19"
+        ],
+        "start": "2024-09-13"
+      },
+      {
+        "block": 5,
+        "center_index": 323,
+        "end": "2024-12-24",
+        "sessions": [
+          "2024-12-18",
+          "2024-12-19",
+          "2024-12-20",
+          "2024-12-23",
+          "2024-12-24"
+        ],
+        "start": "2024-12-18"
+      },
+      {
+        "block": 6,
+        "center_index": 387,
+        "end": "2025-03-26",
+        "sessions": [
+          "2025-03-20",
+          "2025-03-21",
+          "2025-03-24",
+          "2025-03-25",
+          "2025-03-26"
+        ],
+        "start": "2025-03-20"
+      }
+    ]
+  },
+  "search_space": {
+    "entry_confidence_threshold": {
+      "default": 0.15,
+      "maximum": 0.35,
+      "minimum": 0.02,
+      "type": "float"
+    },
+    "max_hold_bars": {
+      "default": 60,
+      "maximum": 120,
+      "minimum": 20,
+      "type": "int"
+    },
+    "minimum_profit_margin_over_cost": {
+      "default": 0.5,
+      "maximum": 2.0,
+      "minimum": 0.0,
+      "type": "float"
+    },
+    "profit_target_atr_mult": {
+      "default": 1.5,
+      "maximum": 2.5,
+      "minimum": 0.8,
+      "type": "float"
+    },
+    "stop_loss_atr_mult": {
+      "default": 1.2,
+      "maximum": 1.2,
+      "minimum": 0.3,
+      "type": "float"
+    }
+  },
+  "search_surface": [
+    "entry_confidence_threshold",
+    "profit_target_atr_mult",
+    "stop_loss_atr_mult",
+    "minimum_profit_margin_over_cost",
+    "max_hold_bars"
+  ],
+  "selection_data_contract": {
+    "existing_2026_research_outputs_eligible_for_selection": false,
+    "fresh_post_2026_08_24_oos_loaded_before_configuration_freeze": false,
+    "no_timestamp_at_or_after_2026_01_01_used_for_selection": true,
+    "train_only_for_stage_a_b_c": true,
+    "validation_loaded_only_after_training_winner_is_frozen": true
+  },
+  "stage_a": {
+    "aggregation": {
+      "completed_trades": "sum across blocks",
+      "gross_pnl": "sum across blocks",
+      "hard_safety_gate": "aggregated safety_violations must equal 0",
+      "insufficient_trade_score": -1000000000.0,
+      "minimum_completed_trades": 20,
+      "mtm_max_drawdown_fraction": "maximum across blocks",
+      "net_pnl": "sum across blocks",
+      "safety_failure": "candidate rejected and cannot rank",
+      "safety_violations": "sum across blocks",
+      "score": "aggregated_net_pnl - 1000000 * maximum_block_mtm_max_drawdown_fraction",
+      "tie_break_order": [
+        "higher score",
+        "higher aggregated net_pnl",
+        "lower maximum block mtm_max_drawdown_fraction",
+        "higher completed_trades",
+        "lower trial number"
+      ]
+    },
+    "blocks": 3,
+    "placement": "deterministic evenly-spaced chronological training-session quantiles",
+    "price_values_must_not_influence_block_selection": true,
+    "purpose": "candidate search",
+    "sessions_per_block": 5,
+    "trial_count": 8,
+    "trial_zero": "canonical current defaults",
+    "warmup_bars_per_symbol": 60
+  },
+  "stage_b": {
+    "aggregation": {
+      "completed_trades": "sum across blocks",
+      "gross_pnl": "sum across blocks",
+      "hard_safety_gate": "aggregated safety_violations must equal 0",
+      "insufficient_trade_score": -1000000000.0,
+      "minimum_completed_trades": 20,
+      "mtm_max_drawdown_fraction": "maximum across blocks",
+      "net_pnl": "sum across blocks",
+      "safety_failure": "candidate rejected and cannot rank",
+      "safety_violations": "sum across blocks",
+      "score": "aggregated_net_pnl - 1000000 * maximum_block_mtm_max_drawdown_fraction",
+      "tie_break_order": [
+        "higher score",
+        "higher aggregated net_pnl",
+        "lower maximum block mtm_max_drawdown_fraction",
+        "higher completed_trades",
+        "lower trial number"
+      ]
+    },
+    "blocks": 6,
+    "candidate_count": 2,
+    "placement": "deterministic evenly-spaced chronological training-session quantiles",
+    "purpose": "training-only finalist selection",
+    "sessions_per_block": 5,
+    "top_candidates_from_stage_a": 2,
+    "warmup_bars_per_symbol": 60,
+    "winner_rule": "highest predeclared objective score"
+  },
+  "stage_c": {
+    "candidate": "stage_b_winner_only",
+    "candidates": 1,
+    "data": "entire frozen TRAIN interval only",
+    "execution_node": "desktop reference worker",
+    "fallback_to_second_candidate_after_failure": false,
+    "fresh_central_plant_master_dcs": true,
+    "maximum_safety_violations": 0,
+    "minimum_completed_trades": 20,
+    "parameter_changes": false,
+    "purpose": "full-training confirmation",
+    "warmup_bars_per_symbol": 60
+  },
+  "stock_dataset": {
+    "manifest": "revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json",
+    "manifest_hash": "f724074ca45eb9380ba6e7cf18ae1da4d9c9d48be0cf78ca51b0faa8d8d8ff16",
+    "symbols": 48
+  },
+  "supersedes": {
+    "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V1",
+    "reason": "Engine changed: governor authority, Mark V gate, MiCOM protection, H1-H5 remediation; registry gained 17 parameters."
+  },
+  "validation": {
+    "candidate": "frozen_stage_b_winner_after_stage_c_pass",
+    "candidates": 1,
+    "execution_count": 1,
+    "execution_node": "desktop reference worker",
+    "fallback_candidate_on_failure": false,
+    "fresh_central_plant_master_dcs": true,
+    "maximum_mtm_drawdown_fraction": 0.15,
+    "maximum_safety_violations": 0,
+    "minimum_completed_trades": 20,
+    "minimum_profit_factor": 1.05,
+    "parameter_changes_after_validation_starts": false,
+    "require_positive_net_pnl": true,
+    "retune_on_failure": false,
+    "used_for_ranking": false,
+    "warmup_bars_per_symbol": 60
+  }
+}

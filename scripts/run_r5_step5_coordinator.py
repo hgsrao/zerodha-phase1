@@ -433,7 +433,7 @@ def main() -> None:
         ssh_key,
         args.laptop,
         'cd "$HOME/projects/zerodha-phase1" '
-        '&& git rev-parse --short HEAD',
+        '&& git rev-parse HEAD',
     )
 
     if remote_worker_sha != local_worker_sha:
@@ -446,7 +446,7 @@ def main() -> None:
             "REMOTE_PROTOCOL_PARITY: FAIL"
         )
 
-    if remote_commit != "3e5e4f6":
+    if not remote_commit.startswith(protocol["frozen_parent"]["commit"]):
         raise SystemExit(
             "REMOTE_ENGINE_PARENT: FAIL"
         )

@@ -86,6 +86,7 @@ def verify_engine_identity(root: Path, protocol: dict) -> dict:
 
     allowed = {
         "revision5/step5_sealed_calibration_protocol.json",
+        "revision5/step5_sealed_calibration_protocol_v2.json",
     }
 
     unexpected = {
@@ -711,6 +712,8 @@ def execute_block(
         plant_control_mode="PAPER_APPLY",
         closed_loop_mode="active_paper",
         telemetry_mode="compact",
+        # V1 predates the key and ran with the advisory default.
+        governor_authority=protocol["engine"].get("governor_authority", "advisory"),
     )
 
     warmup = int(
