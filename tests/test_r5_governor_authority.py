@@ -255,7 +255,7 @@ def test_vibration_damper_raises_the_entry_hurdle():
 def _position(cfg, gov, **overrides):
     kwargs = dict(position_id="INFY", measured_r=0.3, reference_r=0.2, max_favorable_r=0.3,
                   elapsed_bars=3, min_hold_bars=1, max_hold_bars=60, trade_target_r=3.0,
-                  conviction=0.9, drawdown=0.0, velocity=0.2, session_bar=10_000)
+                  conviction=0.9, drawdown=0.0, velocity=0.2, session_bar=10_000, path_noise_r=0.8)
     kwargs.update(overrides)
     return position_decision(gov, cfg, **kwargs)
 
@@ -508,3 +508,34 @@ def test_full_authority_with_the_real_governor_decision_admits_momentum_candidat
     assert decisions, "no governor entry decisions recorded"
     assert report["fills"] > 0, decisions
     assert not any(k.startswith("NO_ACTION:GOVERNOR_ENTRY_NOT_REACHED") for k in decisions)
+
+
+# ------------------------------------------------ noise-scaled path-error tolerance
+
+def test_path_error_tolerance_scales_with_bar_noise_and_time():
+    """A 0.5R lag after 3 bars is noise when one bar moves ~0.8R; the legacy 0.30R tolerance
+    (the outer loop's setpoint) exited on it -- 82 of 146 real trial-0 trades."""
+    kwargs = dict(measured_r=-0.3, reference_r=0.2, max_favorable_r=0.0, elapsed_bars=3,
+                  min_hold_bars=1, max_hold_bars=60, hard_stop_r=-1.0, trade_target_r=3.0)
+    legacy = _governor().evaluate_position_control(**kwargs, position_id="A")
+    scaled = _governor().evaluate_position_control(**kwargs, position_id="A",
+                                                   path_noise_r=0.8, path_error_sigma=2.0)
+    assert legacy["reason"] == "GOVERNOR_PATH_ERROR"
+    assert scaled["action"] == "HOLD"
+    quiet = _governor().evaluate_position_control(**{**kwargs, "measured_r": -0.9}, position_id="A",
+                                                  path_noise_r=0.1, path_error_sigma=2.0)
+    assert quiet["reason"] == "GOVERNOR_PATH_ERROR"          # far outside a quiet market's envelope
+
+
+def test_path_noise_inputs_must_come_together_and_be_positive():
+    base = dict(measured_r=0.0, reference_r=0.0, max_favorable_r=0.0, elapsed_bars=1,
+                min_hold_bars=1, max_hold_bars=60, hard_stop_r=-1.0, trade_target_r=3.0)
+    for bad in (dict(path_noise_r=0.5), dict(path_noise_r=0.0, path_error_sigma=2.0),
+                dict(path_noise_r=float("nan"), path_error_sigma=2.0)):
+        with pytest.raises(ValueError):
+            _governor().evaluate_position_control(**base, **bad)
+
+
+def test_position_decision_fails_closed_without_path_noise():
+    cfg = _cfg()
+    assert _position(cfg, _governor(), path_noise_r=None)["reason"].startswith("INVALID_GOVERNOR_INPUT")

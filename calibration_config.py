@@ -258,6 +258,7 @@ class Revision2ParameterManifest:
             "data_validation_mode",
             # Governor authority / Mark V limiter / MiCOM (revision5/governor_authority.py)
             "gov_z_window_bars",
+            "gov_path_error_sigma",
             "mv_fsr_entry_threshold",
             "mv_fsr_exit_threshold",
             "mv_fsrt_drawdown_span",

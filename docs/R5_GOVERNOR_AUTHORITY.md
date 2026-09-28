@@ -80,6 +80,17 @@ Every completed bar of an open position is handled as follows:
 - **Closing.** On close, `confirm_position_closed(trade_id)` releases the inner-loop slot, so a
   new position never inherits a ratchet.
 
+### Path-error tolerance
+
+The inner loop exits on path error only when the trade lags its reference path by more than the
+market's own noise:
+
+- The limit is `gov_path_error_sigma × (ATR / initial risk) × √elapsed_bars`, where
+  ATR / initial risk is one bar's typical move in R.
+- The earlier tolerance reused the outer loop's 0.30R realized-R setpoint. One 1-minute bar moves
+  about 0.8R, so trial 0 cut 82 of 146 trades within 1–3 bars on noise (net −₹12.4k, PF 0.01).
+  In the same run, trades held 6–20 bars were profitable before costs.
+
 ## MiCOM (PAPER_APPLY with the native plant)
 
 The relay is evaluated at every portfolio timestamp with measured inputs:

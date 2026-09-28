@@ -71,7 +71,9 @@ class CanonicalParameterRegistry:
     # 2026-09-27: governor-authority expansion (+17: 13 EXTERNAL-only eligible, 4 fixed) for
     # revision5/governor_authority.py: 169 targets / 121 eligible.  Any calibration protocol sealed
     # against the previous identity must be re-sealed.
-    FROZEN_IDENTITY_SHA256 = "482544d5a45af9687607c986089f863c92ecc5444fba1cff899772bfc8e853d5"
+    # 2026-09-28: + gov_path_error_sigma (EXTERNAL-only eligible): the inner loop's noise-scaled
+    # path-error tolerance.  170 targets / 122 eligible.
+    FROZEN_IDENTITY_SHA256 = "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -156,7 +158,7 @@ class CanonicalParameterRegistry:
         "grid_vix_operating_min", "grid_vix_operating_max", "grid_vix_derate_start", "grid_vix_slope_bars", "grid_vix_slope_derate_fraction",
         "grid_nifty_ema_period", "grid_nifty_deviation_derate_fraction", "grid_max_staleness_seconds", "grid_min_aligned_bars", "ecs_derate_demand_pu", "ecs_demand_restore_step_pu",
         # Governor authority / Mark V / MiCOM (revision5/governor_authority.py)
-        "gov_z_window_bars", "mv_fsr_entry_threshold", "mv_fsr_exit_threshold", "mv_fsrt_drawdown_span", "mv_fsrt_slope", "mv_fsra_base", "mv_fsra_slope", "mv_fsrs_warmup_bars", "mv_fsrs_floor", "mv_vibration_damper_start", "mv_vibration_damper_gain", "mv_exhaust_spread_hold", "mv_exhaust_spread_trip", "mv_fsr_min_floor", "mv_fsrm_manual_limit", "gov_telemetry_atr_bars", "micom_nifty_vol_z_window",
+        "gov_z_window_bars", "mv_fsr_entry_threshold", "mv_fsr_exit_threshold", "mv_fsrt_drawdown_span", "mv_fsrt_slope", "mv_fsra_base", "mv_fsra_slope", "mv_fsrs_warmup_bars", "mv_fsrs_floor", "mv_vibration_damper_start", "mv_vibration_damper_gain", "mv_exhaust_spread_hold", "mv_exhaust_spread_trip", "mv_fsr_min_floor", "mv_fsrm_manual_limit", "gov_telemetry_atr_bars", "micom_nifty_vol_z_window", "gov_path_error_sigma",
         # Studies PID / local signal weighting (CompositeStudySignal)
         "studies_pid_kp", "studies_pid_ki", "studies_pid_kd", "studies_pid_output_clamp",
         "studies_grading_horizon_bars", "studies_hit_rate_window_bars",
@@ -353,6 +355,7 @@ class CanonicalParameterRegistry:
             ),
             # Governor authority, Mark V limiter gate and MiCOM (revision5/governor_authority.py).
             ParameterSpec("gov_z_window_bars", "PlantControl", "int", 20, 10, 60, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Rolling close z-score window for the bay governor's entry comparator (causal, completed bars)"),
+            ParameterSpec("gov_path_error_sigma", "PlantControl", "float", 2.0, 1.0, 3.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Inner-loop path-error exit tolerance in noise envelopes: exit only when the lag behind the reference path exceeds sigma * (ATR / initial risk) * sqrt(elapsed bars)"),
             ParameterSpec("mv_fsr_entry_threshold", "PlantControl", "float", 0.6, 0.4, 0.85, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V: minimum selected FSR to admit a new entry"),
             ParameterSpec("mv_fsr_exit_threshold", "PlantControl", "float", 0.25, 0.1, 0.4, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V: selected FSR below which an open position is unwound"),
             ParameterSpec("mv_fsrt_drawdown_span", "PlantControl", "float", 0.1, 0.04, 0.2, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRT: mark-to-market drawdown over which FSRT falls by mv_fsrt_slope"),
@@ -540,9 +543,10 @@ class CanonicalParameterRegistry:
         # NOTE: Adding saturation_exit_bars (2025) expands from 68 → 69 total.
         # BB04 adds 16, BB05-BB06 29, three-controller 22, BB08 5 and plant control 11
         # fixed controls: base_33() + revision2_35() = 33 + 119 = 152.
-        # Governor authority adds 17 (13 eligible + 4 fixed): 152 + 17 = 169.
-        if len(expected) != 169 or len(set(expected)) != 169:
-            raise ValueError("Revision 2 target names must contain 169 unique values")
+        # Governor authority adds 17 (13 eligible + 4 fixed) and the path-error tolerance 1:
+        # 152 + 18 = 170.
+        if len(expected) != 170 or len(set(expected)) != 170:
+            raise ValueError("Revision 2 target names must contain 170 unique values")
         if set(expected) != set(self.params):
             raise ValueError("registry does not exactly match the Revision 2 manifest")
         if len(self.safety_params) != 22:
@@ -564,12 +568,12 @@ class CanonicalParameterRegistry:
         # (learning_rate_exploration_factor is now FIXED): 46 + 62 = 108 across
         # engines.  The per-engine surfaces are the ones an optimizer may use:
         # in-house 46, external 108 (46 shared + 62 external-only).
-        # Governor authority adds 13 EXTERNAL-only eligible parameters: 108 + 13 = 121.
-        if len(calibratable) != 121:
-            raise ValueError(f"optimizer surface must contain exactly 121 values; got {len(calibratable)}")
+        # Governor authority adds 14 EXTERNAL-only eligible parameters: 108 + 14 = 122.
+        if len(calibratable) != 122:
+            raise ValueError(f"optimizer surface must contain exactly 122 values; got {len(calibratable)}")
         counts = self.surface_counts()
         if (counts["in_house_eligible"], counts["external_eligible"], counts["shared_eligible"],
-                counts["external_only_eligible"]) != (46, 121, 46, 75):
+                counts["external_only_eligible"]) != (46, 122, 46, 76):
             raise ValueError(f"engine-scoped optimizer surfaces changed unexpectedly: {counts}")
         for name, spec in self.params.items():
             if spec.applicable_engines not in (self.ENGINE_IN_HOUSE, self.ENGINE_EXTERNAL, self.ENGINE_BOTH):

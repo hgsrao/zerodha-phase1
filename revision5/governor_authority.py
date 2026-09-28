@@ -55,6 +55,7 @@ PARAMETER_NAMES = (
     "mv_fsrm_manual_limit",
     "mv_vibration_damper_start", "mv_vibration_damper_gain",
     "mv_exhaust_spread_hold", "mv_exhaust_spread_trip",
+    "gov_path_error_sigma",
 )
 
 LIMITER_NAMES = ("FSRN", "FSRT", "FSRA", "FSRS", "FSRM")
@@ -105,6 +106,7 @@ class GovernorAuthorityConfig:
     vibration_damper_gain: float
     exhaust_spread_hold: float
     exhaust_spread_trip: float
+    path_error_sigma: float
 
     @classmethod
     def from_config(cls, config) -> "GovernorAuthorityConfig":
@@ -122,6 +124,7 @@ class GovernorAuthorityConfig:
             vibration_damper_gain=float(v["mv_vibration_damper_gain"]),
             exhaust_spread_hold=float(v["mv_exhaust_spread_hold"]),
             exhaust_spread_trip=float(v["mv_exhaust_spread_trip"]),
+            path_error_sigma=float(v["gov_path_error_sigma"]),
         )
         built.validate()
         return built
@@ -135,6 +138,8 @@ class GovernorAuthorityConfig:
             raise ValueError("telemetry windows must be positive (z window >= 2)")
         if self.fsrt_drawdown_span <= 0.0:
             raise ValueError("FSRT drawdown span must be positive")
+        if self.path_error_sigma <= 0.0:
+            raise ValueError("path error sigma must be positive")
 
 
 # ------------------------------------------------------------------------ telemetry
@@ -307,14 +312,21 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
                       min_hold_bars: int, max_hold_bars: int, trade_target_r: float,
                       conviction: float, drawdown: float, velocity: Optional[float],
                       session_bar: int, bay_exhaust_spread: Optional[float] = None,
-                      hard_stop_r: float = -1.0) -> Dict[str, Any]:
-    """The governor's HOLD / EXIT decision for one open position.  Fails closed to EXIT."""
+                      hard_stop_r: float = -1.0, path_noise_r: Optional[float] = None) -> Dict[str, Any]:
+    """The governor's HOLD / EXIT decision for one open position.  Fails closed to EXIT.
+
+    ``path_noise_r`` is one bar's typical move in R (current ATR / initial risk).  The inner loop
+    then exits on path error only beyond ``gov_path_error_sigma`` noise envelopes; the legacy
+    tolerance (the outer loop's 0.30R setpoint) cut 82 of 146 real trial-0 trades on noise."""
     try:
+        if path_noise_r is None:
+            raise GovernorInputError("path noise (ATR / risk) unavailable")
         inner = governor.evaluate_position_control(
             measured_r=measured_r, reference_r=reference_r, max_favorable_r=max_favorable_r,
             elapsed_bars=int(elapsed_bars), min_hold_bars=int(min_hold_bars),
             max_hold_bars=int(max_hold_bars), hard_stop_r=hard_stop_r,
-            trade_target_r=trade_target_r, position_id=position_id)
+            trade_target_r=trade_target_r, position_id=position_id,
+            path_noise_r=_finite("path_noise_r", path_noise_r), path_error_sigma=cfg.path_error_sigma)
         if velocity is None:
             raise GovernorInputError("velocity telemetry unavailable")
         gate = minimum_value_gate(limiters(cfg, conviction=conviction, drawdown=drawdown,

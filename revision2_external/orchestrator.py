@@ -724,7 +724,9 @@ class Revision2ExternalEngineOrchestrator:
                 conviction=conviction, drawdown=self._current_drawdown(),
                 velocity=telemetry.velocity if telemetry is not None and telemetry.available else None,
                 session_bar=self._governor_session_bar(symbol, getattr(self, "_current_bar_idx", None)),
-                bay_exhaust_spread=self._bay_exhaust_spread.get(bay_id), hard_stop_r=-1.0)
+                bay_exhaust_spread=self._bay_exhaust_spread.get(bay_id), hard_stop_r=-1.0,
+                path_noise_r=(telemetry.atr / risk
+                              if telemetry is not None and telemetry.available and valid_risk else None))
             result = {"measured_r": measured_r, "max_favorable_r": mfe_r, **result}
         self._governor_position_counts[f"{result['action']}:{result['reason']}"] += 1
         self._record_controller_event("GOVERNOR_POSITION_DECISION", timestamp, symbol, {

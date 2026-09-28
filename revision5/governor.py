@@ -14,9 +14,9 @@ PID coefficients never self-modify during certified replay.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isfinite
+from math import isfinite, sqrt
 from statistics import fmean
-from typing import Dict
+from typing import Dict, Optional
 
 from revision5.topology import (
     BAY_IDS,
@@ -655,6 +655,8 @@ class BayTurbineClosedLoopGovernor:
         hard_stop_r: float,
         trade_target_r: float,
         position_id=None,
+        path_noise_r: Optional[float] = None,
+        path_error_sigma: Optional[float] = None,
     ) -> dict:
         """
         Fast closed-loop governor for one position (``position_id``).
@@ -663,7 +665,20 @@ class BayTurbineClosedLoopGovernor:
 
         protected_r_floor is the one-way ratchet. PID error may change
         sign, but the secured protective floor never moves backwards.
+
+        Path-error tolerance: with ``path_noise_r`` (one bar's typical move in R,
+        i.e. ATR / initial risk) and ``path_error_sigma``, the governor exits on
+        path error only when the lag behind the reference exceeds the noise
+        envelope sigma * path_noise_r * sqrt(elapsed_bars).  Without them the
+        legacy tolerance max(|target_r|, |dynamic_offset_max|) applies.
         """
+        if (path_noise_r is None) != (path_error_sigma is None):
+            raise ValueError("path_noise_r and path_error_sigma go together")
+        if path_noise_r is not None and not (
+            isfinite(float(path_noise_r)) and float(path_noise_r) > 0.0
+            and isfinite(float(path_error_sigma)) and float(path_error_sigma) > 0.0
+        ):
+            raise ValueError("path noise envelope inputs must be finite and positive")
         values = (
             measured_r,
             reference_r,
@@ -810,12 +825,19 @@ class BayTurbineClosedLoopGovernor:
             # These thresholds are themselves derived from the active,
             # dynamically scheduled governor parameters.
             #
-            exit_error = max(
-                abs(self.runtime_target_r),
-                abs(
-                    self.runtime_dynamic_offset_max
-                ),
-            )
+            if path_noise_r is None:
+                exit_error = max(
+                    abs(self.runtime_target_r),
+                    abs(
+                        self.runtime_dynamic_offset_max
+                    ),
+                )
+            else:
+                exit_error = (
+                    float(path_error_sigma)
+                    * float(path_noise_r)
+                    * sqrt(max(int(elapsed_bars), 1))
+                )
 
             exit_control = max(
                 abs(self.runtime_target_r),
