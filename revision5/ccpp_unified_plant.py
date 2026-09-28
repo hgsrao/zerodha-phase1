@@ -1788,6 +1788,9 @@ class CentralPlantMasterDCS:
             for bay in self.bays.values():
                 bay.reset_session()
 
+            # The MiCOM ANSI 67 fleet-drawdown lockout is a daily trip.
+            self.grid_relay.reset_session()
+
         if (
             self.current_bar_index is not None
             and bar_index

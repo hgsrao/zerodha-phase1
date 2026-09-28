@@ -19,14 +19,17 @@ Authority boundaries (enforced by tests):
 * The synchronizer reads market data only.  It selects no stock and places no order.
 * ECSPlantSupervisor is strictly ONE-WAY: it may HOLD, reduce plant demand, and restore
   demand only within configured bounds and at a bounded rate.  It never widens risk, never
-  overrides protection, chooses no stock and places no order.
+  overrides protection, chooses no stock and places no order.  Its demand is a total-loading
+  setpoint (grid, protection and bay availability only); current exposure is enforced once,
+  downstream, by the paper admission cap.
 * SectorDispatchController allocates the ECS demand across the five bays.  The merit
   weights come from the existing ``DynamicBayLoadDispatcher`` (reused, not replaced).
 * The governors keep final local authority.  In SHADOW mode nothing here reaches them.
 * BB07 (safety), BB08 (sizing), BB09 (order construction) and BB10 (execution) are downstream
   and untouched.
 * ``ClosedLoopSupervisor`` is a supporting feedback subsystem.  It is NOT the ECS supervisor;
-  its portfolio derate may only be passed in as an additional one-way input.
+  its portfolio new-risk derate is reported by the ECS and applied to position sizing (in
+  ``active_paper`` closed-loop mode), never to the loading setpoint.
 
 This module has no broker, order or execution imports.  ``PlantControlMode`` has no live
 value. ``PAPER_APPLY`` emits references for the external paper replay admission cap;
@@ -282,12 +285,18 @@ class ECSPlantSupervisor:
         if not any(ok for _, ok in mask):
             target = 0.0
             reasons.append("NO_BAY_AVAILABLE")
-        # one-way reductions only: a supporting derate above 1 can never raise demand
-        target = min(target, max(0.0, min(1.0, float(supporting_derate))))
+        # The demand reference is a plant LOADING setpoint: the fraction of the gross-exposure
+        # budget the plant may carry in total.  The paper admission cap closes the loop on actual
+        # loading (budget * reference - current exposure), so current exposure and the
+        # ClosedLoopSupervisor new-risk derate must not also lower this setpoint.  Doing so
+        # subtracted exposure twice and capped reachable gross at roughly half of the hard limit.
+        # Both inputs are still validated and reported; the orchestrator applies the new-risk
+        # derate to position sizing in active_paper closed-loop mode.
+        if min(1.0, max(0.0, float(supporting_derate))) < 1.0:
+            reasons.append(f"SUPPORTING_NEW_RISK_DERATE_OBSERVED:{float(supporting_derate):.6g}")
         headroom = max(0.0, 1.0 - gross_exposure_fraction / gross_exposure_limit_fraction)
         if headroom < target:
-            reasons.append("EXPOSURE_HEADROOM_LIMIT")
-        target = min(target, headroom)
+            reasons.append(f"EXPOSURE_HEADROOM_OBSERVED:{headroom:.6g}")
 
         previous = self._previous_demand
         if target > previous:

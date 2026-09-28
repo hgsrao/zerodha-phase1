@@ -80,6 +80,10 @@ class MasterGridProtectionMiCOM:
             profile.max_regime_vol_z
         )
 
+    def reset_session(self) -> None:
+        """ANSI 67 is a DAILY fleet-drawdown trip: its lockout clears at the session boundary."""
+        self.master_breaker_open = False
+
     def evaluate_grid_intertie(
         self,
         nifty_15m_return: float,
@@ -118,6 +122,32 @@ class MasterGridProtectionMiCOM:
             )
 
         return GridRelayTrip(tripped=False, ansi_code="NORMAL", reason="Grid Synchronized")
+
+
+def nifty_intertie_measurements(
+    nifty_closes, vol_z_window: int
+) -> Optional[Tuple[float, float]]:
+    """MiCOM inputs from completed NIFTY 15-minute closes (oldest first, causal prefix).
+
+    nifty_15m_return  latest completed 15-minute return
+    nifty_vol_z       that return in units of the population standard deviation of the
+                      ``vol_z_window`` returns before it (the shock is not part of its own scale)
+
+    Returns None when there are too few closes or a close is not a positive finite price.
+    A flat reference window gives z = 0 for a flat bar and an infinite shock otherwise.
+    """
+    window = int(vol_z_window)
+    if window < 2:
+        raise ValueError("vol_z_window must be at least 2")
+    closes = np.asarray(nifty_closes, dtype=float)[-(window + 2):]
+    if len(closes) < window + 2 or not np.isfinite(closes).all() or (closes <= 0.0).any():
+        return None
+    returns = closes[1:] / closes[:-1] - 1.0
+    latest, reference = float(returns[-1]), returns[:-1]
+    scale = float(reference.std())
+    if scale > 0.0:
+        return latest, latest / scale
+    return latest, (0.0 if latest == 0.0 else float(np.copysign(np.inf, latest)))
 
 
 # ---------------------------------------------------------------------------

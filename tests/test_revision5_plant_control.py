@@ -200,25 +200,31 @@ def _settled(ecs, grid_state="SYNCHRONIZED", n=15, **kw):
     return out
 
 
-def test_ecs_demand_is_bounded_and_can_only_be_reduced_by_supporting_inputs():
+def test_ecs_demand_is_bounded_and_supporting_inputs_are_reported_not_double_applied():
     assert _settled(ECSPlantSupervisor(cfg())).plant_demand_reference_pu == 1.0
     assert _settled(ECSPlantSupervisor(cfg()), supporting_derate=5.0).plant_demand_reference_pu == 1.0   # never > 1
-    assert _settled(ECSPlantSupervisor(cfg()), supporting_derate=0.4).plant_demand_reference_pu == pytest.approx(0.4)
-    assert _settled(ECSPlantSupervisor(cfg()), supporting_derate=-3.0).plant_demand_reference_pu == 0.0
+    # The new-risk derate is applied to sizing downstream; it is reported here, never double-applied.
+    derated = _settled(ECSPlantSupervisor(cfg()), supporting_derate=0.4)
+    assert derated.plant_demand_reference_pu == 1.0
+    assert any(r.startswith("SUPPORTING_NEW_RISK_DERATE_OBSERVED") for r in derated.reasons)
     out = _settled(ECSPlantSupervisor(cfg()), gross_exposure_fraction=0.4)         # 80% of the limit used
-    assert out.plant_demand_reference_pu == pytest.approx(0.2) and "EXPOSURE_HEADROOM_LIMIT" in out.reasons
+    assert out.plant_demand_reference_pu == 1.0
+    assert any(r.startswith("EXPOSURE_HEADROOM_OBSERVED") for r in out.reasons)
 
 
-def test_ecs_headroom_equation_only_ever_reduces_and_never_widens_the_exposure_envelope():
+def test_ecs_demand_is_a_loading_setpoint_and_the_cap_never_widens_the_exposure_envelope():
+    """Exposure is enforced exactly once, by the paper admission cap:
+    remaining = budget * demand - current_exposure <= budget - current_exposure."""
     limit = 0.5
     for exposure in (0.0, 0.1, 0.25, 0.4, 0.5, 0.7):
         out = _settled(ECSPlantSupervisor(cfg()), gross_exposure_fraction=exposure,
                        gross_exposure_limit_fraction=limit)
-        headroom = max(0.0, 1.0 - exposure / limit)
-        assert out.plant_demand_reference_pu == pytest.approx(min(1.0, headroom))
-        assert out.plant_demand_reference_pu <= 1.0
+        assert 0.0 <= out.plant_demand_reference_pu <= 1.0
+        budget = limit                       # equity 1.0
+        remaining = max(0.0, budget * out.plant_demand_reference_pu - exposure)
+        assert remaining <= max(0.0, budget - exposure) + 1e-12
     at_limit = _settled(ECSPlantSupervisor(cfg()), gross_exposure_fraction=0.5, gross_exposure_limit_fraction=0.5)
-    assert at_limit.plant_demand_reference_pu == 0.0 and at_limit.operating_mode == "HOLD"
+    assert max(0.0, 0.5 * at_limit.plant_demand_reference_pu - 0.5) == 0.0
 
 
 def test_ecs_starts_from_hold_and_ramps_up_never_jumping_to_full_demand():
