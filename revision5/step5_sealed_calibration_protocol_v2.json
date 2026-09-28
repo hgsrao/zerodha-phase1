@@ -53,7 +53,8 @@
   "engine": {
     "broker_network_access": false,
     "closed_loop_mode": "active_paper",
-    "governor_authority": "full",
+    "governor_authority": "advisory",
+    "governor_authority_note": "advisory: the bay governor's mean-reversion z comparator vetoes every trend-direction candidate under full authority (block 1 trial 0: 0 entries of 3559). Governor and Mark V decisions are recorded, not enforced, pending a redesign of the entry comparator.",
     "grid_provider": "SealedGridContextProvider",
     "live_trading": false,
     "orchestrator": "Revision2ExternalEngineOrchestrator",
