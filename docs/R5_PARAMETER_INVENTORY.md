@@ -215,10 +215,10 @@ Every other row is an operating value that is not yet registry-owned.
 
 | kind | count |
 |---|---:|
-| DEFAULT_ARGUMENT | 35 |
-| INLINE_LITERAL | 373 |
+| DEFAULT_ARGUMENT | 36 |
+| INLINE_LITERAL | 383 |
 | NAMED_CONSTANT | 121 |
-| NUMERICAL_GUARD | 1085 |
+| NUMERICAL_GUARD | 1096 |
 
 | file | count (non-guard) |
 |---|---:|
@@ -228,7 +228,7 @@ Every other row is an operating value that is not yet registry-owned.
 | `revision2_external/dynamic_parameter_controller.py` | 40 |
 | `revision2_external/composite_study_signal.py` | 38 |
 | `revision5/ccpp_protection_cubicles.py` | 30 |
-| `revision5/ccpp_unified_plant.py` | 17 |
+| `revision5/ccpp_unified_plant.py` | 28 |
 | `revision2_external/closed_loop_control.py` | 11 |
 | `revision5/hrsg.py` | 10 |
 | `revision5/startup_synchronization.py` | 7 |
@@ -293,6 +293,17 @@ Every other row is an operating value that is not yet registry-owned.
 | `revision5/ccpp_unified_plant.py:1034` | TurbineBayPanel.evaluate_admission | 0.0065 | INLINE_LITERAL |
 | `revision5/ccpp_unified_plant.py:1039` | TurbineBayPanel.evaluate_admission | 1.5 | INLINE_LITERAL |
 | `revision5/ccpp_unified_plant.py:1227` | CentralPlantMasterDCS.__init__ | 1000000.0 | DEFAULT_ARGUMENT |
+| `revision5/ccpp_unified_plant.py:2511` | MarkVTelemetryInputs | 0.15 | DEFAULT_ARGUMENT |
+| `revision5/ccpp_unified_plant.py:2546` | MarkVExecutiveController.evaluate | 0.25 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2550` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2551` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2560` | MarkVExecutiveController.evaluate | 0.6 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2572` | MarkVExecutiveController.evaluate | 0.25 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2577` | MarkVExecutiveController.evaluate | 0.6 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2580` | MarkVExecutiveController.evaluate | 0.6 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2591` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2592` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2594` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
 | `revision5/dynamic_parameters.py:48` | R5EnvironmentState | 3.0 | DEFAULT_ARGUMENT |
 | `revision5/dynamic_parameters.py:49` | R5EnvironmentState | 3.0 | DEFAULT_ARGUMENT |
 | `revision5/dynamic_parameters.py:50` | R5EnvironmentState | 3.0 | DEFAULT_ARGUMENT |
