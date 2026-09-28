@@ -70,6 +70,10 @@ logger = logging.getLogger("CCPP_Plant_R5")
 LOSS_COOLDOWN_BARS = 15
 TARGET_COOLDOWN_BARS = 3
 
+# Speedtronic Mark V Physical Safety Limits
+SPEEDTRONIC_FSRMIN_FLAMEOUT_FLOOR: float = 0.15
+SPEEDTRONIC_UNWIND_IDLE_CUTOFF: float = 0.25
+
 
 @dataclass(frozen=True)
 class SquareOffIntent:
@@ -2508,7 +2512,7 @@ class MarkVTelemetryInputs:
     sync_bus_aligned: bool        # Nifty grid / liquidity spread alignment (52G)
     master_protective_trip: bool  # ANSI 86 Lockout
     current_position_lots: int    # Active in-market lots
-    fsrmin_floor: float = 0.15    # Flameout floor for clean exits
+    fsrmin_floor: float = SPEEDTRONIC_FSRMIN_FLAMEOUT_FLOOR    # Flameout floor for clean exits
 
 
 class MarkVExecutiveController:
@@ -2543,7 +2547,7 @@ class MarkVExecutiveController:
 
         # 4. Auto-Synchronizer Check (Breaker 52G Alignment)
         if not inp.sync_bus_aligned:
-            action = "EXIT" if (inp.current_position_lots > 0 and fsr_selected < 0.25) else "HOLD"
+            action = "EXIT" if (inp.current_position_lots > 0 and fsr_selected < SPEEDTRONIC_UNWIND_IDLE_CUTOFF) else "HOLD"
             return {
                 "action": action,
                 "admitted": False,
@@ -2569,11 +2573,11 @@ class MarkVExecutiveController:
                 reason = f"FSR {fsr_selected:.2f} < 0.60 entry hurdle" if inp.raw_signal_present else "No signal"
         else:
             # Unit on grid carrying load
-            if fsr_selected < 0.25:
+            if fsr_selected < SPEEDTRONIC_UNWIND_IDLE_CUTOFF:
                 action = "EXIT"
                 admitted = False
                 fsr_mult = 0.0
-                reason = f"FSR {fsr_selected:.2f} < 0.25 cutoff -> Unwind position"
+                reason = f"FSR {fsr_selected:.2f} < {SPEEDTRONIC_UNWIND_IDLE_CUTOFF:.2f} cutoff -> Unwind position"
             elif fsr_selected < 0.60:
                 action = "HOLD_LOAD_SHED"
                 admitted = False

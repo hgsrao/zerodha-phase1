@@ -215,7 +215,7 @@ Every other row is an operating value that is not yet registry-owned.
 
 | kind | count |
 |---|---:|
-| DEFAULT_ARGUMENT | 36 |
+| DEFAULT_ARGUMENT | 35 |
 | INLINE_LITERAL | 383 |
 | NAMED_CONSTANT | 121 |
 | NUMERICAL_GUARD | 1096 |
@@ -228,7 +228,7 @@ Every other row is an operating value that is not yet registry-owned.
 | `revision2_external/dynamic_parameter_controller.py` | 40 |
 | `revision2_external/composite_study_signal.py` | 38 |
 | `revision5/ccpp_protection_cubicles.py` | 30 |
-| `revision5/ccpp_unified_plant.py` | 28 |
+| `revision5/ccpp_unified_plant.py` | 27 |
 | `revision2_external/closed_loop_control.py` | 11 |
 | `revision5/hrsg.py` | 10 |
 | `revision5/startup_synchronization.py` | 7 |
@@ -276,34 +276,33 @@ Every other row is an operating value that is not yet registry-owned.
 | `revision5/ccpp_protection_cubicles.py:788` | BayUnitProtectionSEL300G.apply_runtime_profile | 120.0 | INLINE_LITERAL |
 | `revision5/ccpp_protection_cubicles.py:797` | BayUnitProtectionSEL300G.apply_runtime_profile | 0.005 | INLINE_LITERAL |
 | `revision5/ccpp_protection_cubicles.py:806` | BayUnitProtectionSEL300G.apply_runtime_profile | 3.5 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:70` | <module> | 15 | NAMED_CONSTANT |
-| `revision5/ccpp_unified_plant.py:71` | <module> | 3 | NAMED_CONSTANT |
-| `revision5/ccpp_unified_plant.py:94` | DynamicBayLoadDispatcher.__init__ | 1000000.0 | DEFAULT_ARGUMENT |
-| `revision5/ccpp_unified_plant.py:95` | DynamicBayLoadDispatcher.__init__ | 0.08 | DEFAULT_ARGUMENT |
-| `revision5/ccpp_unified_plant.py:96` | DynamicBayLoadDispatcher.__init__ | 0.35 | DEFAULT_ARGUMENT |
-| `revision5/ccpp_unified_plant.py:132` | DynamicBayLoadDispatcher.register_trade | 20 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:140` | DynamicBayLoadDispatcher.register_trade | 3 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:153` | DynamicBayLoadDispatcher.register_trade | 0.5 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:157` | DynamicBayLoadDispatcher.register_trade | 0.2 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:161` | DynamicBayLoadDispatcher.register_trade | 0.1 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:192` | DynamicBayLoadDispatcher.register_trade | 0.85 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:193` | DynamicBayLoadDispatcher.register_trade | 0.15 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:254` | TurbineBayPanel.__init__ | 15000.0 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:255` | TurbineBayPanel.__init__ | 0.4 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:1034` | TurbineBayPanel.evaluate_admission | 0.0065 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:1039` | TurbineBayPanel.evaluate_admission | 1.5 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:1227` | CentralPlantMasterDCS.__init__ | 1000000.0 | DEFAULT_ARGUMENT |
-| `revision5/ccpp_unified_plant.py:2511` | MarkVTelemetryInputs | 0.15 | DEFAULT_ARGUMENT |
-| `revision5/ccpp_unified_plant.py:2546` | MarkVExecutiveController.evaluate | 0.25 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:2550` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:2551` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:2560` | MarkVExecutiveController.evaluate | 0.6 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:2572` | MarkVExecutiveController.evaluate | 0.25 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:2577` | MarkVExecutiveController.evaluate | 0.6 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:2580` | MarkVExecutiveController.evaluate | 0.6 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:2591` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:2592` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
-| `revision5/ccpp_unified_plant.py:2594` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2` | <module> | 0.15 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:3` | <module> | 0.25 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:74` | <module> | 15 | NAMED_CONSTANT |
+| `revision5/ccpp_unified_plant.py:75` | <module> | 3 | NAMED_CONSTANT |
+| `revision5/ccpp_unified_plant.py:98` | DynamicBayLoadDispatcher.__init__ | 1000000.0 | DEFAULT_ARGUMENT |
+| `revision5/ccpp_unified_plant.py:99` | DynamicBayLoadDispatcher.__init__ | 0.08 | DEFAULT_ARGUMENT |
+| `revision5/ccpp_unified_plant.py:100` | DynamicBayLoadDispatcher.__init__ | 0.35 | DEFAULT_ARGUMENT |
+| `revision5/ccpp_unified_plant.py:136` | DynamicBayLoadDispatcher.register_trade | 20 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:144` | DynamicBayLoadDispatcher.register_trade | 3 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:157` | DynamicBayLoadDispatcher.register_trade | 0.5 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:161` | DynamicBayLoadDispatcher.register_trade | 0.2 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:165` | DynamicBayLoadDispatcher.register_trade | 0.1 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:196` | DynamicBayLoadDispatcher.register_trade | 0.85 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:197` | DynamicBayLoadDispatcher.register_trade | 0.15 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:258` | TurbineBayPanel.__init__ | 15000.0 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:259` | TurbineBayPanel.__init__ | 0.4 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:1038` | TurbineBayPanel.evaluate_admission | 0.0065 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:1043` | TurbineBayPanel.evaluate_admission | 1.5 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:1231` | CentralPlantMasterDCS.__init__ | 1000000.0 | DEFAULT_ARGUMENT |
+| `revision5/ccpp_unified_plant.py:2554` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2555` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2564` | MarkVExecutiveController.evaluate | 0.6 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2581` | MarkVExecutiveController.evaluate | 0.6 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2584` | MarkVExecutiveController.evaluate | 0.6 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2595` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2596` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
+| `revision5/ccpp_unified_plant.py:2598` | MarkVExecutiveController.evaluate | 4 | INLINE_LITERAL |
 | `revision5/dynamic_parameters.py:48` | R5EnvironmentState | 3.0 | DEFAULT_ARGUMENT |
 | `revision5/dynamic_parameters.py:49` | R5EnvironmentState | 3.0 | DEFAULT_ARGUMENT |
 | `revision5/dynamic_parameters.py:50` | R5EnvironmentState | 3.0 | DEFAULT_ARGUMENT |
