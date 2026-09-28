@@ -40,7 +40,7 @@
       "paper_apply_reference_sha256": null,
       "status": "PENDING"
     },
-    "engine_parent_commit": "3de619f50c57c3bde8105a3d998f408d8b40abad",
+    "engine_parent_commit": "c0b4672fa45498d628f1646d60c75fd206803755",
     "fresh_central_plant_master_dcs_per_block": true,
     "fresh_process_per_candidate": true,
     "live_broker_access": false,
@@ -48,13 +48,13 @@
     "secondary_worker": "shrinivas-Blade",
     "shared_plant_state_between_blocks": false,
     "transport": "SSH process execution",
-    "worker_tooling_identity": "Each run records Git HEAD, protocol SHA256 and worker-script SHA256. Tracked engine content must remain identical to frozen parent 3de619f; only Step-5 protocol/tooling files may differ."
+    "worker_tooling_identity": "Each run records Git HEAD, protocol SHA256 and worker-script SHA256. Tracked engine content must remain identical to frozen parent c0b4672; only Step-5 protocol/tooling files may differ."
   },
   "engine": {
     "broker_network_access": false,
     "closed_loop_mode": "active_paper",
     "governor_authority": "full",
-    "governor_authority_note": "full: the bay governor decides every entry and discretionary exit (safety and protection outrank it). Entry uses the trend_overspeed comparator and percentile-ranked FSRN; the earlier mean-reversion comparator with raw-confidence FSRN admitted 0 of 3559 block-1 trial-0 candidates.",
+    "governor_authority_note": "full: the bay governor decides every entry and discretionary exit (safety and protection outrank it). Entry uses the trend_overspeed comparator and percentile-ranked FSRN; the earlier mean-reversion comparator with raw-confidence FSRN admitted 0 of 3559 block-1 trial-0 candidates. Engine c0b4672 adds the noise-scaled path-error tolerance (gov_path_error_sigma = 2.0, registry default): the 0.30R legacy tolerance cut 82 of 146 trial-0 trades within 1-3 bars.",
     "grid_provider": "SealedGridContextProvider",
     "live_trading": false,
     "orchestrator": "Revision2ExternalEngineOrchestrator",
@@ -62,7 +62,7 @@
     "plant_mode": "PAPER_APPLY"
   },
   "frozen_parent": {
-    "commit": "3de619f50c57c3bde8105a3d998f408d8b40abad",
+    "commit": "c0b4672fa45498d628f1646d60c75fd206803755",
     "tag": "r5-step5-v2-engine-20260928"
   },
   "grid_dataset": {
@@ -117,7 +117,7 @@
     "validation_start": "2025-07-01"
   },
   "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V2",
-  "registry_identity_sha256": "482544d5a45af9687607c986089f863c92ecc5444fba1cff899772bfc8e853d5",
+  "registry_identity_sha256": "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d",
   "sampling_plan": {
     "common_training_sessions": 453,
     "construction": "Five consecutive sessions drawn from deterministic interior chronological quantiles of sessions common to all 48 symbols plus NIFTY and VIX.",
