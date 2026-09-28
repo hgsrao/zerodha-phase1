@@ -40,7 +40,7 @@
       "paper_apply_reference_sha256": null,
       "status": "PENDING"
     },
-    "engine_parent_commit": "9114becc683419db705dfda9bf04e5713604b499",
+    "engine_parent_commit": "3de619f50c57c3bde8105a3d998f408d8b40abad",
     "fresh_central_plant_master_dcs_per_block": true,
     "fresh_process_per_candidate": true,
     "live_broker_access": false,
@@ -48,13 +48,13 @@
     "secondary_worker": "shrinivas-Blade",
     "shared_plant_state_between_blocks": false,
     "transport": "SSH process execution",
-    "worker_tooling_identity": "Each run records Git HEAD, protocol SHA256 and worker-script SHA256. Tracked engine content must remain identical to frozen parent 9114bec; only Step-5 protocol/tooling files may differ."
+    "worker_tooling_identity": "Each run records Git HEAD, protocol SHA256 and worker-script SHA256. Tracked engine content must remain identical to frozen parent 3de619f; only Step-5 protocol/tooling files may differ."
   },
   "engine": {
     "broker_network_access": false,
     "closed_loop_mode": "active_paper",
-    "governor_authority": "advisory",
-    "governor_authority_note": "advisory: the bay governor's mean-reversion z comparator vetoes every trend-direction candidate under full authority (block 1 trial 0: 0 entries of 3559). Governor and Mark V decisions are recorded, not enforced, pending a redesign of the entry comparator.",
+    "governor_authority": "full",
+    "governor_authority_note": "full: the bay governor decides every entry and discretionary exit (safety and protection outrank it). Entry uses the trend_overspeed comparator and percentile-ranked FSRN; the earlier mean-reversion comparator with raw-confidence FSRN admitted 0 of 3559 block-1 trial-0 candidates.",
     "grid_provider": "SealedGridContextProvider",
     "live_trading": false,
     "orchestrator": "Revision2ExternalEngineOrchestrator",
@@ -62,7 +62,7 @@
     "plant_mode": "PAPER_APPLY"
   },
   "frozen_parent": {
-    "commit": "9114becc683419db705dfda9bf04e5713604b499",
+    "commit": "3de619f50c57c3bde8105a3d998f408d8b40abad",
     "tag": "r5-step5-v2-engine-20260928"
   },
   "grid_dataset": {

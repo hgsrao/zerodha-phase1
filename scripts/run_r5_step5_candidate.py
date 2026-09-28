@@ -736,6 +736,10 @@ def execute_block(
         "metrics": m,
         "plant_control":
             report["plant_control"],
+        "governor_authority":
+            report["governor_authority"],
+        "micom":
+            report["micom"],
         "trades":
             report.get("trades", []),
         "slice_sha256":
@@ -747,6 +751,11 @@ def execute_block(
         "metrics": m,
         "plant_control":
             report["plant_control"],
+        # Entry/position decision counts by reason: why candidates were admitted or blocked.
+        "governor_authority":
+            report["governor_authority"],
+        "micom":
+            report["micom"],
         "trades":
             report.get("trades", []),
         "block_fingerprint":
