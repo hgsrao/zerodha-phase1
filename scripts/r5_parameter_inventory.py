@@ -53,7 +53,7 @@ def classify_parameters(registry: CanonicalParameterRegistry) -> List[Tuple[str,
     rows = []
     for name, spec in sorted(registry.safety_params.items()):
         rows.append(("FIXED_SAFETY", name, spec))
-    calibratable = set(registry.calibratable_names())
+    calibratable = set(registry.calibratable_names(engine=None))  # union: the inventory reports every engine
     for name, spec in sorted(registry.params.items()):
         if f'"{name}"' in dynamic_text or f"'{name}'" in dynamic_text:
             cls = "DYNAMIC_SCHEDULED"
