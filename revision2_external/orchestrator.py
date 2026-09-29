@@ -30,7 +30,7 @@ from revision2_external.dynamic_parameter_controller import DynamicParameterCont
 import itertools
 import math
 from dataclasses import replace, asdict
-from collections import Counter
+from collections import Counter, deque
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -46,6 +46,7 @@ from revision2_external.composite_study_signal import CompositeStudySignal, MAX_
 from revision2_external.closed_loop_control import ClosedLoopSupervisor, HMMRiskHysteresis, regime_risk_derate
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars, certify_session_completeness
+from revision2_external.bb05_bb06_parameters import require
 from revision2_external.dynamic_target_setpoint import FrozenTargetSetpointProvider
 from revision2_external.entry_expectancy_evidence import CausalEntryExpectancyLedger
 from revision2_external.entry_candidate_observations import EntryCandidateObservationLedger
@@ -59,7 +60,14 @@ from revision2_external.startup_validation import validate_runtime_parameters, v
 from runtime.operating_mode import ExecutionGate
 from revision2_external.paper_execution import CostedPaperBrokerAdapter, ReplayIntentLedger
 from revision2.transaction_costs import leg_cost, paper_fill_price
+from revision5.ccpp_protection_cubicles import nifty_intertie_measurements
 from revision5.governor import BAY_GOVERNOR_SPECS, BayTurbineClosedLoopGovernor
+from revision5.governor_authority import (
+    PARAMETER_NAMES as GOVERNOR_AUTHORITY_PARAMETERS, BarTelemetry, GovernorAuthorityConfig,
+    GovernorInputError, bar_telemetry, causal_percentile_rank, entry_decision as governor_entry_decision,
+    exhaust_spread,
+    position_decision as governor_position_decision, side_aligned_conviction,
+)
 from revision5.plant_control import (
     BayStatus, PlantControlChain, PlantControlError, PlantControlSnapshot, PlantControlMode,
 )
@@ -127,6 +135,7 @@ class Revision2ExternalEngineOrchestrator:
         plant_control_mode: str = "SHADOW",
         real_plant_dcs: Optional[Any] = None,
         paper_journal: Optional[Any] = None,
+        governor_authority: str = "advisory",
     ) -> None:
         # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
         # Default None -- unchanged behaviour: this replay engine does not instantiate a real plant,
@@ -143,6 +152,15 @@ class Revision2ExternalEngineOrchestrator:
                 raise PlantControlError("PAPER_APPLY requires an attached R5 plant and real grid context provider")
         if closed_loop_mode not in {"shadow", "active_paper"}:
             raise ValueError("closed_loop_mode must be 'shadow' or 'active_paper'")
+        # Governor authority.  ``advisory`` records the bay governor's ENTRY/HOLD/EXIT decision
+        # beside the existing controllers.  ``full`` makes the governor the only entry and
+        # discretionary-exit authority (safety and protection still outrank it); it is a paper
+        # actuation, so it needs active_paper and a real grid reference for the droop input.
+        if governor_authority not in {"advisory", "full"}:
+            raise ValueError("governor_authority must be 'advisory' or 'full'")
+        if governor_authority == "full" and (closed_loop_mode != "active_paper" or grid_context_provider is None):
+            raise ValueError("governor_authority='full' requires closed_loop_mode='active_paper' "
+                             "and a real grid context provider")
         if telemetry_mode not in {"full", "compact"}:
             raise ValueError("telemetry_mode must be 'full' or 'compact'")
         if pid_mode not in {"enabled", "disabled"}:
@@ -349,6 +367,27 @@ class Revision2ExternalEngineOrchestrator:
             self.plant_control.dispatch_controller.merit_source = self.real_plant_dcs.dispatcher
         if paper_journal is not None and self.plant_control.mode != PlantControlMode.PAPER_APPLY:
             raise PlantControlError("Durable replay requires PAPER_APPLY")
+        # Governor authority: registry-owned Mark V gate and causal market telemetry.  Telemetry
+        # and bay exhaust spread are measured once per portfolio timestamp (one owner each).
+        self.governor_authority = governor_authority
+        self.governor_config = GovernorAuthorityConfig.from_config(self.config)
+        self.consumed_parameters.update(GOVERNOR_AUTHORITY_PARAMETERS)
+        self._governor_telemetry: Dict[str, BarTelemetry] = {}
+        self._bay_exhaust_spread: Dict[str, Optional[float]] = {}
+        self._session_bar_index: Dict[str, Any] = {}
+        self._governor_entry_counts: Counter[str] = Counter()
+        self._governor_position_counts: Counter[str] = Counter()
+        # FSRN inputs: each conviction measure placed on its own causal distribution (percentile
+        # rank over the governor's z window), updated on every evaluated bar including warm-up.
+        self._conviction_history: Dict[str, Dict[str, deque]] = {}
+        self._conviction_rank: Dict[str, Dict[str, Optional[float]]] = {}
+        # MiCOM substation protection (PAPER_APPLY with the native plant): evaluated every
+        # portfolio timestamp from the causal NIFTY grid and the daily fleet MTM drawdown.
+        self.micom_vol_z_window = int(require(self.config, "micom_nifty_vol_z_window"))
+        self.consumed_parameters.add("micom_nifty_vol_z_window")
+        self._micom_trip: Optional[Dict[str, Any]] = None
+        self._micom_opened_intertie = False
+        self._micom_trip_counts: Counter[str] = Counter()
         self.startup_certificate = self._issue_startup_certificate()
 
     def _build_safety_gate_config(self) -> SafetyGateConfig:
@@ -440,6 +479,7 @@ class Revision2ExternalEngineOrchestrator:
                 self._native_bar_index += 1
                 self.real_plant_dcs.begin_bar(ts.to_pydatetime(), self._native_bar_index)
                 self._native_timestamp = ts
+            self._micom_step(ts)
             self._record_controller_event("NATIVE_PLANT_STATE", timestamp, "PLANT", {
                 "protection": asdict(build_plant_protection_snapshot(self.real_plant_dcs)),
                 "clock_basis": "unique_portfolio_timestamp",
@@ -479,6 +519,56 @@ class Revision2ExternalEngineOrchestrator:
             self._plant_control_last_key = key
             self.plant_control_snapshots.append(snapshot)
 
+    def _micom_step(self, ts: pd.Timestamp) -> None:
+        """Evaluate the native plant's MiCOM grid relay for this timestamp (PAPER_APPLY only).
+
+        ANSI 67  daily fleet mark-to-market drawdown (latched for the session by the relay)
+        ANSI 81U/81O  latest completed NIFTY 15-minute return
+        ANSI 21  that return in units of the preceding returns' dispersion
+        A trip opens the grid intertie (blocking admissions through the protection snapshot)
+        and forces the protective exit of open positions; a healthy evaluation recloses an
+        intertie that MiCOM itself opened.  Unavailable grid inputs fail closed as a trip."""
+        relay = self.real_plant_dcs.grid_relay
+        day_start = float(self._day_start_equity)
+        drawdown = max(0.0, (day_start - self._mark_to_market_equity()) / day_start) if day_start > 0 else math.inf
+        sync = self.plant_control.synchronizer
+        grid = self.grid_context_provider.causal_context(
+            sync.decision_utc(ts), max_staleness_seconds=sync.max_staleness_seconds,
+            minimum_aligned_bars=sync.min_aligned_bars)
+        measured = (nifty_intertie_measurements(grid.aligned["close_nifty"].to_numpy(), self.micom_vol_z_window)
+                    if grid.available else None)
+        if measured is None:
+            trip = {"ansi_code": "MICOM_INPUT_UNAVAILABLE",
+                    "reason": grid.reason if not grid.available else "NIFTY_HISTORY_INSUFFICIENT",
+                    "fleet_drawdown": drawdown}
+            if drawdown >= relay.max_dd_pct:
+                relay.master_breaker_open = True        # ANSI 67 needs no grid input
+                trip["ansi_code"] = "ANSI 67"
+        else:
+            nifty_return, vol_z = measured
+            result = relay.evaluate_grid_intertie(
+                nifty_15m_return=nifty_return, nifty_vol_z=vol_z, fleet_equity_drawdown_pct=drawdown)
+            trip = None
+            if result.tripped or relay.master_breaker_open:
+                trip = {"ansi_code": result.ansi_code if result.tripped else "ANSI 67",
+                        "reason": result.reason if result.tripped else "ANSI 67 session lockout",
+                        "fleet_drawdown": drawdown, "nifty_15m_return": nifty_return, "nifty_vol_z": vol_z}
+        network = self.real_plant_dcs.electrical_network
+        if trip is not None:
+            self._micom_trip_counts[trip["ansi_code"]] += 1
+            if network.grid_connected:
+                self.real_plant_dcs.open_grid_intertie(
+                    reason=f"{trip['ansi_code']}:{trip['reason']}", source="MICOM")
+                self._micom_opened_intertie = True
+            if self._micom_trip is None or self._micom_trip["ansi_code"] != trip["ansi_code"]:
+                self._record_controller_event("MICOM_GRID_TRIP", ts, "PLANT", trip)
+        elif self._micom_opened_intertie:
+            self.real_plant_dcs.close_grid_intertie()
+            self._micom_opened_intertie = False
+            self._record_controller_event("MICOM_GRID_RECLOSE", ts, "PLANT", {
+                "fleet_drawdown": drawdown, "nifty_15m_return": measured[0], "nifty_vol_z": measured[1]})
+        self._micom_trip = trip
+
     def _assert_paper_plant_broker(self):
         if self.plant_control.mode is PlantControlMode.PAPER_APPLY:
             if type(self.broker) is not CostedPaperBrokerAdapter or self.broker.environment != "paper":
@@ -517,6 +607,153 @@ class Revision2ExternalEngineOrchestrator:
         self._record_controller_event("PLANT_CONTROL_PAPER_ADMISSION", timestamp, symbol,
                                       {"requested_quantity": quantity, **result})
         return allowed
+
+    @property
+    def _governor_full(self) -> bool:
+        return self.governor_authority == "full"
+
+    def _governor_for(self, symbol: str):
+        bay_id = _R5_SYMBOL_TO_BAY.get(symbol)
+        return bay_id, (self._bay_governors.get(bay_id) if bay_id is not None else None)
+
+    def _governor_session_bar(self, symbol: str, bar_idx: Optional[int]) -> Optional[int]:
+        """Causal session-bar index (FSRS input); None outside a replay run (fails closed)."""
+        index = self._session_bar_index.get(symbol)
+        if index is None or bar_idx is None or not 0 <= bar_idx < len(index):
+            return None
+        return int(index[bar_idx])
+
+    def _governor_tick_telemetry(self, tick_events, symbol_bars) -> None:
+        """Measure every symbol at this timestamp from its completed-bar prefix, then each
+        bay's exhaust spread from the members measured at the same instant."""
+        self._governor_telemetry = {
+            event.symbol: bar_telemetry(symbol_bars[event.symbol].iloc[:event.bar_idx + 1], self.governor_config)
+            for event in tick_events
+        }
+        members: Dict[str, List[BarTelemetry]] = {}
+        for symbol, telemetry in self._governor_telemetry.items():
+            bay_id = _R5_SYMBOL_TO_BAY.get(symbol)
+            if bay_id is not None:
+                members.setdefault(bay_id, []).append(telemetry)
+        self._bay_exhaust_spread = {bay_id: exhaust_spread(rows) for bay_id, rows in members.items()}
+
+    def _governor_grid_return(self, timestamp) -> Optional[float]:
+        """NIFTY deviation from its EMA at this timestamp (the governor droop input), or None
+        when the plant reference for this exact timestamp is unavailable."""
+        snapshot = self._paper_plant_snapshot
+        if snapshot is None or self._paper_plant_timestamp != timestamp:
+            return None
+        deviation = snapshot.grid.nifty_deviation
+        return None if deviation is None or not math.isfinite(float(deviation)) else float(deviation)
+
+    def _observe_conviction(self, symbol: str, signal, composite_result) -> None:
+        """Rank this bar's PA entry, PA exit and chart-studies confidences against the values seen
+        on the preceding ``gov_z_window_bars`` bars (causal), then record them."""
+        window = self.governor_config.z_window_bars
+        history = self._conviction_history.setdefault(
+            symbol, {key: deque(maxlen=window) for key in ("pa", "pa_exit", "studies")})
+        current = {"pa": float(signal.confidence), "pa_exit": float(signal.exit_confidence),
+                   "studies": float(composite_result["confidence"])}
+        self._conviction_rank[symbol] = {
+            key: causal_percentile_rank(history[key], value, window) for key, value in current.items()}
+        for key, value in current.items():
+            history[key].append(value)
+
+    def _governor_conviction(self, symbol: str, side: str, signal, composite_result, pa_key: str) -> float:
+        ranks = self._conviction_rank.get(symbol) or {}
+        if ranks.get(pa_key) is None or ranks.get("studies") is None:
+            raise GovernorInputError("conviction history warming up")
+        return side_aligned_conviction(
+            side, pa_direction=int(signal.direction), pa_confidence=ranks[pa_key],
+            studies_direction=(composite_result or {}).get("direction"), studies_confidence=ranks["studies"])
+
+    def _governor_entry(self, symbol, timestamp, bar_idx, side, signal, decision, composite_result,
+                        chart_studies_confidence) -> Dict[str, Any]:
+        bay_id, governor = self._governor_for(symbol)
+        if governor is None:
+            return {"bay_id": None, "action": "NO_ACTION", "reason": "GOVERNOR_UNMAPPED_SYMBOL", "size_multiplier": 0.0}
+        grid_return = self._governor_grid_return(timestamp)
+        if grid_return is None:
+            return {"bay_id": bay_id, "action": "NO_ACTION", "reason": "GRID_REFERENCE_UNAVAILABLE",
+                    "size_multiplier": 0.0}
+        try:
+            conviction = self._governor_conviction(symbol, side, signal, composite_result, "pa")
+        except (GovernorInputError, TypeError, ValueError) as exc:
+            return {"bay_id": bay_id, "action": "NO_ACTION", "reason": f"INVALID_GOVERNOR_INPUT:{exc}",
+                    "size_multiplier": 0.0}
+        telemetry = self._governor_telemetry.get(symbol, BarTelemetry(False, "TELEMETRY_NOT_MEASURED"))
+        result = governor_entry_decision(
+            governor, self.governor_config, side=side, telemetry=telemetry, conviction=conviction,
+            drawdown=self._current_drawdown(), session_bar=self._governor_session_bar(symbol, bar_idx),
+            grid_return_fraction=grid_return, bay_exhaust_spread=self._bay_exhaust_spread.get(bay_id),
+            # PA candidates follow momentum: the governor limits overspeed rather than
+            # demanding a mean-reversion dip (which vetoed every momentum candidate).
+            entry_mode="trend_overspeed")
+        return {"bay_id": bay_id, "grid_return_fraction": grid_return, "conviction": conviction, **result}
+
+    def _governor_position_step(self, symbol, timestamp, trade, bar, signal, held_bars, composite_result,
+                                chart_studies_confidence, path_observation) -> Dict[str, Any]:
+        """The governor's per-bar HOLD/EXIT decision for one open position, from the completed bar.
+        In ``full`` authority an EXIT is armed for the next bar's open and a HOLD moves the
+        protective stop to the governor's ratcheted R floor (one way only)."""
+        bay_id, governor = self._governor_for(symbol)
+        if governor is None:
+            result = {"action": "EXIT", "reason": "GOVERNOR_UNMAPPED_SYMBOL", "load_shed": False}
+        else:
+            sign = 1.0 if trade["side"] == "BUY" else -1.0
+            entry = float(trade["entry_price"])
+            risk = abs(entry - float(trade["stop_price"]))       # 1R: fill to the plan's hard stop
+            valid_risk = math.isfinite(risk) and risk > 0.0
+            favorable = float(bar["high"]) if sign > 0 else float(bar["low"])
+            measured_r = sign * (float(bar["close"]) - entry) / risk if valid_risk else math.nan
+            mfe_r = (max(float(trade.get("governor_mfe_r", 0.0)), sign * (favorable - entry) / risk)
+                     if valid_risk else math.nan)
+            if valid_risk:
+                trade["governor_mfe_r"] = mfe_r
+            try:
+                conviction = self._governor_conviction(symbol, trade["side"], signal, composite_result, "pa_exit")
+            except (GovernorInputError, TypeError, ValueError):
+                conviction = math.nan              # rejected by the gate below: fail closed to EXIT
+            telemetry = self._governor_telemetry.get(symbol)
+            result = governor_position_decision(
+                governor, self.governor_config, position_id=trade.get("trade_id"), measured_r=measured_r,
+                reference_r=path_observation.expected_r if path_observation is not None else math.nan,
+                max_favorable_r=mfe_r, elapsed_bars=int(held_bars),
+                min_hold_bars=int(trade["minimum_hold_bars"]), max_hold_bars=int(trade["maximum_hold_bars"]),
+                trade_target_r=abs(float(trade["target_price"]) - entry) / risk if valid_risk else math.nan,
+                conviction=conviction, drawdown=self._current_drawdown(),
+                velocity=telemetry.velocity if telemetry is not None and telemetry.available else None,
+                session_bar=self._governor_session_bar(symbol, getattr(self, "_current_bar_idx", None)),
+                bay_exhaust_spread=self._bay_exhaust_spread.get(bay_id), hard_stop_r=-1.0,
+                path_noise_r=(telemetry.atr / risk
+                              if telemetry is not None and telemetry.available and valid_risk else None))
+            result = {"measured_r": measured_r, "max_favorable_r": mfe_r, **result}
+        self._governor_position_counts[f"{result['action']}:{result['reason']}"] += 1
+        self._record_controller_event("GOVERNOR_POSITION_DECISION", timestamp, symbol, {
+            "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+            "authority": self.governor_authority, "bay_id": bay_id,
+            **{key: result.get(key) for key in (
+                "action", "reason", "load_shed", "measured_r", "max_favorable_r", "protected_r_floor",
+                "fsr_selected", "fsr_effective", "controlling_limiter", "limiters", "bay_exhaust_spread")},
+        })
+        if not self._governor_full:
+            return result
+        if result["action"] == "EXIT":
+            trade["controller_exit_pending"] = {
+                "armed_timestamp": str(timestamp), "reason": result["reason"],
+                "exit_reason": f"governor_exit:{result['reason']}", "event": "GOVERNOR_EXIT",
+            }
+            self._record_controller_event("GOVERNOR_EXIT_ARMED", timestamp, symbol, {
+                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+                **trade["controller_exit_pending"]})
+        elif result.get("protected_r_floor") is not None:
+            entry = float(trade["entry_price"])
+            risk = abs(entry - float(trade["stop_price"]))
+            proposed = (entry + float(result["protected_r_floor"]) * risk if trade["side"] == "BUY"
+                        else entry - float(result["protected_r_floor"]) * risk)
+            before = float(trade.get("governor_stop_price", trade["stop_price"]))
+            trade["governor_stop_price"] = max(before, proposed) if trade["side"] == "BUY" else min(before, proposed)
+        return result
 
     def _gross_exposure_notional(self) -> float:
         return sum(t["quantity"] * self._last_close.get(s, t["entry_price"])
@@ -694,22 +931,13 @@ class Revision2ExternalEngineOrchestrator:
                     "shadow_net_pnl": shadow_pnl - shadow_costs,
                 }
                 completed["shadow_r_trajectory"] = shadow
-            self.completed_trades.append(completed)
-            entry_evidence = self.entry_expectancy_ledger.record_outcome({
-                "candidate_id": completed["candidate_id"], "trade_id": completed["trade_id"],
-                "exit_timestamp": completed["exit_timestamp"], "exit_reason": reason,
-                "bars_held": completed["bars_held"], "pnl": completed["pnl"],
-                "costs": completed["costs"], "net_pnl": completed["net_pnl"],
-                "mfe_r": completed.get("mfe_r"), "mae_r": completed.get("mae_r"),
-                "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
-            })
-            if entry_evidence is not None:
-                self._record_controller_event("ENTRY_EXPECTANCY_OUTCOME", timestamp, symbol, entry_evidence)
-            closed_loop_profile = self.closed_loop.record_outcome(
-                completed, regime=trade.get("closed_loop", {}).get("regime", "unknown"),
-            )
 
-            # --- CLOSED-LOOP INTER-BOX FEEDBACK (Box 10 -> Box 6/8) ---
+            # ---- 1. Authoritative close bookkeeping --------------------------------------
+            # The broker position is already flat.  Everything that keeps this engine's ledger,
+            # P&L and protection state consistent with the broker happens first, before any
+            # research telemetry can raise.  A later defect still propagates, but can no longer
+            # leave a flat broker position recorded as open.
+            self.completed_trades.append(completed)
             _pnl = float(completed.get("net_pnl", 0.0))
             if _pnl < 0:
                 _c_losses = self.symbol_consecutive_losses.get(symbol, 0) + 1
@@ -722,6 +950,13 @@ class Revision2ExternalEngineOrchestrator:
             elif _pnl > 0:
                 # Any profitable exit breaks consecutive loss streak
                 self.symbol_consecutive_losses[symbol] = 0
+            self._equity_curve.append(self._equity())
+            del self.open_trades[symbol]
+            self._exit_controller_states.pop(symbol, None)
+            _, governor = self._governor_for(symbol)
+            if governor is not None:
+                governor.confirm_position_closed(trade.get("trade_id"))
+            self._record_mtm(timestamp)
             self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
                 "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
                 "exit_reason": reason, "net_pnl": completed["net_pnl"], "pnl": pnl, "costs": trade_costs,
@@ -731,16 +966,12 @@ class Revision2ExternalEngineOrchestrator:
                 "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
                 "shadow_r_trajectory": shadow,
             })
-            self._record_controller_event("OUTCOME_LEDGER_UPDATE", timestamp, symbol, {
-                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
-                "net_pnl": completed["net_pnl"], "entry_quality_profile": closed_loop_profile,
-            })
-            self._equity_curve.append(self._equity())
-            # Authoritative realized-R close -> plant-level dispatch feedback (BLOCKER 2) and local
-            # governor feedback.  Only here: after the authoritative exit fill (result["passed"]),
-            # after position/ledger reconciliation (_verify_broker_position_reconciles, above) and
-            # after completed_trades/closed_loop bookkeeping is safe.  del self.open_trades[symbol]
-            # below is what makes this trade "truly closed"; the feedback call happens just before it.
+
+            # ---- 2. Authoritative realized-R close feedback -------------------------------
+            # Plant-level dispatch feedback (BLOCKER 2) and local governor feedback: after the
+            # authoritative exit fill, after position/ledger reconciliation and after the engine
+            # ledger above already records the trade as closed.  Exactly-once receipts still apply;
+            # an exception here propagates with the ledger already consistent with the broker.
             if state is not None:
                 risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
                 if risk > 0.0:
@@ -755,9 +986,34 @@ class Revision2ExternalEngineOrchestrator:
                         realized_r = self.exit_controller._r_multiple(state, float(result["filled_price"]))
                         self._register_realized_r_close_feedback(
                             symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r, reason=reason)
-            del self.open_trades[symbol]
-            self._exit_controller_states.pop(symbol, None)
-            self._record_mtm(timestamp)
+
+            # ---- 3. Research telemetry (never part of the authoritative books) -------------
+            if completed["bars_held"] is None:
+                # Without exit-controller state the holding period is unknown.  It is never
+                # fabricated: the pre-entry evidence stays pending instead of being paired
+                # with an invented outcome.
+                self._record_controller_event("ENTRY_EXPECTANCY_OUTCOME_UNAVAILABLE", timestamp, symbol, {
+                    "candidate_id": completed["candidate_id"], "trade_id": completed["trade_id"],
+                    "reason": "bars_held_unknown_without_exit_controller_state",
+                })
+            else:
+                entry_evidence = self.entry_expectancy_ledger.record_outcome({
+                    "candidate_id": completed["candidate_id"], "trade_id": completed["trade_id"],
+                    "exit_timestamp": completed["exit_timestamp"], "exit_reason": reason,
+                    "bars_held": completed["bars_held"], "pnl": completed["pnl"],
+                    "costs": completed["costs"], "net_pnl": completed["net_pnl"],
+                    "mfe_r": completed.get("mfe_r"), "mae_r": completed.get("mae_r"),
+                    "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
+                })
+                if entry_evidence is not None:
+                    self._record_controller_event("ENTRY_EXPECTANCY_OUTCOME", timestamp, symbol, entry_evidence)
+            closed_loop_profile = self.closed_loop.record_outcome(
+                completed, regime=trade.get("closed_loop", {}).get("regime", "unknown"),
+            )
+            self._record_controller_event("OUTCOME_LEDGER_UPDATE", timestamp, symbol, {
+                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+                "net_pnl": completed["net_pnl"], "entry_quality_profile": closed_loop_profile,
+            })
 
     def _record_controller_event(self, event_type: str, timestamp: object, symbol: str, payload: Dict[str, Any]) -> None:
         """Record controller state and any bounded paper-only actuation."""
@@ -793,6 +1049,11 @@ class Revision2ExternalEngineOrchestrator:
         if self._current_drawdown() >= halt_dd:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "forced_close_drawdown_halt")
             return
+        if self._micom_trip is not None and self._micom_trip["ansi_code"] != "MICOM_INPUT_UNAVAILABLE":
+            # Substation protection outranks the governor: a measured MiCOM trip unwinds the fleet.
+            self._execute_exit(symbol, timestamp, trade, float(bar["close"]),
+                               f"micom_trip:{self._micom_trip['ansi_code']}")
+            return
 
         # The real feedback path: re-run the exit controller on THIS bar's
         # freshly-evaluated PA signal (exit_confidence -- the field PA
@@ -808,11 +1069,17 @@ class Revision2ExternalEngineOrchestrator:
         # In shadow mode the controller is strictly observational.  In
         # active-paper mode a stop ratchet computed from a completed prior
         # bar becomes the protective stop for this bar.
-        current_stop = (
-            float(state.current_stop_price)
-            if state is not None and self.closed_loop_mode == "active_paper"
-            else float(trade["stop_price"])
-        )
+        if self._governor_full:
+            # Full governor authority: the protective stop is the plan's hard stop ratcheted by
+            # the governor's own R floor (armed from a completed earlier bar).  The exit PID's
+            # ratchet and the path loop are advisory.
+            current_stop = float(trade.get("governor_stop_price", trade["stop_price"]))
+        else:
+            current_stop = (
+                float(state.current_stop_price)
+                if state is not None and self.closed_loop_mode == "active_paper"
+                else float(trade["stop_price"])
+            )
         pending_exit = trade.get("controller_exit_pending")
         if pending_exit is not None:
             # The exit was armed using only the preceding completed bar.
@@ -827,12 +1094,14 @@ class Revision2ExternalEngineOrchestrator:
             elif trade["side"] == "SELL" and float(bar["open"]) <= float(trade["target_price"]):
                 self._execute_exit(symbol, timestamp, trade, float(bar["open"]), "target_gap")
             else:
-                self._record_controller_event("CONTROLLER_PATH_EXIT", timestamp, symbol, {
+                self._record_controller_event(pending_exit.get("event", "CONTROLLER_PATH_EXIT"), timestamp, symbol, {
                     "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
                     **pending_exit,
                 })
-                self._execute_exit(symbol, timestamp, trade, float(bar["open"]), "controller_path_exit")
+                self._execute_exit(symbol, timestamp, trade, float(bar["open"]),
+                                   pending_exit.get("exit_reason", "controller_path_exit"))
             return
+        path_observation = None
         if state is not None:
             shadow_exit = self.exit_controller.check_shadow_stop(state, bar, timestamp)
             if shadow_exit is not None:
@@ -858,7 +1127,8 @@ class Revision2ExternalEngineOrchestrator:
                     "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
                     "bars_held": state.bars_held, **path_observation.to_dict(),
                 })
-                if self.closed_loop_mode == "active_paper" and path_observation.behind_path:
+                if (self.closed_loop_mode == "active_paper" and not self._governor_full
+                        and path_observation.behind_path):
                     # Path control is one-way and never crosses the current
                     # price (guaranteed by the supervisor). It can only make
                     # the already-ratcheted stop stricter.
@@ -963,6 +1233,15 @@ class Revision2ExternalEngineOrchestrator:
         if held_bars >= trade["maximum_hold_bars"]:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "max_hold")
             return
+        # Bay governor HOLD/EXIT from this completed bar.  In full authority it is the only
+        # discretionary exit: an EXIT is executed at the next bar's open (above).
+        governor_position = self._governor_position_step(
+            symbol, timestamp, trade, bar, signal, held_bars, chart_studies_audit,
+            chart_studies_confidence, path_observation)
+        if self._governor_full and governor_position["action"] == "EXIT":
+            if state is not None:
+                self.exit_controller.observe_completed_bar_excursion(state, bar)
+            return
         # The old code exited unconditionally the instant minimum_hold_bars
         # was satisfied, labeled "max_hold_or_signal" despite checking
         # neither -- see BOX6_CONTROL_LOOP_DIAGRAM_20260906.html. Replaced
@@ -977,8 +1256,12 @@ class Revision2ExternalEngineOrchestrator:
         if state is not None and held_bars >= trade["minimum_hold_bars"]:
             saturation_reason = self.exit_controller.saturation_exit_reason(state)
             if saturation_reason is not None:
-                self._execute_exit(symbol, timestamp, trade, float(bar["close"]), saturation_reason)
-                return
+                if self._governor_full:
+                    self._record_controller_event("ADVISORY_EXIT_NOT_ACTUATED", timestamp, symbol, {
+                        "trade_id": trade.get("trade_id"), "advisor": "exit_pid", "reason": saturation_reason})
+                else:
+                    self._execute_exit(symbol, timestamp, trade, float(bar["close"]), saturation_reason)
+                    return
         # Box 5's real feedback path: while a position is open, ID's
         # regime check was never called at all -- `if symbol in
         # self.open_trades: continue` skips straight past it before entry
@@ -997,8 +1280,12 @@ class Revision2ExternalEngineOrchestrator:
         self.id_box.configure(self.config)
         regime = self.id_box._current_regime(symbol, float(bar["close"]))
         if regime == "stressed" and held_bars >= trade["minimum_hold_bars"]:
-            self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "regime_stressed_exit")
-            return
+            if self._governor_full:
+                self._record_controller_event("ADVISORY_EXIT_NOT_ACTUATED", timestamp, symbol, {
+                    "trade_id": trade.get("trade_id"), "advisor": "hmm_regime", "reason": "regime_stressed_exit"})
+            else:
+                self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "regime_stressed_exit")
+                return
         if state is not None:
             self.exit_controller.observe_completed_bar_excursion(state, bar)
         if state is not None and state.shadow_exit_price is None:
@@ -1076,6 +1363,12 @@ class Revision2ExternalEngineOrchestrator:
             certified[symbol] = frame
             certification_audit[symbol] = audit
         symbol_bars = certified
+        # Completed bars of the current exchange-local session before each row (FSRS input).
+        for symbol, frame in symbol_bars.items():
+            local = pd.to_datetime(frame["timestamp"])
+            local = (local.dt.tz_localize("Asia/Kolkata") if local.dt.tz is None
+                     else local.dt.tz_convert("Asia/Kolkata"))
+            self._session_bar_index[symbol] = frame.groupby(local.dt.date.to_numpy()).cumcount().to_numpy()
         if precomputed_clock is not None:
             expected_clock = self.build_clock(symbol_bars, warmup)
             if precomputed_clock != expected_clock:
@@ -1090,7 +1383,7 @@ class Revision2ExternalEngineOrchestrator:
                 snapshot = MarketSnapshot(symbol, str(bars.iloc[idx]["timestamp"]), bars.iloc[:idx + 1])
                 warm_signal, _ = self.pa.evaluate(snapshot, self.config)
                 self.chart_studies.configure(self.config)
-                self.chart_studies.evaluate(symbol, snapshot.bars)
+                self._observe_conviction(symbol, warm_signal, self.chart_studies.evaluate(symbol, snapshot.bars))
                 if warm_signal.direction == 0:
                     self.id_box._current_regime(symbol, float(bars.iloc[idx]["close"]))
                     continue
@@ -1164,6 +1457,7 @@ class Revision2ExternalEngineOrchestrator:
             if self.paper_journal is not None:
                 self.paper_journal.before_tick(self, timestamp)
             self._plant_control_shadow_step(timestamp, max_gross_fraction)
+            self._governor_tick_telemetry(tick_events, symbol_bars)
 
             # Box 8: refit PyPortfolioOpt weights periodically from real
             # trailing prices across the universe -- not every tick (that
@@ -1254,6 +1548,7 @@ class Revision2ExternalEngineOrchestrator:
                 self.closed_loop.configure(self.config)
                 composite_result = self.chart_studies.evaluate(symbol, snapshot.bars)
                 chart_studies_confidence = float(composite_result["confidence"])
+                self._observe_conviction(symbol, signal, composite_result)
 
                 held = bar_idx - entry_bar_index.get(symbol, bar_idx)
                 self._maybe_exit(
@@ -1455,6 +1750,20 @@ class Revision2ExternalEngineOrchestrator:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "pre_sizing_safety")
                     funnel["safety_rejections"] += 1
                     continue
+                governor_entry = self._governor_entry(
+                    symbol, timestamp, bar_idx, plan.side, signal, decision, composite_result,
+                    chart_studies_confidence)
+                self._governor_entry_counts[f"{governor_entry['action']}:{governor_entry['reason']}"] += 1
+                self._record_controller_event("GOVERNOR_ENTRY_DECISION", timestamp, symbol, {
+                    "candidate_id": candidate_id, "authority": self.governor_authority,
+                    **{key: governor_entry.get(key) for key in (
+                        "bay_id", "action", "reason", "size_multiplier", "conviction", "grid_return_fraction",
+                        "fsr_selected", "controlling_limiter", "limiters", "entry_hurdle", "vibration",
+                        "velocity", "z_score", "bay_exhaust_spread", "comparator")},
+                })
+                if self._governor_full and governor_entry["action"] != "ENTRY":
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "governor_no_action")
+                    continue
                 symbol_dynamics = self.closed_loop.dynamics_profiler.estimate(bars.iloc[:bar_idx + 1])
                 final_entry = self.final_execution_controller.entry_decision(
                     side=plan.side, pa_confidence=float(signal.confidence), id_approved=bool(decision.approved),
@@ -1469,15 +1778,18 @@ class Revision2ExternalEngineOrchestrator:
                 # The unified decision is an actual paper-only entry veto in
                 # active mode. Shadow mode records the identical decision
                 # but leaves the existing baseline execution untouched.
-                if self.closed_loop_mode == "active_paper" and final_entry["action"] != "ADMIT":
+                if self.closed_loop_mode == "active_paper" and not self._governor_full and final_entry["action"] != "ADMIT":
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "final_execution_entry_veto")
                     self._record_controller_event("FINAL_EXECUTION_ENTRY_VETO", timestamp, symbol, {
                         "candidate_id": candidate_id, **final_entry,
                     })
                     continue
                 size_mult *= pid_info["entry_timing_multiplier"]
+                if self._governor_full:
+                    # The governor's selected FSR (<= 1) can only derate the approved size.
+                    size_mult *= float(governor_entry["size_multiplier"])
                 if (
-                    self.closed_loop_mode == "active_paper"
+                    self.closed_loop_mode == "active_paper" and not self._governor_full
                     and entry_quality["symbol_regime_samples"] >= self.closed_loop.outcomes.minimum_history
                     and float(decision.confidence) < float(self.config.require("entry_confidence_threshold"))
                     + float(entry_quality["suggested_confidence_offset"])
@@ -1578,10 +1890,9 @@ class Revision2ExternalEngineOrchestrator:
                     suggested_quantity=quantity, position_notional=real_notional,
                     risk_reward_ratio=abs(plan.target_price - plan.entry_price) / max(abs(plan.entry_price - plan.stop_price), 1e-12),
                 )
-                try:
-                    current_time = datetime.fromisoformat(str(next_ts))
-                except Exception:
-                    current_time = datetime.now()
+                # Replay event time only.  A wall-clock fallback would make every time-of-day
+                # and de-duplication gate depend on when the replay happens to run.
+                current_time = self._replay_event_time(next_ts)
                 gate_result = self.entry_decision_engine.evaluate_pre_submit(
                     state, signal=entry_signal, current_time=current_time, proposed_quantity=quantity,
                     target_price=plan.entry_price, fill_price=plan.entry_price, expected_qty=quantity,
@@ -1712,6 +2023,12 @@ class Revision2ExternalEngineOrchestrator:
                         "controller_exit_pending": None,
                         "closed_loop": closed_loop_snapshot,
                     }
+                    self.open_trades[symbol].update({
+                        "governor_stop_price": float(plan.stop_price), "governor_mfe_r": 0.0,
+                    })
+                    _, governor = self._governor_for(symbol)
+                    if governor is not None:
+                        governor.begin_position(hard_stop_r=-1.0, position_id=f"trade-{self._trade_sequence}")
                     entry_bar_index[symbol] = bar_idx + 1
                     self._exit_controller_states[symbol] = self.exit_controller.open_position(
                         plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
@@ -1748,6 +2065,12 @@ class Revision2ExternalEngineOrchestrator:
             "gross_pnl": gross_pnl, "net_pnl": sum(t["net_pnl"] for t in self.completed_trades),
             "ending_equity": self.starting_equity + sum(t["net_pnl"] for t in self.completed_trades),
             "config_hash": self.config.config_hash, "safety_contract_hash": self.safety_contract.contract_hash,
+            "governor_authority": {
+                "mode": self.governor_authority,
+                "entry_decisions": dict(self._governor_entry_counts),
+                "position_decisions": dict(self._governor_position_counts),
+            },
+            "micom": {"trip_bar_counts": dict(self._micom_trip_counts), "vol_z_window": self.micom_vol_z_window},
             "plant_control": {
                 "mode": self.plant_control.mode.value, "applied": self._paper_admission_evaluations > 0,
                 "plant_protection_connected": self._plant_protection_connected,
@@ -1831,9 +2154,30 @@ class Revision2ExternalEngineOrchestrator:
         # end show up as "unconsumed" despite being load-bearing.
         self.consumed_parameters.add("trading_hours_start")
         self.consumed_parameters.add("trading_hours_end")
+        # Fail closed: a timestamp that cannot be placed on the exchange clock is never inside
+        # the trading window.  The fault is recorded, never silently treated as tradeable.
         try:
-            raw = str(timestamp)
-            time_part = (raw.split("T")[-1] if "T" in raw else raw.split(" ")[-1])[:5]
-            return start <= time_part <= end
-        except Exception:
-            return True
+            time_part = self._exchange_local_time(timestamp).strftime("%H:%M")
+        except (TypeError, ValueError) as exc:
+            self._record_controller_event("TRADING_WINDOW_FAULT", timestamp, "PLANT", {
+                "error_type": type(exc).__name__, "error": str(exc), "in_window": False})
+            return False
+        return start <= time_part <= end
+
+    @staticmethod
+    def _exchange_local_time(timestamp: object) -> pd.Timestamp:
+        """Exchange-local (Asia/Kolkata) time.  A tz-aware value keeps its instant; a tz-naive
+        replay value is read as exchange-local, the same rule as PlantGridSynchronizer."""
+        ts = pd.Timestamp(timestamp)
+        if pd.isna(ts):
+            raise ValueError(f"timestamp is not a valid instant: {timestamp!r}")
+        return ts.tz_localize("Asia/Kolkata") if ts.tzinfo is None else ts.tz_convert("Asia/Kolkata")
+
+    @staticmethod
+    def _replay_event_time(timestamp: object) -> datetime:
+        """Deterministic replay event time for gate evaluation.  Never the wall clock: an
+        unparseable replay timestamp is a data defect and stops the run."""
+        ts = pd.Timestamp(timestamp)
+        if pd.isna(ts):
+            raise ValueError(f"replay event timestamp is not a valid instant: {timestamp!r}")
+        return datetime.fromisoformat(ts.isoformat())

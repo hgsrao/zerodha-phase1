@@ -68,7 +68,12 @@ class CanonicalParameterRegistry:
     # Engine applicability: BB04(16)+BB05-BB06(29)+three-controller(22)=67 parameters are EXTERNAL-only (62 optimizer-eligible,
     # 5 fixed); BB08 adds 5 fixed PositionManager controls (external portfolio optimizer). Optimizer surfaces are engine-scoped:
     # see surface_counts().
-    FROZEN_IDENTITY_SHA256 = "b00b5299815753477037c181c548545c10254f18869314b3e22852ba88bef360"
+    # 2026-09-27: governor-authority expansion (+17: 13 EXTERNAL-only eligible, 4 fixed) for
+    # revision5/governor_authority.py: 169 targets / 121 eligible.  Any calibration protocol sealed
+    # against the previous identity must be re-sealed.
+    # 2026-09-28: + gov_path_error_sigma (EXTERNAL-only eligible): the inner loop's noise-scaled
+    # path-error tolerance.  170 targets / 122 eligible.
+    FROZEN_IDENTITY_SHA256 = "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -152,6 +157,8 @@ class CanonicalParameterRegistry:
         # Plant control: PlantGridSynchronizer / ECSPlantSupervisor (revision5/plant_control.py)
         "grid_vix_operating_min", "grid_vix_operating_max", "grid_vix_derate_start", "grid_vix_slope_bars", "grid_vix_slope_derate_fraction",
         "grid_nifty_ema_period", "grid_nifty_deviation_derate_fraction", "grid_max_staleness_seconds", "grid_min_aligned_bars", "ecs_derate_demand_pu", "ecs_demand_restore_step_pu",
+        # Governor authority / Mark V / MiCOM (revision5/governor_authority.py)
+        "gov_z_window_bars", "mv_fsr_entry_threshold", "mv_fsr_exit_threshold", "mv_fsrt_drawdown_span", "mv_fsrt_slope", "mv_fsra_base", "mv_fsra_slope", "mv_fsrs_warmup_bars", "mv_fsrs_floor", "mv_vibration_damper_start", "mv_vibration_damper_gain", "mv_exhaust_spread_hold", "mv_exhaust_spread_trip", "mv_fsr_min_floor", "mv_fsrm_manual_limit", "gov_telemetry_atr_bars", "micom_nifty_vol_z_window", "gov_path_error_sigma",
         # Studies PID / local signal weighting (CompositeStudySignal)
         "studies_pid_kp", "studies_pid_ki", "studies_pid_kd", "studies_pid_output_clamp",
         "studies_grading_horizon_bars", "studies_hit_rate_window_bars",
@@ -192,6 +199,11 @@ class CanonicalParameterRegistry:
         "grid_min_aligned_bars",
         "ecs_derate_demand_pu",
         "ecs_demand_restore_step_pu",
+        # Governor authority fixed controls
+        "mv_fsr_min_floor",
+        "mv_fsrm_manual_limit",
+        "gov_telemetry_atr_bars",
+        "micom_nifty_vol_z_window",
     })
     APPROVED_CALIBRATABLE = set(Revision2ParameterManifest.all_68()) - FIXED_TARGET_NAMES
 
@@ -341,6 +353,25 @@ class CanonicalParameterRegistry:
                 0.0, -0.05, 0.20, False,
                 "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 annual risk-free rate passed explicitly to max_sharpe"
             ),
+            # Governor authority, Mark V limiter gate and MiCOM (revision5/governor_authority.py).
+            ParameterSpec("gov_z_window_bars", "PlantControl", "int", 20, 10, 60, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Rolling close z-score window for the bay governor's entry comparator (causal, completed bars)"),
+            ParameterSpec("gov_path_error_sigma", "PlantControl", "float", 2.0, 1.0, 3.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Inner-loop path-error exit tolerance in noise envelopes: exit only when the lag behind the reference path exceeds sigma * (ATR / initial risk) * sqrt(elapsed bars)"),
+            ParameterSpec("mv_fsr_entry_threshold", "PlantControl", "float", 0.6, 0.4, 0.85, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V: minimum selected FSR to admit a new entry"),
+            ParameterSpec("mv_fsr_exit_threshold", "PlantControl", "float", 0.25, 0.1, 0.4, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V: selected FSR below which an open position is unwound"),
+            ParameterSpec("mv_fsrt_drawdown_span", "PlantControl", "float", 0.1, 0.04, 0.2, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRT: mark-to-market drawdown over which FSRT falls by mv_fsrt_slope"),
+            ParameterSpec("mv_fsrt_slope", "PlantControl", "float", 0.5, 0.2, 1.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRT: FSRT = 1 - (drawdown / span) * slope"),
+            ParameterSpec("mv_fsra_base", "PlantControl", "float", 1.2, 1.0, 1.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRA: FSRA = base - slope * (|close - prev close| / ATR)"),
+            ParameterSpec("mv_fsra_slope", "PlantControl", "float", 0.25, 0.1, 0.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRA: price-velocity sensitivity"),
+            ParameterSpec("mv_fsrs_warmup_bars", "PlantControl", "int", 15, 5, 45, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRS: session-opening warm-up ramp length in bars"),
+            ParameterSpec("mv_fsrs_floor", "PlantControl", "float", 0.2, 0.0, 0.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRS: ramp starting value at the session open"),
+            ParameterSpec("mv_vibration_damper_start", "PlantControl", "float", 1.2, 0.6, 2.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Turbine vibration ((high-low-|close-open|)/ATR) above which the entry hurdle is raised"),
+            ParameterSpec("mv_vibration_damper_gain", "PlantControl", "float", 0.1, 0.0, 0.3, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Entry-hurdle increase per unit of vibration above the damper start"),
+            ParameterSpec("mv_exhaust_spread_hold", "PlantControl", "float", 2.0, 1.0, 4.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Bay exhaust spread (cross-symbol return dispersion / mean ATR fraction) that holds new bay entries"),
+            ParameterSpec("mv_exhaust_spread_trip", "PlantControl", "float", 3.5, 2.0, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Bay exhaust spread that trips open bay positions (orderly exit)"),
+            ParameterSpec("mv_fsr_min_floor", "PlantControl", "float", 0.15, 0.05, 0.3, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-AUTHORITY Mark V minimum-value floor (flameout protection): exits always remain possible; never admits an entry"),
+            ParameterSpec("mv_fsrm_manual_limit", "PlantControl", "float", 1.0, 0.0, 1.0, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-AUTHORITY Mark V FSRM operator manual run limit (1.0 = no manual restriction)"),
+            ParameterSpec("gov_telemetry_atr_bars", "PlantControl", "int", 14, 5, 30, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-AUTHORITY ATR window shared by the governor telemetry (vibration, velocity, exhaust spread)"),
+            ParameterSpec("micom_nifty_vol_z_window", "PlantControl", "int", 20, 10, 60, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-AUTHORITY MiCOM ANSI 21: completed Nifty 15-minute returns used for the volatility z-score"),
             # Plant-control parameters: FIXED / NOT_CALIBRATED / external-engine only.
             ParameterSpec("grid_vix_operating_min", "PlantControl", "float", 10.0, 5.0, 15.0, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; NEVER_CALIBRATE_SAFETY; PLANT-CONTROL India VIX lower operating bound: below it the grid is treated as dead (UNSYNCHRONIZED)"),
             ParameterSpec("grid_vix_operating_max", "PlantControl", "float", 30.0, 20.0, 40.0, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; NEVER_CALIBRATE_SAFETY; PLANT-CONTROL India VIX upper operating bound: above it the grid is treated as panicking (UNSYNCHRONIZED)"),
@@ -512,8 +543,10 @@ class CanonicalParameterRegistry:
         # NOTE: Adding saturation_exit_bars (2025) expands from 68 → 69 total.
         # BB04 adds 16, BB05-BB06 29, three-controller 22, BB08 5 and plant control 11
         # fixed controls: base_33() + revision2_35() = 33 + 119 = 152.
-        if len(expected) != 152 or len(set(expected)) != 152:
-            raise ValueError("Revision 2 target names must contain 152 unique values")
+        # Governor authority adds 17 (13 eligible + 4 fixed) and the path-error tolerance 1:
+        # 152 + 18 = 170.
+        if len(expected) != 170 or len(set(expected)) != 170:
+            raise ValueError("Revision 2 target names must contain 170 unique values")
         if set(expected) != set(self.params):
             raise ValueError("registry does not exactly match the Revision 2 manifest")
         if len(self.safety_params) != 22:
@@ -535,11 +568,12 @@ class CanonicalParameterRegistry:
         # (learning_rate_exploration_factor is now FIXED): 46 + 62 = 108 across
         # engines.  The per-engine surfaces are the ones an optimizer may use:
         # in-house 46, external 108 (46 shared + 62 external-only).
-        if len(calibratable) != 108:
-            raise ValueError(f"optimizer surface must contain exactly 108 values; got {len(calibratable)}")
+        # Governor authority adds 14 EXTERNAL-only eligible parameters: 108 + 14 = 122.
+        if len(calibratable) != 122:
+            raise ValueError(f"optimizer surface must contain exactly 122 values; got {len(calibratable)}")
         counts = self.surface_counts()
         if (counts["in_house_eligible"], counts["external_eligible"], counts["shared_eligible"],
-                counts["external_only_eligible"]) != (46, 108, 46, 62):
+                counts["external_only_eligible"]) != (46, 122, 46, 76):
             raise ValueError(f"engine-scoped optimizer surfaces changed unexpectedly: {counts}")
         for name, spec in self.params.items():
             if spec.applicable_engines not in (self.ENGINE_IN_HOUSE, self.ENGINE_EXTERNAL, self.ENGINE_BOTH):

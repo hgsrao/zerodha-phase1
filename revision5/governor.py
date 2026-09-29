@@ -14,9 +14,9 @@ PID coefficients never self-modify during certified replay.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isfinite
+from math import isfinite, sqrt
 from statistics import fmean
-from typing import Dict
+from typing import Dict, Optional
 
 from revision5.topology import (
     BAY_IDS,
@@ -136,6 +136,18 @@ if abs(
     raise RuntimeError("Revision-5 initial capital weights must sum to 1.0")
 
 
+@dataclass
+class _InnerLoopState:
+    """Fast inner-loop state of ONE open position."""
+
+    active: bool = False
+    integral_error: float = 0.0
+    last_error: float = 0.0
+    last_control_u: float = 0.0
+    # Monotonic protective ratchet. It may advance only.
+    protected_r_floor: float = -1.0
+
+
 class BayTurbineClosedLoopGovernor:
     """
     Frozen Mark-V-style closed-loop governor.
@@ -187,14 +199,40 @@ class BayTurbineClosedLoopGovernor:
 
         self.history_r: list[float] = []
 
-        # Fast inner governor loop: active only while a position exists.
-        self.position_active = False
-        self.inner_integral_error = 0.0
-        self.inner_last_error = 0.0
-        self.inner_last_control_u = 0.0
+        # Fast inner governor loop: one independent state per open position.  A bay
+        # trades several symbols concurrently, so one shared integrator/ratchet would
+        # mix unrelated positions.  The legacy single-position API uses the ``None`` key.
+        self._inner_states: Dict[object, _InnerLoopState] = {}
 
-        # Monotonic protective ratchet. It may advance only.
-        self.protected_r_floor = -1.0
+    def inner_state(self, position_id=None) -> _InnerLoopState:
+        """Read-only copy of one position's inner-loop state (inactive default)."""
+        state = self._inner_states.get(position_id)
+        return _InnerLoopState(**vars(state)) if state is not None else _InnerLoopState()
+
+    @property
+    def open_position_ids(self) -> tuple:
+        return tuple(key for key, state in self._inner_states.items() if state.active)
+
+    # Legacy single-position views (position_id=None).
+    @property
+    def position_active(self) -> bool:
+        return self.inner_state().active
+
+    @property
+    def inner_integral_error(self) -> float:
+        return self.inner_state().integral_error
+
+    @property
+    def inner_last_error(self) -> float:
+        return self.inner_state().last_error
+
+    @property
+    def inner_last_control_u(self) -> float:
+        return self.inner_state().last_control_u
+
+    @property
+    def protected_r_floor(self) -> float:
+        return self.inner_state().protected_r_floor
 
     def cap_dispatch_entry(
         self, reference, *, requested_quantity: int, entry_price: float,
@@ -512,23 +550,60 @@ class BayTurbineClosedLoopGovernor:
         *,
         z_score: float,
         grid_return_fraction: float = 0.0,
+        side: str = "BUY",
+        entry_mode: str = "mean_reversion",
     ) -> dict:
         """
         Final bay-governor ENTRY authority.
 
         Upstream boxes provide the requested operating condition.
         The governor owns the final strategic ENTRY/NO_ACTION state.
+
+        ``entry_mode`` states what kind of candidate is being governed:
+
+        * ``mean_reversion`` -- the candidate buys weakness.  ENTRY when the
+          side-signed z is at or below ``dynamic_z`` (price stretched at least
+          |dynamic_z| sigma AGAINST the trade).
+        * ``trend_overspeed`` -- the candidate follows momentum (the external
+          replay engine's PA signals).  The governor is an overspeed limit:
+          ENTRY unless the side-signed z already exceeds ``-base_z`` plus the
+          same feedback offset and grid droop that move ``dynamic_z``.  Adverse
+          grid droop and poor realized R lower both limits, so both modes tighten
+          under the same stress.
+
+        Side symmetry: the threshold is defined for a BUY (z at or below
+        dynamic_z).  A SELL mirrors both the z-score and the grid return, so
+        an over-extended price (+z) with an adverse (rising) grid is the
+        short-side equivalent of an oversold price with a falling grid.
         """
         if not isfinite(z_score):
             raise ValueError(
                 "z_score must be finite"
             )
+        if side not in ("BUY", "SELL"):
+            raise ValueError("side must be BUY or SELL")
+        if entry_mode not in ("mean_reversion", "trend_overspeed"):
+            raise ValueError("entry_mode must be mean_reversion or trend_overspeed")
+        if not isfinite(grid_return_fraction):
+            raise ValueError("grid_return_fraction must be finite")
+
+        sign = 1.0 if side == "BUY" else -1.0
+        signed_z = sign * float(z_score)
 
         threshold = self.dynamic_z(
-            grid_return_fraction
+            sign * float(grid_return_fraction)
         )
 
-        admitted = float(z_score) <= threshold
+        if entry_mode == "mean_reversion":
+            limit = threshold
+            admitted = signed_z <= limit
+            blocked_reason = "GOVERNOR_ENTRY_NOT_REACHED"
+        else:
+            # Mirror only the base setting: limit = -base_z + feedback_offset - droop_penalty.
+            # Poor realized R and an adverse grid lower the limit, exactly as they lower dynamic_z.
+            limit = threshold - 2.0 * self.runtime_base_z
+            admitted = signed_z <= limit
+            blocked_reason = "GOVERNOR_OVERSPEED_LIMIT"
 
         return {
             "action": (
@@ -539,37 +614,34 @@ class BayTurbineClosedLoopGovernor:
             "reason": (
                 "GOVERNOR_ENTRY"
                 if admitted
-                else "GOVERNOR_ENTRY_NOT_REACHED"
+                else blocked_reason
             ),
             "z_score": float(z_score),
+            "signed_z": signed_z,
+            "side": side,
+            "entry_mode": entry_mode,
             "dynamic_z": float(threshold),
+            "signed_z_limit": float(limit),
         }
 
     def begin_position(
         self,
         *,
         hard_stop_r: float = -1.0,
+        position_id=None,
     ) -> None:
         if not isfinite(hard_stop_r):
             raise ValueError(
                 "hard_stop_r must be finite"
             )
 
-        self.position_active = True
-
-        self.inner_integral_error = 0.0
-        self.inner_last_error = 0.0
-        self.inner_last_control_u = 0.0
-
-        self.protected_r_floor = float(
-            hard_stop_r
+        self._inner_states[position_id] = _InnerLoopState(
+            active=True,
+            protected_r_floor=float(hard_stop_r),
         )
 
-    def confirm_position_closed(self) -> None:
-        self.position_active = False
-        self.inner_integral_error = 0.0
-        self.inner_last_error = 0.0
-        self.inner_last_control_u = 0.0
+    def confirm_position_closed(self, position_id=None) -> None:
+        self._inner_states.pop(position_id, None)
 
     def evaluate_position_control(
         self,
@@ -582,15 +654,31 @@ class BayTurbineClosedLoopGovernor:
         max_hold_bars: int,
         hard_stop_r: float,
         trade_target_r: float,
+        position_id=None,
+        path_noise_r: Optional[float] = None,
+        path_error_sigma: Optional[float] = None,
     ) -> dict:
         """
-        Fast closed-loop governor.
+        Fast closed-loop governor for one position (``position_id``).
 
         output -> comparator -> PID -> HOLD/EXIT -> output feedback
 
         protected_r_floor is the one-way ratchet. PID error may change
         sign, but the secured protective floor never moves backwards.
+
+        Path-error tolerance: with ``path_noise_r`` (one bar's typical move in R,
+        i.e. ATR / initial risk) and ``path_error_sigma``, the governor exits on
+        path error only when the lag behind the reference exceeds the noise
+        envelope sigma * path_noise_r * sqrt(elapsed_bars).  Without them the
+        legacy tolerance max(|target_r|, |dynamic_offset_max|) applies.
         """
+        if (path_noise_r is None) != (path_error_sigma is None):
+            raise ValueError("path_noise_r and path_error_sigma go together")
+        if path_noise_r is not None and not (
+            isfinite(float(path_noise_r)) and float(path_noise_r) > 0.0
+            and isfinite(float(path_error_sigma)) and float(path_error_sigma) > 0.0
+        ):
+            raise ValueError("path noise envelope inputs must be finite and positive")
         values = (
             measured_r,
             reference_r,
@@ -629,10 +717,13 @@ class BayTurbineClosedLoopGovernor:
                 "min_hold_bars"
             )
 
-        if not self.position_active:
+        state = self._inner_states.get(position_id)
+        if state is None or not state.active:
             self.begin_position(
-                hard_stop_r=float(hard_stop_r)
+                hard_stop_r=float(hard_stop_r),
+                position_id=position_id,
             )
+            state = self._inner_states[position_id]
 
         measured_r = float(measured_r)
         reference_r = float(reference_r)
@@ -642,30 +733,30 @@ class BayTurbineClosedLoopGovernor:
 
         error = reference_r - measured_r
 
-        self.inner_integral_error = max(
+        state.integral_error = max(
             -self.runtime_integral_clamp,
             min(
                 self.runtime_integral_clamp,
-                self.inner_integral_error
+                state.integral_error
                 + error,
             ),
         )
 
         derivative = (
             error
-            - self.inner_last_error
+            - state.last_error
         )
 
-        self.inner_last_error = error
+        state.last_error = error
 
         control_u = (
             self.runtime_kp * error
             + self.runtime_ki
-            * self.inner_integral_error
+            * state.integral_error
             + self.runtime_kd * derivative
         )
 
-        self.inner_last_control_u = (
+        state.last_control_u = (
             float(control_u)
         )
 
@@ -696,10 +787,10 @@ class BayTurbineClosedLoopGovernor:
             - trailing_gap,
         )
 
-        if desired_floor > self.protected_r_floor:
-            self.protected_r_floor = min(
+        if desired_floor > state.protected_r_floor:
+            state.protected_r_floor = min(
                 desired_floor,
-                self.protected_r_floor
+                state.protected_r_floor
                 + ratchet_step,
             )
 
@@ -717,8 +808,8 @@ class BayTurbineClosedLoopGovernor:
         elif (
             elapsed_bars >= min_hold_bars
             and measured_r
-            <= self.protected_r_floor
-            and self.protected_r_floor
+            <= state.protected_r_floor
+            and state.protected_r_floor
             > float(hard_stop_r)
         ):
             action = "EXIT"
@@ -734,12 +825,19 @@ class BayTurbineClosedLoopGovernor:
             # These thresholds are themselves derived from the active,
             # dynamically scheduled governor parameters.
             #
-            exit_error = max(
-                abs(self.runtime_target_r),
-                abs(
-                    self.runtime_dynamic_offset_max
-                ),
-            )
+            if path_noise_r is None:
+                exit_error = max(
+                    abs(self.runtime_target_r),
+                    abs(
+                        self.runtime_dynamic_offset_max
+                    ),
+                )
+            else:
+                exit_error = (
+                    float(path_error_sigma)
+                    * float(path_noise_r)
+                    * sqrt(max(int(elapsed_bars), 1))
+                )
 
             exit_control = max(
                 abs(self.runtime_target_r),
@@ -767,12 +865,12 @@ class BayTurbineClosedLoopGovernor:
             "reference_r": reference_r,
             "error": float(error),
             "integral_error": float(
-                self.inner_integral_error
+                state.integral_error
             ),
             "derivative": float(derivative),
             "control_u": float(control_u),
             "protected_r_floor": float(
-                self.protected_r_floor
+                state.protected_r_floor
             ),
             "max_favorable_r": (
                 max_favorable_r
@@ -834,6 +932,10 @@ class BayTurbineClosedLoopGovernor:
             "last_error": self.last_error,
             "last_control_u": self.last_control_u,
             "history_r": tuple(self.history_r),
+            "inner_positions": {
+                str(key): dict(vars(state))
+                for key, state in sorted(self._inner_states.items(), key=lambda kv: str(kv[0]))
+            },
         }
 
 

@@ -5,13 +5,13 @@ from calibration_config import Revision2ParameterManifest
 def test_revision_2_manifest_surface_contract_is_exact():
     expected_names = Revision2ParameterManifest.all_68()
 
-    assert len(expected_names) == 152
-    assert len(set(expected_names)) == 152
+    assert len(expected_names) == 170
+    assert len(set(expected_names)) == 170
 
     registry = CanonicalParameterRegistry()
 
     assert set(expected_names) == set(registry.params)
-    assert registry.total_target_surface() == 152
+    assert registry.total_target_surface() == 170
     # BB04 adds 16 eligible engineering-initial controls: 47 -> 63.
     # Earlier changes, 47 rather than 45: rebalance_frequency_minutes (FIXED, non-calibratable --
     # confirmed dead in both engines, read only for coverage tracking, the
@@ -20,10 +20,11 @@ def test_revision_2_manifest_surface_contract_is_exact():
     # exit controller's own ATR trail multiplier, independent of the
     # one-shot entry stop's stop_loss_atr_mult). See
     # FROZEN_IDENTITY_SHA256's comment for the full rationale.
-    # Engine-scoped: 108 across engines = 46 shared + 62 external-only (see surface_counts()).
-    assert len(registry.calibratable_names()) == 108
+    # Engine-scoped: 122 across engines = 46 shared + 76 external-only (see surface_counts());
+    # governor authority added 14 external-only eligible controls (108 -> 122).
+    assert len(registry.calibratable_names()) == 122
     assert len(registry.calibratable_names("IN_HOUSE")) == 46
-    assert len(registry.calibratable_names("EXTERNAL")) == 108
+    assert len(registry.calibratable_names("EXTERNAL")) == 122
     # Historical method name hardcoded_20() is retained for API
     # continuity, but BB07 adds two explicit fixed safety-envelope values.
     assert len(registry.hardcoded_names()) == 22
@@ -35,7 +36,7 @@ def test_registry_identity_is_frozen_and_matches_contract():
 
     assert registry.CONTRACT_ID == "ECS_REVISION_2_PARAMETER_SURFACE_V3"
     assert registry.FROZEN_IDENTITY_SHA256 == (
-        "b00b5299815753477037c181c548545c10254f18869314b3e22852ba88bef360"
+        "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d"
     )
     assert registry.identity_sha256() == registry.FROZEN_IDENTITY_SHA256
     registry.verify_frozen_identity()
@@ -58,7 +59,7 @@ def test_registry_black_box_mapping_and_fixed_surface_are_consistent():
         "StartupCapabilityLock",
         "PlantControl",
     }
-    # 44 fixed (11 plant-control + 22 base + 5 external cost/regularization/shadow controls + 1 diagnostic
-    # + 5 BB08 PositionManager controls); 108 eligible across engines.
-    assert len(registry.fixed_target_names()) == 44
-    assert len(set(registry.calibratable_names())) == 108
+    # 48 fixed (11 plant-control + 22 base + 5 external cost/regularization/shadow controls + 1 diagnostic
+    # + 5 BB08 PositionManager controls + 4 governor-authority fixed values); 122 eligible across engines.
+    assert len(registry.fixed_target_names()) == 48
+    assert len(set(registry.calibratable_names())) == 122

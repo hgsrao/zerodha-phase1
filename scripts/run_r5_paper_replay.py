@@ -32,6 +32,8 @@ def main():
     parser.add_argument('--bars', type=int, default=800)
     parser.add_argument('--mode', choices=['PAPER_APPLY','SHADOW'], default='PAPER_APPLY')
     parser.add_argument('--compare-shadow', action='store_true')
+    parser.add_argument('--governor-authority', choices=['full','advisory'], default='full',
+        help='full: the bay governor is the only entry/discretionary-exit authority (safety and protection outrank it)')
     parser.add_argument('--journal', type=Path, help='Durable paper SQLite journal; rerun identical command to recover')
     parser.add_argument('--plant-commands', type=Path, help='Sealed JSON list of tick-indexed trip/reset commands')
     parser.add_argument('--crash-after-open-checkpoint', action='store_true', help='Harness: terminate worker after committing an open position')
@@ -85,7 +87,8 @@ def main():
                 commands=json.loads(args.plant_commands.read_text()) if args.plant_commands else (),
                 after_commit=after_commit)
         orch = Revision2ExternalEngineOrchestrator(symbols,grid_context_provider=provider,
-            real_plant_dcs=plant,plant_control_mode=mode,paper_journal=journal,closed_loop_mode='active_paper',telemetry_mode='compact')
+            real_plant_dcs=plant,plant_control_mode=mode,paper_journal=journal,closed_loop_mode='active_paper',telemetry_mode='compact',
+            governor_authority=args.governor_authority)
         report = orch.run(data,warmup=60)
         report['replay_inputs'] = {'stock_manifest_hash':manifest.manifest_hash,
             'grid_manifest':str(args.grid_manifest.resolve()),'grid_availability_delay_minutes':15,
@@ -96,7 +99,7 @@ def main():
         if journal:
             journal.close()
         (args.report_dir/f'{mode.lower()}.json').write_text(json.dumps(report,indent=2,default=str))
-        summary[mode] = {k:report[k] for k in ['fills','completed_trades','net_pnl','safety_violations','plant_control']}
+        summary[mode] = {k:report[k] for k in ['fills','completed_trades','net_pnl','safety_violations','plant_control','governor_authority','micom']}
     (args.report_dir/'summary.json').write_text(json.dumps(summary,indent=2,default=str))
     print(json.dumps(summary,indent=2,default=str))
 
