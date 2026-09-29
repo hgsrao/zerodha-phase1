@@ -1,0 +1,32 @@
+[
+ {
+  "symbol": "KOTAKBANK",
+  "side": "SELL",
+  "entry_price": 346.1922,
+  "exit_price": 345.3726,
+  "quantity": 100,
+  "entry_timestamp": "2024-02-15 09:34:00+05:30",
+  "exit_timestamp": "2024-02-15 09:44:00+05:30",
+  "reason": "governor_exit:FSR_BELOW_EXIT:FSRN",
+  "pnl": 81.96000000000367,
+  "costs": 31.787647559999996,
+  "net_pnl": 50.17235244000368,
+  "trade_id": "trade-1",
+  "candidate_id": "candidate-377",
+  "bars_held": 10,
+  "entry_atr": 1.1830178571428562,
+  "planned_entry_price": 346.1922,
+  "planned_stop_price": 347.4698592857143,
+  "planned_target_price": 344.2757110714286,
+  "mfe_price": 344.8,
+  "mae_price": 346.6,
+  "mfe_r": 1.0896488724078774,
+  "mae_r": -0.31917742434128804,
+  "terminal_bar_excursion": "intrabar_order_unknown",
+  "mfe_pre_exit_bar_r": 1.0896488724078774,
+  "mae_pre_exit_bar_r": -0.31917742434128804,
+  "mfe_terminal_inclusive_r": 1.2461851276022193,
+  "mae_terminal_inclusive_r": -0.31917742434128804,
+  "terminal_inclusive_is_ohlc_bound": true
+ }
+]

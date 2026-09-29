@@ -387,9 +387,9 @@ def main(argv=None) -> int:
                         help="also run each case uninstrumented and require an identical trade list")
     args = parser.parse_args(argv)
 
-    from revision5.governor_position_policy import GovernorPositionPolicy
-    policy = GovernorPositionPolicy(**json.loads(args.position_policy.read_text())) if args.position_policy else None
-    if policy is not None and args.authority != "full":
+    from revision5.governor_position_policy import load_bay_position_policies
+    policies = load_bay_position_policies(json.loads(args.position_policy.read_text())) if args.position_policy else None
+    if policies is not None and args.authority != "full":
         parser.error("experimental position policy requires --authority full")
     out_dir = args.output_dir.resolve()
     if out_dir.exists() and any(out_dir.iterdir()):
@@ -413,6 +413,7 @@ def main(argv=None) -> int:
         block = blocks[number]
         frames, feeds, audit = worker.prepare_block(args.data_root.resolve(), protocol, block)
         for bay_id in bay_ids:
+            policy = policies[bay_id] if policies is not None else None
             symbols = sorted(s for s in FLEET_TOPOLOGY[bay_id] if s in frames)
             for authority in authorities:
                 trace_dir = out_dir / f"block{number}" / bay_id / authority

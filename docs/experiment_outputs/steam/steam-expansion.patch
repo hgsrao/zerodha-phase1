@@ -1,0 +1,640 @@
+diff --git a/experiments/governor_position_policy.json b/experiments/governor_position_policy.json
+index b653779..983a9fd 100644
+--- a/experiments/governor_position_policy.json
++++ b/experiments/governor_position_policy.json
+@@ -1,10 +1,47 @@
+ {
+-  "base_gap_r": 0.45,
+-  "pid_alpha_r": 0.10,
+-  "pid_u_max": 2.0,
+-  "minimum_gap_r": 0.15,
+-  "mfe_activation_r": 0.30,
+-  "conviction_absolute_threshold": 0.20,
+-  "conviction_drop_threshold": 0.10,
+-  "conviction_persistence_bars": 2
++  "GTG1_HEAVY_INDUSTRY": {
++    "mfe_activation_hurdle_r": 0.3,
++    "trailing_gap_base_r": 0.45,
++    "pid_tighten_gain": 0.1,
++    "pid_clip_max": 2.0,
++    "fsrn_min_conviction": 0.2,
++    "fsrn_drop_threshold": 0.1,
++    "fsrn_persistence_bars": 2
++  },
++  "GTG2_TECH_TELECOM": {
++    "mfe_activation_hurdle_r": 0.3,
++    "trailing_gap_base_r": 0.45,
++    "pid_tighten_gain": 0.1,
++    "pid_clip_max": 2.0,
++    "fsrn_min_conviction": 0.2,
++    "fsrn_drop_threshold": 0.1,
++    "fsrn_persistence_bars": 2
++  },
++  "CSTG1_BFSI": {
++    "mfe_activation_hurdle_r": 0.3,
++    "trailing_gap_base_r": 0.45,
++    "pid_tighten_gain": 0.1,
++    "pid_clip_max": 2.0,
++    "fsrn_min_conviction": 0.2,
++    "fsrn_drop_threshold": 0.1,
++    "fsrn_persistence_bars": 2
++  },
++  "CSTG2_CONSUMER_AUTO": {
++    "mfe_activation_hurdle_r": 0.3,
++    "trailing_gap_base_r": 0.45,
++    "pid_tighten_gain": 0.1,
++    "pid_clip_max": 2.0,
++    "fsrn_min_conviction": 0.2,
++    "fsrn_drop_threshold": 0.1,
++    "fsrn_persistence_bars": 2
++  },
++  "BPSTG_HEALTHCARE": {
++    "mfe_activation_hurdle_r": 0.3,
++    "trailing_gap_base_r": 0.45,
++    "pid_tighten_gain": 0.1,
++    "pid_clip_max": 2.0,
++    "fsrn_min_conviction": 0.2,
++    "fsrn_drop_threshold": 0.1,
++    "fsrn_persistence_bars": 2
++  }
+ }
+diff --git a/revision5/governor_position_policy.py b/revision5/governor_position_policy.py
+index 517987c..bf4432c 100644
+--- a/revision5/governor_position_policy.py
++++ b/revision5/governor_position_policy.py
+@@ -66,3 +66,44 @@ def update_conviction(trade, current, timestamp, policy):
+     return {**current, 'entry': baseline, 'drop': drop,
+             'deteriorated': deteriorated, 'consecutive_bars': state['count'],
+             'fuel_cut_confirmed': state['count'] >= policy.conviction_persistence_bars}
++
++
++# User-facing experiment names map to the existing policy fields; no numerical changes.
++POLICY_FIELD_ALIASES = {
++    'mfe_activation_hurdle_r': 'mfe_activation_r',
++    'trailing_gap_base_r': 'base_gap_r',
++    'pid_tighten_gain': 'pid_alpha_r',
++    'pid_clip_max': 'pid_u_max',
++    'fsrn_min_conviction': 'conviction_absolute_threshold',
++    'fsrn_drop_threshold': 'conviction_drop_threshold',
++    'fsrn_persistence_bars': 'conviction_persistence_bars',
++}
++
++
++def load_bay_position_policies(payload):
++    """Read exact five-bay maps or the historical flat policy format.
++
++    Unknown/missing bays or ambiguous aliases fail before a replay starts.
++    The existing minimum_gap_r default is retained when not specified.
++    """
++    from revision5.topology import BAY_IDS
++    if not isinstance(payload, dict) or not payload:
++        raise ValueError('policy must be a nonempty JSON object')
++
++    def parse(values):
++        if not isinstance(values, dict) or not values:
++            raise ValueError('each policy must be a nonempty object')
++        translated = {}
++        for key, value in values.items():
++            field = POLICY_FIELD_ALIASES.get(key, key)
++            if field in translated:
++                raise ValueError(f'duplicate policy field: {field}')
++            translated[field] = value
++        return GovernorPositionPolicy(**translated)
++
++    if any(isinstance(value, dict) for value in payload.values()):
++        if set(payload) != set(BAY_IDS):
++            raise ValueError(f'policy map must contain exactly {list(BAY_IDS)}')
++        return {bay: parse(payload[bay]) for bay in BAY_IDS}
++    policy = parse(payload)
++    return {bay: policy for bay in BAY_IDS}
+diff --git a/scripts/r5_compare_governor_trace.py b/scripts/r5_compare_governor_trace.py
+index 040792c..7469d9b 100644
+--- a/scripts/r5_compare_governor_trace.py
++++ b/scripts/r5_compare_governor_trace.py
+@@ -1,11 +1,11 @@
+ #!/usr/bin/env python3
+-"""Compare baseline/refactored full-authority gas-turbine traces; assert stop telemetry."""
++"""Compare baseline/refactored full-authority five-bay traces; assert stop telemetry."""
+ import argparse
+ import json
+ from collections import Counter
+ from pathlib import Path
+ 
+-BAYS = ('GTG1_HEAVY_INDUSTRY', 'GTG2_TECH_TELECOM')
++BAYS = ('GTG1_HEAVY_INDUSTRY', 'GTG2_TECH_TELECOM', 'CSTG1_BFSI', 'CSTG2_CONSUMER_AUTO', 'BPSTG_HEALTHCARE')
+ 
+ 
+ def read_rows(path):
+@@ -15,6 +15,8 @@ def read_rows(path):
+ def summarize(root, bay, block):
+     directory = root/f'block{block}'/bay/'full'
+     summary = json.loads((directory/'summary.json').read_text())
++    trades = json.loads((directory/'trades.json').read_text())
++    mfe = [t['mfe_r'] for t in trades if t.get('mfe_r') is not None]
+     inner = read_rows(directory/'inner.jsonl')
+     events = read_rows(directory/'events.jsonl')
+     controlled = [r for r in inner if 'effective_gap_r' in r]
+@@ -38,6 +40,7 @@ def summarize(root, bay, block):
+                 assert r['floor'] == -1., 'pre-activation tightening'
+     return dict(trades=summary['metrics']['completed_trades'],
+                 net_pnl=summary['metrics']['net_pnl'], hold=summary['bars_held'],
++                mfe_r=dict(n=len(mfe), mean=sum(mfe)/len(mfe) if mfe else None, max=max(mfe) if mfe else None),
+                 exit_reasons=summary['exit_reason_detail'],
+                 position_evaluations=len(inner), activated_evaluations=sum(r['trailing_active'] for r in controlled),
+                 gap_modulated_evaluations=sum(r['effective_gap_r'] < r['base_gap_r'] for r in controlled),
+@@ -47,17 +50,26 @@ def summarize(root, bay, block):
+                 pid_stop_examples=pid_moves[:3], position_policy=policy)
+ 
+ 
+-def compare(before, after, block=1):
++def compare(before, after, block=1, bays=BAYS, require_parity=False):
+     bmeta = json.loads((before/'overview.json').read_text())
+     ameta = json.loads((after/'overview.json').read_text())
+     assert bmeta['params'] == ameta['params'], 'parameter mismatch'
+     assert bmeta['protocol_id'] == ameta['protocol_id'], 'protocol mismatch'
+     result = {}
+-    for bay in BAYS:
++    for bay in bays:
+         select = lambda meta: next(r for r in meta['runs'] if r['block'] == block and r['bay'] == bay and r['authority'] == 'full')
+         b, a = select(bmeta), select(ameta)
+         for key in ('sessions','symbols','slice_sha256'):
+             assert b[key] == a[key], f'{bay}: {key} mismatch'
++        if require_parity:
++            for root in (before, after):
++                summary = json.loads((root/f'block{block}'/bay/'full/summary.json').read_text())
++                if summary.get('position_policy') is not None:
++                    raise ValueError('parity check requires unpolicied traces')
++            left = json.loads((before/f'block{block}'/bay/'full/trades.json').read_text())
++            right = json.loads((after/f'block{block}'/bay/'full/trades.json').read_text())
++            if left != right:
++                raise ValueError(f'{bay}: legacy trade-list parity failed')
+         result[bay] = dict(before=summarize(before,bay,block), after=summarize(after,bay,block))
+     return result
+ 
+@@ -67,9 +79,14 @@ def main():
+     p.add_argument('before', type=Path)
+     p.add_argument('after', type=Path)
+     p.add_argument('--block', type=int, default=1)
++    p.add_argument('--bays', default=','.join(BAYS), help='Comma-separated canonical bay IDs')
+     p.add_argument('--output', type=Path)
++    p.add_argument('--require-parity', action='store_true', help='Require identical unpolicied trade lists')
+     args = p.parse_args()
+-    result = compare(args.before,args.after,args.block)
++    bays = args.bays.split(',')
++    if len(set(bays)) != len(bays) or not set(bays) <= set(BAYS):
++        p.error('unknown or duplicate bay')
++    result = compare(args.before,args.after,args.block,bays,args.require_parity)
+     payload = json.dumps(result,indent=2)
+     if args.output:
+         args.output.write_text(payload+'\n')
+diff --git a/scripts/r5_governor_trace.py b/scripts/r5_governor_trace.py
+index cec338b..57705de 100644
+--- a/scripts/r5_governor_trace.py
++++ b/scripts/r5_governor_trace.py
+@@ -387,9 +387,9 @@ def main(argv=None) -> int:
+                         help="also run each case uninstrumented and require an identical trade list")
+     args = parser.parse_args(argv)
+ 
+-    from revision5.governor_position_policy import GovernorPositionPolicy
+-    policy = GovernorPositionPolicy(**json.loads(args.position_policy.read_text())) if args.position_policy else None
+-    if policy is not None and args.authority != "full":
++    from revision5.governor_position_policy import load_bay_position_policies
++    policies = load_bay_position_policies(json.loads(args.position_policy.read_text())) if args.position_policy else None
++    if policies is not None and args.authority != "full":
+         parser.error("experimental position policy requires --authority full")
+     out_dir = args.output_dir.resolve()
+     if out_dir.exists() and any(out_dir.iterdir()):
+@@ -413,6 +413,7 @@ def main(argv=None) -> int:
+         block = blocks[number]
+         frames, feeds, audit = worker.prepare_block(args.data_root.resolve(), protocol, block)
+         for bay_id in bay_ids:
++            policy = policies[bay_id] if policies is not None else None
+             symbols = sorted(s for s in FLEET_TOPOLOGY[bay_id] if s in frames)
+             for authority in authorities:
+                 trace_dir = out_dir / f"block{number}" / bay_id / authority
+diff --git a/docs/R5_AUXILIARY_PID_AUDIT.md b/docs/R5_AUXILIARY_PID_AUDIT.md
+new file mode 100644
+--- /dev/null
++++ b/docs/R5_AUXILIARY_PID_AUDIT.md
+@@ -0,0 +1,84 @@
++# Auxiliary PID audit — no controller changes
++
++Scope: the Step-5 external replay orchestrator and its native R5 plant, plus explicitly
++identified legacy and shadow alternatives in revision2, revision2_external and revision5.
++This is source inspection and isolated diagnostic probing, not a claim that every historical
++script elsewhere in the repository participates in the current engine. The runtime probe is
++`scripts/r5_pid_audit.py`; its JSON includes exact constructor paths/lines and library location.
++
++## Findings
++
++1. **Continuous actuators already exist outside the governor.** Studies PID outputs change
++   vote weights. MPC PIDs change price/timing/stop-related plan quantities. The exit controller
++   changes ATR trailing distances. They are not merely random binary hazards.
++2. **Anti-windup and derivative handling are not uniform.** Library PIDs clamp their weighted
++   integral term and output and differentiate the measurement; manual governor/AVR loops clamp
++   an unweighted error accumulator but leave the intermediate PID sum unclamped. Their actuator
++   commands are bounded downstream. Legacy BoundedPID averages error differences; library
++   derivatives are single-step and unsmoothed. Rolling signal means are not derivative filters.
++3. **A binary summary is mislabeled as sustained.** FinalExecutionController.exit_decision
++   checks the single current `studies_clamped` boolean and emits
++   `STUDIES_PID_SUSTAINED_LOW_CONFIDENCE`. That boolean is based on absolute output magnitude,
++   so it also loses the sign distinguishing below-baseline from above-baseline confidence.
++   This is a diagnostic/action-label concern. In the inspected orchestrator `final_exit` is
++   logged; the actual separate saturation rule uses consecutive positive-saturation counts.
++4. **Merit allocation has a normalization-bound issue.** DynamicBayLoadDispatcher clamps raw
++   weights, normalizes them, then smooths/normalizes again. The final merit weights need not
++   respect the original per-bay clamp. A reproducible isolated probe produces 0.522388 against
++   a 0.35 ceiling after 100 favorable outcomes. The separate SectorDispatchController uses
++   capped water-filling, so this does not by itself prove a breached actual dispatch ceiling.
++5. **The double-gamma correction is already present.** progress() owns the exponent; expected_r
++   and lower_bound_r consume it linearly. No additional duplicated gamma was found in this
++   reference pipeline. This does not establish every exponent in unrelated research modules
++   is redundant or erroneous.
++
++None of these findings was patched, per the audit-only scope.
++
++## Controller/consumer inventory
++
++| Owner and source | Feedback and actuator | Bounds / anti-windup | Derivative / filtering | Binary consumers and authority |
++|---|---|---|---|---|
++| CompositeStudySignal, `revision2_external/composite_study_signal.py:260` and `:318` | Per-study delayed hit rate vs cross-study baseline; negative PID output raises the study's weight | Library output and weighted integral bounded by studies_pid_output_clamp; raw weight clamped 0.05–0.60 | Derivative on measurement, initial D=0; no explicit derivative smoothing | Composite direction and conviction subsequently meet entry/FSRN gates; the PID itself continuously adjusts weights |
++| SimplePIDModelPredictiveControlBox, `revision2_external/pid_controller.py:85`, `:196` | Per-symbol confidence vs causal rolling mean; continuous plan modifiers | Library integral/output ±pid_integral_max_clamp; timing and tightness have downstream floors | Derivative on measurement, dt=1; pid_derivative_smoothing is consumed for bookkeeping but does not filter this library controller | Upstream ID admission and downstream safety/governor can still reject a candidate; this does not remove continuous plan actuation |
++| ContinuousExitController, `revision2_external/continuous_exit_controller.py:241`, `:375`, `:474` | Separate PA and studies confidence tracks; min tightness changes ATR-based stop distance | Both PIDs integral/output ±clamp, tightness bounded, stop one-way | Derivative on measurement, dt=1, no derivative filter | Positive saturation for saturation_exit_bars yields a discrete exit. Under full governor authority these exits and this stop are advisory; governor stop owns actuation. Non-full active-paper saturation exits use existing close execution |
++| FinalExecutionController, `revision2_external/final_execution_controller.py:56` | Combines path, stop movement, studies_clamped | No PID state; consumes bounded outputs | Not a derivative controller | Single-bar absolute saturation is labeled sustained; final_exit telemetry is not the separate persistent-exit implementation |
++| BayTurbineClosedLoopGovernor outer, `revision5/governor.py:268` | Mean realized R -> PID -> dynamic_z feedback offset -> admission ceiling | Error integral ±runtime_integral_clamp; raw u not explicitly clamped; offset is clamped at runtime_dynamic_offset_min/max | Error difference from last_error=0; first-sample and setpoint kicks possible; no D filter | Entry comparator is discrete; a measured feedback-driven binary actuator still constitutes feedback |
++| BayTurbineClosedLoopGovernor inner, `revision5/governor.py:647` | Reference-minus-measured R; position-policy mode modulates trailing gap after MFE activation | Error integral clamped; raw u unbounded, applied u clipped [0,pid_u_max], gap bounded, floor monotonic | Error difference, initial previous error zero; no D filter | Legacy mode uses error-envelope AND u gate; experimental mode uses the floor. Safety/target/max-hold rules remain discrete |
++| BayExcitationAVR, `revision5/ccpp_protection_cubicles.py:598` | Bus voltage or MVAR error -> delta excitation -> loading/lot size | Error integral ±runtime_integral_clamp; raw delta_u unbounded; excitation command clamped excitation_min/max plus OEL/UEL | Error difference; initial kick and mode/setpoint discontinuity possible; no D filter | Undervoltage/overvoltage trips are protection, not PID hazard exits. PID delta is accumulated into excitation; positional-vs-incremental formulation remains a separate design question |
++| DynamicBayLoadDispatcher, `revision5/ccpp_unified_plant.py:88` | Rolling realized R/downside score -> smoothed capital merit weights | Raw clamp then normalization can violate merit-weight bounds; no integral state | Not a PID; 0.85/0.15 smoothing | Availability and protection independently block admissions |
++| ECSPlantSupervisor, `revision5/plant_control.py:223` | Grid/protection demand reference; exposure headroom used by admission caps | Demand bounded [0,1], restoration rate-limited; no integral state | Not a PID | Trips/no available bays force zero demand; supporting risk derate acts in sizing rather than being subtracted twice |
++| SectorDispatchController, `revision5/plant_control.py:338` | ECS demand, merit weights, bay availability -> per-bay references | Capped water-filling; infeasible demand explicitly reported | Not a PID | Unavailable bays receive zero; exposure/admission caps are downstream constraints |
++| Portfolio risk / entry quality, `revision2_external/closed_loop_control.py:430`, `closed_loop_v2.py:49` | Exposure soft/hard budget derate; Bayesian completed-outcome probability | Bounded derates, no PID accumulator | Not PIDs | Entry quality can return a discrete approval; do not invent PID defects in a probability gate |
++| ContinuousExitControllerWithGrid, `revision2_external/continuous_exit_controller_with_grid.py:100` | Alternative grid-aware trailing controller | Library PID integral/output limits plus tightness bounds | Measurement derivative, no explicit filter | Not imported by the inspected Step-5 orchestrator; do not attribute its behavior to this replay |
++| BoundedPID / legacy MPC, `revision2/boxes.py:36` | Rolling error window and smoothed error differences -> adjustment | Window sum clamped; weighted output itself is not clamped inside BoundedPID | Moving-average D, first sample relative to zero | Legacy alternative, not the external orchestrator's SimplePID MPC |
++| CurveEntryPidShadow, `revision2_external/curve_entry_pid_shadow.py:28` | Smooth phase/amplitude/frequency quality -> suggested derate | Library weighted integral/output [0,0.75] | Measurement derivative, no D filter | Separate synchronized boolean; shadow workflow, not governor execution authority |
++| StudyEntryShadowLedger, `revision2_external/study_entry_shadow.py:73` | Completed shadow outcome probability vs cost-aware required probability -> suggested derate | Library weighted integral/output [0,0.5] | Measurement derivative, no D filter | Shadow-only; no order/size/stop authority in the main replay |
++
++The studies weight bounds above describe raw weights. The normalized effective share of one
++study can exceed 0.60 (e.g. 0.60/(0.60+3*0.05)=0.80). Do not interpret MAX_WEIGHT as a bound
++on normalized share without a separate constrained-normalization algorithm.
++
++## Numerical checks and interpretation
++
++The installed simple_pid source explicitly clamps `_integral = clamp(_integral, output_limits)`
++and final output. It stores the Ki-weighted integral contribution, not a separately exposed
++raw sum of errors. A source comment in pid_controller.py describing unbounded accumulation
++is inaccurate for this installed version. A test with 100 same-signed errors holds the weighted
++integral at 0.5 under ±0.5 limits. First-sample D and a setpoint-only-change D are both zero.
++These bounds prevent unbounded controller state; they are not evidence of back-calculation
++against every downstream actuator's saturation. No controller is being declared tuned/stable
++from these local checks.
++
++## Topology and scope retained
++
++All five canonical bay mappings continue through SYMBOL_TO_BAY, the native bay governor,
++protection snapshot and plant admission interfaces. This task only resolves a per-bay policy
++at replay construction. It does not alter trips, cooldowns, dispatch, runtime gain schedules,
++AVR behavior or droop. Existing droop remains GTG 0.04, CSTG 0.055 and BPSTG 0.075.
++
++The supplied five profiles have identical values. They are user-specified experimental inputs,
++not independently calibrated sector-volatility/inertia estimates. Existing different bay gains
++still produce different PID trajectories. No auxiliary hardening proposed earlier in the chat
++was applied after the user narrowed that work to an audit.
++
++Runtime parameter schedulers (`dynamic_parameter_controller.py`, `revision5/dynamic_parameters.py`) calculate gain profiles from environment/stress rather than integrating a PID error. Replay begin_bar still lacks the scheduled environment; FIXED gain telemetry should not be described as demonstrated adaptive tuning.
+diff --git a/docs/R5_STEAM_REPLAY_RUNBOOK.md b/docs/R5_STEAM_REPLAY_RUNBOOK.md
+new file mode 100644
+--- /dev/null
++++ b/docs/R5_STEAM_REPLAY_RUNBOOK.md
+@@ -0,0 +1,105 @@
++# Five-bay policy expansion and steam replay
++
++Work only in `~/projects/zerodha-r5-governor-refactor`, branch `r5-governor-closed-loop`,
++base `fa9edd98c79ffc6a3bb57575c8d18fd6a01253a1`. Do not apply this patch to the active
++`zerodha-phase1` calibration checkout. No auxiliary PID, governor equation, stop mechanic,
++protection, droop, authority or registry implementation was changed in this extension.
++
++## Configuration
++
++`experiments/governor_position_policy.json` contains the exact five-bay map supplied by the user.
++The loader translates these public names to existing dataclass fields:
++
++| Supplied key | Existing field |
++|---|---|
++| mfe_activation_hurdle_r | mfe_activation_r |
++| trailing_gap_base_r | base_gap_r |
++| pid_tighten_gain | pid_alpha_r |
++| pid_clip_max | pid_u_max |
++| fsrn_min_conviction | conviction_absolute_threshold |
++| fsrn_drop_threshold | conviction_drop_threshold |
++| fsrn_persistence_bars | conviction_persistence_bars |
++
++Each bay uses 0.30, 0.45, 0.10, 2.0, 0.20, 0.10 and 2 respectively. The existing
++minimum_gap_r=0.15 remains unchanged. These profiles are identical and user-specified;
++no separate sector calibration was performed. Different native PID gains and droop values
++remain intact. Unknown/missing bay names and ambiguous alias collisions fail at loading.
++Historical flat policy files remain supported. Omission of `--position-policy` still selects None.
++
++Each replay run is restricted to one bay, as in the original trace tool; the CLI processes
++requested bays sequentially and resolves the matching policy before each run. This is not a
++single concurrent full-fleet simulation. Plant protection and dispatch retain their canonical
++five-bay interfaces, with only the selected bay's market symbols loaded for that run.
++
++## Steam replay
++
++Use a fresh output path. The runner rejects nonempty output directories.
++
++```bash
++cd ~/projects/zerodha-r5-governor-refactor
++source ~/.venvs/zerodha-phase1-r5/bin/activate
++export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
++nice -n 15 python scripts/r5_governor_trace.py \
++  --block 1 --bays CSTG1_BFSI,CSTG2_CONSUMER_AUTO,BPSTG_HEALTHCARE \
++  --authority full --data-root ~/projects/zerodha-r5-trace \
++  --position-policy experiments/governor_position_policy.json \
++  --output-dir outputs/steam_policy/after
++```
++
++Add `--verify-passthrough` to repeat each historical case without instrumentation and compare
++trade hashes. The delivered historical experiment is a single instrumented run; synthetic
++tracer parity is tested separately. This command reads the sealed manifests/data and uses an
++in-memory plant database; it does not read or modify active trial output/state. It uses protocol
++default parameters unless `--params FILE` is provided.
++
++## All-five default parity regression
++
++```bash
++python scripts/r5_verify_default_parity.py --reference fa9edd9 \
++  --output outputs/default_parity.json
++python -m pytest -q tests/test_r5_steam_policy.py tests/test_r5_governor_refactor.py \
++  tests/test_r5_governor_trace.py tests/test_revision5_governor.py \
++  tests/test_r5_governor_authority.py tests/test_revision5_plant_control.py \
++  tests_external/test_closed_loop_control.py tests_external/test_pid_controller.py \
++  tests_external/test_composite_study_signal.py tests_external/test_continuous_exit_controller.py
++```
++
++The parity script snapshots the reference commit into a temporary directory under this worktree's
++`work/`, imports each code version in a separate process, and compares hashes of full reports and
++trace rows for 90 synthetic bars, one representative symbol per canonical bay, with policy=None.
++It removes its temporary snapshot. No checkout or branch is switched. This verifies equality on
++that fixture; it is not a universal proof for all market histories.
++
++For an optional full historical default-mode trade-list parity check:
++
++```bash
++nice -n 15 python scripts/r5_governor_trace.py --block 1 \
++  --bays GTG1_HEAVY_INDUSTRY,GTG2_TECH_TELECOM,CSTG1_BFSI,CSTG2_CONSUMER_AUTO,BPSTG_HEALTHCARE \
++  --authority full --data-root ~/projects/zerodha-r5-trace \
++  --output-dir outputs/five_bay_none
++# BASELINE must contain full-authority records for all five bays and matching inputs.
++python scripts/r5_compare_governor_trace.py "$BASELINE" outputs/five_bay_none \
++  --require-parity --output outputs/five_bay_none_parity.json
++```
++
++That optional full historical default replay was not repeated in this task. The supplied
++baseline snapshot and existing gas results are reused with their provenance disclosed.
++
++## Metric comparison and audit
++
++```bash
++python scripts/r5_compare_governor_trace.py "$BASELINE" outputs/steam_policy/after \
++  --bays CSTG1_BFSI,CSTG2_CONSUMER_AUTO,BPSTG_HEALTHCARE \
++  --output outputs/steam_policy/comparison.json
++# With complete five-bay roots, omit --bays to compare all five.
++python scripts/r5_pid_audit.py --output outputs/pid_audit.json
++```
++
++The comparison rejects protocol, parameter, session, symbol or data-hash mismatches. It reports
++trade counts, hold-time distribution, MFE, detailed exit reasons, activation counts, computed gap
++changes and applied incremental PID stop changes. MFE comes from the existing trade `mfe_r` field:
++pre-terminal-bar excursion, not realized exit return and not a claim about intrabar execution order.
++
++The audit script inventories PID constructors and performs isolated library/merit-weight probes.
++The interpretation and downstream authority findings are in R5_AUXILIARY_PID_AUDIT.md. No auxiliary
++controller numerical logic was changed.
+diff --git a/scripts/r5_pid_audit.py b/scripts/r5_pid_audit.py
+new file mode 100644
+--- /dev/null
++++ b/scripts/r5_pid_audit.py
+@@ -0,0 +1,61 @@
++#!/usr/bin/env python3
++"""Read-only controller inventory and isolated numerical probes; no engine mutations."""
++import argparse
++import ast
++import inspect
++import json
++from pathlib import Path
++import sys
++
++ROOT = Path(__file__).resolve().parents[1]
++sys.path.insert(0, str(ROOT))
++
++
++def audit():
++    from simple_pid import PID
++    from revision5.ccpp_unified_plant import DynamicBayLoadDispatcher
++    from revision5.topology import BAY_IDS
++    records = []
++    for directory in ('revision2','revision2_external','revision5'):
++        for path in sorted((ROOT/directory).glob('*.py')):
++            tree = ast.parse(path.read_text())
++            for node in ast.walk(tree):
++                if isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id in ('PID','BoundedPID'):
++                    records.append({'path':str(path.relative_to(ROOT)), 'line':node.lineno,
++                                    'constructor':node.func.id,
++                                    'output_limits':next((ast.unparse(k.value) for k in node.keywords if k.arg=='output_limits'),None)})
++    pid = PID(1.,.2,.4,setpoint=1.,sample_time=None,output_limits=(-.5,.5))
++    first = pid(0.,dt=1)
++    first_derivative = pid.components[2]
++    for _ in range(100):
++        pid(0.,dt=1)
++    integral_at_rail = pid.components[1]
++    pid.setpoint = 2.
++    pid(0.,dt=1)
++    setpoint_derivative = pid.components[2]
++    dispatch = DynamicBayLoadDispatcher()
++    for _ in range(100):
++        dispatch.register_trade(BAY_IDS[0],10.)
++    return {'simple_pid_source':inspect.getfile(PID),
++            'simple_pid_default_signature':str(inspect.signature(PID)),
++            'simple_pid_probes':{'first_output':first,'first_derivative':first_derivative,
++                                 'weighted_integral_after_100_errors':integral_at_rail,
++                                 'derivative_after_setpoint_only_change':setpoint_derivative},
++            'pid_constructor_inventory':records,
++            'manual_pid_sources':['revision5/governor.py','revision5/ccpp_protection_cubicles.py','revision2/boxes.py'],
++            'merit_dispatch_probe':{'weights':dispatch.weights,'configured_ceiling':dispatch.max_ceiling,
++                                    'raw_merit_weight_exceeds_ceiling':max(dispatch.weights.values())>dispatch.max_ceiling},
++            'scope':'Read-only static inspection and freshly created isolated objects; not live process telemetry.'}
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--output',type=Path)
++    args = parser.parse_args()
++    payload = json.dumps(audit(),indent=2)
++    if args.output:
++        args.output.write_text(payload+'\n')
++    print(payload)
++
++if __name__ == '__main__':
++    main()
+diff --git a/scripts/r5_verify_default_parity.py b/scripts/r5_verify_default_parity.py
+new file mode 100644
+--- /dev/null
++++ b/scripts/r5_verify_default_parity.py
+@@ -0,0 +1,78 @@
++#!/usr/bin/env python3
++"""Compare deterministic unpolicied synthetic replays against a Git commit, all five bays.
++Does not switch any checkout. A temporary git archive is removed on exit.
++"""
++import argparse
++import hashlib
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++import tempfile
++import types
++
++ROOT = Path(__file__).resolve().parents[1]
++
++
++def worker(root):
++    sys.path.insert(0, str(root))
++    import pytest
++    from dataclasses import replace
++    from revision5.topology import BAY_IDS, FLEET_TOPOLOGY
++    result = {}
++    for bay in BAY_IDS:
++        symbol = FLEET_TOPOLOGY[bay][0]
++        path = root/'tests/test_r5_governor_trace.py'
++        source = path.read_text().replace('GTG2_TECH_TELECOM',bay).replace('"INFY"',repr(symbol))
++        fixture = types.ModuleType('parity_fixture')
++        fixture.__file__ = str(path)
++        exec(compile(source,str(path),'exec'),fixture.__dict__)
++        original_signal = fixture.signal
++        fixture.signal = lambda: replace(original_signal(),symbol=symbol)
++        with pytest.MonkeyPatch.context() as patch:
++            tracer, report = fixture._replay(patch, True)
++        assert all(g.position_policy is None for g in tracer.orch._bay_governors.values())
++        # Compare full deterministic result plus every captured row, excluding wall time.
++        payload = {'report':report, 'rows':dict(tracer.rows)}
++        digest = hashlib.sha256(json.dumps(payload,sort_keys=True,default=str).encode()).hexdigest()
++        result[bay] = {'sha256':digest, 'trades':len(report['trades']),
++                       'position_rows':len(tracer.rows['inner'])}
++    return result
++
++
++def main():
++    p = argparse.ArgumentParser(description=__doc__)
++    p.add_argument('--reference', default='fa9edd9')
++    p.add_argument('--output', type=Path)
++    p.add_argument('--worker-root', type=Path, help=argparse.SUPPRESS)
++    a = p.parse_args()
++    if a.worker_root:
++        print(json.dumps(worker(a.worker_root.resolve()),sort_keys=True))
++        return
++    (ROOT/'work').mkdir(exist_ok=True)
++    with tempfile.TemporaryDirectory(prefix='r5-parity-',dir=ROOT/'work') as temporary:
++        temporary = Path(temporary)
++        archive = temporary/'reference.tar'
++        subprocess.run(['git','archive','--format=tar',f'--output={archive}',a.reference],cwd=ROOT,check=True)
++        reference = temporary/'reference'
++        reference.mkdir()
++        subprocess.run(['tar','-xf',str(archive),'-C',str(reference)],check=True)
++        results = []
++        for root in (reference,ROOT):
++            run = subprocess.run([sys.executable,str(Path(__file__).resolve()),'--worker-root',str(root)],
++                                 cwd=root,text=True,capture_output=True,check=True,
++                                 env={**os.environ,'PYTHONHASHSEED':'0'})
++            results.append(json.loads(run.stdout.splitlines()[-1]))
++        before,after = results
++        output = {'reference':subprocess.check_output(['git','rev-parse',a.reference],cwd=ROOT,text=True).strip(),
++                  'fixture':'90 synthetic bars, one canonical symbol per bay; full report and trace rows',
++                  'before':before,'after':after,'match':before==after}
++        if a.output:
++            a.output.write_text(json.dumps(output,indent=2)+'\n')
++        print(json.dumps(output,indent=2))
++        if not output['match']:
++            raise SystemExit('DEFAULT_PARITY_FAILED')
++
++if __name__ == '__main__':
++    main()
+diff --git a/tests/test_r5_steam_policy.py b/tests/test_r5_steam_policy.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_r5_steam_policy.py
+@@ -0,0 +1,73 @@
++import json
++from dataclasses import asdict
++from pathlib import Path
++import pytest
++from revision5.governor_position_policy import GovernorPositionPolicy, load_bay_position_policies
++from revision5.governor import BAY_GOVERNOR_SPECS, BayTurbineClosedLoopGovernor
++from revision5.topology import BAY_IDS, FLEET_TOPOLOGY, SYMBOL_TO_BAY
++
++ROOT = Path(__file__).resolve().parents[1]
++
++
++def test_exact_user_map_preserves_previous_policy_numbers():
++    payload = json.loads((ROOT/'experiments/governor_position_policy.json').read_text())
++    policies = load_bay_position_policies(payload)
++    assert set(policies) == set(BAY_IDS)
++    for policy in policies.values():
++        assert asdict(policy) == asdict(GovernorPositionPolicy())
++    assert load_bay_position_policies(asdict(GovernorPositionPolicy())) == policies
++
++
++@pytest.mark.parametrize('bay', BAY_IDS)
++def test_all_bays_policy_and_mapping(bay):
++    policies = load_bay_position_policies(json.loads((ROOT/'experiments/governor_position_policy.json').read_text()))
++    g = BayTurbineClosedLoopGovernor(BAY_GOVERNOR_SPECS[bay])
++    gains = (g.runtime_kp,g.runtime_ki,g.runtime_kd,g.runtime_droop_r)
++    g.position_policy = policies[bay]
++    assert all(SYMBOL_TO_BAY[s] == bay for s in FLEET_TOPOLOGY[bay])
++    args=dict(measured_r=.1, reference_r=.8, elapsed_bars=1, min_hold_bars=0,
++              max_hold_bars=30, hard_stop_r=-1., trade_target_r=3., position_id='x')
++    out = g.evaluate_position_control(max_favorable_r=.29,**args)
++    assert out['protected_r_floor'] == -1.
++    out = g.evaluate_position_control(max_favorable_r=.4,**args)
++    assert out['trailing_active'] and out['effective_gap_r'] < .45
++    assert gains == (g.runtime_kp,g.runtime_ki,g.runtime_kd,g.runtime_droop_r)
++
++
++def test_bad_schema_rejected():
++    with pytest.raises(ValueError):
++        load_bay_position_policies({'CSTG1_BFSI': {'pid_clip_max':2}})
++    with pytest.raises(ValueError):
++        load_bay_position_policies({'pid_clip_max':2, 'pid_u_max':2})
++    with pytest.raises(TypeError):
++        load_bay_position_policies({'wrong_field':2})
++
++
++def test_comparison_all_bays_mfe_and_parity(tmp_path):
++    from scripts.r5_compare_governor_trace import compare
++    metadata = dict(protocol_id='fixture',params={},runs=[])
++    for bay in BAY_IDS:
++        metadata['runs'].append(dict(block=1,bay=bay,authority='full',sessions=['fixture'],symbols=[FLEET_TOPOLOGY[bay][0]],slice_sha256='same'))
++        for mode in ('before','after'):
++            directory=tmp_path/mode/'block1'/bay/'full'
++            directory.mkdir(parents=True)
++            (directory/'summary.json').write_text(json.dumps(dict(metrics={'completed_trades':1,'net_pnl':0},bars_held={'mean':2},exit_reason_detail={'stop':1})))
++            (directory/'trades.json').write_text(json.dumps([{'mfe_r':.4}]))
++            (directory/'inner.jsonl').write_text('')
++            (directory/'events.jsonl').write_text('')
++    for mode in ('before','after'):
++        (tmp_path/mode/'overview.json').write_text(json.dumps(metadata))
++    result=compare(tmp_path/'before',tmp_path/'after',require_parity=True)
++    assert set(result)==set(BAY_IDS)
++    assert all(r['after']['mfe_r']['mean']==.4 for r in result.values())
++    (tmp_path/'after'/'block1'/BAY_IDS[0]/'full'/'trades.json').write_text('[{"mfe_r": 0.5}]')
++    with pytest.raises(ValueError,match='parity failed'):
++        compare(tmp_path/'before',tmp_path/'after',require_parity=True)
++
++
++def test_distinct_bay_override_is_not_broadcast():
++    payload=json.loads((ROOT/'experiments/governor_position_policy.json').read_text())
++    payload['BPSTG_HEALTHCARE']['pid_tighten_gain']=.07
++    policies=load_bay_position_policies(payload)
++    assert policies['BPSTG_HEALTHCARE'].pid_alpha_r==.07
++    assert policies['CSTG1_BFSI'].pid_alpha_r==.10

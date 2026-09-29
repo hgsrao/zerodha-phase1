@@ -1,0 +1,1 @@
+{"ts": "2024-02-15 09:44:00+05:30", "bay": "CSTG1_BFSI", "realized_r": 0.6414855737864781, "reason": "governor_exit:FSR_BELOW_EXIT:FSRN", "bar_index": 779, "consecutive_stops": 0, "tripped_offline": false, "cooldown_until": 783}

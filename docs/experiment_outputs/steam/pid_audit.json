@@ -1,0 +1,71 @@
+{
+  "simple_pid_source": "/home/srinivas/.venvs/zerodha-phase1-r5/lib/python3.12/site-packages/simple_pid/pid.py",
+  "simple_pid_default_signature": "(Kp=1.0, Ki=0.0, Kd=0.0, setpoint=0, sample_time=0.01, output_limits=(None, None), auto_mode=True, proportional_on_measurement=False, differential_on_measurement=True, error_map=None, time_fn=None, starting_output=0.0)",
+  "simple_pid_probes": {
+    "first_output": 0.5,
+    "first_derivative": -0.0,
+    "weighted_integral_after_100_errors": 0.5,
+    "derivative_after_setpoint_only_change": -0.0
+  },
+  "pid_constructor_inventory": [
+    {
+      "path": "revision2/boxes.py",
+      "line": 327,
+      "constructor": "BoundedPID",
+      "output_limits": null
+    },
+    {
+      "path": "revision2_external/composite_study_signal.py",
+      "line": 260,
+      "constructor": "PID",
+      "output_limits": "(-self.clamp, self.clamp)"
+    },
+    {
+      "path": "revision2_external/continuous_exit_controller.py",
+      "line": 241,
+      "constructor": "PID",
+      "output_limits": "(-self.clamp, self.clamp)"
+    },
+    {
+      "path": "revision2_external/continuous_exit_controller_with_grid.py",
+      "line": 100,
+      "constructor": "PID",
+      "output_limits": "(-self.clamp, self.clamp)"
+    },
+    {
+      "path": "revision2_external/curve_entry_pid_shadow.py",
+      "line": 28,
+      "constructor": "PID",
+      "output_limits": "(0.0, 0.75)"
+    },
+    {
+      "path": "revision2_external/pid_controller.py",
+      "line": 85,
+      "constructor": "PID",
+      "output_limits": "(-abs(clamp), abs(clamp))"
+    },
+    {
+      "path": "revision2_external/study_entry_shadow.py",
+      "line": 73,
+      "constructor": "PID",
+      "output_limits": "(0.0, 0.5)"
+    }
+  ],
+  "manual_pid_sources": [
+    "revision5/governor.py",
+    "revision5/ccpp_protection_cubicles.py",
+    "revision2/boxes.py"
+  ],
+  "merit_dispatch_probe": {
+    "weights": {
+      "GTG1_HEAVY_INDUSTRY": 0.5223880250421733,
+      "GTG2_TECH_TELECOM": 0.1194029948329159,
+      "CSTG1_BFSI": 0.11940299920675272,
+      "CSTG2_CONSUMER_AUTO": 0.11940299308338118,
+      "BPSTG_HEALTHCARE": 0.119402987834777
+    },
+    "configured_ceiling": 0.35,
+    "raw_merit_weight_exceeds_ceiling": true
+  },
+  "scope": "Read-only static inspection and freshly created isolated objects; not live process telemetry."
+}
