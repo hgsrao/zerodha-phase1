@@ -1,3 +1,0 @@
-{"ts": "2024-02-13 09:34:00+05:30", "bay": "GTG1_HEAVY_INDUSTRY", "realized_r": -0.316558979638723, "reason": "governor_exit:FSR_BELOW_EXIT:FSRN", "bar_index": 19, "consecutive_stops": 1, "tripped_offline": false, "cooldown_until": 35}
-{"ts": "2024-02-13 09:36:00+05:30", "bay": "GTG1_HEAVY_INDUSTRY", "realized_r": -0.9730837198004001, "reason": "stop_gap", "bar_index": 21, "consecutive_stops": 2, "tripped_offline": true, "cooldown_until": 37}
-{"ts": "2024-02-16 09:53:00+05:30", "bay": "GTG1_HEAVY_INDUSTRY", "realized_r": -0.6500147882222919, "reason": "governor_exit:FSR_BELOW_EXIT:FSRN", "bar_index": 1163, "consecutive_stops": 1, "tripped_offline": false, "cooldown_until": 1179}

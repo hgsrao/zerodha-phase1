@@ -1,2 +1,0 @@
-{"ts": "2024-02-14 10:27:00+05:30", "bay": "BPSTG_HEALTHCARE", "realized_r": 0.09535845452870503, "reason": "governor_exit:FSR_BELOW_EXIT:FSRN", "bar_index": 447, "consecutive_stops": 0, "tripped_offline": false, "cooldown_until": 451}
-{"ts": "2024-02-14 14:23:00+05:30", "bay": "BPSTG_HEALTHCARE", "realized_r": -0.06609014499815538, "reason": "governor_exit:FSR_BELOW_EXIT:FSRN", "bar_index": 683, "consecutive_stops": 1, "tripped_offline": false, "cooldown_until": 699}
