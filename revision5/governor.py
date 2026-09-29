@@ -146,6 +146,7 @@ class _InnerLoopState:
     last_control_u: float = 0.0
     # Monotonic protective ratchet. It may advance only.
     protected_r_floor: float = -1.0
+    trailing_active: bool = False
 
 
 class BayTurbineClosedLoopGovernor:
@@ -158,6 +159,7 @@ class BayTurbineClosedLoopGovernor:
 
     def __init__(self, spec: BayGovernorSpec):
         self.spec = spec
+        self.position_policy = None  # Opt-in offline experiment; legacy callers unchanged.
 
         # Native Revision-5 runtime operating values.
         #
@@ -766,33 +768,51 @@ class BayTurbineClosedLoopGovernor:
         # Step and gap are derived from current dynamic governor values,
         # not from a separate fixed trading constant.
         #
-        ratchet_step = (
-            abs(self.runtime_target_r)
-            / max(
-                self.runtime_outcome_window,
-                1,
+        policy = self.position_policy
+        stop_detail = {}
+        if policy is not None:
+            previous_floor = state.protected_r_floor
+            state.trailing_active = state.trailing_active or max_favorable_r >= policy.mfe_activation_r
+            bounded_u = max(0.0, min(control_u, policy.pid_u_max))
+            effective_gap = max(policy.minimum_gap_r, policy.base_gap_r - policy.pid_alpha_r * bounded_u)
+            no_pid_floor = max(previous_floor, float(hard_stop_r), max_favorable_r - policy.base_gap_r)
+            if state.trailing_active:
+                state.protected_r_floor = max(previous_floor, float(hard_stop_r), max_favorable_r - effective_gap)
+            stop_detail = {
+                "trailing_active": state.trailing_active, "bounded_control_u": bounded_u,
+                "base_gap_r": policy.base_gap_r, "effective_gap_r": effective_gap,
+                "floor_before": previous_floor,
+                "pid_incremental_floor_r": (state.protected_r_floor - no_pid_floor
+                                             if state.trailing_active else 0.0),
+            }
+        else:
+            ratchet_step = (
+                abs(self.runtime_target_r)
+                / max(
+                    self.runtime_outcome_window,
+                    1,
+                )
             )
-        )
 
-        trailing_gap = max(
-            abs(
-                self.runtime_dynamic_offset_min
-            ),
-            abs(self.runtime_target_r),
-        )
-
-        desired_floor = max(
-            float(hard_stop_r),
-            max_favorable_r
-            - trailing_gap,
-        )
-
-        if desired_floor > state.protected_r_floor:
-            state.protected_r_floor = min(
-                desired_floor,
-                state.protected_r_floor
-                + ratchet_step,
+            trailing_gap = max(
+                abs(
+                    self.runtime_dynamic_offset_min
+                ),
+                abs(self.runtime_target_r),
             )
+
+            desired_floor = max(
+                float(hard_stop_r),
+                max_favorable_r
+                - trailing_gap,
+            )
+
+            if desired_floor > state.protected_r_floor:
+                state.protected_r_floor = min(
+                    desired_floor,
+                    state.protected_r_floor
+                    + ratchet_step,
+                )
 
         #
         # FSNL-equivalent target condition.
@@ -819,6 +839,10 @@ class BayTurbineClosedLoopGovernor:
             action = "EXIT"
             reason = "GOVERNOR_MAX_HOLD"
 
+        elif policy is not None:
+            # PID acts through the next-bar protective floor, not a separate path-error exit.
+            action = "HOLD"
+            reason = "GOVERNOR_TRACKING"
         else:
             #
             # Comparator/PID path deviation protection.
@@ -872,6 +896,7 @@ class BayTurbineClosedLoopGovernor:
             "protected_r_floor": float(
                 state.protected_r_floor
             ),
+            **stop_detail,
             "max_favorable_r": (
                 max_favorable_r
             ),

@@ -1,0 +1,10 @@
+{
+  "base_gap_r": 0.45,
+  "pid_alpha_r": 0.10,
+  "pid_u_max": 2.0,
+  "minimum_gap_r": 0.15,
+  "mfe_activation_r": 0.30,
+  "conviction_absolute_threshold": 0.20,
+  "conviction_drop_threshold": 0.10,
+  "conviction_persistence_bars": 2
+}

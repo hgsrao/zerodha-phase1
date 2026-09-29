@@ -205,13 +205,13 @@ class TradeReferencePath:
         return _clip(numerator / max(denominator, 1e-12), 0.0, 1.0) ** self.curve_gamma
 
     def expected_r(self, bars_held: int) -> float:
-        return self.target_r * self.progress(bars_held) ** self.curve_gamma
+        return self.target_r * self.progress(bars_held)
 
     def lower_bound_r(self, bars_held: int) -> float:
         # At entry the original hard stop is -1R; at expiry it coincides
         # with the target, while the hard maximum-hold exit remains the
         # ultimate time constraint.
-        return -1.0 + (self.target_r + 1.0) * self.progress(bars_held) ** self.curve_gamma
+        return -1.0 + (self.target_r + 1.0) * self.progress(bars_held)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

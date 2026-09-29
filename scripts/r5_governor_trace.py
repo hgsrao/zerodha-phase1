@@ -46,7 +46,7 @@ GAIN_FIELDS = ("runtime_kp", "runtime_ki", "runtime_kd", "runtime_droop_r", "run
                "runtime_dynamic_offset_min", "runtime_dynamic_offset_max",
                "runtime_integral_clamp", "runtime_outcome_window")
 KEPT_EVENTS = {"GOVERNOR_ENTRY_DECISION", "GOVERNOR_POSITION_DECISION", "GOVERNOR_EXIT_ARMED",
-               "ADVISORY_EXIT_NOT_ACTUATED", "MICOM_GRID_TRIP", "MICOM_GRID_RECLOSE"}
+               "ADVISORY_EXIT_NOT_ACTUATED", "MICOM_GRID_TRIP", "MICOM_GRID_RECLOSE", "GOVERNOR_STOP_UPDATE"}
 
 
 def _load_worker():
@@ -165,7 +165,9 @@ class Tracer:
                 "exit_control": max(abs(gov.runtime_target_r),
                                     abs(gov.runtime_ki * gov.runtime_integral_clamp)),
                 "path_noise_r": noise, "floor": out["protected_r_floor"],
-                "mfe_r": out["max_favorable_r"], "action": out["action"], "reason": out["reason"]})
+                "mfe_r": out["max_favorable_r"], "action": out["action"], "reason": out["reason"],
+                **{k: out[k] for k in ("trailing_active", "bounded_control_u", "base_gap_r",
+                    "effective_gap_r", "floor_before", "pid_incremental_floor_r") if k in out}})
             return out
 
         gov.apply_runtime_profile = apply_runtime_profile
@@ -304,7 +306,7 @@ def _summarize(tracer, report, bay_ids, metrics):
     }
 
 
-def run_one(worker, protocol, block, frames, feeds, symbols, bay_ids, authority, params, trace_dir):
+def run_one(worker, protocol, block, frames, feeds, symbols, bay_ids, authority, params, trace_dir, policy=None):
     from canonical_parameter_registry import CanonicalParameterRegistry
     from revision2_external.grid_context import SealedGridContextProvider
     from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
@@ -323,12 +325,17 @@ def run_one(worker, protocol, block, frames, feeds, symbols, bay_ids, authority,
         grid_context_provider=SealedGridContextProvider(feeds["NIFTY_50_15MIN"], feeds["INDIA_VIX_15MIN"]),
         real_plant_dcs=plant, plant_control_mode="PAPER_APPLY", closed_loop_mode="active_paper",
         telemetry_mode="compact", governor_authority=authority)
+    orch.governor_position_policy = policy
+    for bay in plant.bays.values():
+        bay.governor.position_policy = policy
     tracer = Tracer(orch, plant, bay_ids)
     started = time.time()
     report = orch.run({s: frames[s] for s in symbols},
                       warmup=int(protocol["block_execution_contract"]["stock_warmup_bars_per_symbol"]))
     metrics = worker.metrics(report)
     summary = _summarize(tracer, report, bay_ids, metrics)
+    from dataclasses import asdict
+    summary["position_policy"] = asdict(policy) if policy is not None else None
     summary["runtime_seconds"] = round(time.time() - started, 1)
     summary["trade_list_sha256"] = hashlib.sha256(json.dumps(
         report.get("trades", []), sort_keys=True, default=str).encode()).hexdigest()
@@ -342,7 +349,7 @@ def run_one(worker, protocol, block, frames, feeds, symbols, bay_ids, authority,
     return summary
 
 
-def run_uninstrumented(protocol, frames, feeds, symbols, authority, params):
+def run_uninstrumented(protocol, frames, feeds, symbols, authority, params, policy=None):
     """Same run without wrappers: proves the tracer is pass-through (identical trade list)."""
     from canonical_parameter_registry import CanonicalParameterRegistry
     from revision2_external.grid_context import SealedGridContextProvider
@@ -356,6 +363,9 @@ def run_uninstrumented(protocol, frames, feeds, symbols, authority, params):
         grid_context_provider=SealedGridContextProvider(feeds["NIFTY_50_15MIN"], feeds["INDIA_VIX_15MIN"]),
         real_plant_dcs=plant, plant_control_mode="PAPER_APPLY", closed_loop_mode="active_paper",
         telemetry_mode="compact", governor_authority=authority)
+    orch.governor_position_policy = policy
+    for bay in plant.bays.values():
+        bay.governor.position_policy = policy
     report = orch.run({s: frames[s] for s in symbols},
                       warmup=int(protocol["block_execution_contract"]["stock_warmup_bars_per_symbol"]))
     return hashlib.sha256(json.dumps(report.get("trades", []), sort_keys=True, default=str).encode()).hexdigest()
@@ -365,6 +375,8 @@ def main(argv=None) -> int:
     from revision5.topology import FLEET_TOPOLOGY
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
+    parser.add_argument("--data-root", type=Path, default=ROOT, help="Read-only manifest root; no output written here")
+    parser.add_argument("--position-policy", type=Path, help="Opt-in experimental policy JSON; omit for baseline")
     parser.add_argument("--block", type=int, action="append",
                         help="Stage A block number (repeatable); default 1")
     parser.add_argument("--bays", default="GTG1_HEAVY_INDUSTRY,GTG2_TECH_TELECOM")
@@ -375,7 +387,13 @@ def main(argv=None) -> int:
                         help="also run each case uninstrumented and require an identical trade list")
     args = parser.parse_args(argv)
 
+    from revision5.governor_position_policy import GovernorPositionPolicy
+    policy = GovernorPositionPolicy(**json.loads(args.position_policy.read_text())) if args.position_policy else None
+    if policy is not None and args.authority != "full":
+        parser.error("experimental position policy requires --authority full")
     out_dir = args.output_dir.resolve()
+    if out_dir.exists() and any(out_dir.iterdir()):
+        parser.error("output directory must be new or empty")
     if "r5_step5_stage_a" in str(out_dir):
         parser.error("refusing to write inside Stage A state")
     protocol = json.loads(args.protocol.read_text())
@@ -393,16 +411,16 @@ def main(argv=None) -> int:
     overview = {"protocol_id": protocol["protocol_id"], "params": params, "runs": []}
     for number in args.block or [1]:
         block = blocks[number]
-        frames, feeds, audit = worker.prepare_block(ROOT, protocol, block)
+        frames, feeds, audit = worker.prepare_block(args.data_root.resolve(), protocol, block)
         for bay_id in bay_ids:
             symbols = sorted(s for s in FLEET_TOPOLOGY[bay_id] if s in frames)
             for authority in authorities:
                 trace_dir = out_dir / f"block{number}" / bay_id / authority
                 print(f"block {number} {bay_id} ({len(symbols)} symbols) {authority} ...", flush=True)
                 summary = run_one(worker, protocol, block, frames, feeds, symbols, [bay_id],
-                                  authority, params, trace_dir)
+                                  authority, params, trace_dir, policy)
                 if args.verify_passthrough:
-                    base = run_uninstrumented(protocol, frames, feeds, symbols, authority, params)
+                    base = run_uninstrumented(protocol, frames, feeds, symbols, authority, params, policy)
                     summary["passthrough_verified"] = base == summary["trade_list_sha256"]
                     (trace_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=str))
                     if not summary["passthrough_verified"]:

@@ -62,6 +62,7 @@ from revision2_external.paper_execution import CostedPaperBrokerAdapter, ReplayI
 from revision2.transaction_costs import leg_cost, paper_fill_price
 from revision5.ccpp_protection_cubicles import nifty_intertie_measurements
 from revision5.governor import BAY_GOVERNOR_SPECS, BayTurbineClosedLoopGovernor
+from revision5.governor_position_policy import absolute_conviction, update_conviction
 from revision5.governor_authority import (
     PARAMETER_NAMES as GOVERNOR_AUTHORITY_PARAMETERS, BarTelemetry, GovernorAuthorityConfig,
     GovernorInputError, bar_telemetry, causal_percentile_rank, entry_decision as governor_entry_decision,
@@ -377,6 +378,7 @@ class Revision2ExternalEngineOrchestrator:
         self._session_bar_index: Dict[str, Any] = {}
         self._governor_entry_counts: Counter[str] = Counter()
         self._governor_position_counts: Counter[str] = Counter()
+        self.governor_position_policy = None
         # FSRN inputs: each conviction measure placed on its own causal distribution (percentile
         # rank over the governor's z window), updated on every evaluated bar including warm-up.
         self._conviction_history: Dict[str, Dict[str, deque]] = {}
@@ -689,7 +691,14 @@ class Revision2ExternalEngineOrchestrator:
             # PA candidates follow momentum: the governor limits overspeed rather than
             # demanding a mean-reversion dip (which vetoed every momentum candidate).
             entry_mode="trend_overspeed")
-        return {"bay_id": bay_id, "grid_return_fraction": grid_return, "conviction": conviction, **result}
+        entry_measurement = None
+        if self.governor_position_policy is not None:
+            try:
+                entry_measurement = absolute_conviction(side, signal, composite_result)
+            except (KeyError, TypeError, ValueError) as exc:
+                return {"action": "NO_ACTION", "reason": f"INVALID_ENTRY_CONVICTION:{exc}", "size_multiplier": 0.0}
+        return {"bay_id": bay_id, "grid_return_fraction": grid_return, "conviction": conviction,
+                "entry_absolute_conviction": entry_measurement, **result}
 
     def _governor_position_step(self, symbol, timestamp, trade, bar, signal, held_bars, composite_result,
                                 chart_studies_confidence, path_observation) -> Dict[str, Any]:
@@ -710,9 +719,17 @@ class Revision2ExternalEngineOrchestrator:
                      if valid_risk else math.nan)
             if valid_risk:
                 trade["governor_mfe_r"] = mfe_r
+            conviction_detail = None
+            fuel_cut_confirmed = None
             try:
-                conviction = self._governor_conviction(symbol, trade["side"], signal, composite_result, "pa_exit")
-            except (GovernorInputError, TypeError, ValueError):
+                if self.governor_position_policy is not None:
+                    current = absolute_conviction(trade["side"], signal, composite_result)
+                    conviction_detail = update_conviction(trade, current, timestamp, self.governor_position_policy)
+                    conviction = conviction_detail["conviction"]
+                    fuel_cut_confirmed = conviction_detail["fuel_cut_confirmed"]
+                else:
+                    conviction = self._governor_conviction(symbol, trade["side"], signal, composite_result, "pa_exit")
+            except (KeyError, GovernorInputError, TypeError, ValueError):
                 conviction = math.nan              # rejected by the gate below: fail closed to EXIT
             telemetry = self._governor_telemetry.get(symbol)
             result = governor_position_decision(
@@ -722,19 +739,22 @@ class Revision2ExternalEngineOrchestrator:
                 min_hold_bars=int(trade["minimum_hold_bars"]), max_hold_bars=int(trade["maximum_hold_bars"]),
                 trade_target_r=abs(float(trade["target_price"]) - entry) / risk if valid_risk else math.nan,
                 conviction=conviction, drawdown=self._current_drawdown(),
+                fuel_cut_confirmed=fuel_cut_confirmed,
                 velocity=telemetry.velocity if telemetry is not None and telemetry.available else None,
                 session_bar=self._governor_session_bar(symbol, getattr(self, "_current_bar_idx", None)),
                 bay_exhaust_spread=self._bay_exhaust_spread.get(bay_id), hard_stop_r=-1.0,
                 path_noise_r=(telemetry.atr / risk
                               if telemetry is not None and telemetry.available and valid_risk else None))
-            result = {"measured_r": measured_r, "max_favorable_r": mfe_r, **result}
+            result = {"measured_r": measured_r, "max_favorable_r": mfe_r,
+                      "conviction_detail": conviction_detail, **result}
         self._governor_position_counts[f"{result['action']}:{result['reason']}"] += 1
         self._record_controller_event("GOVERNOR_POSITION_DECISION", timestamp, symbol, {
             "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
             "authority": self.governor_authority, "bay_id": bay_id,
             **{key: result.get(key) for key in (
                 "action", "reason", "load_shed", "measured_r", "max_favorable_r", "protected_r_floor",
-                "fsr_selected", "fsr_effective", "controlling_limiter", "limiters", "bay_exhaust_spread")},
+                "fsr_selected", "fsr_effective", "controlling_limiter", "limiters", "bay_exhaust_spread",
+                "conviction_detail", "inner")},
         })
         if not self._governor_full:
             return result
@@ -753,6 +773,12 @@ class Revision2ExternalEngineOrchestrator:
                         else entry - float(result["protected_r_floor"]) * risk)
             before = float(trade.get("governor_stop_price", trade["stop_price"]))
             trade["governor_stop_price"] = max(before, proposed) if trade["side"] == "BUY" else min(before, proposed)
+            self._record_controller_event("GOVERNOR_STOP_UPDATE", timestamp, symbol, {
+                "trade_id": trade.get("trade_id"), "stop_before": before,
+                "stop_after": trade["governor_stop_price"], "proposed_stop": proposed,
+                "effective_from": "NEXT_BAR", "side": trade["side"],
+                "initial_risk": risk, "inner": result.get("inner"),
+            })
         return result
 
     def _gross_exposure_notional(self) -> float:
@@ -2025,6 +2051,7 @@ class Revision2ExternalEngineOrchestrator:
                     }
                     self.open_trades[symbol].update({
                         "governor_stop_price": float(plan.stop_price), "governor_mfe_r": 0.0,
+                        "governor_entry_conviction": governor_entry.get("entry_absolute_conviction"),
                     })
                     _, governor = self._governor_for(symbol)
                     if governor is not None:

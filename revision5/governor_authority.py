@@ -312,7 +312,8 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
                       min_hold_bars: int, max_hold_bars: int, trade_target_r: float,
                       conviction: float, drawdown: float, velocity: Optional[float],
                       session_bar: int, bay_exhaust_spread: Optional[float] = None,
-                      hard_stop_r: float = -1.0, path_noise_r: Optional[float] = None) -> Dict[str, Any]:
+                      hard_stop_r: float = -1.0, path_noise_r: Optional[float] = None,
+                      fuel_cut_confirmed: Optional[bool] = None) -> Dict[str, Any]:
     """The governor's HOLD / EXIT decision for one open position.  Fails closed to EXIT.
 
     ``path_noise_r`` is one bar's typical move in R (current ATR / initial risk).  The inner loop
@@ -341,7 +342,15 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
         return {**detail, "action": "EXIT", "reason": inner["reason"], "load_shed": False}
     if spread is not None and spread >= cfg.exhaust_spread_trip:
         return {**detail, "action": "EXIT", "reason": "EXHAUST_SPREAD_TRIP", "load_shed": False}
-    if gate["fsr_selected"] < cfg.fsr_exit_threshold:
+    if fuel_cut_confirmed is not None:
+        # Only conviction receives persistence. Independent protective limiters retain authority.
+        others = {k: v for k, v in gate["limiters"].items() if k != "FSRN"}
+        limiter = min(others, key=lambda k: (others[k], k))
+        if others[limiter] < cfg.fsr_exit_threshold:
+            return {**detail, "action": "EXIT", "reason": f"FSR_BELOW_EXIT:{limiter}", "load_shed": False}
+        if fuel_cut_confirmed:
+            return {**detail, "action": "EXIT", "reason": "FSRN_SUSTAINED_DETERIORATION", "load_shed": False}
+    elif gate["fsr_selected"] < cfg.fsr_exit_threshold:
         return {**detail, "action": "EXIT", "reason": f"FSR_BELOW_EXIT:{gate['controlling_limiter']}",
                 "load_shed": False}
     # Between the exit and entry thresholds Mark V sheds load.  The replay engine carries one
