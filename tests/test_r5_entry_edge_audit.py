@@ -114,3 +114,26 @@ def test_cli_end_to_end_and_quarantine(tmp_path, monkeypatch):
     (bad / "x.json").write_text(json.dumps(result))
     with pytest.raises(SystemExit):
         audit.main(["--results", str(bad / "x.json"), "--label", "q"])
+
+
+def test_exit_regret_mfe_ladder_and_fsr_channel_attribution():
+    # Flat to bar 20, then +1 per bar.  A BUY entered at bar 10 and cut by FSRN at bar 20 (before
+    # the move) shows large positive regret; a stop-out has the same path by construction.
+    closes = [100.0] * 21 + [100.0 + k for k in range(1, 40)]
+    bars = audit.SymbolBars(_frame(closes))
+    t = _trade("BUY", "2024-03-01 09:40:00+05:30", 100.0, 100.0, 98.0,
+               reason="governor_exit:FSR_BELOW_EXIT:FSRN", tid="f")
+    t["exit_timestamp"] = "2024-03-01 09:50:00+05:30"
+    row = audit.trade_row(t, bars, SLIP, controls=5)
+    assert row["fsr_channel"] == "FSRN" and row["exit_class"] == "FSR_EXIT"
+    reg = row["exit_regret"]
+    risk = t["entry_price"] - 98.0
+    assert reg[5]["close_r"] == pytest.approx(5.0 / risk, rel=1e-3)     # +5 points five bars after the exit
+    assert reg[10]["best_r"] == pytest.approx(10.1 / risk, rel=1e-3)    # high = close + 0.1
+    assert reg[1]["worst_r"] >= -0.2 / risk
+    assert row["mfe_r_market"] == pytest.approx(0.1 / risk, rel=1e-3) and row["mae_r_market"] < 0
+    s = audit.summarize([row])
+    assert s["fsr_channels"] == {"FSRN": 1}
+    assert s["exit_authority"]["governor_exit:FSR_BELOW_EXIT:FSRN"]["k5"]["share_best_ge_0.30R"] == 1.0
+    assert s["mfe_ladder_market"][">=0.10R"] == 0.0 and s["mfe_ladder_market"]["n"] == 1
+    json.dumps(audit._sanitize(s), allow_nan=False)

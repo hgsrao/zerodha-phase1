@@ -45,6 +45,8 @@ OUTPUT_ROOT = ROOT / "outputs/diagnostics"
 DEFAULT_PROTOCOL = ROOT / "revision5/step5_sealed_calibration_protocol_v2.json"
 HORIZONS = (1, 5, 15, 30)
 PRE_RUNS = (5, 15)
+REGRET_BARS = (1, 3, 5, 10)
+MFE_LADDER = (0.10, 0.30, 0.50, 1.00)
 BOOTSTRAP_SEED = 20260930
 
 
@@ -141,6 +143,32 @@ class SymbolBars:
                       "exit_ref": float(self.close[j])}
         return out
 
+    def after_exit(self, ex: int, ref: float, sign: float, risk: float) -> dict:
+        """Exit regret: what the position would have done over the k bars after the exit bar,
+        from the pre-slippage exit price, capped at the session.  Positive = exited too early."""
+        out = {}
+        end = self.last[ex]
+        for k in REGRET_BARS:
+            j = min(ex + k, end)
+            if j <= ex:
+                out[k] = None
+                continue
+            fav = self.high[ex + 1:j + 1] if sign > 0 else self.low[ex + 1:j + 1]
+            adv = self.low[ex + 1:j + 1] if sign > 0 else self.high[ex + 1:j + 1]
+            out[k] = {"close_r": sign * (self.close[j] - ref) / risk,
+                      "best_r": float(np.max(sign * (fav - ref))) / risk,
+                      "worst_r": float(np.min(sign * (adv - ref))) / risk}
+        return out
+
+    def in_trade_excursion(self, idx: int, ex: int, ref: float, sign: float, risk: float) -> tuple:
+        """MFE/MAE from the pre-slippage entry over the bars after entry up to the exit bar."""
+        if ex <= idx:
+            return 0.0, 0.0
+        fav = self.high[idx + 1:ex + 1] if sign > 0 else self.low[idx + 1:ex + 1]
+        adv = self.low[idx + 1:ex + 1] if sign > 0 else self.high[idx + 1:ex + 1]
+        return (max(0.0, float(np.max(sign * (fav - ref))) / risk),
+                min(0.0, float(np.min(sign * (adv - ref))) / risk))
+
     def pre_run(self, idx: int, ref: float, sign: float, risk: float) -> dict:
         out = {}
         for k in PRE_RUNS:
@@ -184,8 +212,12 @@ def trade_row(trade: dict, bars: SymbolBars, slippage_fraction: float, controls:
     entry = float(trade["entry_price"])
     stop = trade.get("planned_stop_price")
     risk = abs(entry - float(stop)) if stop is not None else float("nan")
+    reason = str(trade["reason"])
     row = {"trade_id": trade.get("trade_id"), "symbol": trade["symbol"], "side": trade["side"],
-           "entry_timestamp": str(trade["entry_timestamp"]), "exit_class": exit_class(trade["reason"]),
+           "entry_timestamp": str(trade["entry_timestamp"]), "exit_class": exit_class(reason),
+           "exit_reason": reason,
+           "fsr_channel": reason.split("FSR_BELOW_EXIT:", 1)[1] if "FSR_BELOW_EXIT:" in reason else None,
+           "recorded_mfe_r": trade.get("mfe_r"), "recorded_mae_r": trade.get("mae_r"),
            "bars_held": trade.get("bars_held"), "risk_bps": risk / entry * 1e4 if math.isfinite(risk) else None,
            "realized_r": None, "skip": None}
     decomp = decompose(trade, slippage_fraction)
@@ -208,6 +240,13 @@ def trade_row(trade: dict, bars: SymbolBars, slippage_fraction: float, controls:
     row["entry_bar_close_r"] = sign * (bars.close[idx] - market_entry) / risk   # market entry vs its bar's close
     row["forward"] = bars.forward(idx, market_entry, sign, risk)
     row["pre_run_r"] = bars.pre_run(idx, market_entry, sign, risk)
+    ex = bars.index_of(trade["exit_timestamp"])
+    if ex is not None and ex >= idx:
+        market_exit = float(trade["exit_price"]) / (1.0 - sign * slippage_fraction)
+        row["exit_regret"] = bars.after_exit(ex, market_exit, sign, risk)
+        row["mfe_r_market"], row["mae_r_market"] = bars.in_trade_excursion(idx, ex, market_entry, sign, risk)
+    else:
+        row["exit_regret"], row["mfe_r_market"], row["mae_r_market"] = None, None, None
     seed = int(hashlib.sha256(f"{row['trade_id']}|{row['entry_timestamp']}|{row['symbol']}".encode())
                .hexdigest()[:8], 16)
     row["control_r"] = bars.controls(idx, sign, risk, controls, seed)
@@ -288,6 +327,36 @@ def summarize(rows: list) -> dict:
                                                            if x["forward"][15] and x["control_r"][15] is not None]).get("mean")}
                 for k, v in sorted(g.items(), key=lambda kv: str(kv[0]))}
 
+    # Did the entries ever have room?  Share of trades whose in-trade MFE reached each rung, on the
+    # engine's recorded basis (from the fill, i.e. after entry slippage) and from the market entry.
+    def ladder(values):
+        v = [x for x in values if x is not None and math.isfinite(x)]
+        if not v:
+            return {"n": 0}
+        return {"n": len(v), "median": float(np.median(v)), "zero_or_less": float(np.mean([x <= 0 for x in v])),
+                **{f">={r:.2f}R": float(np.mean([x >= r for x in v])) for r in MFE_LADDER}}
+    out["mfe_ladder_recorded"] = ladder([r.get("recorded_mfe_r") for r in rows])
+    out["mfe_ladder_market"] = ladder([r.get("mfe_r_market") for r in ok])
+    out["mae_median_recorded"] = _stats([r.get("recorded_mae_r") for r in rows]).get("median")
+
+    # Exit authority and regret, per exit reason (FSR exits carry their controlling channel).
+    def regret(group_rows):
+        res = {"trades": len(group_rows), "net": float(sum(x["decomposition"]["net"] for x in group_rows)),
+               "mfe_r_market_median": _stats([x.get("mfe_r_market") for x in group_rows]).get("median")}
+        for k in REGRET_BARS:
+            vals = [x["exit_regret"][k] for x in group_rows if x.get("exit_regret") and x["exit_regret"][k]]
+            res[f"k{k}"] = {"close_r": _stats([v["close_r"] for v in vals]),
+                            "best_r_median": _stats([v["best_r"] for v in vals]).get("median"),
+                            "share_best_ge_0.30R": float(np.mean([v["best_r"] >= 0.30 for v in vals])) if vals else None,
+                            "share_worst_le_-0.30R": float(np.mean([v["worst_r"] <= -0.30 for v in vals])) if vals else None}
+        return res
+    by_reason = defaultdict(list)
+    for r in ok:
+        by_reason[r["exit_reason"]].append(r)
+    out["exit_authority"] = {k: regret(v) for k, v in sorted(by_reason.items(), key=lambda kv: -len(kv[1]))}
+    fsr = [r for r in ok if r.get("fsr_channel")]
+    out["fsr_channels"] = {ch: sum(1 for r in fsr if r["fsr_channel"] == ch)
+                           for ch in sorted({r["fsr_channel"] for r in fsr})}
     out["by_side"] = group("side")
     out["by_entry_hour"] = group("entry_hour")
     out["by_exit_class"] = group("exit_class")
@@ -411,6 +480,17 @@ def print_summary(p: dict) -> None:
     d = p["decomposition_total"]
     print("money: " + "  ".join(f"{k} {v:,.0f}" for k, v in d.items())
           + f"   (cost model vs recorded max diff {p['costs_model_vs_recorded_max_abs_diff']:.4f})")
+    for name, lad in (("recorded (from fill)", p["mfe_ladder_recorded"]), ("market entry", p["mfe_ladder_market"])):
+        if lad.get("n"):
+            print(f"MFE ladder {name:>20}: n {lad['n']}  median {lad['median']:+.3f}  <=0 {lad['zero_or_less']:.0%}  "
+                  + "  ".join(f"{k} {v:.0%}" for k, v in lad.items() if k.startswith(">=")))
+    print(f"FSR controlling channels: {p['fsr_channels']}")
+    print("exit authority and regret (k bars after exit, from the pre-slippage exit price):")
+    for reason, g in list(p["exit_authority"].items())[:8]:
+        k5, k10 = g["k5"], g["k10"]
+        print(f"   {reason[:40]:<40} n {g['trades']:>4} net {g['net']:>9,.0f}  mfe_med {g['mfe_r_market_median']}"
+              f"  k5 close {k5['close_r'].get('mean')} best>=.3R {k5['share_best_ge_0.30R']}"
+              f"  k10 close {k10['close_r'].get('mean')} worst<=-.3R {k10['share_worst_le_-0.30R']}")
     print("by side      :", {k: (v["trades"], round(v["net"]), v["edge15_vs_control_mean"]) for k, v in p["by_side"].items()})
     print("by exit class:", {k: (v["trades"], round(v["net"])) for k, v in p["by_exit_class"].items()})
     print("by hour      :", {k: (v["trades"], round(v["net"]), v["fwd15_gross_r_mean"]) for k, v in p["by_entry_hour"].items()})
