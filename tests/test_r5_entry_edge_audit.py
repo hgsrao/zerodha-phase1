@@ -201,3 +201,30 @@ def test_pulse_train_width_interval_polarity_and_energy_vs_switching_loss():
         risk = abs(t["entry_price"] - t["planned_stop_price"])
         assert r["market_r"] - r["friction_r"] == pytest.approx(t["net_pnl"] / (t["quantity"] * risk), rel=1e-6)
     assert pt["by_width_bars"]["31-max"]["energy_r"] > pt["by_width_bars"]["1-3"]["energy_r"]   # wide pulse rode the trend
+
+
+def test_session_cluster_bootstrap_is_wider_than_trade_bootstrap_for_correlated_days():
+    # Three sessions, 50 trades each, identical within a day: really 3 observations, not 150.
+    values = [1.0] * 50 + [-1.0] * 50 + [0.5] * 50
+    days = ["d1"] * 50 + ["d2"] * 50 + ["d3"] * 50
+    s = audit._stats(values, days)
+    trade_width = s["ci95_trade"][1] - s["ci95_trade"][0]
+    cluster_width = s["ci95"][1] - s["ci95"][0]
+    assert s["clusters"] == 3 and cluster_width > 3 * trade_width
+    assert audit._stats(values)["ci95"] == audit._stats(values)["ci95_trade"]   # unclustered: unchanged
+
+
+def test_friction_sweep_reproduces_engine_net_at_model_slippage_and_scales_with_bps():
+    closes = [100.0 + 0.1 * k for k in range(120)]
+    bars = audit.SymbolBars(_days(closes, closes))
+    t = _trade("BUY", str(bars.ts.iloc[10]), float(closes[10]), float(closes[20]), float(closes[10]) - 1.0)
+    t["exit_timestamp"] = str(bars.ts.iloc[20])
+    row = audit.trade_row(t, bars, SLIP, controls=5)
+    sweep = audit.friction_sweep([row])
+    risk = t["entry_price"] - t["planned_stop_price"]
+    assert sweep["5"]["realized_net_rupees"] == pytest.approx(t["net_pnl"], abs=1e-3)       # model slippage = engine
+    assert sweep["5"]["realized_net_r"]["mean"] == pytest.approx(t["net_pnl"] / (t["quantity"] * risk), rel=1e-4)
+    zero, five = sweep["0"]["realized_net_r"]["mean"], sweep["5"]["realized_net_r"]["mean"]
+    legs = (row["market_entry_price"] + row["market_exit_price"]) / row["risk"]
+    assert zero - five == pytest.approx(5e-4 * legs, rel=1e-9)                                # linear in bps
+    assert set(sweep["0"]["fixed_hold_net_r"]) == {"15", "30", "60", "375"}
