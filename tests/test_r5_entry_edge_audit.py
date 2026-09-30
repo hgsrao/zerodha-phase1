@@ -137,3 +137,31 @@ def test_exit_regret_mfe_ladder_and_fsr_channel_attribution():
     assert s["exit_authority"]["governor_exit:FSR_BELOW_EXIT:FSRN"]["k5"]["share_best_ge_0.30R"] == 1.0
     assert s["mfe_ladder_market"][">=0.10R"] == 0.0 and s["mfe_ladder_market"]["n"] == 1
     json.dumps(audit._sanitize(s), allow_nan=False)
+
+
+def test_controls_are_time_matched_and_ladders_are_exit_independent():
+    # Morning rallies +1/bar for 60 bars, then flat.  A late entry's controls must come from the
+    # flat part near its own time of day, not the morning rally.
+    closes = [100.0 + k for k in range(60)] + [159.0] * 200
+    bars = audit.SymbolBars(_frame(closes, start="09:15"))
+    late = 200
+    c = bars.controls(late, +1.0, 1.0, 50, seed=3)
+    assert all(abs(v) < 1e-12 for v in c.values())                     # nothing drifts near 12:35
+    early = bars.controls(20, +1.0, 1.0, 50, seed=3)
+    assert early[5] == pytest.approx(5.0, abs=1.0)                      # within the rally
+
+    # A trade cut after 1 bar still gets its full fixed-horizon opportunity measured.
+    t = _trade("BUY", str(bars.ts.iloc[10]), float(closes[10]), float(closes[11]), float(closes[10]) - 2.0,
+               reason="governor_exit:FSR_BELOW_EXIT:FSRN")
+    t["exit_timestamp"] = str(bars.ts.iloc[11])
+    row = audit.trade_row(t, bars, SLIP, controls=5)
+    s = audit.summarize([row])
+    risk = t["entry_price"] - t["planned_stop_price"]
+    assert s["mfe_ladder_market"]["median"] < 1.0                        # to the historical exit only
+    assert s["mfe_ladder_fixed"]["30"][">=1.00R"] == 1.0                 # 30 bars of rally ahead
+    # Its time-matched controls sit in the same rally, so they reach the same rungs: no edge.
+    assert s["mfe_ladder_fixed_control"]["30"][">=1.00R"] == pytest.approx(1.0, abs=0.2)
+    assert row["forward"][375]["truncated"] and row["forward"][375]["r"] == pytest.approx(
+        (159.0 - t["entry_price"] / (1 + SLIP)) / risk, rel=1e-6)        # session-close horizon
+    assert row["entry_bar_close_r"] == pytest.approx(0.0, abs=1e-6)
+    assert row["next_bar_open_r"] == pytest.approx(0.0, abs=1e-6)      # open(t+1) = close(t) here

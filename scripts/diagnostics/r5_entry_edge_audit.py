@@ -3,10 +3,12 @@
 
 Question 1 -- do the entries have edge before any exit logic touches them?
 For every completed trade in sealed V2 candidate results, measure the signed forward move from
-the entry fill to the close of bar t+h (h = 1, 5, 15, 30; capped at the session's last bar), in
+the pre-slippage entry to the close of bar t+h (h = 1, 5, 15, 30, 60 and the session close), in
 R (initial risk = |entry fill - planned stop|) and in basis points, plus the forward MFE/MAE over
-the same bars.  Each trade is paired with matched controls: the same symbol, session and side,
-entered at random bars of that session, measured the same way.  "Entry edge" is trade minus
+the same bars -- independent of when V2 actually exited.  Each trade is paired with matched
+controls: the same symbol, session and side, entered at random bars within +/-30 bars of the
+trade's time of day (at the bar close, the engine's measured fill convention; the report checks
+this against the next bar's open), measured the same way.  "Entry edge" is trade minus
 control; if it is not positive, the entry timing adds nothing over being in that stock that day.
 
 Also reported: the move over the 5 and 15 bars *before* entry in the trade's direction (does the
@@ -43,7 +45,9 @@ sys.path.insert(0, str(ROOT))
 
 OUTPUT_ROOT = ROOT / "outputs/diagnostics"
 DEFAULT_PROTOCOL = ROOT / "revision5/step5_sealed_calibration_protocol_v2.json"
-HORIZONS = (1, 5, 15, 30)
+# 375 bars = a full NSE session, so that horizon always runs to the session close ("EOD").
+HORIZONS = (1, 5, 15, 30, 60, 375)
+CONTROL_WINDOW_BARS = 30
 PRE_RUNS = (5, 15)
 REGRET_BARS = (1, 3, 5, 10)
 MFE_LADDER = (0.10, 0.30, 0.50, 1.00)
@@ -176,19 +180,30 @@ class SymbolBars:
             out[k] = (sign * (ref - self.close[j]) / risk) if j >= self.first[idx] else None
         return out
 
-    def controls(self, idx: int, sign: float, risk: float, n: int, seed: int) -> dict:
-        """Matched controls: random entry bars in the same session, same side and risk unit,
-        entered at that bar's close.  Returns the mean control move per horizon, in R."""
+    def controls(self, idx: int, sign: float, risk: float, n: int, seed: int,
+                 window: int = CONTROL_WINDOW_BARS, hits: dict | None = None) -> dict:
+        """Matched controls: random entry bars in the same session, within +/-window bars of the
+        trade's time of day, same side and risk unit, entered at that bar's close (the engine's
+        measured fill convention).  Returns the mean control move per horizon, in R."""
         lo, hi = self.first[idx], self.last[idx]
         if hi <= lo or n <= 0:
             return {h: None for h in HORIZONS}
+        w_lo, w_hi = max(lo, idx - window), min(hi - 1, idx + window)
         out = {}
         for h in HORIZONS:
-            # Controls get the full horizon where the session allows it, so a late-session control
-            # is never compared on fewer bars than the trade.
-            candidates = np.arange(lo, hi - h + 1) if hi - h >= lo else np.arange(lo, hi)
+            # Full horizon where the session allows it, so a late control is never compared on
+            # fewer bars than the trade; the session-close horizon runs to the close for both.
+            full = np.arange(w_lo, min(w_hi, hi - h) + 1)
+            candidates = full if len(full) else np.arange(w_lo, w_hi + 1)
             picks = np.random.default_rng(seed + h).choice(candidates, size=n, replace=True)
             out[h] = float(np.mean([sign * (self.close[min(k + h, hi)] - self.close[k]) / risk for k in picks]))
+            if hits is not None:
+                mfe = []
+                for k in picks:
+                    j = min(k + h, hi)
+                    fav = self.high[k + 1:j + 1] if sign > 0 else self.low[k + 1:j + 1]
+                    mfe.append(max(0.0, float(np.max(sign * (fav - self.close[k]))) / risk) if j > k else 0.0)
+                hits[h] = {f">={r:.2f}R": float(np.mean([m >= r for m in mfe])) for r in MFE_LADDER}
         return out
 
 
@@ -238,6 +253,8 @@ def trade_row(trade: dict, bars: SymbolBars, slippage_fraction: float, controls:
     market_entry = entry / (1.0 + sign * slippage_fraction)
     row["entry_hour"] = int(bars.ts.iloc[idx].hour)
     row["entry_bar_close_r"] = sign * (bars.close[idx] - market_entry) / risk   # market entry vs its bar's close
+    row["next_bar_open_r"] = (sign * (bars.open[idx + 1] - market_entry) / risk
+                              if idx + 1 <= bars.last[idx] else None)            # ... vs the next bar's open
     row["forward"] = bars.forward(idx, market_entry, sign, risk)
     row["pre_run_r"] = bars.pre_run(idx, market_entry, sign, risk)
     ex = bars.index_of(trade["exit_timestamp"])
@@ -249,7 +266,10 @@ def trade_row(trade: dict, bars: SymbolBars, slippage_fraction: float, controls:
         row["exit_regret"], row["mfe_r_market"], row["mae_r_market"] = None, None, None
     seed = int(hashlib.sha256(f"{row['trade_id']}|{row['entry_timestamp']}|{row['symbol']}".encode())
                .hexdigest()[:8], 16)
-    row["control_r"] = bars.controls(idx, sign, risk, controls, seed)
+    # Random timing also produces MFE that grows with the horizon (a random walk's running maximum
+    # grows like sqrt(h)), so the fixed-horizon ladder is only meaningful against the controls'.
+    row["control_mfe_hits"] = {}
+    row["control_r"] = bars.controls(idx, sign, risk, controls, seed, hits=row["control_mfe_hits"])
     # Friction of a round trip exiting at the horizon close: both legs' slippage + charges, in R.
     entry_slip_r = (entry - market_entry) * sign / risk
     charges_r = decomp["costs_model"] / (qty * risk)
@@ -281,6 +301,7 @@ def summarize(rows: list) -> dict:
     out["friction_r"] = _stats([r["friction_r"] for r in ok])
     out["realized_r"] = _stats([r["realized_r"] for r in ok])
     out["entry_bar_close_r"] = _stats([r["entry_bar_close_r"] for r in ok])
+    out["next_bar_open_r"] = _stats([r.get("next_bar_open_r") for r in ok])
     fwd = {}
     for h in HORIZONS:
         f = [r["forward"][h] for r in ok if r["forward"][h]]
@@ -337,6 +358,13 @@ def summarize(rows: list) -> dict:
                 **{f">={r:.2f}R": float(np.mean([x >= r for x in v])) for r in MFE_LADDER}}
     out["mfe_ladder_recorded"] = ladder([r.get("recorded_mfe_r") for r in rows])
     out["mfe_ladder_market"] = ladder([r.get("mfe_r_market") for r in ok])
+    # Exit-independent opportunity: forward MFE over a fixed horizon, whatever V2 actually did.
+    out["mfe_ladder_fixed"] = {str(h): ladder([max(0.0, r["forward"][h]["mfe_r"]) for r in ok if r["forward"][h]])
+                               for h in HORIZONS}
+    out["mfe_ladder_fixed_control"] = {
+        str(h): {rung: float(np.mean([r["control_mfe_hits"][h][rung] for r in ok if r.get("control_mfe_hits", {}).get(h)]))
+                 for rung in (f">={x:.2f}R" for x in MFE_LADDER)}
+        if any(r.get("control_mfe_hits", {}).get(h) for r in ok) else {} for h in HORIZONS}
     out["mae_median_recorded"] = _stats([r.get("recorded_mae_r") for r in rows]).get("median")
 
     # Exit authority and regret, per exit reason (FSR exits carry their controlling channel).
@@ -468,8 +496,10 @@ def print_summary(p: dict) -> None:
     print(f"round-trip friction in R: {fmt(p['friction_r'])}")
     print(f"realized R (fills)      : {fmt(p['realized_r'])}")
     print(f"fill vs entry-bar close : {fmt(p['entry_bar_close_r'])}")
+    print(f"fill vs next-bar open   : {fmt(p['next_bar_open_r'])}")
     for h, f in p["forward"].items():
-        print(f"h={h:>2}  gross {fmt(f['gross_r'])}")
+        label = "EOD" if h == "375" else h
+        print(f"h={label:>3}  gross {fmt(f['gross_r'])}")
         print(f"      control {fmt(f['control_r'])}")
         print(f"      edge    {fmt(f['edge_vs_control_r'])}")
         print(f"      net     {fmt(f['net_r'])}   mfe {f['mfe_r'].get('median')}  mae {f['mae_r'].get('median')}")
@@ -480,10 +510,17 @@ def print_summary(p: dict) -> None:
     d = p["decomposition_total"]
     print("money: " + "  ".join(f"{k} {v:,.0f}" for k, v in d.items())
           + f"   (cost model vs recorded max diff {p['costs_model_vs_recorded_max_abs_diff']:.4f})")
-    for name, lad in (("recorded (from fill)", p["mfe_ladder_recorded"]), ("market entry", p["mfe_ladder_market"])):
+    ladders = [("recorded (from fill)", p["mfe_ladder_recorded"]), ("to exit, market entry", p["mfe_ladder_market"])]
+    for name, lad in ladders:
         if lad.get("n"):
-            print(f"MFE ladder {name:>20}: n {lad['n']}  median {lad['median']:+.3f}  <=0 {lad['zero_or_less']:.0%}  "
+            print(f"MFE ladder {name:>21}: n {lad['n']}  median {lad['median']:+.3f}  <=0 {lad['zero_or_less']:.0%}  "
                   + "  ".join(f"{k} {v:.0%}" for k, v in lad.items() if k.startswith(">=")))
+    print("fixed-horizon MFE ladder, trades vs random-timing controls (exit-independent):")
+    for h, lad in p["mfe_ladder_fixed"].items():
+        ctl = p["mfe_ladder_fixed_control"].get(h, {})
+        if lad.get("n"):
+            print(f"   {('EOD' if h == '375' else h + ' bars'):>8}: "
+                  + "  ".join(f"{k} {lad[k]:.0%} vs {ctl.get(k, float('nan')):.0%}" for k in lad if k.startswith(">=")))
     print(f"FSR controlling channels: {p['fsr_channels']}")
     print("exit authority and regret (k bars after exit, from the pre-slippage exit price):")
     for reason, g in list(p["exit_authority"].items())[:8]:
