@@ -6,10 +6,12 @@ For every completed trade in sealed V2 candidate results, measure the signed for
 the pre-slippage entry to the close of bar t+h (h = 1, 5, 15, 30, 60 and the session close), in
 R (initial risk = |entry fill - planned stop|) and in basis points, plus the forward MFE/MAE over
 the same bars -- independent of when V2 actually exited.  Each trade is paired with matched
-controls: the same symbol, session and side, entered at random bars within +/-30 bars of the
-trade's time of day (at the bar close, the engine's measured fill convention; the report checks
-this against the next bar's open), measured the same way.  "Entry edge" is trade minus
-control; if it is not positive, the entry timing adds nothing over being in that stock that day.
+controls: the same symbol and side, entered at random bars within +/-30 minutes of the trade's
+time of day on the block's OTHER sessions (at the bar close, the engine's measured fill convention;
+the report checks this against the next bar's open), measured the same way.  Same-session bars are
+never controls: entries follow a run in their own direction, so a same-day control near the entry
+would ride the move that triggered it.  "Entry edge" is trade minus control; if it is not positive,
+the entry timing adds nothing over holding that stock, on that side, at that time of day.
 
 Also reported: the move over the 5 and 15 bars *before* entry in the trade's direction (does the
 entry buy a move that already happened?) and the forward result split by that pre-entry run.
@@ -119,6 +121,8 @@ class SymbolBars:
         self.last = _session_bounds(self.ts)
         self.first = _session_first(self.ts)
         self._ns = self.ts.astype("int64").to_numpy()
+        self.session = np.cumsum(np.r_[0, (self.first[1:] != self.first[:-1]).astype(int)])
+        self.tod = (self.ts.dt.hour * 60 + self.ts.dt.minute).to_numpy()
 
     def index_of(self, timestamp) -> int | None:
         stamp = pd.Timestamp(timestamp)
@@ -182,25 +186,31 @@ class SymbolBars:
 
     def controls(self, idx: int, sign: float, risk: float, n: int, seed: int,
                  window: int = CONTROL_WINDOW_BARS, hits: dict | None = None) -> dict:
-        """Matched controls: random entry bars in the same session, within +/-window bars of the
-        trade's time of day, same side and risk unit, entered at that bar's close (the engine's
-        measured fill convention).  Returns the mean control move per horizon, in R."""
-        lo, hi = self.first[idx], self.last[idx]
-        if hi <= lo or n <= 0:
+        """Matched controls: same symbol, side and risk unit, entered at the bar close (the
+        engine's measured fill convention) at random bars within +/-window minutes of the trade's
+        time of day -- on the OTHER sessions in the frame.  Same-session bars are excluded: every
+        entry follows a run in its own direction, so a same-day control near the entry would ride
+        the very move that triggered it (look-ahead).  Returns the mean control move per horizon."""
+        if n <= 0:
             return {h: None for h in HORIZONS}
-        w_lo, w_hi = max(lo, idx - window), min(hi - 1, idx + window)
+        pool = np.flatnonzero((self.session != self.session[idx])
+                              & (np.abs(self.tod - self.tod[idx]) <= window)
+                              & (np.arange(len(self.close)) < self.last))
+        if len(pool) == 0:
+            return {h: None for h in HORIZONS}
         out = {}
         for h in HORIZONS:
-            # Full horizon where the session allows it, so a late control is never compared on
-            # fewer bars than the trade; the session-close horizon runs to the close for both.
-            full = np.arange(w_lo, min(w_hi, hi - h) + 1)
-            candidates = full if len(full) else np.arange(w_lo, w_hi + 1)
+            # Full horizon where that session allows it; the session-close horizon runs to each
+            # control's own session close, as the trade's does.
+            full = pool[pool + h <= self.last[pool]]
+            candidates = full if len(full) else pool
             picks = np.random.default_rng(seed + h).choice(candidates, size=n, replace=True)
-            out[h] = float(np.mean([sign * (self.close[min(k + h, hi)] - self.close[k]) / risk for k in picks]))
+            out[h] = float(np.mean([sign * (self.close[min(k + h, self.last[k])] - self.close[k]) / risk
+                                    for k in picks]))
             if hits is not None:
                 mfe = []
                 for k in picks:
-                    j = min(k + h, hi)
+                    j = min(k + h, self.last[k])
                     fav = self.high[k + 1:j + 1] if sign > 0 else self.low[k + 1:j + 1]
                     mfe.append(max(0.0, float(np.max(sign * (fav - self.close[k]))) / risk) if j > k else 0.0)
                 hits[h] = {f">={r:.2f}R": float(np.mean([m >= r for m in mfe])) for r in MFE_LADDER}

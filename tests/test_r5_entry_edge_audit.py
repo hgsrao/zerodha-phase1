@@ -78,19 +78,36 @@ def test_sessions_are_not_crossed():
     assert bars.controls(idx, +1.0, 1.0, 20, seed=7) == c               # deterministic
 
 
+def _days(*sessions, start="09:15"):
+    days = ["2024-03-01", "2024-03-04", "2024-03-05", "2024-03-06"]
+    return pd.concat([_frame(c, day=days[i], start=start) for i, c in enumerate(sessions)], ignore_index=True)
+
+
 def test_entry_edge_is_trade_minus_matched_control():
-    closes = [100.0 + 0.5 * k for k in range(60)]                        # steady drift up all session
-    bars = audit.SymbolBars(_frame(closes))
-    t = _trade("BUY", "2024-03-01 09:50:00+05:30", float(closes[20]), float(closes[35]), stop=float(closes[20]) - 2)
+    drift = [100.0 + 0.5 * k for k in range(60)]                          # the same steady drift every day
+    bars = audit.SymbolBars(_days(drift, drift, start="09:30"))
+    t = _trade("BUY", "2024-03-01 09:50:00+05:30", float(drift[20]), float(drift[35]), stop=float(drift[20]) - 2)
     row = audit.trade_row(t, bars, SLIP, controls=50)
-    # Drift is identical everywhere and timing is measured from the pre-slippage entry, so a random
-    # entry does exactly as well as this one: zero edge (slippage is not mistaken for bad timing).
+    # Drift is identical on the other session and timing is measured from the pre-slippage entry,
+    # so a random entry does exactly as well: zero edge (slippage is not mistaken for bad timing).
     assert row["forward"][5]["r"] - row["control_r"][5] == pytest.approx(0.0, abs=1e-9)
     assert row["entry_bar_close_r"] == pytest.approx(0.0, abs=1e-6)
     assert row["friction_r"] > 0
     assert row["forward"][5]["r"] - row["forward_net_r"][5] == pytest.approx(row["friction_r"], rel=0.05)  # charges at the actual exit price
     s = audit.summarize([row])
     json.dumps(audit._sanitize(s), allow_nan=False)
+
+
+def test_controls_never_ride_the_same_session_move_that_triggered_the_entry():
+    # Day 1 runs up 30 bars and the trade enters after the run; day 2 is flat.  A same-day control
+    # window would include the run (look-ahead); other-session controls must see nothing.
+    run_day = [100.0 + k for k in range(30)] + [129.0] * 90
+    flat_day = [100.0] * 120
+    bars = audit.SymbolBars(_days(run_day, flat_day))
+    idx = 35
+    c = bars.controls(idx, +1.0, 1.0, 50, seed=11)
+    assert all(v is not None and abs(v) < 1e-12 for v in c.values())
+    assert audit.SymbolBars(_frame(run_day)).controls(idx, +1.0, 1.0, 50, seed=11)[5] is None   # no other session
 
 
 def test_cli_end_to_end_and_quarantine(tmp_path, monkeypatch):
@@ -140,18 +157,18 @@ def test_exit_regret_mfe_ladder_and_fsr_channel_attribution():
 
 
 def test_controls_are_time_matched_and_ladders_are_exit_independent():
-    # Morning rallies +1/bar for 60 bars, then flat.  A late entry's controls must come from the
-    # flat part near its own time of day, not the morning rally.
-    closes = [100.0 + k for k in range(60)] + [159.0] * 200
-    bars = audit.SymbolBars(_frame(closes, start="09:15"))
-    late = 200
-    c = bars.controls(late, +1.0, 1.0, 50, seed=3)
-    assert all(abs(v) < 1e-12 for v in c.values())                     # nothing drifts near 12:35
+    # Every morning rallies +1/bar for 60 bars, then flat.  Controls come from the other sessions at
+    # the trade's own time of day: a late entry's controls see the flat afternoon, an early one's
+    # the rally.
+    day = [100.0 + k for k in range(60)] + [159.0] * 200
+    bars = audit.SymbolBars(_days(day, day, day))
+    c = bars.controls(200, +1.0, 1.0, 50, seed=3)
+    assert all(abs(v) < 1e-12 for v in c.values())                     # flat near 12:35 on other days
     early = bars.controls(20, +1.0, 1.0, 50, seed=3)
-    assert early[5] == pytest.approx(5.0, abs=1.0)                      # within the rally
+    assert early[5] == pytest.approx(5.0, abs=1.0)                      # rally near 09:35 on other days
 
     # A trade cut after 1 bar still gets its full fixed-horizon opportunity measured.
-    t = _trade("BUY", str(bars.ts.iloc[10]), float(closes[10]), float(closes[11]), float(closes[10]) - 2.0,
+    t = _trade("BUY", str(bars.ts.iloc[10]), float(day[10]), float(day[11]), float(day[10]) - 2.0,
                reason="governor_exit:FSR_BELOW_EXIT:FSRN")
     t["exit_timestamp"] = str(bars.ts.iloc[11])
     row = audit.trade_row(t, bars, SLIP, controls=5)
@@ -159,7 +176,7 @@ def test_controls_are_time_matched_and_ladders_are_exit_independent():
     risk = t["entry_price"] - t["planned_stop_price"]
     assert s["mfe_ladder_market"]["median"] < 1.0                        # to the historical exit only
     assert s["mfe_ladder_fixed"]["30"][">=1.00R"] == 1.0                 # 30 bars of rally ahead
-    # Its time-matched controls sit in the same rally, so they reach the same rungs: no edge.
+    # Its controls sit in the same morning rally on the other days: same rungs, no edge.
     assert s["mfe_ladder_fixed_control"]["30"][">=1.00R"] == pytest.approx(1.0, abs=0.2)
     assert row["forward"][375]["truncated"] and row["forward"][375]["r"] == pytest.approx(
         (159.0 - t["entry_price"] / (1 + SLIP)) / risk, rel=1e-6)        # session-close horizon
