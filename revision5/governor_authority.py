@@ -60,6 +60,28 @@ PARAMETER_NAMES = (
 
 LIMITER_NAMES = ("FSRN", "FSRT", "FSRA", "FSRS", "FSRM")
 
+# Protocol V3 closed-loop position control (revision5.governor.PositionControlV3).  Registry-owned;
+# consumed only when the engine runs with governor_position_control="closed_loop_v3".
+POSITION_CONTROL_V3_PARAMETERS = {
+    "mfe_activation_r": "gov_v3_mfe_activation_r",
+    "kappa": "gov_v3_kappa",
+    "gamma_fast": "gov_v3_gamma_fast",
+    "tau_error_multiplier": "gov_v3_tau_error_multiplier",
+    "gamma_slow": "gov_v3_gamma_slow",
+    "base_gap_r": "gov_v3_base_gap_r",
+    "minimum_gap_r": "gov_v3_minimum_gap_r",
+    "noise_floor_mult": "gov_v3_noise_floor_mult",
+    "grace_bars": "gov_v3_grace_bars",
+}
+
+
+def position_control_v3_from_config(config):
+    """Build the V3 position-control constants from the canonical registry-backed config."""
+    from revision5.governor import PositionControlV3
+    values = {field: require(config, name) for field, name in POSITION_CONTROL_V3_PARAMETERS.items()}
+    values = {k: (int(v) if k == "grace_bars" else float(v)) for k, v in values.items()}
+    return PositionControlV3(**values)
+
 
 class GovernorInputError(ValueError):
     """A governor input is missing, non-finite or outside its physical range."""
@@ -312,7 +334,8 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
                       min_hold_bars: int, max_hold_bars: int, trade_target_r: float,
                       conviction: float, drawdown: float, velocity: Optional[float],
                       session_bar: int, bay_exhaust_spread: Optional[float] = None,
-                      hard_stop_r: float = -1.0, path_noise_r: Optional[float] = None) -> Dict[str, Any]:
+                      hard_stop_r: float = -1.0, path_noise_r: Optional[float] = None,
+                      position_control=None) -> Dict[str, Any]:
     """The governor's HOLD / EXIT decision for one open position.  Fails closed to EXIT.
 
     ``path_noise_r`` is one bar's typical move in R (current ATR / initial risk).  The inner loop
@@ -326,7 +349,9 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
             elapsed_bars=int(elapsed_bars), min_hold_bars=int(min_hold_bars),
             max_hold_bars=int(max_hold_bars), hard_stop_r=hard_stop_r,
             trade_target_r=trade_target_r, position_id=position_id,
-            path_noise_r=_finite("path_noise_r", path_noise_r), path_error_sigma=cfg.path_error_sigma)
+            path_noise_r=_finite("path_noise_r", path_noise_r),
+            path_error_sigma=None if position_control is not None else cfg.path_error_sigma,
+            position_control=position_control)
         if velocity is None:
             raise GovernorInputError("velocity telemetry unavailable")
         gate = minimum_value_gate(limiters(cfg, conviction=conviction, drawdown=drawdown,

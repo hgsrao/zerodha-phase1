@@ -87,6 +87,7 @@ def verify_engine_identity(root: Path, protocol: dict) -> dict:
     allowed = {
         "revision5/step5_sealed_calibration_protocol.json",
         "revision5/step5_sealed_calibration_protocol_v2.json",
+        "revision5/step5_sealed_calibration_protocol_v3.json",
     }
 
     unexpected = {
@@ -714,6 +715,8 @@ def execute_block(
         telemetry_mode="compact",
         # V1 predates the key and ran with the advisory default.
         governor_authority=protocol["engine"].get("governor_authority", "advisory"),
+        # V1/V2 predate the key and ran the legacy inner loop.
+        governor_position_control=protocol["engine"].get("governor_position_control", "legacy"),
     )
 
     warmup = int(
@@ -1040,12 +1043,28 @@ def main() -> None:
                 "PARAMETER_SURFACE_MISMATCH"
             )
 
+        # Protocol-frozen values (V3: the V2 Stage-B winner's trading parameters) are applied
+        # beneath the searched surface.  They may never overlap it.
+        fixed_parameters = dict(
+            protocol.get("fixed_parameters", {})
+        )
+
+        if set(fixed_parameters) & expected_keys:
+            raise SystemExit(
+                "FIXED_PARAMETER_OVERLAP"
+            )
+
+        payload = {
+            **fixed_parameters,
+            **params,
+        }
+
         block_results = [
             execute_block(
                 root,
                 protocol,
                 block,
-                params,
+                payload,
             )
             for block in blocks
         ]
@@ -1065,6 +1084,7 @@ def main() -> None:
                 ],
             "stage": args.stage,
             "params": params,
+            "fixed_parameters": fixed_parameters,
             "aggregate": agg,
             "blocks": [
                 {

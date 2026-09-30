@@ -64,7 +64,8 @@ from revision5.ccpp_protection_cubicles import nifty_intertie_measurements
 from revision5.governor import BAY_GOVERNOR_SPECS, BayTurbineClosedLoopGovernor
 from revision5.governor_authority import (
     PARAMETER_NAMES as GOVERNOR_AUTHORITY_PARAMETERS, BarTelemetry, GovernorAuthorityConfig,
-    GovernorInputError, bar_telemetry, causal_percentile_rank, entry_decision as governor_entry_decision,
+    GovernorInputError, POSITION_CONTROL_V3_PARAMETERS, bar_telemetry, causal_percentile_rank,
+    entry_decision as governor_entry_decision, position_control_v3_from_config,
     exhaust_spread,
     position_decision as governor_position_decision, side_aligned_conviction,
 )
@@ -136,6 +137,7 @@ class Revision2ExternalEngineOrchestrator:
         real_plant_dcs: Optional[Any] = None,
         paper_journal: Optional[Any] = None,
         governor_authority: str = "advisory",
+        governor_position_control: str = "legacy",
     ) -> None:
         # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
         # Default None -- unchanged behaviour: this replay engine does not instantiate a real plant,
@@ -161,6 +163,13 @@ class Revision2ExternalEngineOrchestrator:
         if governor_authority == "full" and (closed_loop_mode != "active_paper" or grid_context_provider is None):
             raise ValueError("governor_authority='full' requires closed_loop_mode='active_paper' "
                              "and a real grid context provider")
+        # Position control.  ``legacy`` is the V2 inner loop (unchanged).  ``closed_loop_v3`` is the
+        # Protocol V3 controller (revision5.governor.PositionControlV3): the inner PID modulates
+        # the trailing stop and the binary path-error exit is not used.  Full authority only.
+        if governor_position_control not in {"legacy", "closed_loop_v3"}:
+            raise ValueError("governor_position_control must be 'legacy' or 'closed_loop_v3'")
+        if governor_position_control == "closed_loop_v3" and governor_authority != "full":
+            raise ValueError("governor_position_control='closed_loop_v3' requires governor_authority='full'")
         if telemetry_mode not in {"full", "compact"}:
             raise ValueError("telemetry_mode must be 'full' or 'compact'")
         if pid_mode not in {"enabled", "disabled"}:
@@ -372,6 +381,13 @@ class Revision2ExternalEngineOrchestrator:
         self.governor_authority = governor_authority
         self.governor_config = GovernorAuthorityConfig.from_config(self.config)
         self.consumed_parameters.update(GOVERNOR_AUTHORITY_PARAMETERS)
+        # V3 constants are always read and validated (registry-owned); applied only in V3 mode.
+        self.governor_position_control = governor_position_control
+        self._position_control_v3 = position_control_v3_from_config(self.config)
+        self.consumed_parameters.update(POSITION_CONTROL_V3_PARAMETERS.values())
+        # Optional exit-only paired-bridge observer (scripts/protocol_v3).  None in every normal
+        # replay; it only observes and never changes an order, a fill or engine state.
+        self.exit_shadow = None
         self._governor_telemetry: Dict[str, BarTelemetry] = {}
         self._bay_exhaust_spread: Dict[str, Optional[float]] = {}
         self._session_bar_index: Dict[str, Any] = {}
@@ -726,7 +742,9 @@ class Revision2ExternalEngineOrchestrator:
                 session_bar=self._governor_session_bar(symbol, getattr(self, "_current_bar_idx", None)),
                 bay_exhaust_spread=self._bay_exhaust_spread.get(bay_id), hard_stop_r=-1.0,
                 path_noise_r=(telemetry.atr / risk
-                              if telemetry is not None and telemetry.available and valid_risk else None))
+                              if telemetry is not None and telemetry.available and valid_risk else None),
+                position_control=(self._position_control_v3
+                                  if self.governor_position_control == "closed_loop_v3" else None))
             result = {"measured_r": measured_r, "max_favorable_r": mfe_r, **result}
         self._governor_position_counts[f"{result['action']}:{result['reason']}"] += 1
         self._record_controller_event("GOVERNOR_POSITION_DECISION", timestamp, symbol, {
@@ -1555,6 +1573,9 @@ class Revision2ExternalEngineOrchestrator:
                     symbol, timestamp, bars.iloc[bar_idx], signal, held, session_last_bar,
                     chart_studies_confidence, composite_result,
                 )
+                if self.exit_shadow is not None:
+                    self.exit_shadow.on_bar(self, symbol, timestamp, bars.iloc[bar_idx], signal,
+                                            composite_result, bar_idx, session_last_bar)
 
                 if symbol in self.open_trades or not in_window or self._execution_halted:
                     continue
@@ -2029,6 +2050,8 @@ class Revision2ExternalEngineOrchestrator:
                     _, governor = self._governor_for(symbol)
                     if governor is not None:
                         governor.begin_position(hard_stop_r=-1.0, position_id=f"trade-{self._trade_sequence}")
+                    if self.exit_shadow is not None:
+                        self.exit_shadow.on_entry(self, symbol, self.open_trades[symbol], bar_idx + 1)
                     entry_bar_index[symbol] = bar_idx + 1
                     self._exit_controller_states[symbol] = self.exit_controller.open_position(
                         plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
@@ -2039,6 +2062,8 @@ class Revision2ExternalEngineOrchestrator:
             if self.paper_journal is not None:
                 self.paper_journal.checkpoint(self, timestamp)
 
+        if self.exit_shadow is not None:
+            self.exit_shadow.on_run_end(self, symbol_bars)
         for symbol in list(self.open_trades.keys()):
             bars = symbol_bars[symbol]
             final_close = float(bars.iloc[len(bars) - 1]["close"])
@@ -2067,6 +2092,7 @@ class Revision2ExternalEngineOrchestrator:
             "config_hash": self.config.config_hash, "safety_contract_hash": self.safety_contract.contract_hash,
             "governor_authority": {
                 "mode": self.governor_authority,
+                "position_control": self.governor_position_control,
                 "entry_decisions": dict(self._governor_entry_counts),
                 "position_decisions": dict(self._governor_position_counts),
             },

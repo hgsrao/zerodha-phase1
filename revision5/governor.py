@@ -14,7 +14,7 @@ PID coefficients never self-modify during certified replay.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isfinite, sqrt
+from math import isfinite, sqrt, tanh
 from statistics import fmean
 from typing import Dict, Optional
 
@@ -146,6 +146,59 @@ class _InnerLoopState:
     last_control_u: float = 0.0
     # Monotonic protective ratchet. It may advance only.
     protected_r_floor: float = -1.0
+    # Protocol V3 position control only.
+    v3_samples: int = 0
+    v3_trailing_active: bool = False
+
+
+@dataclass(frozen=True)
+class PositionControlV3:
+    """Protocol V3 closed-loop position control (opt-in engine mode ``closed_loop_v3``).
+
+    Per completed bar k of one position (all quantities in R):
+
+        e_k      = reference_r - measured_r
+        gamma_k  = gamma_fast if |e_k| > tau_error_multiplier * noise_r else gamma_slow
+        I_k      = clip(gamma_k * I_{k-1} + e_k, -I_max, +I_max)     (I_max = runtime integral clamp)
+        D_k      = 0 on the first sample and on the first trailing-active sample, else e_k - e_{k-1}
+        u_k      = Kp e_k + Ki I_k + Kd D_k                            (Ki applied once)
+        gap_k    = max(base_gap * (1 - kappa * tanh(u_k)), noise_floor_mult * noise_r, minimum_gap)
+        floor_k  = max(floor_{k-1}, hard_stop, MFE_k - gap_k)          once trailing is active
+
+    noise_r = ATR / initial risk (one bar's typical move in R).  Trailing becomes active (and
+    latches) once elapsed_bars >= grace_bars and MFE >= mfe_activation_r.  The binary path-error
+    exit is not used: the controller acts only through the one-way protective floor, which the
+    engine arms for the NEXT bar (no intrabar look-ahead).
+    """
+
+    mfe_activation_r: float
+    kappa: float
+    gamma_fast: float
+    tau_error_multiplier: float
+    gamma_slow: float
+    base_gap_r: float
+    minimum_gap_r: float
+    noise_floor_mult: float
+    grace_bars: int
+
+    def __post_init__(self):
+        values = (self.mfe_activation_r, self.kappa, self.gamma_fast, self.tau_error_multiplier,
+                  self.gamma_slow, self.base_gap_r, self.minimum_gap_r, self.noise_floor_mult)
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and isfinite(float(v))
+                   for v in values):
+            raise ValueError("V3 position control values must be finite numbers")
+        if not 0.0 <= self.mfe_activation_r:
+            raise ValueError("mfe_activation_r must be non-negative")
+        if not 0.0 < self.kappa < 1.0:
+            raise ValueError("kappa must lie in (0, 1)")
+        if not 0.0 < self.gamma_fast <= self.gamma_slow <= 1.0:
+            raise ValueError("require 0 < gamma_fast <= gamma_slow <= 1")
+        if self.tau_error_multiplier <= 0.0 or self.noise_floor_mult <= 0.0:
+            raise ValueError("tau_error_multiplier and noise_floor_mult must be positive")
+        if not 0.0 < self.minimum_gap_r <= self.base_gap_r:
+            raise ValueError("require 0 < minimum_gap_r <= base_gap_r")
+        if isinstance(self.grace_bars, bool) or int(self.grace_bars) != self.grace_bars or self.grace_bars < 0:
+            raise ValueError("grace_bars must be a non-negative integer")
 
 
 class BayTurbineClosedLoopGovernor:
@@ -657,6 +710,7 @@ class BayTurbineClosedLoopGovernor:
         position_id=None,
         path_noise_r: Optional[float] = None,
         path_error_sigma: Optional[float] = None,
+        position_control: Optional["PositionControlV3"] = None,
     ) -> dict:
         """
         Fast closed-loop governor for one position (``position_id``).
@@ -672,13 +726,17 @@ class BayTurbineClosedLoopGovernor:
         envelope sigma * path_noise_r * sqrt(elapsed_bars).  Without them the
         legacy tolerance max(|target_r|, |dynamic_offset_max|) applies.
         """
-        if (path_noise_r is None) != (path_error_sigma is None):
-            raise ValueError("path_noise_r and path_error_sigma go together")
-        if path_noise_r is not None and not (
-            isfinite(float(path_noise_r)) and float(path_noise_r) > 0.0
-            and isfinite(float(path_error_sigma)) and float(path_error_sigma) > 0.0
-        ):
-            raise ValueError("path noise envelope inputs must be finite and positive")
+        if position_control is not None:
+            if path_noise_r is None or not (isfinite(float(path_noise_r)) and float(path_noise_r) > 0.0):
+                raise ValueError("V3 position control requires a finite positive path_noise_r")
+        else:
+            if (path_noise_r is None) != (path_error_sigma is None):
+                raise ValueError("path_noise_r and path_error_sigma go together")
+            if path_noise_r is not None and not (
+                isfinite(float(path_noise_r)) and float(path_noise_r) > 0.0
+                and isfinite(float(path_error_sigma)) and float(path_error_sigma) > 0.0
+            ):
+                raise ValueError("path noise envelope inputs must be finite and positive")
         values = (
             measured_r,
             reference_r,
@@ -730,6 +788,16 @@ class BayTurbineClosedLoopGovernor:
         max_favorable_r = float(
             max_favorable_r
         )
+
+        if position_control is not None:
+            if path_noise_r is None:
+                raise ValueError("V3 position control requires path_noise_r")
+            return self._position_control_v3(
+                state, position_control, measured_r=measured_r, reference_r=reference_r,
+                max_favorable_r=max_favorable_r, elapsed_bars=int(elapsed_bars),
+                min_hold_bars=int(min_hold_bars), max_hold_bars=int(max_hold_bars),
+                hard_stop_r=float(hard_stop_r), trade_target_r=float(trade_target_r),
+                noise_r=float(path_noise_r))
 
         error = reference_r - measured_r
 
@@ -878,6 +946,64 @@ class BayTurbineClosedLoopGovernor:
             "elapsed_bars": int(
                 elapsed_bars
             ),
+        }
+
+    def _position_control_v3(
+        self, state: _InnerLoopState, pc: "PositionControlV3", *, measured_r: float,
+        reference_r: float, max_favorable_r: float, elapsed_bars: int, min_hold_bars: int,
+        max_hold_bars: int, hard_stop_r: float, trade_target_r: float, noise_r: float,
+    ) -> dict:
+        """One completed bar of the Protocol V3 inner loop (see ``PositionControlV3``)."""
+        error = reference_r - measured_r
+        tau_error = pc.tau_error_multiplier * noise_r
+        gamma = pc.gamma_fast if abs(error) > tau_error else pc.gamma_slow
+        state.integral_error = max(-self.runtime_integral_clamp,
+                                   min(self.runtime_integral_clamp, gamma * state.integral_error + error))
+
+        first_sample = state.v3_samples == 0
+        activating = (not state.v3_trailing_active and elapsed_bars >= pc.grace_bars
+                      and max_favorable_r >= pc.mfe_activation_r)
+        if activating:
+            state.v3_trailing_active = True
+        derivative = 0.0 if (first_sample or activating) else error - state.last_error
+        state.last_error = error
+        state.v3_samples += 1
+
+        control_u = (self.runtime_kp * error + self.runtime_ki * state.integral_error
+                     + self.runtime_kd * derivative)
+        state.last_control_u = float(control_u)
+
+        raw_gap = pc.base_gap_r * (1.0 - pc.kappa * tanh(control_u))
+        noise_floor = pc.noise_floor_mult * noise_r
+        gap = max(raw_gap, noise_floor, pc.minimum_gap_r)
+        floor_before = state.protected_r_floor
+        if state.v3_trailing_active:
+            state.protected_r_floor = max(state.protected_r_floor, float(hard_stop_r),
+                                          max_favorable_r - gap)
+
+        if measured_r >= trade_target_r:
+            action, reason = "EXIT", "GOVERNOR_TARGET_REACHED"
+        elif measured_r <= hard_stop_r:
+            action, reason = "EXIT", "GOVERNOR_HARD_STOP"
+        elif (elapsed_bars >= min_hold_bars and measured_r <= state.protected_r_floor
+              and state.protected_r_floor > hard_stop_r):
+            action, reason = "EXIT", "GOVERNOR_RATCHET_FLOOR"
+        elif elapsed_bars >= max_hold_bars:
+            action, reason = "EXIT", "GOVERNOR_MAX_HOLD"
+        else:
+            action, reason = "HOLD", "GOVERNOR_TRACKING"
+
+        return {
+            "action": action, "reason": reason, "measured_r": measured_r,
+            "reference_r": reference_r, "error": float(error),
+            "integral_error": float(state.integral_error), "derivative": float(derivative),
+            "control_u": float(control_u), "protected_r_floor": float(state.protected_r_floor),
+            "max_favorable_r": max_favorable_r, "elapsed_bars": int(elapsed_bars),
+            "v3": {
+                "gamma": gamma, "tau_error": tau_error, "raw_gap_r": raw_gap,
+                "noise_floor_r": noise_floor, "gap_r": gap, "floor_before": floor_before,
+                "trailing_active": state.v3_trailing_active, "activated_this_bar": activating,
+            },
         }
 
     def dynamic_z(
