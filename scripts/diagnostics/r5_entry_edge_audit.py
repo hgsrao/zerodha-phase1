@@ -406,30 +406,59 @@ def pulse_train(rows: list) -> dict:
     }
 
 
-SLIPPAGE_SWEEP_BPS = (0.0, 1.0, 2.0, 3.0, 5.0)
+SLIPPAGE_SWEEP_BPS = (0.0, 1.0, 2.0, 3.0, 4.0, 5.0)
 SWEEP_HORIZONS = (15, 30, 60, 375)
 
 
+def synthesized_net(row: dict, slippage: float, exit_market: float) -> tuple:
+    """Re-price one trade from its recovered pre-slippage market prices (recovered once with the
+    sealed slippage) at another per-leg slippage: new fills, and brokerage/exchange/STT recomputed
+    on those fills with the engine's formula.  Returns (net rupees, net R)."""
+    side = row["side"]
+    sign = 1.0 if side == "BUY" else -1.0
+    close_side = "SELL" if side == "BUY" else "BUY"
+    qty = row["quantity"]
+    fill_in = row["market_entry_price"] * (1.0 + sign * slippage)
+    fill_out = exit_market * (1.0 - sign * slippage)
+    charges = (sum(leg_cost_parts(fill_in, qty, side).values())
+               + sum(leg_cost_parts(fill_out, qty, close_side).values()))
+    net = sign * (fill_out - fill_in) * qty - charges
+    return net, net / (qty * row["risk"])
+
+
+def first_fill_per_symbol_session(rows: list) -> list:
+    """Competitor proxy: only the first executed entry per symbol and session (per source)."""
+    first = {}
+    for r in rows:
+        key = (r.get("source"), r["symbol"], _session_key(r))
+        if key not in first or r["entry_timestamp"] < first[key]["entry_timestamp"]:
+            first[key] = r
+    return list(first.values())
+
+
 def friction_sweep(rows: list) -> dict:
-    """Same signals and price paths, re-priced at other per-leg slippage (charges unchanged):
-    separates a weak signal (loses even at 0 bps) from an execution problem (pays at 0-2 bps)
-    and from a direction-only edge (only the session-close hold pays)."""
+    """The same signals and price paths at other execution quality.  Separates a weak signal (loses
+    even at 0 bps) from an execution problem (pays at 0-2 bps) and from a direction-only edge (only
+    the session-close hold pays).  Also prices a simple competitor on the same entries: the first
+    executed entry per symbol-session, held to the close (a lower bound on a first-raw-signal/EOD
+    strategy, since it still waits for the full entry stack)."""
+    rows = [r for r in rows if "market_entry_price" in r]
+    firsts = first_fill_per_symbol_session(rows)
     out = {}
     for bps in SLIPPAGE_SWEEP_BPS:
         s = bps / 1e4
         entry = {
-            "realized_net_r": _S(rows, lambda r: r["market_r"] - s * (r["market_entry_price"] + r["market_exit_price"])
-                                 / r["risk"] - r["charges_r"]),
-            "realized_net_rupees": float(sum(
-                r["decomposition"]["market"] - s * (r["market_entry_price"] + r["market_exit_price"]) * r["quantity"]
-                - r["decomposition"]["costs_model"] for r in rows if "market_entry_price" in r)),
-            "fixed_hold_net_r": {},
+            "realized_net_r": _S(rows, lambda r: synthesized_net(r, s, r["market_exit_price"])[1]),
+            "realized_net_rupees": float(sum(synthesized_net(r, s, r["market_exit_price"])[0] for r in rows)),
+            "fixed_hold_net_r": {str(h): _S(rows, lambda r: synthesized_net(r, s, r["forward"][h]["exit_ref"])[1])
+                                 for h in SWEEP_HORIZONS},
+            "first_fill_eod_net_r": _S(firsts, lambda r: synthesized_net(r, s, r["forward"][375]["exit_ref"])[1]),
+            "first_fill_eod_net_rupees": float(sum(synthesized_net(r, s, r["forward"][375]["exit_ref"])[0]
+                                                   for r in firsts if r.get("forward", {}).get(375))),
         }
-        for h in SWEEP_HORIZONS:
-            entry["fixed_hold_net_r"][str(h)] = _S(
-                rows, lambda r: r["forward"][h]["r"] - s * (r["market_entry_price"] + r["forward"][h]["exit_ref"])
-                / r["risk"] - r["charges_r"])
         out[f"{bps:g}"] = entry
+    out["first_fill_eod_trades"] = len(firsts)
+    out["first_fill_eod_gross_r"] = _S(firsts, lambda r: r["forward"][375]["r"])
     return out
 
 
@@ -694,10 +723,15 @@ def print_summary(p: dict) -> None:
               f"  k10 close {k10['close_r'].get('mean')} worst<=-.3R {k10['share_worst_le_-0.30R']}")
     sweep = p.get("friction_sweep") or {}
     if sweep:
-        print("friction sweep (same signals and paths; per-leg slippage re-priced, charges unchanged):")
+        print("friction sweep (same signals and paths; fills synthesized at each per-leg slippage, charges recomputed on them):")
+        print(f"   competitor: first fill per symbol-session held to the close, {sweep['first_fill_eod_trades']} trades, "
+              f"gross {fmt(sweep['first_fill_eod_gross_r'])}")
         for bps, e in sweep.items():
+            if not isinstance(e, dict) or "fixed_hold_net_r" not in e:
+                continue
             fh = e["fixed_hold_net_r"]
             print(f"   {bps:>3} bps: realized {fmt(e['realized_net_r'])}  rupees {e['realized_net_rupees']:,.0f}")
+            print(f"            first-fill EOD {fmt(e['first_fill_eod_net_r'])}  rupees {e['first_fill_eod_net_rupees']:,.0f}")
             print("            hold " + "  ".join(
                 f"{'EOD' if h == '375' else h}: {fh[h].get('mean', float('nan')):+.3f} "
                 f"[{(fh[h].get('ci95') or [float('nan')] * 2)[0]:+.3f},{(fh[h].get('ci95') or [float('nan')] * 2)[1]:+.3f}]"

@@ -222,9 +222,25 @@ def test_friction_sweep_reproduces_engine_net_at_model_slippage_and_scales_with_
     row = audit.trade_row(t, bars, SLIP, controls=5)
     sweep = audit.friction_sweep([row])
     risk = t["entry_price"] - t["planned_stop_price"]
-    assert sweep["5"]["realized_net_rupees"] == pytest.approx(t["net_pnl"], abs=1e-3)       # model slippage = engine
-    assert sweep["5"]["realized_net_r"]["mean"] == pytest.approx(t["net_pnl"] / (t["quantity"] * risk), rel=1e-4)
-    zero, five = sweep["0"]["realized_net_r"]["mean"], sweep["5"]["realized_net_r"]["mean"]
-    legs = (row["market_entry_price"] + row["market_exit_price"]) / row["risk"]
-    assert zero - five == pytest.approx(5e-4 * legs, rel=1e-9)                                # linear in bps
+    # Synthesized fills at the sealed 5 bps reproduce the engine's fills, charges and net.
+    assert sweep["5"]["realized_net_rupees"] == pytest.approx(t["net_pnl"], abs=2e-3)
+    assert sweep["5"]["realized_net_r"]["mean"] == pytest.approx(t["net_pnl"] / (t["quantity"] * risk), rel=1e-3)
+    # At 0 bps: the pre-slippage move minus charges recomputed on the slippage-free fills.
+    mkt_in, mkt_out, q = row["market_entry_price"], row["market_exit_price"], t["quantity"]
+    expected0 = (mkt_out - mkt_in) * q - (sum(audit.leg_cost_parts(mkt_in, q, "BUY").values())
+                                          + sum(audit.leg_cost_parts(mkt_out, q, "SELL").values()))
+    assert sweep["0"]["realized_net_rupees"] == pytest.approx(expected0, rel=1e-9)
+    nets = [sweep[f"{b:g}"]["realized_net_rupees"] for b in audit.SLIPPAGE_SWEEP_BPS]
+    assert nets == sorted(nets, reverse=True)                                               # monotone in slippage
     assert set(sweep["0"]["fixed_hold_net_r"]) == {"15", "30", "60", "375"}
+    assert sweep["first_fill_eod_trades"] == 1
+
+
+def test_first_fill_competitor_keeps_one_entry_per_symbol_session():
+    rows = [{"source": "s", "symbol": "INFY", "entry_timestamp": "2024-03-01 10:05:00+05:30"},
+            {"source": "s", "symbol": "INFY", "entry_timestamp": "2024-03-01 09:40:00+05:30"},
+            {"source": "s", "symbol": "INFY", "entry_timestamp": "2024-03-04 09:40:00+05:30"},
+            {"source": "s", "symbol": "TCS", "entry_timestamp": "2024-03-01 11:00:00+05:30"}]
+    firsts = audit.first_fill_per_symbol_session(rows)
+    assert sorted((r["symbol"], r["entry_timestamp"][:16]) for r in firsts) == [
+        ("INFY", "2024-03-01 09:40"), ("INFY", "2024-03-04 09:40"), ("TCS", "2024-03-01 11:00")]
