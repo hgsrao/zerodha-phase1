@@ -1,6 +1,8 @@
 """Protocol V3 closed-loop position control, the single-gamma reference path and the exit-only
 paired bridge (shadow exits must reproduce the real engine exactly under the legacy policy)."""
+import json
 import math
+from pathlib import Path
 from dataclasses import replace
 
 import numpy as np
@@ -187,6 +189,12 @@ def test_bridge_pairing_and_comparison_metrics_are_strict_and_consistent():
     assert s["improved"] + s["worsened"] + s["unchanged"] == s["paired_trades"]
     for row in paired["rows"]:
         assert row["delta_r"] == pytest.approx(row["v3"]["realized_r"] - row["v2"]["realized_r"])
+        assert {"activation_integral_error", "activation_control_u", "activation_mfe_r",
+                "activation_noise_r", "activation_gap_r"} <= set(row["v3"])
+        if row["v3"]["v3_activation"] is None:
+            assert row["v3"]["activation_integral_error"] is None
+    for t in bridge.closed["legacy"]:                                    # legacy never activates V3
+        assert t["activation_integral_error"] is None
     summary = bridge_mod.summarize(bridge.closed["v3"])
     json.dumps(bridge_mod._sanitize({"s": summary, "p": paired}), allow_nan=False)
     assert sum(summary["exit_classes"].values()) == summary["trades"]
@@ -240,6 +248,17 @@ def test_stop_computed_on_bar_t_is_executable_only_from_bar_t_plus_1():
     closed = bridge.closed["v3"][0]
     assert closed["reason"] == "stop" and closed["exit_price"] == pytest.approx(stop_after_bar2)
     assert closed["exit_timestamp"] == str(ts(3))
+    # Bumpless-transfer diagnostic: inner-loop state on the latch bar (bar 2), no derivative kick.
+    act = closed["v3_activation"]
+    assert act["held_bars"] == 2 and act["derivative"] == 0.0
+    assert math.isfinite(act["integral_error"]) and act["gap_r"] >= PC.minimum_gap_r
+    assert closed["first_stop_move"]["held_bars"] == 2
+    assert closed["first_stop_move"]["integral_error"] == act["integral_error"]
+    assert closed["activation_integral_error"] == act["integral_error"]
+    assert closed["activation_control_u"] == act["control_u"]
+    assert closed["activation_mfe_r"] == act["max_favorable_r"] >= PC.mfe_activation_r
+    assert closed["activation_noise_r"] == pytest.approx(0.2 / 1.0)               # ATR / initial risk
+    assert closed["activation_gap_r"] == act["gap_r"]
 
     # Same path, but the bar that first raises the stop dips below the new level inside itself:
     # no fill on that bar -- the new level applies only from the next bar.
@@ -251,3 +270,100 @@ def test_stop_computed_on_bar_t_is_executable_only_from_bar_t_plus_1():
     bridge.on_bar(orch, "INFY", ts(2), bar(100.7, 101.0, 99.95, 100.9), None, None, 2, False)
     raised = bridge._open["v3"]["t1"]["governor_stop_price"]
     assert raised > 99.95 and not bridge.closed["v3"]                        # dipped below it, no fill
+
+
+def _bridge_module():
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[1] / "scripts/protocol_v3/paired_v2_v3_bridge.py"
+    spec = importlib.util.spec_from_file_location("paired_v2_v3_bridge", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_bridge_ledger_hash_matches_the_sealed_worker_json_form():
+    import json
+    b = _bridge_module()
+    trades = [{"trade_id": "x", "exit_timestamp": pd.Timestamp("2024-03-01 10:00", tz="Asia/Kolkata"),
+               "net_pnl": 1.25, "quantity": np.int64(3)}]
+    written = json.loads(json.dumps(trades, indent=2, sort_keys=True, default=str))   # worker output form
+    assert b.ledger_sha256(trades) == b.ledger_sha256(written)
+    assert b.ledger_sha256(trades) != b.ledger_sha256([dict(written[0], net_pnl=1.26)])
+
+
+def test_bridge_sentinel_gate_and_reference_identity(tmp_path, monkeypatch):
+    import json
+    b = _bridge_module()
+    protocol = json.loads((Path(b.ROOT) / "revision5/step5_sealed_calibration_protocol_v3.json").read_text())
+    blocks = protocol["sampling_plan"]["stage_a"]
+    params = dict(protocol["fixed_parameters"])
+    trade = {"trade_id": "t1", "symbol": "INFY", "reason": "end_of_run_reconciliation", "exit_timestamp": "x"}
+    assert b.sentinel_violations({"v3_shadow": [trade], "v2_real": [dict(trade, reason="stop")]}) == [
+        {"ledger": "v3_shadow", "trade_id": "t1", "symbol": "INFY", "exit_timestamp": "x"}]
+    reference = {"mode": "CANDIDATE_EVALUATION", "protocol_sha256": protocol["supersedes"]["protocol_sha256"],
+                 "stage": "A", "params": params, "candidate_sha256": "c",
+                 "blocks": [{"block": blk["block"], "sessions": blk["sessions"], "trades": [],
+                             "metrics": {"completed_trades": 0, "net_pnl": 0.0, "gross_pnl": 0.0,
+                                         "mtm_max_drawdown_fraction": 0.0}} for blk in blocks]}
+    b.validate_reference(reference, protocol, "A", params, blocks)
+    for change, error in [({"protocol_sha256": "0" * 64}, "V2_REFERENCE_PROTOCOL"),
+                          ({"stage": "B"}, "V2_REFERENCE_STAGE"),
+                          ({"params": dict(params, max_hold_bars=90)}, "V2_REFERENCE_PARAMS"),
+                          ({"blocks": reference["blocks"][:1]}, "V2_REFERENCE_BLOCK_MISSING"),
+                          ({"mode": "AUDIT_ONLY"}, "V2_REFERENCE_MODE")]:
+        with pytest.raises(SystemExit, match=error):
+            b.validate_reference(dict(reference, **change), protocol, "A", params, blocks)
+
+    params_file, ref_file = tmp_path / "params.json", tmp_path / "ref.json"
+    params_file.write_text(json.dumps(params))
+    ref_file.write_text(json.dumps(reference))
+    with pytest.raises(SystemExit):                                   # --v2-reference is mandatory
+        b.main(["--stage", "A", "--params", str(params_file), "--label", "t"])
+
+    monkeypatch.setattr(b, "OUTPUT_ROOT", tmp_path / "out")
+    monkeypatch.setattr(b, "_worker", lambda: None)
+
+    def fake_block(worker, protocol, block, v2_params, v3_overrides, violations=()):
+        empty = b.summarize([])
+        return {"block": int(block["block"]), "sessions": block["sessions"],
+                "v2_real_metrics": {"completed_trades": 0, "net_pnl": 0.0, "gross_pnl": 0.0,
+                                    "mtm_max_drawdown_fraction": 0.0},
+                "v2_trade_list_sha256": b.ledger_sha256([]), "legacy_reproduction": {"exact": True},
+                "sentinel_violations": list(violations), "v2": empty, "v3": empty, "paired": b.pair([], [])}
+
+    monkeypatch.setattr(b, "run_block", lambda *a: fake_block(*a, violations=[trade]))
+    with pytest.raises(SystemExit, match="SENTINEL_RECONCILIATION_VIOLATION"):
+        b.main(["--stage", "A", "--params", str(params_file), "--label", "t", "--v2-reference", str(ref_file)])
+    assert not (tmp_path / "out/bridge_t_stageA/bridge.json").exists()
+
+    monkeypatch.setattr(b, "run_block", fake_block)
+    assert b.main(["--stage", "A", "--params", str(params_file), "--label", "t",
+                   "--v2-reference", str(ref_file)]) == 0
+    document = json.loads((tmp_path / "out/bridge_t_stageA/bridge.json").read_text())
+    assert document["overall"]["qualified"] and len(document["blocks"]) == len(blocks)
+
+    ref_file.write_text(json.dumps(dict(reference, blocks=[dict(blk, trades=[{"trade_id": "z"}])
+                                                           for blk in reference["blocks"]])))
+    with pytest.raises(SystemExit, match="V2_REFERENCE_MISMATCH"):
+        b.main(["--stage", "A", "--params", str(params_file), "--label", "u", "--v2-reference", str(ref_file)])
+
+
+def test_protocol_builder_rejects_stale_v2_engine_identity_outside_lineage():
+    import importlib.util
+    path = Path(__file__).resolve().parents[1] / "scripts/protocol_v3/build_protocol_v3.py"
+    spec = importlib.util.spec_from_file_location("build_protocol_v3", path)
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    v2 = {"commit": "c0b4672fa45498d628f1646d60c75fd206803755", "tag": "r5-step5-v2-engine-20260928"}
+    clean = {"supersedes": {"frozen_engine_commit": v2["commit"], "frozen_engine_tag": v2["tag"]},
+             "frozen_parent": {"commit": "a" * 40, "tag": builder.V3_ENGINE_TAG}}
+    assert builder.stale_v2_identity(clean, v2) == []
+    stale = dict(clean, distributed_execution={"worker_tooling_identity": "identical to frozen parent c0b4672"},
+                 frozen_parent={"commit": "a" * 40, "tag": v2["tag"]})
+    assert sorted(builder.stale_v2_identity(stale, v2)) == [
+        "/distributed_execution/worker_tooling_identity", "/frozen_parent/tag"]
+    sealed = json.loads((path.parents[2] / "revision5/step5_sealed_calibration_protocol_v3.json").read_text())
+    if sealed["frozen_parent"]["tag"] == builder.V3_ENGINE_TAG:            # the resealed protocol
+        assert builder.stale_v2_identity(sealed, v2) == []
+        assert sealed["distributed_execution"]["remote_worker_root"] == builder.V3_REMOTE_WORKER_ROOT

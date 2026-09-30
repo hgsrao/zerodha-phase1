@@ -41,6 +41,9 @@ V2_STAGE_B_WINNER = {
 V3_SURFACE = ("gov_v3_mfe_activation_r", "gov_v3_kappa", "gov_v3_gamma_fast", "gov_v3_tau_error_multiplier")
 V3_FROZEN_CONTROLLER = ("gov_v3_gamma_slow", "gov_v3_base_gap_r", "gov_v3_minimum_gap_r",
                         "gov_v3_noise_floor_mult", "gov_v3_grace_bars")
+V3_ENGINE_TAG = "r5-step5-v3-engine-20260930"
+# The laptop runs the V3 worker from this isolated worktree, never from the V2 tree.
+V3_REMOTE_WORKER_ROOT = "~/projects/zerodha-protocol-v3"
 
 
 def _sha(path: Path) -> str:
@@ -56,19 +59,27 @@ def build(engine_commit: str) -> dict:
     registry = CanonicalParameterRegistry()
     registry.verify_frozen_identity()
     full = _git("rev-parse", engine_commit)
+    if _git("status", "--porcelain", "--untracked-files=no"):
+        raise SystemExit("DIRTY_TREE: seal the protocol from a clean checkout of the engine commit")
+    if _git("rev-parse", "HEAD") != full:
+        raise SystemExit(f"ENGINE_COMMIT_NOT_HEAD: build at {full}, HEAD is {_git('rev-parse', 'HEAD')}")
     worker_sha = hashlib.sha256(subprocess.check_output(
         ["git", "-C", str(ROOT), "show", f"{full}:scripts/run_r5_step5_candidate.py"])).hexdigest()
     executor_sha = hashlib.sha256(subprocess.check_output(
         ["git", "-C", str(ROOT), "show", f"{full}:scripts/run_r5_step5_stage_a_executor.py"])).hexdigest()
     v2_sha = _sha(V2)
     p = copy.deepcopy(json.loads(V2.read_text()))
+    v2_frozen = dict(p["frozen_parent"])
     p["protocol_id"] = "R5_STEP5_SEALED_CALIBRATION_V3"
     p["created_date"] = "2026-09-30"
     p["supersedes"] = {
         "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V2", "protocol_sha256": v2_sha,
+        "frozen_engine_commit": v2_frozen["commit"], "frozen_engine_tag": v2_frozen["tag"],
         "reason": ("Incremental controller experiment: identical V2 data, blocks, seed, trial count, scheduler, "
                    "objective and gates; only the governor's position control changes (closed_loop_v3)."),
     }
+    p["engine"]["governor_authority_note"] = p["engine"]["governor_authority_note"].replace(
+        f"Engine {v2_frozen['commit'][:7]} adds", "The V2 engine (supersedes.frozen_engine_commit) added")
     p["engine"]["governor_authority"] = "full"
     p["engine"]["governor_position_control"] = "closed_loop_v3"
     p["engine"]["governor_position_control_note"] = (
@@ -77,13 +88,23 @@ def build(engine_commit: str) -> dict:
         "base_gap*(1-kappa*tanh(u)) floored by one bar of noise and minimum_gap, trailing eligible after "
         "grace_bars and mfe_activation_r, one-way floor armed for the next bar, no binary path-error exit, "
         "no order-flow input.  Reference path applies curve_gamma once.  FSRN and every other exit unchanged.")
-    for key in ("distributed_execution",):
-        p[key]["engine_parent_commit"] = full
-        p[key]["cross_machine_equivalence"] = {
-            "status": "PENDING", "candidate_a_sha256": None, "candidate_b_sha256": None,
-            "paper_apply_reference_sha256": None,
-            "note": "V2: desktop reproduced laptop trial 1 exactly (score to 14 digits); re-establish for V3."}
-    p["frozen_parent"]["commit"] = full
+    dist = p["distributed_execution"]
+    dist["engine_parent_commit"] = full
+    dist["remote_worker_root"] = V3_REMOTE_WORKER_ROOT
+    dist["worker_tooling_identity"] = (
+        f"Each run records Git HEAD, protocol SHA256 and worker-script SHA256. Before dispatch the Stage-A "
+        f"executor requires, on the desktop tree and on the secondary worker's worktree "
+        f"({V3_REMOTE_WORKER_ROOT}), that the frozen V3 engine commit {full} is an ancestor of HEAD, that only "
+        f"the sealed protocol files (revision5/step5_sealed_calibration_protocol*.json) and docs/ differ from "
+        f"it, and that the tracked tree is clean; any code drift aborts. The worker and this protocol run from "
+        f"that worktree and are pinned by SHA-256. The worker's own check (engine files unchanged from the "
+        f"engine commit) runs again inside every candidate.")
+    dist["cross_machine_equivalence"] = {
+        "status": "PENDING", "candidate_a_sha256": None, "candidate_b_sha256": None,
+        "paper_apply_reference_sha256": None,
+        "note": "V2: desktop reproduced laptop trial 1 exactly (score to 14 digits); re-establish for V3."}
+    p["frozen_parent"] = {"commit": full, "tag": V3_ENGINE_TAG,
+                          "lineage": "Protocol V3 engine; parent lineage in supersedes"}
     p["registry_identity_sha256"] = registry.identity_sha256()
     p["identity"] = {
         "engine_commit": full, "registry_identity_sha256": registry.identity_sha256(),
@@ -109,14 +130,42 @@ def build(engine_commit: str) -> dict:
         "required_before_stage_a": True,
         "cases": ["V2 Stage-A trial 0 parameters", "V2 Stage-A trial 7 parameters"],
         "blocks": "the same Stage-A blocks",
-        "gate": "the legacy shadow must reproduce every real V2 exit exactly and the real run must match the V2 result",
+        "gate": ("--v2-reference is required (the sealed V2 worker's result for the same stage and parameters); "
+                 "the observed ledger must hash identically to it; the legacy shadow must reproduce every real "
+                 "V2 exit exactly; no trade may be closed by end-of-run reconciliation at a block's final row "
+                 "(SENTINEL_RECONCILIATION_VIOLATION)"),
+        "telemetry": "inner-loop integral, error, u and gap on the V3 activation bar and on the first stop move",
         "design": "exit-only: identical entries; V3 differs only in the exit policy",
     }
     p["validation"]["holdout_eligibility"] = (
         "The 2025-07-01..2026-01-01 window may serve as the V3 holdout only if the V2 Step-6 validation was never "
         "executed or observed. Otherwise the V3 verdict uses the fresh post-freeze OOS period (periods.fresh_oos_rule).")
     p["contamination_rules"]["v2_step6_outputs_used_in_v3_design"] = False
+    stale = stale_v2_identity(p, v2_frozen)
+    if stale:
+        raise SystemExit("STALE_V2_IDENTITY: " + "; ".join(stale))
     return p
+
+
+def stale_v2_identity(protocol: dict, v2_frozen: dict) -> list:
+    """Every reference to the V2 engine identity outside ``supersedes`` (its lineage record)."""
+    needles = (v2_frozen["commit"][:7], v2_frozen["tag"])
+    found = []
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if path == "" and key == "supersedes":
+                    continue
+                walk(value, f"{path}/{key}")
+        elif isinstance(node, list):
+            for i, value in enumerate(node):
+                walk(value, f"{path}[{i}]")
+        elif isinstance(node, str) and any(n in node for n in needles):
+            found.append(path)
+
+    walk(protocol, "")
+    return found
 
 
 def main(argv=None) -> int:

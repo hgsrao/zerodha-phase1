@@ -36,8 +36,83 @@ import optuna
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Legacy (V1/V2) layout: the laptop tree sits at the engine commit and the worker and protocol
+# are copied to /tmp.  A protocol that names distributed_execution.remote_worker_root (V3), or
+# --remote-root, runs the worker and protocol from that isolated worktree instead.
 REMOTE_WORKER = "/tmp/run_r5_step5_candidate.py"
 REMOTE_PROTOCOL = "/tmp/step5_sealed_calibration_protocol.json"
+LEGACY_REMOTE_ROOT = '"$HOME/projects/zerodha-phase1"'
+
+# Files that may differ from the frozen engine commit (mirrors the worker's drift check).
+ALLOWED_PROTOCOL_FILES = frozenset({
+    "revision5/step5_sealed_calibration_protocol.json",
+    "revision5/step5_sealed_calibration_protocol_v2.json",
+    "revision5/step5_sealed_calibration_protocol_v3.json",
+})
+
+
+def unexpected_engine_drift(changed: list[str]) -> list[str]:
+    return sorted(
+        name for name in changed
+        if name and name not in ALLOWED_PROTOCOL_FILES
+        and not name.startswith("scripts/run_r5_step5_")
+    )
+
+
+def unexpected_worktree_drift(changed: list[str]) -> list[str]:
+    """A worktree run: the engine commit already carries all tooling, so only the sealed
+    protocol files and documentation may differ from it.  Any code drift aborts."""
+    return sorted(
+        name for name in changed
+        if name and name not in ALLOWED_PROTOCOL_FILES and not name.startswith("docs/")
+    )
+
+
+def verify_local_worktree(engine_commit: str) -> None:
+    """The same descent rule for the desktop tree the executor and local worker run from."""
+    ancestor = subprocess.run(["git", "-C", str(ROOT), "merge-base", "--is-ancestor", engine_commit, "HEAD"],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if ancestor.returncode != 0:
+        raise SystemExit(f"LOCAL_ENGINE_PARENT: FAIL {engine_commit} is not an ancestor of HEAD ({ROOT})")
+    changed = command_output(["git", "-C", str(ROOT), "diff", "--name-only", engine_commit, "--"])
+    unexpected = unexpected_worktree_drift(changed.splitlines())
+    if unexpected:
+        raise SystemExit("LOCAL_ENGINE_DRIFT: " + ", ".join(unexpected))
+    if command_output(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"]):
+        raise SystemExit(f"LOCAL_TREE_DIRTY: {ROOT}")
+
+
+def legacy_remote_layout() -> dict:
+    return {"mode": "legacy", "root": None, "root_shell": LEGACY_REMOTE_ROOT,
+            "worker": REMOTE_WORKER, "protocol": REMOTE_PROTOCOL, "job_tag": "r5_step5"}
+
+
+def remote_worktree_layout(root: str, protocol_path: Path, protocol_sha: str) -> dict:
+    """Layout for a resolved absolute remote worktree path."""
+    if not root.startswith("/"):
+        raise SystemExit(f"REMOTE_ROOT_NOT_ABSOLUTE: {root!r}")
+    return {"mode": "worktree", "root": root, "root_shell": shlex.quote(root),
+            "worker": f"{root}/scripts/run_r5_step5_candidate.py",
+            "protocol": f"{root}/revision5/{protocol_path.name}",
+            # Namespaced so a job or result left in /tmp by another protocol can never be harvested.
+            "job_tag": f"r5_step5_{protocol_sha[:12]}"}
+
+
+def configured_remote_root(protocol: dict, override: str | None) -> str | None:
+    return override or protocol["distributed_execution"].get("remote_worker_root")
+
+
+def resolve_remote_layout(ssh_key: Path, laptop: str, protocol: dict, protocol_path: Path,
+                          protocol_sha: str, override: str | None = None) -> dict:
+    root = configured_remote_root(protocol, override)
+    if root is None:
+        return legacy_remote_layout()
+    shell_root = "$HOME/" + root[2:] if root.startswith("~/") else root
+    try:
+        absolute = remote_text(ssh_key, laptop, f'cd "{shell_root}" && pwd -P')
+    except subprocess.CalledProcessError:
+        raise SystemExit(f"REMOTE_ROOT_MISSING: {root}")
+    return remote_worktree_layout(absolute, protocol_path, protocol_sha)
 
 
 def sha256_file(path: Path) -> str:
@@ -199,7 +274,10 @@ def verify_remote_control_plane(
     worker_sha: str,
     expected_remote_host: str,
     expected_engine_commit: str,
+    layout: dict | None = None,
 ) -> dict:
+    layout = layout or legacy_remote_layout()
+
     remote_host = remote_text(
         ssh_key,
         laptop,
@@ -212,23 +290,17 @@ def verify_remote_control_plane(
             f"{remote_host!r}"
         )
 
-    remote_commit = remote_text(
+    remote_commit = verify_remote_engine(
         ssh_key,
         laptop,
-        'cd "$HOME/projects/zerodha-phase1" '
-        '&& git rev-parse HEAD',
+        layout,
+        expected_engine_commit,
     )
-
-    if not remote_commit.startswith(expected_engine_commit):
-        raise SystemExit(
-            f"REMOTE_ENGINE_PARENT: FAIL "
-            f"{remote_commit}"
-        )
 
     remote_worker_sha = remote_text(
         ssh_key,
         laptop,
-        f"sha256sum {REMOTE_WORKER} "
+        f"sha256sum {shlex.quote(layout['worker'])} "
         "| awk '{print $1}'",
     )
 
@@ -240,7 +312,7 @@ def verify_remote_control_plane(
     remote_protocol_sha = remote_text(
         ssh_key,
         laptop,
-        f"sha256sum {REMOTE_PROTOCOL} "
+        f"sha256sum {shlex.quote(layout['protocol'])} "
         "| awk '{print $1}'",
     )
 
@@ -264,7 +336,35 @@ def verify_remote_control_plane(
             remote_worker_sha,
         "remote_protocol_sha256":
             remote_protocol_sha,
+        "remote_layout": layout,
     }
+
+
+def verify_remote_engine(ssh_key: Path, laptop: str, layout: dict, engine_commit: str) -> str:
+    """Remote engine identity, checked in the directory the remote worker will run from."""
+    root = layout["root_shell"]
+    remote_commit = remote_text(ssh_key, laptop, f"cd {root} && git rev-parse HEAD")
+    if layout["mode"] == "legacy":
+        # V1/V2: the laptop tree is checked out at the frozen engine commit itself.
+        if not remote_commit.startswith(engine_commit):
+            raise SystemExit(f"REMOTE_ENGINE_PARENT: FAIL {remote_commit}")
+        return remote_commit
+    # Worktree: HEAD may carry the sealed protocol commit on top of the engine commit; only the
+    # protocol files and docs may differ from it, and the tracked tree must be clean.
+    commit = shlex.quote(engine_commit)
+    ancestor = remote_text(
+        ssh_key, laptop,
+        f"cd {root} && (git merge-base --is-ancestor {commit} HEAD && echo yes || echo no)")
+    if ancestor != "yes":
+        raise SystemExit(f"REMOTE_ENGINE_PARENT: FAIL {remote_commit} ({layout['root']})")
+    changed = remote_text(ssh_key, laptop, f"cd {root} && git diff --name-only {commit} --")
+    unexpected = unexpected_worktree_drift(changed.splitlines())
+    if unexpected:
+        raise SystemExit("REMOTE_ENGINE_DRIFT: " + ", ".join(unexpected))
+    dirty = remote_text(ssh_key, laptop, f"cd {root} && git status --porcelain --untracked-files=no")
+    if dirty:
+        raise SystemExit(f"REMOTE_TREE_DIRTY: {layout['root']}")
+    return remote_commit
 
 
 def suggest_params(
@@ -852,9 +952,12 @@ def remote_job_status(job, ssh_key, laptop, remote_python, action="probe"):
 
 def launch_remote(
     spec, params_path, result, log, ssh_key, laptop, remote_python, protocol_sha,
+    layout=None,
 ):
+    layout = layout or legacy_remote_layout()
     number = int(spec["trial_number"])
-    prefix = f"/tmp/r5_step5_trial_{number:03d}"
+    prefix = f"/tmp/{layout['job_tag']}_trial_{number:03d}"
+    remote_root = layout["root"] or str(Path(remote_python).parents[3] / "projects/zerodha-phase1")
     # Preserve legacy result paths for recovery, but bind each job to its inputs.
     job = {
         "job_path": prefix + ".job",
@@ -864,9 +967,9 @@ def launch_remote(
         "params_sha256": canonical_hash(spec["params"]),
         "protocol_sha256": protocol_sha,
         "laptop": laptop,
-        "argv": [remote_python, REMOTE_WORKER,
-                 "--root", str(Path(remote_python).parents[3] / "projects/zerodha-phase1"),
-                 "--protocol", REMOTE_PROTOCOL,
+        "argv": [remote_python, layout["worker"],
+                 "--root", remote_root,
+                 "--protocol", layout["protocol"],
                  "--expected-protocol-sha", protocol_sha, "--stage", "A",
                  "--params", prefix + "_params.json",
                  "--output", prefix + "_result.pending.json"],
@@ -930,6 +1033,7 @@ def execute_batch(
     ssh_key: Path,
     laptop: str,
     remote_python: str,
+    remote_layout: dict | None = None,
 ) -> dict:
     params_paths = prepare_params_files(
         state_dir,
@@ -1002,7 +1106,7 @@ def execute_batch(
         elif node == "laptop":
             processes[number] = launch_remote(
                 spec, params_paths[number], local_result, logfile,
-                ssh_key, laptop, remote_python, protocol_sha,
+                ssh_key, laptop, remote_python, protocol_sha, remote_layout,
             )
 
         else:
@@ -1165,6 +1269,13 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--remote-root",
+        default=None,
+        help=("remote worktree the laptop worker runs from; default: the protocol's "
+              "distributed_execution.remote_worker_root, else the legacy V1/V2 layout"),
+    )
+
+    parser.add_argument(
         "--state-dir",
         required=True,
     )
@@ -1255,6 +1366,18 @@ def main() -> None:
             "COORDINATOR_HOST: FAIL"
         )
 
+    layout = resolve_remote_layout(
+        ssh_key,
+        args.laptop,
+        protocol,
+        protocol_path,
+        protocol_sha,
+        args.remote_root,
+    )
+
+    if layout["mode"] == "worktree":
+        verify_local_worktree(protocol["frozen_parent"]["commit"])
+
     remote = verify_remote_control_plane(
         ssh_key,
         args.laptop,
@@ -1264,6 +1387,7 @@ def main() -> None:
             "secondary_worker"
         ],
         protocol["frozen_parent"]["commit"],
+        layout,
     )
 
     state_path = (
@@ -1377,6 +1501,7 @@ def main() -> None:
             remote_python=remote[
                 "remote_python"
             ],
+            remote_layout=layout,
         )
 
         freeze_completed_batch(

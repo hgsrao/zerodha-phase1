@@ -57,6 +57,7 @@ class ShadowExitBridge:
                 "entry_timestamp": str(trade["entry_timestamp"]), "closed_loop": trade.get("closed_loop"),
                 "entry_bar_idx": int(entry_bar_idx), "governor_stop_price": float(trade["stop_price"]),
                 "mfe_r": 0.0, "mae_r": 0.0, "pending": None, "stop_moves": 0,
+                "v3_activation": None, "first_stop_move": None,
             }
             bay = SYMBOL_TO_BAY.get(symbol)
             if bay is not None:
@@ -142,6 +143,8 @@ class ShadowExitBridge:
         if s["closed_loop"] is not None:
             reference_r = orch.closed_loop.observe_trade_path(s["closed_loop"], float(bar["close"]), held).expected_r
         telemetry = orch._governor_telemetry.get(symbol)
+        noise_r = (telemetry.atr / risk if telemetry is not None and telemetry.available and valid_risk
+                   else None)
         result = position_decision(
             governor, orch.governor_config, position_id=s["trade_id"], measured_r=measured_r,
             reference_r=reference_r, max_favorable_r=mfe_r, elapsed_bars=int(held),
@@ -151,9 +154,9 @@ class ShadowExitBridge:
             velocity=telemetry.velocity if telemetry is not None and telemetry.available else None,
             session_bar=orch._governor_session_bar(symbol, getattr(orch, "_current_bar_idx", None)),
             bay_exhaust_spread=orch._bay_exhaust_spread.get(bay), hard_stop_r=-1.0,
-            path_noise_r=(telemetry.atr / risk if telemetry is not None and telemetry.available and valid_risk
-                          else None),
+            path_noise_r=noise_r,
             position_control=policy)
+        self._record_transfer(s, result, held, noise_r)
         if result["action"] == "EXIT":
             s["pending"] = f"governor_exit:{result['reason']}"
             s["pending_source"] = result["reason"]
@@ -163,6 +166,25 @@ class ShadowExitBridge:
             before = s["governor_stop_price"]
             s["governor_stop_price"] = max(before, proposed) if s["side"] == "BUY" else min(before, proposed)
             s["stop_moves"] += int(s["governor_stop_price"] != before)
+            if s["stop_moves"] == 1 and s["first_stop_move"] is None:
+                s["first_stop_move"] = self._inner_state(result, held, noise_r)
+
+    @staticmethod
+    def _inner_state(result, held, noise_r):
+        inner = result.get("inner") or {}
+        v3 = inner.get("v3") or {}
+        return {"held_bars": int(held), "noise_r": noise_r, "integral_error": inner.get("integral_error"),
+                "error": inner.get("error"), "derivative": inner.get("derivative"),
+                "control_u": inner.get("control_u"), "protected_r_floor": inner.get("protected_r_floor"),
+                "max_favorable_r": inner.get("max_favorable_r"), "measured_r": inner.get("measured_r"),
+                "gap_r": v3.get("gap_r"), "gamma": v3.get("gamma")}
+
+    def _record_transfer(self, s, result, held, noise_r):
+        """Bumpless-transfer diagnostic: the inner-loop state on the bar the V3 trailing actuator
+        first becomes eligible (the activation latch)."""
+        v3 = (result.get("inner") or {}).get("v3")
+        if v3 and v3.get("activated_this_bar") and s["v3_activation"] is None:
+            s["v3_activation"] = self._inner_state(result, held, noise_r)
 
     def _close(self, orch, name, s, timestamp, market_price, reason, held):
         close_side = "SELL" if s["side"] == "BUY" else "BUY"
@@ -180,11 +202,27 @@ class ShadowExitBridge:
             "realized_r": sign * (fill - s["entry_price"]) / risk if risk > 0 else None,
             "mfe_r": s["mfe_r"], "mae_r": s["mae_r"], "stop_moves": s["stop_moves"],
             "final_stop_price": s["governor_stop_price"],
+            "v3_activation": s["v3_activation"], "first_stop_move": s["first_stop_move"],
+            **activation_fields(s["v3_activation"]),
         })
         del self._open[name][s["trade_id"]]
         bay = SYMBOL_TO_BAY.get(s["symbol"])
         if bay is not None:
             self._governors[name][bay].confirm_position_closed(s["trade_id"])
+
+
+ACTIVATION_FIELDS = {
+    "activation_integral_error": "integral_error",   # I_t on the first actuator-eligible bar
+    "activation_control_u": "control_u",
+    "activation_mfe_r": "max_favorable_r",
+    "activation_noise_r": "noise_r",
+    "activation_gap_r": "gap_r",
+}
+
+
+def activation_fields(state: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Flat per-trade activation telemetry; all None when the V3 actuator never became eligible."""
+    return {name: (state or {}).get(key) for name, key in ACTIVATION_FIELDS.items()}
 
 
 def validate_legacy(real_trades: List[Dict[str, Any]], shadow_trades: List[Dict[str, Any]],

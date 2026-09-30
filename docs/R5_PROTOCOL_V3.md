@@ -53,7 +53,10 @@ The bay Kp/Ki/Kd, droop and integral clamps stay at their V2 values.
 - `PROTOCOL_V3_SHA`: SHA-256 of `revision5/step5_sealed_calibration_protocol_v3.json`. It is
   printed by `scripts/protocol_v3/build_protocol_v3.py` and recorded in the commit that adds the
   file. A file cannot contain its own hash.
-- `ENGINE_V3`: the protocol's `engine_parent_commit`, plus the worker's clean-tree drift check.
+- `ENGINE_V3`: the protocol's `engine_parent_commit` (`frozen_parent`, tag
+  `r5-step5-v3-engine-20260930`), plus the worker's clean-tree drift check. The V2 engine appears
+  only as lineage under `supersedes`. The builder refuses to seal a protocol that names the V2
+  engine anywhere else, and it seals only from a clean checkout whose HEAD is the engine commit.
 - `REGISTRY_V3`: `registry_identity_sha256` in the protocol.
 - `WORKER_V3_SHA` / executor SHA: stored in the protocol's `identity` block.
 
@@ -64,16 +67,36 @@ V2 parameters, so every entry is the V2 entry. `revision5.exit_shadow.ShadowExit
 each fill and exits it twice, once under `legacy` and once under `v3`, using the engine's own
 per-bar inputs.
 
-The bridge **refuses to report** unless:
-- the legacy shadow reproduces every real V2 exit exactly (timestamp, reason, fill, net), and
-- with `--v2-reference`, the real run matches the V2 result for every block.
+`--v2-reference` is required. It must be the sealed V2 worker's result for the same stage and the
+same five parameters, produced without the shadow observer. The bridge checks its mode, V2
+protocol SHA, stage, parameters and block sessions before loading any data.
+
+The bridge **writes no `bridge.json`** unless every block passes all three gates:
+- `V2_REFERENCE_MISMATCH`: the observed run's trade ledger must hash identically to the
+  reference ledger, and its metrics must match. This is the engine-neutrality check.
+- `LEGACY_SHADOW_MISMATCH`: the legacy shadow must reproduce every real V2 exit exactly (entry and
+  exit time, reason, quantity, fills, gross, costs and net).
+- `SENTINEL_RECONCILIATION_VIOLATION`: no trade in the real, legacy or V3 ledger may be closed by
+  `end_of_run_reconciliation`. That exit uses a block's final row, which is a non-tradeable
+  boundary sentinel.
 
 Per trade it reports:
 - ΔR;
 - giveback, `max(0, MFE − R)`;
 - MFE capture, computed for trades with MFE > 0;
 - ΔMAE;
-- exit attribution (PID stop / PID floor / FSR / plan stop / target / time / MiCOM).
+- exit attribution (PID stop / PID floor / FSR / plan stop / target / time / MiCOM);
+- the inner-loop state on the bar the V3 actuator first becomes eligible (the activation latch).
+  This is the bumpless-transfer diagnostic, stored as flat fields on each trade:
+  - `activation_integral_error` (`I_t`);
+  - `activation_control_u`;
+  - `activation_mfe_r`;
+  - `activation_noise_r`;
+  - `activation_gap_r`.
+
+  All five are null when the actuator never became eligible. The full state is also stored:
+  `v3_activation` holds the latch bar, and `first_stop_move` holds the state when the stop first
+  moved. Both are summarized per block and overall.
 
 The output is strict JSON.
 
@@ -92,9 +115,16 @@ as in any exit-only comparison.
 
 ## Runbook (desktop is the reference machine)
 
-1. **Wait until the V2 Stage C run has finished.** Don't touch `~/projects/zerodha-phase1` while
-   it runs.
-2. **Create the isolated worktree:**
+1. **Leave the V2 tree alone.** Don't modify `~/projects/zerodha-phase1` while the V2 Stage C run
+   is active. Adding a worktree is safe.
+2. **Create the isolated worktree** on both machines, at the same path. The protocol's
+   `distributed_execution.remote_worker_root` is `~/projects/zerodha-protocol-v3`. The Stage-A
+   executor and coordinator run the laptop worker and protocol from that worktree; `--remote-root`
+   overrides it. The engine check runs on both trees (the laptop's and the desktop's own). HEAD
+   must descend from the engine commit (`git merge-base --is-ancestor`). Only the sealed protocol
+   JSON files and `docs/` may differ from it; any other file, including Step-5 scripts, aborts the
+   run. The tracked tree must be clean. Job
+   files in `/tmp` are namespaced by protocol SHA, so a V2 leftover is never harvested.
    ```bash
    cd ~/projects/zerodha-phase1
    git fetch origin feature/protocol-v3-hardened-closed-loop
