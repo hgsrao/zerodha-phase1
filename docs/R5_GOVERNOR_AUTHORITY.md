@@ -151,3 +151,10 @@ Run it on the Stage A reports before any further calibration.
 - **Recalibration needed.** Stage A of the sealed Step 5 protocol ran on the pre-Mark-V engine.
   Stage A must be re-run on this engine, with a new protocol SHA over the new registry identity,
   before Stage B.
+
+## Protocol V3 position control (opt-in)
+
+`governor_position_control="closed_loop_v3"` replaces the legacy inner loop's binary path-error exit
+with a PID-modulated, one-way trailing stop. It uses a two-rate leaky integral, has no derivative
+kick, and applies an MFE activation, a grace period and a noise floor. See
+`docs/R5_PROTOCOL_V3.md`. The default, `legacy`, is unchanged.

@@ -137,3 +137,93 @@ def test_disconnect_preserves_job_for_resume(tmp_path):
     with patch.object(e.time, 'sleep'), patch.object(e, 'remote_job_status', return_value={'status': 'COMPLETE'}):
         e.wait_remote(info, Path('key'), 'host')
     assert json.loads(record.read_text()) == {**saved, 'status': 'COMPLETE'}
+
+
+def test_worktree_layout_runs_worker_from_named_root(tmp_path):
+    layout = e.remote_worktree_layout('/home/test/projects/zerodha-protocol-v3',
+                                      Path('/x/step5_sealed_calibration_protocol_v3.json'), 'abcdef0123456789')
+    spec = dict(trial_number=1, params={'x': 1})
+    with patch.object(e, 'remote_job_status', return_value={'status': 'COMPLETE'}), \
+         patch.object(e, 'run_checked', side_effect=AssertionError('must not upload or launch')):
+        info = e.launch_remote(spec, tmp_path / 'params', tmp_path / 'results/one.json',
+                               tmp_path / 'log', tmp_path / 'key', 'host',
+                               '/home/test/.venvs/worker/bin/python', 'sealed', layout)
+    argv = info['job']['argv']
+    assert argv[1] == '/home/test/projects/zerodha-protocol-v3/scripts/run_r5_step5_candidate.py'
+    assert argv[argv.index('--root') + 1] == '/home/test/projects/zerodha-protocol-v3'
+    assert argv[argv.index('--protocol') + 1] == \
+        '/home/test/projects/zerodha-protocol-v3/revision5/step5_sealed_calibration_protocol_v3.json'
+    # Namespaced by protocol: a V2 job or result left in /tmp is never harvested.
+    assert info['job']['result_path'] == '/tmp/r5_step5_abcdef012345_trial_001_result.json'
+    with pytest.raises(SystemExit, match='REMOTE_ROOT_NOT_ABSOLUTE'):
+        e.remote_worktree_layout('~/projects/zerodha-protocol-v3', Path('p.json'), 'abc')
+
+
+def test_remote_root_defaults_to_protocol_then_override():
+    protocol = {'distributed_execution': {'remote_worker_root': '~/projects/zerodha-protocol-v3'}}
+    assert e.configured_remote_root(protocol, None) == '~/projects/zerodha-protocol-v3'
+    assert e.configured_remote_root(protocol, '/srv/v3') == '/srv/v3'
+    assert e.configured_remote_root({'distributed_execution': {}}, None) is None
+    calls = []
+    def fake(key, host, command):
+        calls.append(command)
+        return '/home/test/projects/zerodha-protocol-v3'
+    with patch.object(e, 'remote_text', side_effect=fake):
+        layout = e.resolve_remote_layout(Path('k'), 'h', protocol, Path('v3.json'), 'f' * 64)
+    assert calls == ['cd "$HOME/projects/zerodha-protocol-v3" && pwd -P']
+    assert layout['mode'] == 'worktree' and layout['root'] == '/home/test/projects/zerodha-protocol-v3'
+
+
+def _remote(answers):
+    def fake(key, host, command):
+        for needle, answer in answers.items():
+            if needle in command:
+                assert command.startswith("cd /home/test/projects/zerodha-protocol-v3 && ")
+                return answer
+        raise AssertionError(command)
+    return fake
+
+
+def test_remote_engine_check_targets_worktree_and_allows_protocol_commit_only():
+    layout = e.remote_worktree_layout('/home/test/projects/zerodha-protocol-v3', Path('v3.json'), 'abc')
+    clean = {'rev-parse': 'dbe01d8', 'merge-base': 'yes',
+             'diff --name-only': 'revision5/step5_sealed_calibration_protocol_v3.json\ndocs/R5_PROTOCOL_V3.md',
+             'status': ''}
+    with patch.object(e, 'remote_text', side_effect=_remote(clean)):
+        assert e.verify_remote_engine(Path('k'), 'h', layout, 'a695913') == 'dbe01d8'
+    for change, error in [({'merge-base': 'no'}, 'REMOTE_ENGINE_PARENT'),
+                          ({'diff --name-only': 'revision5/governor.py'}, 'REMOTE_ENGINE_DRIFT'),
+                          ({'diff --name-only': 'scripts/run_r5_step5_candidate.py'}, 'REMOTE_ENGINE_DRIFT'),
+                          ({'status': ' M scripts/run_r5_step5_candidate.py'}, 'REMOTE_TREE_DIRTY')]:
+        with patch.object(e, 'remote_text', side_effect=_remote({**clean, **change})):
+            with pytest.raises(SystemExit, match=error):
+                e.verify_remote_engine(Path('k'), 'h', layout, 'a695913')
+
+
+def test_legacy_remote_engine_check_unchanged():
+    with patch.object(e, 'remote_text', return_value='c0b4672fa45'):
+        assert e.verify_remote_engine(Path('k'), 'h', e.legacy_remote_layout(), 'c0b4672') == 'c0b4672fa45'
+    with patch.object(e, 'remote_text', return_value='ab70c7c'):
+        with pytest.raises(SystemExit, match='REMOTE_ENGINE_PARENT'):
+            e.verify_remote_engine(Path('k'), 'h', e.legacy_remote_layout(), 'c0b4672')
+
+
+def test_local_worktree_descent_rule(tmp_path):
+    head = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
+    answers = {'merge-base': 0, 'diff': 'docs/x.md', 'status': ''}
+    def fake_run(args, **kw):
+        return subprocess.CompletedProcess(args, answers['merge-base'])
+    def fake_output(args):
+        return answers['diff'] if 'diff' in args else answers['status']
+    with patch.object(e.subprocess, 'run', side_effect=fake_run), \
+         patch.object(e, 'command_output', side_effect=fake_output):
+        e.verify_local_worktree(head)
+        answers['diff'] = 'revision5/exit_shadow.py'
+        with pytest.raises(SystemExit, match='LOCAL_ENGINE_DRIFT'):
+            e.verify_local_worktree(head)
+        answers.update(diff='', status=' M scripts/run_r5_step5_candidate.py')
+        with pytest.raises(SystemExit, match='LOCAL_TREE_DIRTY'):
+            e.verify_local_worktree(head)
+        answers['merge-base'] = 1
+        with pytest.raises(SystemExit, match='LOCAL_ENGINE_PARENT'):
+            e.verify_local_worktree(head)

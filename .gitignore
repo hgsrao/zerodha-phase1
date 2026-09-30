@@ -95,3 +95,7 @@ calibration_*.log
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Protocol V3 (2026-09-30): run state and raw per-bar market traces stay local
+outputs/protocol_v3_state/
+*.jsonl

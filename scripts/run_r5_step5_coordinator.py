@@ -21,6 +21,16 @@ import optuna
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _executor():
+    # The Stage-A executor owns the remote layout and remote engine-identity rules.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "r5_step5_stage_a_executor", ROOT / "scripts" / "run_r5_step5_stage_a_executor.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
 
@@ -321,11 +331,20 @@ def main() -> None:
     parser.add_argument(
         "--remote-worker",
         default="/tmp/run_r5_step5_candidate.py",
+        help="legacy layout only; a remote worktree uses its own scripts/ copy",
     )
 
     parser.add_argument(
         "--remote-protocol",
         default="/tmp/step5_sealed_calibration_protocol.json",
+        help="legacy layout only; a remote worktree uses its own revision5/ copy",
+    )
+
+    parser.add_argument(
+        "--remote-root",
+        default=None,
+        help=("remote worktree the laptop worker runs from; default: the protocol's "
+              "distributed_execution.remote_worker_root, else the legacy V1/V2 layout"),
     )
 
     parser.add_argument(
@@ -417,6 +436,13 @@ def main() -> None:
             "REMOTE_HOST_IDENTITY: FAIL"
         )
 
+    executor = _executor()
+    layout = executor.resolve_remote_layout(
+        ssh_key, args.laptop, protocol, protocol_path, protocol_sha, args.remote_root)
+    if layout["mode"] == "worktree":
+        args.remote_worker = layout["worker"]
+        args.remote_protocol = layout["protocol"]
+
     remote_worker_sha = remote_text(
         ssh_key,
         args.laptop,
@@ -429,12 +455,6 @@ def main() -> None:
         f"sha256sum {args.remote_protocol} | awk '{{print $1}}'",
     )
 
-    remote_commit = remote_text(
-        ssh_key,
-        args.laptop,
-        'cd "$HOME/projects/zerodha-phase1" '
-        '&& git rev-parse HEAD',
-    )
 
     if remote_worker_sha != local_worker_sha:
         raise SystemExit(
@@ -446,10 +466,9 @@ def main() -> None:
             "REMOTE_PROTOCOL_PARITY: FAIL"
         )
 
-    if not remote_commit.startswith(protocol["frozen_parent"]["commit"]):
-        raise SystemExit(
-            "REMOTE_ENGINE_PARENT: FAIL"
-        )
+    # Checked in the directory the remote worker will run from.
+    remote_commit = executor.verify_remote_engine(
+        ssh_key, args.laptop, layout, protocol["frozen_parent"]["commit"])
 
     print(
         json.dumps(

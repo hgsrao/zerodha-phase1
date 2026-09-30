@@ -73,7 +73,9 @@ class CanonicalParameterRegistry:
     # against the previous identity must be re-sealed.
     # 2026-09-28: + gov_path_error_sigma (EXTERNAL-only eligible): the inner loop's noise-scaled
     # path-error tolerance.  170 targets / 122 eligible.
-    FROZEN_IDENTITY_SHA256 = "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d"
+    # 2026-09-30: + 9 Protocol V3 closed-loop position-control parameters (4 EXTERNAL-only
+    # eligible, 5 fixed).  179 targets / 126 eligible.
+    FROZEN_IDENTITY_SHA256 = "8176017982ea9abc427976f4b015a12f85f44d96515f39e0ffbf3c6a4c701eea"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
@@ -159,6 +161,8 @@ class CanonicalParameterRegistry:
         "grid_nifty_ema_period", "grid_nifty_deviation_derate_fraction", "grid_max_staleness_seconds", "grid_min_aligned_bars", "ecs_derate_demand_pu", "ecs_demand_restore_step_pu",
         # Governor authority / Mark V / MiCOM (revision5/governor_authority.py)
         "gov_z_window_bars", "mv_fsr_entry_threshold", "mv_fsr_exit_threshold", "mv_fsrt_drawdown_span", "mv_fsrt_slope", "mv_fsra_base", "mv_fsra_slope", "mv_fsrs_warmup_bars", "mv_fsrs_floor", "mv_vibration_damper_start", "mv_vibration_damper_gain", "mv_exhaust_spread_hold", "mv_exhaust_spread_trip", "mv_fsr_min_floor", "mv_fsrm_manual_limit", "gov_telemetry_atr_bars", "micom_nifty_vol_z_window", "gov_path_error_sigma",
+        # Protocol V3 closed-loop position control (revision5/governor.py, opt-in engine mode)
+        "gov_v3_mfe_activation_r", "gov_v3_kappa", "gov_v3_gamma_fast", "gov_v3_tau_error_multiplier", "gov_v3_gamma_slow", "gov_v3_base_gap_r", "gov_v3_minimum_gap_r", "gov_v3_noise_floor_mult", "gov_v3_grace_bars",
         # Studies PID / local signal weighting (CompositeStudySignal)
         "studies_pid_kp", "studies_pid_ki", "studies_pid_kd", "studies_pid_output_clamp",
         "studies_grading_horizon_bars", "studies_hit_rate_window_bars",
@@ -204,6 +208,12 @@ class CanonicalParameterRegistry:
         "mv_fsrm_manual_limit",
         "gov_telemetry_atr_bars",
         "micom_nifty_vol_z_window",
+        # Protocol V3 position control: frozen controller constants (not optimizer-eligible)
+        "gov_v3_gamma_slow",
+        "gov_v3_base_gap_r",
+        "gov_v3_minimum_gap_r",
+        "gov_v3_noise_floor_mult",
+        "gov_v3_grace_bars",
     })
     APPROVED_CALIBRATABLE = set(Revision2ParameterManifest.all_68()) - FIXED_TARGET_NAMES
 
@@ -356,6 +366,16 @@ class CanonicalParameterRegistry:
             # Governor authority, Mark V limiter gate and MiCOM (revision5/governor_authority.py).
             ParameterSpec("gov_z_window_bars", "PlantControl", "int", 20, 10, 60, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Rolling close z-score window for the bay governor's entry comparator (causal, completed bars)"),
             ParameterSpec("gov_path_error_sigma", "PlantControl", "float", 2.0, 1.0, 3.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Inner-loop path-error exit tolerance in noise envelopes: exit only when the lag behind the reference path exceeds sigma * (ATR / initial risk) * sqrt(elapsed bars)"),
+            # Protocol V3 closed-loop position control (governor_position_control="closed_loop_v3" only).
+            ParameterSpec("gov_v3_mfe_activation_r", "PlantControl", "float", 0.30, 0.10, 0.30, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-V3 Favourable excursion (R) at which the PID-modulated trailing stop becomes eligible"),
+            ParameterSpec("gov_v3_kappa", "PlantControl", "float", 0.25, 0.10, 0.40, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-V3 Trailing-gap modulation depth: gap = base_gap * (1 - kappa * tanh(u))"),
+            ParameterSpec("gov_v3_gamma_fast", "PlantControl", "float", 0.85, 0.50, 0.90, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-V3 Inner integral leak factor when |error| exceeds tau_error (fast forgetting)"),
+            ParameterSpec("gov_v3_tau_error_multiplier", "PlantControl", "float", 1.0, 0.5, 3.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-V3 Error boundary for the fast leak, in bars of noise: tau_error = multiplier * ATR / initial risk"),
+            ParameterSpec("gov_v3_gamma_slow", "PlantControl", "float", 0.98, 0.95, 0.999, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-V3 Inner integral leak factor when |error| is within tau_error"),
+            ParameterSpec("gov_v3_base_gap_r", "PlantControl", "float", 0.45, 0.20, 0.80, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-V3 Unmodulated trailing gap behind the favourable extreme (R)"),
+            ParameterSpec("gov_v3_minimum_gap_r", "PlantControl", "float", 0.15, 0.05, 0.40, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-V3 Smallest trailing gap the controller may command (R)"),
+            ParameterSpec("gov_v3_noise_floor_mult", "PlantControl", "float", 1.0, 0.5, 2.0, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-V3 Trailing gap noise floor in bars of noise: gap >= mult * ATR / initial risk"),
+            ParameterSpec("gov_v3_grace_bars", "PlantControl", "int", 2, 0, 10, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-V3 Bars after the fill before the trailing stop may engage"),
             ParameterSpec("mv_fsr_entry_threshold", "PlantControl", "float", 0.6, 0.4, 0.85, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V: minimum selected FSR to admit a new entry"),
             ParameterSpec("mv_fsr_exit_threshold", "PlantControl", "float", 0.25, 0.1, 0.4, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V: selected FSR below which an open position is unwound"),
             ParameterSpec("mv_fsrt_drawdown_span", "PlantControl", "float", 0.1, 0.04, 0.2, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRT: mark-to-market drawdown over which FSRT falls by mv_fsrt_slope"),
@@ -544,9 +564,9 @@ class CanonicalParameterRegistry:
         # BB04 adds 16, BB05-BB06 29, three-controller 22, BB08 5 and plant control 11
         # fixed controls: base_33() + revision2_35() = 33 + 119 = 152.
         # Governor authority adds 17 (13 eligible + 4 fixed) and the path-error tolerance 1:
-        # 152 + 18 = 170.
-        if len(expected) != 170 or len(set(expected)) != 170:
-            raise ValueError("Revision 2 target names must contain 170 unique values")
+        # 152 + 18 = 170.  Protocol V3 position control adds 9 (4 eligible + 5 fixed): 179.
+        if len(expected) != 179 or len(set(expected)) != 179:
+            raise ValueError("Revision 2 target names must contain 179 unique values")
         if set(expected) != set(self.params):
             raise ValueError("registry does not exactly match the Revision 2 manifest")
         if len(self.safety_params) != 22:
@@ -569,11 +589,12 @@ class CanonicalParameterRegistry:
         # engines.  The per-engine surfaces are the ones an optimizer may use:
         # in-house 46, external 108 (46 shared + 62 external-only).
         # Governor authority adds 14 EXTERNAL-only eligible parameters: 108 + 14 = 122.
-        if len(calibratable) != 122:
-            raise ValueError(f"optimizer surface must contain exactly 122 values; got {len(calibratable)}")
+        # Protocol V3 position control adds 4 more: 126.
+        if len(calibratable) != 126:
+            raise ValueError(f"optimizer surface must contain exactly 126 values; got {len(calibratable)}")
         counts = self.surface_counts()
         if (counts["in_house_eligible"], counts["external_eligible"], counts["shared_eligible"],
-                counts["external_only_eligible"]) != (46, 122, 46, 76):
+                counts["external_only_eligible"]) != (46, 126, 46, 80):
             raise ValueError(f"engine-scoped optimizer surfaces changed unexpectedly: {counts}")
         for name, spec in self.params.items():
             if spec.applicable_engines not in (self.ENGINE_IN_HOUSE, self.ENGINE_EXTERNAL, self.ENGINE_BOTH):
