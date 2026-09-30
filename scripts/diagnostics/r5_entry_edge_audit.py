@@ -208,12 +208,15 @@ class SymbolBars:
             out[h] = float(np.mean([sign * (self.close[min(k + h, self.last[k])] - self.close[k]) / risk
                                     for k in picks]))
             if hits is not None:
-                mfe = []
+                mfe, mae = [], []
                 for k in picks:
                     j = min(k + h, self.last[k])
                     fav = self.high[k + 1:j + 1] if sign > 0 else self.low[k + 1:j + 1]
+                    adv = self.low[k + 1:j + 1] if sign > 0 else self.high[k + 1:j + 1]
                     mfe.append(max(0.0, float(np.max(sign * (fav - self.close[k]))) / risk) if j > k else 0.0)
-                hits[h] = {f">={r:.2f}R": float(np.mean([m >= r for m in mfe])) for r in MFE_LADDER}
+                    mae.append(min(0.0, float(np.min(sign * (adv - self.close[k]))) / risk) if j > k else 0.0)
+                hits[h] = {**{f">={r:.2f}R": float(np.mean([m >= r for m in mfe])) for r in MFE_LADDER},
+                           **{f"<=-{r:.2f}R": float(np.mean([m <= -r for m in mae])) for r in MFE_LADDER}}
         return out
 
 
@@ -537,6 +540,17 @@ def summarize(rows: list) -> dict:
         str(h): {rung: float(np.mean([r["control_mfe_hits"][h][rung] for r in ok if r.get("control_mfe_hits", {}).get(h)]))
                  for rung in (f">={x:.2f}R" for x in MFE_LADDER)}
         if any(r.get("control_mfe_hits", {}).get(h) for r in ok) else {} for h in HORIZONS}
+    # The adverse tail, trades vs controls.  A fatter favourable tail alone is direction; fatter
+    # tails on both sides are volatility selection (bigger moves either way), which selectivity on
+    # direction cannot exploit.
+    out["mae_ladder_fixed"] = {
+        str(h): {f"<=-{x:.2f}R": float(np.mean([min(0.0, r["forward"][h]["mae_r"]) <= -x for r in ok if r["forward"][h]]))
+                 for x in MFE_LADDER} if any(r["forward"][h] for r in ok) else {} for h in HORIZONS}
+    out["mae_ladder_fixed_control"] = {
+        str(h): {rung: float(np.mean([r["control_mfe_hits"][h][rung] for r in ok
+                                      if r.get("control_mfe_hits", {}).get(h, {}).get(rung) is not None]))
+                 for rung in (f"<=-{x:.2f}R" for x in MFE_LADDER)}
+        if any(r.get("control_mfe_hits", {}).get(h) for r in ok) else {} for h in HORIZONS}
     out["mae_median_recorded"] = _stats([r.get("recorded_mae_r") for r in rows]).get("median")
 
     # Exit authority and regret, per exit reason (FSR exits carry their controlling channel).
@@ -714,6 +728,12 @@ def print_summary(p: dict) -> None:
         if lad.get("n"):
             print(f"   {('EOD' if h == '375' else h + ' bars'):>8}: "
                   + "  ".join(f"{k} {lad[k]:.0%} vs {ctl.get(k, float('nan')):.0%}" for k in lad if k.startswith(">=")))
+    print("fixed-horizon ADVERSE ladder, trades vs controls (fatter on both sides = volatility, not direction):")
+    for h, lad in p.get("mae_ladder_fixed", {}).items():
+        ctl = p["mae_ladder_fixed_control"].get(h, {})
+        if lad:
+            print(f"   {('EOD' if h == '375' else h + ' bars'):>8}: "
+                  + "  ".join(f"{k} {lad[k]:.0%} vs {ctl.get(k, float('nan')):.0%}" for k in lad))
     print(f"FSR controlling channels: {p['fsr_channels']}")
     print("exit authority and regret (k bars after exit, from the pre-slippage exit price):")
     for reason, g in list(p["exit_authority"].items())[:8]:

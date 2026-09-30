@@ -244,3 +244,16 @@ def test_first_fill_competitor_keeps_one_entry_per_symbol_session():
     firsts = audit.first_fill_per_symbol_session(rows)
     assert sorted((r["symbol"], r["entry_timestamp"][:16]) for r in firsts) == [
         ("INFY", "2024-03-01 09:40"), ("INFY", "2024-03-04 09:40"), ("TCS", "2024-03-01 11:00")]
+
+
+def test_adverse_ladder_separates_volatility_selection_from_direction():
+    # Day 1 is violent both ways around the entry; day 2 (the control day) is calm.  The trade
+    # shows fatter tails on BOTH sides than its controls: volatility, not direction.
+    wild = [100.0 + (3.0 if k % 2 else -3.0) for k in range(120)]
+    calm = [100.0] * 120
+    bars = audit.SymbolBars(_days(wild, calm))
+    t = _trade("BUY", str(bars.ts.iloc[40]), 100.0, 100.0, 99.0)     # entered mid-swing: +/-3 either way
+    t["exit_timestamp"] = str(bars.ts.iloc[41])
+    s = audit.summarize([audit.trade_row(t, bars, SLIP, controls=10)])
+    assert s["mfe_ladder_fixed"]["5"][">=1.00R"] == 1.0 and s["mfe_ladder_fixed_control"]["5"][">=1.00R"] == 0.0
+    assert s["mae_ladder_fixed"]["5"]["<=-1.00R"] == 1.0 and s["mae_ladder_fixed_control"]["5"]["<=-1.00R"] == 0.0
