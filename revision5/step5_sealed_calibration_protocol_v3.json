@@ -42,21 +42,22 @@
       "paper_apply_reference_sha256": null,
       "status": "PENDING"
     },
-    "engine_parent_commit": "a695913c37eb05bfc87ab4a8a3f5a12bfac89615",
+    "engine_parent_commit": "1e7e1d7a500faff51a868415b9130e5fba296058",
     "fresh_central_plant_master_dcs_per_block": true,
     "fresh_process_per_candidate": true,
     "live_broker_access": false,
     "reference_worker": "srinivas-B760M-AORUS-ELITE-AX",
+    "remote_worker_root": "~/projects/zerodha-protocol-v3",
     "secondary_worker": "shrinivas-Blade",
     "shared_plant_state_between_blocks": false,
     "transport": "SSH process execution",
-    "worker_tooling_identity": "Each run records Git HEAD, protocol SHA256 and worker-script SHA256. Tracked engine content must remain identical to frozen parent c0b4672; only Step-5 protocol/tooling files may differ."
+    "worker_tooling_identity": "Each run records Git HEAD, protocol SHA256 and worker-script SHA256. Before dispatch the Stage-A executor requires, on the desktop tree and on the secondary worker's worktree (~/projects/zerodha-protocol-v3), that the frozen V3 engine commit 1e7e1d7a500faff51a868415b9130e5fba296058 is an ancestor of HEAD, that only the sealed protocol files (revision5/step5_sealed_calibration_protocol*.json) and docs/ differ from it, and that the tracked tree is clean; any code drift aborts. The worker and this protocol run from that worktree and are pinned by SHA-256. The worker's own check (engine files unchanged from the engine commit) runs again inside every candidate."
   },
   "engine": {
     "broker_network_access": false,
     "closed_loop_mode": "active_paper",
     "governor_authority": "full",
-    "governor_authority_note": "full: the bay governor decides every entry and discretionary exit (safety and protection outrank it). Entry uses the trend_overspeed comparator and percentile-ranked FSRN; the earlier mean-reversion comparator with raw-confidence FSRN admitted 0 of 3559 block-1 trial-0 candidates. Engine c0b4672 adds the noise-scaled path-error tolerance (gov_path_error_sigma = 2.0, registry default): the 0.30R legacy tolerance cut 82 of 146 trial-0 trades within 1-3 bars.",
+    "governor_authority_note": "full: the bay governor decides every entry and discretionary exit (safety and protection outrank it). Entry uses the trend_overspeed comparator and percentile-ranked FSRN; the earlier mean-reversion comparator with raw-confidence FSRN admitted 0 of 3559 block-1 trial-0 candidates. The V2 engine (supersedes.frozen_engine_commit) added the noise-scaled path-error tolerance (gov_path_error_sigma = 2.0, registry default): the 0.30R legacy tolerance cut 82 of 146 trial-0 trades within 1-3 bars.",
     "governor_position_control": "closed_loop_v3",
     "governor_position_control_note": "revision5.governor.PositionControlV3: two-rate leaky inner integral (Ki applied once, clamped at the bay integral clamp), no derivative kick on the first or activation sample, per-bar trailing gap base_gap*(1-kappa*tanh(u)) floored by one bar of noise and minimum_gap, trailing eligible after grace_bars and mfe_activation_r, one-way floor armed for the next bar, no binary path-error exit, no order-flow input.  Reference path applies curve_gamma once.  FSRN and every other exit unchanged.",
     "grid_provider": "SealedGridContextProvider",
@@ -74,8 +75,9 @@
   },
   "fixed_parameters_source": "V2 Stage-B winner: Stage A trial 7 (score -24,907.96), Stage B score -37,611.24 over 6 blocks, 271 trades, 0 safety violations.",
   "frozen_parent": {
-    "commit": "a695913c37eb05bfc87ab4a8a3f5a12bfac89615",
-    "tag": "r5-step5-v2-engine-20260928"
+    "commit": "1e7e1d7a500faff51a868415b9130e5fba296058",
+    "lineage": "Protocol V3 engine; parent lineage in supersedes",
+    "tag": "r5-step5-v3-engine-20260930"
   },
   "grid_dataset": {
     "availability_delay_minutes": 15,
@@ -93,10 +95,10 @@
     "timestamp_policy": "source timestamps are conservatively treated as bar starts; availability is source timestamp plus 15 minutes"
   },
   "identity": {
-    "engine_commit": "a695913c37eb05bfc87ab4a8a3f5a12bfac89615",
+    "engine_commit": "1e7e1d7a500faff51a868415b9130e5fba296058",
     "protocol_sha256": "SHA-256 of this file; printed by build_protocol_v3.py and recorded in the commit",
     "registry_identity_sha256": "8176017982ea9abc427976f4b015a12f85f44d96515f39e0ffbf3c6a4c701eea",
-    "stage_a_executor_sha256": "08ff3826cecdebeacf5b4ca9441864b38e2380b528c43626afbfc47f50cac71e",
+    "stage_a_executor_sha256": "bfc6a265b0f347f618b8f5f55c94827a96aaec918ab9bdfcde2e98e02dff14cd",
     "worker_sha256": "ad851c6a263ce30a9d5077d8642c0293695adf272588f0f017af0a6c0c9183f7"
   },
   "immutable_during_step5": [
@@ -145,8 +147,9 @@
       "V2 Stage-A trial 7 parameters"
     ],
     "design": "exit-only: identical entries; V3 differs only in the exit policy",
-    "gate": "the legacy shadow must reproduce every real V2 exit exactly and the real run must match the V2 result",
+    "gate": "--v2-reference is required (the sealed V2 worker's result for the same stage and parameters); the observed ledger must hash identically to it; the legacy shadow must reproduce every real V2 exit exactly; no trade may be closed by end-of-run reconciliation at a block's final row (SENTINEL_RECONCILIATION_VIOLATION)",
     "required_before_stage_a": true,
+    "telemetry": "inner-loop integral, error, u and gap on the V3 activation bar and on the first stop move",
     "tool": "scripts/protocol_v3/paired_v2_v3_bridge.py"
   },
   "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V3",
@@ -392,6 +395,8 @@
     "symbols": 48
   },
   "supersedes": {
+    "frozen_engine_commit": "c0b4672fa45498d628f1646d60c75fd206803755",
+    "frozen_engine_tag": "r5-step5-v2-engine-20260928",
     "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V2",
     "protocol_sha256": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
     "reason": "Incremental controller experiment: identical V2 data, blocks, seed, trial count, scheduler, objective and gates; only the governor's position control changes (closed_loop_v3)."
