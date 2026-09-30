@@ -503,7 +503,9 @@ def summarize(rows: list) -> dict:
             k: {"pre_run_r": _stats([a for a, _, _ in v], [c for _, _, c in v]),
                 "forward_15_r": _stats([b for _, b, _ in v], [c for _, _, c in v])}
             for k, v in buckets.items()}
-        out["pre_run_15_forward_15_corr"] = float(np.corrcoef([a for a, _, _ in runs], [b for _, b, _ in runs])[0, 1])
+        pre_vals, fwd_vals = [a for a, _, _ in runs], [b for _, b, _ in runs]
+        out["pre_run_15_forward_15_corr"] = (float(np.corrcoef(pre_vals, fwd_vals)[0, 1])
+                                             if np.std(pre_vals) > 0 and np.std(fwd_vals) > 0 else None)
     out["pre_run_r"] = {str(k): _stats([r["pre_run_r"][k] for r in ok]) for k in PRE_RUNS}
     # Money decomposition over every trade (skipped ones still have P&L).
     keys = ("market", "slippage", "brokerage", "exchange", "stt", "net")
@@ -640,7 +642,12 @@ def main(argv=None) -> int:
     parser.add_argument("--controls", type=int, default=20, help="random control entries per trade")
     parser.add_argument("--slippage-fraction", type=float, default=None,
                         help="per-leg slippage; default: registry slippage_cost_multiplier x mpc_base_slippage_fraction")
+    parser.add_argument("--discovery-results", type=Path, nargs="*", default=[],
+                        help=("result JSONs whose sessions were already studied (e.g. Stage A and Stage B); a second "
+                              "'residual' summary excludes every trade on those sessions"))
     args = parser.parse_args(argv)
+    if any("r5_step6" in str(p) for p in args.discovery_results):
+        parser.error("holdout quarantine: Step-6 verification state may not be read")
 
     if any("r5_step6" in str(p) for p in args.results):
         parser.error("holdout quarantine: Step-6 verification state may not be read")
@@ -681,22 +688,44 @@ def main(argv=None) -> int:
         print(f"{path.name}: trades {s['trades']}  net {s['decomposition_total']['net']:.0f}  "
               f"fwd15 edge vs control {s['forward']['15']['edge_vs_control_r'].get('mean')}", flush=True)
     pooled = summarize(all_rows)
+    discovery = discovery_sessions(args.discovery_results)
+    residual = None
+    if discovery:
+        residual_rows = [r for r in all_rows if _session_key(r) not in discovery]
+        residual = summarize(residual_rows)
+        residual["discovery_sessions_listed"] = len(discovery)
+        residual["discovery_sessions_present"] = len({_session_key(r) for r in all_rows} & discovery)
     document = _sanitize({"label": args.label, "slippage_fraction": args.slippage_fraction,
                           "horizons_bars": list(HORIZONS), "controls_per_trade": args.controls,
-                          "pooled": pooled, "per_source": per_source, "trades": all_rows})
+                          "pooled": pooled, "residual_excluding_discovery": residual,
+                          "discovery_results": [str(p) for p in args.discovery_results],
+                          "per_source": per_source, "trades": all_rows})
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.json").write_text(json.dumps(document, indent=2, allow_nan=False, default=str))
     print_summary(pooled)
+    if residual is not None:
+        print(f"\n##### RESIDUAL: excluding {residual['discovery_sessions_listed']} discovery sessions "
+              f"({residual['discovery_sessions_present']} of them present in these results)")
+        print_summary(residual, title="RESIDUAL")
     print(f"\nwrote {out_dir / 'report.json'}")
     return 0
 
 
-def print_summary(p: dict) -> None:
+def discovery_sessions(paths: list) -> set:
+    """Every session listed in the blocks of already-studied result files."""
+    days = set()
+    for path in paths:
+        for block in json.loads(Path(path).read_text()).get("blocks", []):
+            days.update(str(s)[:10] for s in block.get("sessions", []))
+    return days
+
+
+def print_summary(p: dict, title: str = "POOLED") -> None:
     def fmt(s):
         if not s or not s.get("n"):
             return "n/a"
         return f"mean {s['mean']:+.3f} [{s['ci95'][0]:+.3f},{s['ci95'][1]:+.3f}] med {s['median']:+.3f} pos {s['share_positive']:.0%}"
-    print(f"\n===== POOLED  trades {p['trades']}  measured {p['measured']}  sessions {p.get('sessions')}  "
+    print(f"\n===== {title}  trades {p['trades']}  measured {p['measured']}  sessions {p.get('sessions')}  "
           f"skipped {p['skipped']}   (CIs resample whole sessions)")
     print(f"risk unit (bps of price): {fmt(p['risk_bps'])}")
     print(f"round-trip friction bps : {fmt(p['friction_bps'])}")
@@ -711,9 +740,11 @@ def print_summary(p: dict) -> None:
         print(f"      edge    {fmt(f['edge_vs_control_r'])}")
         print(f"      net     {fmt(f['net_r'])}   mfe {f['mfe_r'].get('median')}  mae {f['mae_r'].get('median')}")
     if "pre_run_15_terciles" in p:
-        print(f"pre-entry 15-bar run vs forward 15-bar R (corr {p['pre_run_15_forward_15_corr']:+.3f}):")
+        corr = p.get("pre_run_15_forward_15_corr")
+        print(f"pre-entry 15-bar run vs forward 15-bar R (corr {corr if corr is None else round(corr, 3)}):")
         for k, v in p["pre_run_15_terciles"].items():
-            print(f"   {k:>4}: pre {v['pre_run_r'].get('mean'):+.3f}  fwd15 {fmt(v['forward_15_r'])}")
+            pre = v["pre_run_r"].get("mean")
+            print(f"   {k:>4}: pre {'n/a' if pre is None else f'{pre:+.3f}'}  fwd15 {fmt(v['forward_15_r'])}")
     d = p["decomposition_total"]
     print("money: " + "  ".join(f"{k} {v:,.0f}" for k, v in d.items())
           + f"   (cost model vs recorded max diff {p['costs_model_vs_recorded_max_abs_diff']:.4f})")

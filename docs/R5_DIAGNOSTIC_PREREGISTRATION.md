@@ -4,6 +4,22 @@ This file fixes the hypotheses, the statistics and the decision rules **before**
 training-window result is read. The criteria were chosen after Stage A (15 sessions) and Stage B
 (30 sessions) had been analysed; neither sample is reused as evidence here.
 
+## Status of the evidence
+Stage-C TRAIN is development data, not out-of-sample evidence. It contains the 45 discovery
+sessions (15 in Stage A, 30 in Stage B) that were already studied when these hypotheses were
+chosen. So every statistic below is reported twice:
+
+| sample | sessions | role |
+|---|---|---|
+| **Full TRAIN** | 453 | reported |
+| **Residual TRAIN** | about 408 | the deciding sample |
+
+Residual TRAIN is full TRAIN with every trade on a discovery session removed, using
+`--discovery-results` with the Stage-A and Stage-B result files. It is the deciding sample because
+the rules were not chosen by looking at those days. The report prints how many of the 45 discovery
+sessions it found. Even the residual result is development evidence: out-of-sample status belongs
+only to fresh data after a strategy is frozen.
+
 ## Data
 - **Source:** the Stage-C TRAIN export. It is produced by `scripts/diagnostics/export_stage_c_train.py`
   and verified before it is written:
@@ -22,7 +38,7 @@ on those fills.
 
 | id | question | statistic | passes only if |
 |---|---|---|---|
-| H1 (primary) | Is there a tradable session-direction edge? | Competitor: first executed entry per symbol-session, held to the close; mean net R at 2 bps | CI lower bound > 0 |
+| H1 (primary) | Is there a tradable session-direction edge? | Competitor: first executed entry per symbol-session, held to the close; mean net R at 2 bps | CI lower bound > 0 on **residual** TRAIN, with full TRAIN not contradicting it (mean > 0) |
 | H2 | Does entry timing beat random timing? | Edge versus cross-session, time-of-day-matched controls, at 15 bars | CI lower bound > 0 |
 | H3 | Does a minimum on-time pay? | Fixed hold of 15, 30 and 60 bars; mean net R at 2 bps | CI lower bound > 0 at some horizon (report all three) |
 | H4 | Can execution alone rescue the current policy? | Actual trades; mean net R at 0 bps | CI lower bound > 0 |
@@ -38,6 +54,12 @@ If BUY is under 20% of trades, that is flagged as a structural side asymmetry to
 before any redesign.
 
 ## Decisions
+For every hypothesis, the residual TRAIN result governs, and the full TRAIN result is reported
+alongside it. Results are expressed as **mean risk-normalised R**. Rupee totals are reported too,
+but never decide a hypothesis: a few large positions can make rupees positive while the average
+risk-normalised trade is negative. The width table's "energy > loss" is the share of pulses whose
+gross energy exceeded their switching loss. It is not a win rate.
+
 - **H1 passes:** build a one-pulse-per-symbol-session, hold-to-close policy as a new sealed
   experiment (V4). Judge it only on fresh out-of-sample data after it is frozen, and measure real
   execution cost (Kite fills) before any capital is committed.
@@ -51,3 +73,12 @@ before any redesign.
 
 H1 is the only primary test. H2 to H5 are secondary and are reported as such. No criterion,
 threshold or statistic may be changed after the export has been read.
+
+## Amendment log
+- 2026-09-30, before any Stage-C TRAIN result was read:
+  - added the residual TRAIN sample (excluding the 45 discovery sessions) and made it the
+    governing sample;
+  - H1 now requires the residual CI lower bound > 0 and a full-TRAIN mean > 0;
+  - mean risk-normalised R, not rupees, decides every hypothesis.
+
+  Proposed in review, adopted unchanged.

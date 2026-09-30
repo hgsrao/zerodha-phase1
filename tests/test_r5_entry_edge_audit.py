@@ -257,3 +257,24 @@ def test_adverse_ladder_separates_volatility_selection_from_direction():
     s = audit.summarize([audit.trade_row(t, bars, SLIP, controls=10)])
     assert s["mfe_ladder_fixed"]["5"][">=1.00R"] == 1.0 and s["mfe_ladder_fixed_control"]["5"][">=1.00R"] == 0.0
     assert s["mae_ladder_fixed"]["5"]["<=-1.00R"] == 1.0 and s["mae_ladder_fixed_control"]["5"]["<=-1.00R"] == 0.0
+
+
+def test_residual_summary_excludes_discovery_sessions(tmp_path, monkeypatch):
+    days = ["2024-03-01", "2024-03-04", "2024-03-05"]
+    frame = _days(*[[100.0 + 0.1 * k for k in range(120)]] * 3)
+    protocol = {"sampling_plan": {"stage_a": [{"block": 1, "sessions": days}], "stage_b": []}}
+    trades = [_trade("BUY", f"{d} 09:40:00+05:30", 102.0, 102.5, 100.0, tid=f"t{i}") for i, d in enumerate(days)]
+    for t in trades:
+        t["exit_timestamp"] = t["entry_timestamp"].replace("09:40", "09:50")
+    (tmp_path / "p.json").write_text(json.dumps(protocol))
+    (tmp_path / "r.json").write_text(json.dumps({"params": {}, "blocks": [{"block": 1, "sessions": days, "trades": trades}]}))
+    (tmp_path / "disc.json").write_text(json.dumps({"blocks": [{"block": 9, "sessions": [days[0]], "trades": []}]}))
+    monkeypatch.setattr(audit, "OUTPUT_ROOT", tmp_path / "out")
+    monkeypatch.setattr(audit, "_worker", lambda: SimpleNamespace(prepare_block=lambda root, p, b: ({"INFY": frame}, {}, {})))
+    assert audit.main(["--results", str(tmp_path / "r.json"), "--protocol", str(tmp_path / "p.json"), "--label", "d",
+                       "--slippage-fraction", str(SLIP), "--discovery-results", str(tmp_path / "disc.json")]) == 0
+    doc = json.loads((tmp_path / "out/d/report.json").read_text())
+    assert doc["pooled"]["trades"] == 3 and doc["pooled"]["sessions"] == 3
+    res = doc["residual_excluding_discovery"]
+    assert res["trades"] == 2 and res["sessions"] == 2
+    assert res["discovery_sessions_listed"] == 1 and res["discovery_sessions_present"] == 1
