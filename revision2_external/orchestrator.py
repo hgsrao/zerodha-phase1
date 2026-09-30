@@ -388,6 +388,10 @@ class Revision2ExternalEngineOrchestrator:
         # Optional exit-only paired-bridge observer (scripts/protocol_v3).  None in every normal
         # replay; it only observes and never changes an order, a fill or engine state.
         self.exit_shadow = None
+        # Optional passive observer of the entry funnel (diagnostics only).  It receives
+        # (stage, symbol, timestamp, bar_idx, side) at each gate a candidate passes and is never
+        # read back, so it cannot change any decision, order or fill.
+        self.gate_observer = None
         self._governor_telemetry: Dict[str, BarTelemetry] = {}
         self._bay_exhaust_spread: Dict[str, Optional[float]] = {}
         self._session_bar_index: Dict[str, Any] = {}
@@ -682,6 +686,14 @@ class Revision2ExternalEngineOrchestrator:
         return side_aligned_conviction(
             side, pa_direction=int(signal.direction), pa_confidence=ranks[pa_key],
             studies_direction=(composite_result or {}).get("direction"), studies_confidence=ranks["studies"])
+
+    def _gate(self, stage, symbol, timestamp, bar_idx, side) -> None:
+        if self.gate_observer is not None:
+            self.gate_observer.on_gate(stage, symbol, str(timestamp), int(bar_idx), side)
+
+    @staticmethod
+    def _signal_side(signal) -> str:
+        return "BUY" if signal.direction > 0 else "SELL" if signal.direction < 0 else "FLAT"
 
     def _governor_entry(self, symbol, timestamp, bar_idx, side, signal, decision, composite_result,
                         chart_studies_confidence) -> Dict[str, Any]:
@@ -1540,6 +1552,10 @@ class Revision2ExternalEngineOrchestrator:
                 funnel["directional_signals"] += int(signal.direction != 0)
                 funnel["confidence_qualified"] += int(signal.confidence >= float(self.config.require("entry_confidence_threshold")))
                 funnel["pa_" + signal.quality_band] += 1
+                if self.gate_observer is not None and signal.direction != 0:
+                    self._gate("pa_directional", symbol, timestamp, bar_idx, self._signal_side(signal))
+                    if signal.confidence >= float(self.config.require("entry_confidence_threshold")):
+                        self._gate("pa_confident", symbol, timestamp, bar_idx, self._signal_side(signal))
 
                 # Box 4b, the Chart-Studies Confirmation Layer -- a SECOND,
                 # fully independent confidence reading (Ichimoku/Bollinger/
@@ -1581,6 +1597,8 @@ class Revision2ExternalEngineOrchestrator:
                     continue
                 if next_ts.date() != event_ts.date() or next_ts.strftime("%H:%M") >= str(self.safety_contract.values["no_entry_cutoff_time"]):
                     continue
+                if self.gate_observer is not None and signal.direction != 0:
+                    self._gate("eligible", symbol, timestamp, bar_idx, self._signal_side(signal))
 
                 decision, trace = self.id_box.evaluate(signal, self.config, latest_close=float(bars.iloc[bar_idx]["close"]))
                 self._record(trace)
@@ -1607,6 +1625,7 @@ class Revision2ExternalEngineOrchestrator:
                     funnel["id_rejections"] += 1
                     continue
                 funnel["id_approvals"] += 1
+                self._gate("id_approved", symbol, timestamp, bar_idx, self._signal_side(signal))
 
                 if self.grid_context_provider is not None:
                     observation = self.grid_context_provider.observe(
@@ -1634,6 +1653,7 @@ class Revision2ExternalEngineOrchestrator:
                 )
                 if plan is None:
                     continue
+                self._gate("mpc_plan", symbol, timestamp, bar_idx, plan.side)
                 # Inter-box Closed Loop Lockout Checks
                 if self.symbol_tripped.get(symbol, False):
                     self._controller_sequence += 1
@@ -1660,6 +1680,7 @@ class Revision2ExternalEngineOrchestrator:
                     continue
 
                 funnel["mpc_plans"] += 1
+                self._gate("candidate", symbol, timestamp, bar_idx, plan.side)
                 self._controller_sequence += 1
                 candidate_id = f"candidate-{self._controller_sequence}"
                 self.entry_candidate_observations.observe({
@@ -1771,6 +1792,7 @@ class Revision2ExternalEngineOrchestrator:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "pre_sizing_safety")
                     funnel["safety_rejections"] += 1
                     continue
+                self._gate("pre_sizing_ok", symbol, timestamp, bar_idx, plan.side)
                 governor_entry = self._governor_entry(
                     symbol, timestamp, bar_idx, plan.side, signal, decision, composite_result,
                     chart_studies_confidence)
@@ -1785,6 +1807,7 @@ class Revision2ExternalEngineOrchestrator:
                 if self._governor_full and governor_entry["action"] != "ENTRY":
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "governor_no_action")
                     continue
+                self._gate("governor_admitted", symbol, timestamp, bar_idx, plan.side)
                 symbol_dynamics = self.closed_loop.dynamics_profiler.estimate(bars.iloc[:bar_idx + 1])
                 final_entry = self.final_execution_controller.entry_decision(
                     side=plan.side, pa_confidence=float(signal.confidence), id_approved=bool(decision.approved),
@@ -1823,6 +1846,7 @@ class Revision2ExternalEngineOrchestrator:
                         "id_confidence": float(decision.confidence),
                     })
                     continue
+                self._gate("final_admitted", symbol, timestamp, bar_idx, plan.side)
 
                 if len(self.open_trades) >= max_concurrent:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "max_concurrent_positions")
@@ -1862,6 +1886,7 @@ class Revision2ExternalEngineOrchestrator:
                 if quantity <= 0:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "position_sizing_zero")
                     continue
+                self._gate("sized", symbol, timestamp, bar_idx, plan.side)
 
                 if self.plant_control.mode is PlantControlMode.PAPER_APPLY:
                     # Use the greater of planned price and the actual costed replay fill price.
@@ -1897,6 +1922,7 @@ class Revision2ExternalEngineOrchestrator:
                     funnel["safety_rejections"] += 1
                     continue
                 funnel["safety_approvals"] += 1
+                self._gate("risk_checked", symbol, timestamp, bar_idx, plan.side)
 
                 order, trace = self.p01d.create_order(symbol, plan, quantity, self.config)
                 self._record(trace)
@@ -1928,6 +1954,7 @@ class Revision2ExternalEngineOrchestrator:
                     funnel["gates_rejected"] += 1
                     continue
                 funnel["gates_passed"] += 1
+                self._gate("gates_passed", symbol, timestamp, bar_idx, plan.side)
                 quantity = min(quantity, max(0, int(gate_result["adjusted_quantity"])))
                 if quantity <= 0:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_quantity_zero")
@@ -1960,6 +1987,7 @@ class Revision2ExternalEngineOrchestrator:
                     config=self.safety_contract.as_dict(), parameter_registry=self.registry,
                 )
                 funnel["orders_submitted"] += 1
+                self._gate("submitted", symbol, timestamp, bar_idx, plan.side)
                 # BB09/BB10 supervisory hand-off: a read-only record of what
                 # P01D constructed and what UnifiedExecution did with it.
                 # The order already exists, so this observer has NO veto, NO
@@ -2002,6 +2030,7 @@ class Revision2ExternalEngineOrchestrator:
                     quantity = actual_quantity
                     self.entry_candidate_observations.dispose(candidate_id, "FILLED", "paper_fill")
                     funnel["fills"] += 1
+                    self._gate("filled", symbol, timestamp, bar_idx, plan.side)
                     self._trade_sequence += 1
                     risk = abs(float(plan.entry_price) - float(plan.stop_price))
                     target_r = abs(float(plan.target_price) - float(plan.entry_price)) / risk if risk > 0.0 else 0.0
