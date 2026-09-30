@@ -230,7 +230,7 @@ def trade_row(trade: dict, bars: SymbolBars, slippage_fraction: float, controls:
     reason = str(trade["reason"])
     row = {"trade_id": trade.get("trade_id"), "symbol": trade["symbol"], "side": trade["side"],
            "entry_timestamp": str(trade["entry_timestamp"]), "exit_class": exit_class(reason),
-           "exit_reason": reason,
+           "exit_reason": reason, "exit_timestamp": str(trade.get("exit_timestamp")),
            "fsr_channel": reason.split("FSR_BELOW_EXIT:", 1)[1] if "FSR_BELOW_EXIT:" in reason else None,
            "recorded_mfe_r": trade.get("mfe_r"), "recorded_mae_r": trade.get("mae_r"),
            "bars_held": trade.get("bars_held"), "risk_bps": risk / entry * 1e4 if math.isfinite(risk) else None,
@@ -243,6 +243,7 @@ def trade_row(trade: dict, bars: SymbolBars, slippage_fraction: float, controls:
     qty = float(trade["quantity"])
     row["realized_r"] = sign * (float(trade["exit_price"]) - entry) / risk
     row["friction_r"] = (decomp["slippage"] + decomp["costs_model"]) / (qty * risk)
+    row["market_r"] = decomp["market"] / (qty * risk)      # pulse energy: pre-slippage move captured
     row["friction_bps"] = (decomp["slippage"] + decomp["costs_model"]) / (qty * entry) * 1e4
     idx = bars.index_of(trade["entry_timestamp"])
     if idx is None:
@@ -289,6 +290,59 @@ def _stats(values, seed=BOOTSTRAP_SEED, draws=2000) -> dict:
     return {"n": int(len(x)), "mean": float(x.mean()), "median": float(np.median(x)),
             "share_positive": float((x > 0).mean()),
             "ci95": [float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))]}
+
+
+WIDTH_BUCKETS = ((1, 3), (4, 10), (11, 30), (31, 10_000))
+
+
+def pulse_train(rows: list) -> dict:
+    """The system's output seen as an exposure pulse train per symbol: leading edge (entry),
+    width (bars held), trailing edge (exit), off-interval to the next pulse on the same symbol and
+    session, and polarity.  Each pulse pays a switching loss (round-trip friction, in R); its
+    energy is the pre-slippage market move captured (in R).  A pulse pays only if energy > loss."""
+    if not rows:
+        return {}
+    widths = [r["bars_held"] for r in rows if r.get("bars_held") is not None]
+    sessions = defaultdict(list)
+    for r in rows:
+        sessions[(r.get("source"), r["symbol"], r["entry_timestamp"][:10])].append(r)
+    gaps, flips, pulses_per_symbol_session = [], 0, []
+    for group_rows in sessions.values():
+        group_rows.sort(key=lambda r: r["entry_timestamp"])
+        pulses_per_symbol_session.append(len(group_rows))
+        for a, b in zip(group_rows, group_rows[1:]):
+            try:
+                gaps.append((pd.Timestamp(b["entry_timestamp"]) - pd.Timestamp(a["exit_timestamp"])).total_seconds() / 60)
+            except (ValueError, TypeError):
+                continue
+            flips += a["side"] != b["side"]
+    by_width = {}
+    for lo, hi in WIDTH_BUCKETS:
+        sel = [r for r in rows if r.get("bars_held") is not None and lo <= r["bars_held"] <= hi]
+        if sel:
+            by_width[f"{lo}-{hi if hi < 10_000 else 'max'}"] = {
+                "pulses": len(sel), "energy_r": _stats([r["market_r"] for r in sel]).get("mean"),
+                "switching_loss_r": _stats([r["friction_r"] for r in sel]).get("mean"),
+                "net_r": _stats([r["market_r"] - r["friction_r"] for r in sel]).get("mean"),
+                "share_energy_gt_loss": float(np.mean([r["market_r"] > r["friction_r"] for r in sel]))}
+    g = np.array(gaps) if gaps else np.array([np.nan])
+    return {
+        "pulses": len(rows),
+        "polarity_share_sell": float(np.mean([r["side"] == "SELL" for r in rows])),
+        "width_bars": {"median": float(np.median(widths)) if widths else None,
+                       "p25": float(np.percentile(widths, 25)) if widths else None,
+                       "p75": float(np.percentile(widths, 75)) if widths else None,
+                       "share_le_3": float(np.mean([w <= 3 for w in widths])) if widths else None},
+        "pulses_per_active_symbol_session": {"mean": float(np.mean(pulses_per_symbol_session)),
+                                             "max": int(max(pulses_per_symbol_session))},
+        "off_interval_minutes": {"n": len(gaps), "median": float(np.nanmedian(g)) if gaps else None,
+                                 "share_le_5": float(np.mean(g <= 5)) if gaps else None,
+                                 "share_le_15": float(np.mean(g <= 15)) if gaps else None},
+        "polarity_flips_within_session": flips,
+        "energy_r": _stats([r["market_r"] for r in rows]),
+        "switching_loss_r": _stats([r["friction_r"] for r in rows]),
+        "by_width_bars": by_width,
+    }
 
 
 def summarize(rows: list) -> dict:
@@ -385,6 +439,7 @@ def summarize(rows: list) -> dict:
     fsr = [r for r in ok if r.get("fsr_channel")]
     out["fsr_channels"] = {ch: sum(1 for r in fsr if r["fsr_channel"] == ch)
                            for ch in sorted({r["fsr_channel"] for r in fsr})}
+    out["pulse_train"] = pulse_train(ok)
     out["by_side"] = group("side")
     out["by_entry_hour"] = group("entry_hour")
     out["by_exit_class"] = group("exit_class")
@@ -528,6 +583,19 @@ def print_summary(p: dict) -> None:
         print(f"   {reason[:40]:<40} n {g['trades']:>4} net {g['net']:>9,.0f}  mfe_med {g['mfe_r_market_median']}"
               f"  k5 close {k5['close_r'].get('mean')} best>=.3R {k5['share_best_ge_0.30R']}"
               f"  k10 close {k10['close_r'].get('mean')} worst<=-.3R {k10['share_worst_le_-0.30R']}")
+    pt = p.get("pulse_train") or {}
+    if pt:
+        w, oi = pt["width_bars"], pt["off_interval_minutes"]
+        print(f"pulse train: {pt['pulses']} pulses  SELL {pt['polarity_share_sell']:.0%}  width med {w['median']} "
+              f"(p25 {w['p25']}, p75 {w['p75']}, <=3 bars {w['share_le_3']:.0%})  pulses/active symbol-session "
+              f"{pt['pulses_per_active_symbol_session']['mean']:.2f} (max {pt['pulses_per_active_symbol_session']['max']})")
+        print(f"   off-interval same symbol/session: n {oi['n']} median {oi['median']} min  <=5 min {oi['share_le_5']}  "
+              f"<=15 min {oi['share_le_15']}  polarity flips {pt['polarity_flips_within_session']}")
+        print(f"   energy {fmt(pt['energy_r'])}")
+        print(f"   switching loss {fmt(pt['switching_loss_r'])}")
+        for k, v in pt["by_width_bars"].items():
+            print(f"   width {k:>7} bars: {v['pulses']:>5} pulses  energy {v['energy_r']:+.3f}R  loss {v['switching_loss_r']:.3f}R"
+                  f"  net {v['net_r']:+.3f}R  energy>loss {v['share_energy_gt_loss']:.0%}")
     print("by side      :", {k: (v["trades"], round(v["net"]), v["edge15_vs_control_mean"]) for k, v in p["by_side"].items()})
     print("by exit class:", {k: (v["trades"], round(v["net"])) for k, v in p["by_exit_class"].items()})
     print("by hour      :", {k: (v["trades"], round(v["net"]), v["fwd15_gross_r_mean"]) for k, v in p["by_entry_hour"].items()})

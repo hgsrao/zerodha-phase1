@@ -165,3 +165,22 @@ def test_controls_are_time_matched_and_ladders_are_exit_independent():
         (159.0 - t["entry_price"] / (1 + SLIP)) / risk, rel=1e-6)        # session-close horizon
     assert row["entry_bar_close_r"] == pytest.approx(0.0, abs=1e-6)
     assert row["next_bar_open_r"] == pytest.approx(0.0, abs=1e-6)      # open(t+1) = close(t) here
+
+
+def test_pulse_train_width_interval_polarity_and_energy_vs_switching_loss():
+    closes = [100.0 + 0.2 * k for k in range(120)]
+    bars = audit.SymbolBars(_frame(closes))
+    a = _trade("SELL", str(bars.ts.iloc[10]), float(closes[10]), float(closes[12]), float(closes[10]) + 2.0, tid="a")
+    a["exit_timestamp"], a["bars_held"] = str(bars.ts.iloc[12]), 2
+    b = _trade("BUY", str(bars.ts.iloc[15]), float(closes[15]), float(closes[55]), float(closes[15]) - 2.0, tid="b")
+    b["exit_timestamp"], b["bars_held"] = str(bars.ts.iloc[55]), 40
+    rows = [audit.trade_row(t, bars, SLIP, controls=5) for t in (a, b)]
+    pt = audit.summarize(rows)["pulse_train"]
+    assert pt["pulses"] == 2 and pt["polarity_share_sell"] == 0.5 and pt["polarity_flips_within_session"] == 1
+    assert pt["off_interval_minutes"]["median"] == pytest.approx(3.0)          # exit 09:42 -> entry 09:45
+    assert pt["width_bars"]["median"] == pytest.approx(21.0) and pt["width_bars"]["share_le_3"] == 0.5
+    assert set(pt["by_width_bars"]) == {"1-3", "31-max"}
+    for r, t in zip(rows, (a, b)):                                            # energy - loss = net, in R
+        risk = abs(t["entry_price"] - t["planned_stop_price"])
+        assert r["market_r"] - r["friction_r"] == pytest.approx(t["net_pnl"] / (t["quantity"] * risk), rel=1e-6)
+    assert pt["by_width_bars"]["31-max"]["energy_r"] > pt["by_width_bars"]["1-3"]["energy_r"]   # wide pulse rode the trend
