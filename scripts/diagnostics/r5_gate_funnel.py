@@ -148,7 +148,7 @@ def validate_reference(reference: dict, protocol_sha: str, stage: str, params: d
             raise SystemExit(f"V2_REFERENCE_BLOCK_MISMATCH: block {block['block']}")
 
 
-def replay_block(worker, protocol, block, params):
+def replay_block(worker, protocol, block, params, instrument=None):
     from canonical_parameter_registry import CanonicalParameterRegistry
     from revision2_external.grid_context import SealedGridContextProvider
     from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
@@ -170,6 +170,8 @@ def replay_block(worker, protocol, block, params):
         telemetry_mode="compact", governor_authority="full", governor_position_control="legacy")
     recorder = GateRecorder()
     orch.gate_observer = recorder
+    if instrument is not None:                           # passive extra observation (e.g. symbol trace)
+        instrument(orch)
     report = orch.run(frames, warmup=int(protocol["block_execution_contract"]["stock_warmup_bars_per_symbol"]))
     return frames, report, recorder
 
