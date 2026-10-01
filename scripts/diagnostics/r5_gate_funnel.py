@@ -16,6 +16,14 @@ bars and the session close, in basis points, against controls (the same symbol a
 minutes of the same time of day, on the block's other sessions).  Confidence intervals resample
 whole sessions.  Reading down the table shows where BUYs are removed and where edge is lost.
 
+At four choke points it also records every admit/reject decision with its exact reason and the
+variables behind it (``orchestrator._decide``): ``id`` (eligible -> id_approved), ``governor``
+(pre_sizing_ok -> governor_admitted), ``risk`` (sized -> risk_checked) and ``pre_submit``
+(risk_checked -> gates_passed, the first failing EntryDecisionEngine gate).  For each point, side
+and reason: bars, unique PA runs and forward edge of that population; and for each variable its
+distribution among admitted and rejected candidates by side.  Raw decisions are kept in
+``decisions.jsonl.gz`` so later questions need no replay.
+
 The observer is passive; to prove it, the replay's trade ledger must hash identically to the
 sealed V2 result for the same parameters (--v2-reference), block by block, or nothing is written.
 
@@ -28,7 +36,9 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import gzip
 import math
+import re
 import sys
 import time
 from collections import Counter, defaultdict
@@ -49,6 +59,9 @@ FUNNEL_HORIZONS = (1, 5, 15, 30, 60, 375)
 # large share of bars) use a fixed-seed random subsample of at most this many events per side.
 MAX_MEASURED_PER_STAGE_SIDE = 20_000
 SUBSAMPLE_SEED = 20260930
+DECISION_POINTS = ("id", "governor", "risk", "pre_submit")
+MAX_MEASURED_PER_REASON_SIDE = 5_000
+DECISION_HORIZONS = (15, 30)
 
 
 def _load(rel, name):
@@ -67,7 +80,16 @@ class GateRecorder:
 
     def __init__(self):
         self.events = []
+        self.decisions = []
         self._run = {}                                   # symbol -> (side, last_bar, run_id)
+
+    def _live_run(self, symbol, side):
+        current = self._run.get(symbol)
+        return current[2] if current is not None and current[0] == side else None
+
+    def on_decision(self, point, symbol, timestamp, bar_idx, side, passed, reason, features):
+        self.decisions.append((point, symbol, timestamp, bar_idx, side, passed, reason,
+                               self._live_run(symbol, side), dict(features)))
 
     def on_gate(self, stage, symbol, timestamp, bar_idx, side):
         if stage == "pa_directional":
@@ -79,8 +101,7 @@ class GateRecorder:
                 run_id = current[2]
             self._run[symbol] = (side, bar_idx, run_id)
         else:
-            current = self._run.get(symbol)
-            run_id = current[2] if current is not None and current[0] == side else None
+            run_id = self._live_run(symbol, side)
         self.events.append((stage, symbol, timestamp, bar_idx, side, run_id))
 
 
@@ -150,7 +171,7 @@ def replay_block(worker, protocol, block, params):
     recorder = GateRecorder()
     orch.gate_observer = recorder
     report = orch.run(frames, warmup=int(protocol["block_execution_contract"]["stock_warmup_bars_per_symbol"]))
-    return frames, report, recorder.events
+    return frames, report, recorder
 
 
 LADDER_R = (0.5, 1.0)
@@ -184,6 +205,148 @@ def stratified(items: list, cap: int, rng) -> list:
         else:
             out.extend(group[i] for i in sorted(rng.choice(len(group), size=quota, replace=False)))
     return out
+
+
+def _forward_rows(sample, bars_by_block, side, controls, stop_atr_mult, atr_cache, key_prefix):
+    """Forward path and same-time other-session controls for each (block_i, symbol, timestamp)."""
+    rows = []
+    for block_i, symbol, timestamp in sample:
+        b = bars_by_block[block_i].get(symbol)
+        if b is None:
+            continue
+        idx = b.index_of(timestamp)
+        if idx is None:
+            continue
+        key = (block_i, symbol)
+        if key not in atr_cache:
+            atr_cache[key] = _atr14(b)
+        unit = stop_atr_mult * float(atr_cache[key][idx])
+        if not unit > 0:
+            continue
+        sign = 1.0 if side == "BUY" else -1.0
+        seed = int(hashlib.sha256(f"{key_prefix}|{symbol}|{timestamp}".encode()).hexdigest()[:8], 16)
+        hits = {}
+        fwd = b.forward(idx, float(b.close[idx]), sign, unit)
+        ctl = b.controls(idx, sign, unit, controls, seed, hits=hits)
+        rows.append((fwd, ctl, hits, str(timestamp)[:10]))
+    return rows
+
+
+def normalise_reason(reason: str) -> str:
+    """'confidence 0.4120 below entry threshold 0.5500' -> 'confidence # below entry threshold #'."""
+    return re.sub(r"(?<![\w.])[-+]?\d+(?:\.\d+)?(?:e[-+]?\d+)?(?![\w.])", "#", str(reason)).strip()
+
+
+def _quantiles(values):
+    import numpy as np
+    v = np.asarray([float(x) for x in values if isinstance(x, (int, float)) and not isinstance(x, bool)
+                    and math.isfinite(float(x))])
+    if not len(v):
+        return None
+    p10, p50, p90 = np.percentile(v, [10, 50, 90])
+    return {"n": int(len(v)), "mean": float(v.mean()), "p10": float(p10), "p50": float(p50), "p90": float(p90)}
+
+
+def anatomy(decisions_by_block: list, bars_by_block: list, controls: int, stop_atr_mult: float,
+            measure: bool = True) -> dict:
+    """Per choke point and side: the outcome of every decision by exact (normalised) reason, in bars
+    and unique PA runs, with the forward edge of each population; plus each recorded variable's
+    distribution for admitted vs rejected candidates."""
+    import numpy as np
+    audit = _load("scripts/diagnostics/r5_entry_edge_audit.py", "r5_entry_edge_audit_for_anatomy")
+    rng = np.random.default_rng(SUBSAMPLE_SEED)
+    atr_cache = {}
+    cells = defaultdict(list)                         # (point, side, reason) -> [(block_i, symbol, ts)]
+    runs = defaultdict(set)
+    features = defaultdict(lambda: defaultdict(list))  # (point, side, outcome) -> name -> values
+    categories = defaultdict(lambda: defaultdict(Counter))
+    for block_i, decisions in enumerate(decisions_by_block):
+        for point, symbol, timestamp, _, side, passed, reason, run_id, feats in decisions:
+            if side not in ("BUY", "SELL"):
+                continue
+            label = "PASS" if passed else normalise_reason(reason)
+            cells[(point, side, label)].append((block_i, symbol, timestamp))
+            if run_id is not None:
+                runs[(point, side, label)].add((block_i, run_id))
+            outcome = "admitted" if passed else "rejected"
+            for name, value in feats.items():
+                if isinstance(value, str) or isinstance(value, bool) or value is None:
+                    categories[(point, side, outcome)][name][str(value)] += 1
+                else:
+                    features[(point, side, outcome)][name].append(value)
+    out = {}
+    for point in DECISION_POINTS:
+        labels = sorted({k[2] for k in cells if k[0] == point}, key=lambda x: (x == "PASS", x))
+        if not labels:
+            continue
+        sides = {}
+        for side in ("BUY", "SELL"):
+            total = sum(len(cells[(point, side, lab)]) for lab in labels)
+            rows = {}
+            for lab in labels:
+                items = cells[(point, side, lab)]
+                row = {"bars": len(items), "share": len(items) / total if total else None,
+                       "runs": len(runs[(point, side, lab)])}
+                if measure and items:
+                    sample = stratified(items, MAX_MEASURED_PER_REASON_SIDE, rng)
+                    fr = _forward_rows(sample, bars_by_block, side, controls, stop_atr_mult, atr_cache,
+                                       f"{point}|{lab}")
+                    row["measured"] = len(fr)
+                    for h in DECISION_HORIZONS:
+                        edges, cl = [], []
+                        for fwd, ctl, _, day in fr:
+                            f = fwd.get(h)
+                            if f and ctl.get(h) is not None:
+                                edges.append(f["r"] - ctl[h])
+                                cl.append(day)
+                        row[f"edge_{h}"] = audit._stats(edges, cl)
+                rows[lab] = row
+            dist = {}
+            for outcome in ("admitted", "rejected"):
+                dist[outcome] = {
+                    "numeric": {n: _quantiles(v) for n, v in sorted(features[(point, side, outcome)].items())},
+                    "categorical": {n: dict(c.most_common(12))
+                                    for n, c in sorted(categories[(point, side, outcome)].items())},
+                }
+            sides[side] = {"total": total, "reasons": rows, "features": dist}
+        out[point] = sides
+    return out
+
+
+def print_anatomy(anat: dict) -> None:
+    def cell(stat):
+        if not stat or not stat.get("n"):
+            return f"{'n/a':>21}"
+        lo, hi = stat["ci95"]
+        return f"{stat['mean']:+.3f} [{lo:+.2f},{hi:+.2f}]"
+    for point, sides in anat.items():
+        b, s = sides["BUY"], sides["SELL"]
+        print(f"\nREJECTION ANATOMY: {point}  (input BUY {b['total']}  SELL {s['total']}; "
+              "first reason that fired; edge vs same-time controls, 15 bars)")
+        print(f"{'reason':<46} {'BUY bars':>9} {'BUY%':>5} {'SELL bars':>10} {'SELL%':>6} {'BUY runs':>9}"
+              f" {'SELL runs':>10}  {'BUY edge15':>21}  {'SELL edge15':>21}")
+        for lab in sorted(set(b["reasons"]) | set(s["reasons"]), key=lambda x: (x == "PASS", x)):
+            rb, rs = b["reasons"].get(lab, {}), s["reasons"].get(lab, {})
+            pct = lambda r: "  n/a" if r.get("share") is None else f"{r['share']:5.0%}"
+            print(f"{lab[:46]:<46} {rb.get('bars', 0):>9} {pct(rb):>5} {rs.get('bars', 0):>10} {pct(rs):>6}"
+                  f" {rb.get('runs', 0):>9} {rs.get('runs', 0):>10}  {cell(rb.get('edge_15'))}  {cell(rs.get('edge_15'))}")
+        print(f"  variables (median [p10, p90]):  {'BUY admitted':>26} {'BUY rejected':>26} {'SELL admitted':>26}"
+              f" {'SELL rejected':>26}")
+        names = sorted({n for side in (b, s) for o in ("admitted", "rejected") for n in side["features"][o]["numeric"]})
+        for n in names:
+            vals = []
+            for side in (b, s):
+                for o in ("admitted", "rejected"):
+                    q = side["features"][o]["numeric"].get(n)
+                    vals.append(f"{q['p50']:+.3g} [{q['p10']:+.3g},{q['p90']:+.3g}]" if q else "n/a")
+            print(f"  {n[:30]:<30} " + " ".join(f"{v:>26}" for v in vals))
+        cats = sorted({n for side in (b, s) for o in ("admitted", "rejected") for n in side["features"][o]["categorical"]})
+        for n in cats:
+            for side_name, side in (("BUY", b), ("SELL", s)):
+                for o in ("admitted", "rejected"):
+                    c = side["features"][o]["categorical"].get(n)
+                    if c:
+                        print(f"  {n} {side_name} {o}: " + ", ".join(f"{k}={v}" for k, v in list(c.items())[:6]))
 
 
 def analyse(events_by_block: list, bars_by_block: list, controls: int, stop_atr_mult: float) -> dict:
@@ -337,11 +500,12 @@ def main(argv=None) -> int:
     worker = _load("scripts/run_r5_step5_candidate.py", "r5_step5_worker")
     audit = _load("scripts/diagnostics/r5_entry_edge_audit.py", "r5_entry_edge_audit_bars")
 
-    events_by_block, bars_by_block, neutrality = [], [], []
+    events_by_block, bars_by_block, decisions_by_block, neutrality = [], [], [], []
     for block in blocks:
         started = time.time()
         print(f"block {block['block']} {block['sessions'][0]}..{block['sessions'][-1]} ...", flush=True)
-        frames, report, events = replay_block(worker, protocol, block, params)
+        frames, report, recorder = replay_block(worker, protocol, block, params)
+        events = recorder.events
         ref = next(b for b in reference["blocks"] if int(b["block"]) == int(block["block"]))
         observed, expected = ledger_sha256(report["trades"]), ledger_sha256(ref["trades"])
         problems = ledger_parity(report["trades"], ref["trades"])
@@ -352,16 +516,27 @@ def main(argv=None) -> int:
                            "fields_checked": list(PARITY_FIELDS)})
         bars_by_block.append({s: audit.SymbolBars(f) for s, f in frames.items()})
         events_by_block.append(events)
+        decisions_by_block.append(recorder.decisions)
         c = Counter((e[0], e[4]) for e in events)  # (stage, side)
         print(f"  events {len(events)}  pa_directional BUY/SELL {c[('pa_directional', 'BUY')]}/{c[('pa_directional', 'SELL')]}"
-              f"  filled BUY/SELL {c[('filled', 'BUY')]}/{c[('filled', 'SELL')]}  ({time.time() - started:.0f}s)", flush=True)
+              f"  filled BUY/SELL {c[('filled', 'BUY')]}/{c[('filled', 'SELL')]}  decisions {len(recorder.decisions)}"
+              f"  ({time.time() - started:.0f}s)", flush=True)
     table = analyse(events_by_block, bars_by_block, args.controls, float(params["stop_loss_atr_mult"]))
+    anat = anatomy(decisions_by_block, bars_by_block, args.controls, float(params["stop_loss_atr_mult"]))
     out_dir.mkdir(parents=True, exist_ok=True)
+    with gzip.open(out_dir / "decisions.jsonl.gz", "wt") as fh:
+        for block, decisions in zip(blocks, decisions_by_block):
+            for point, symbol, timestamp, bar_idx, side, passed, reason, run_id, feats in decisions:
+                fh.write(json.dumps({"block": int(block["block"]), "point": point, "symbol": symbol,
+                                     "timestamp": timestamp, "bar_idx": bar_idx, "side": side, "passed": passed,
+                                     "reason": reason, "run_id": run_id, **feats}, default=str) + "\n")
     document = audit._sanitize({"label": args.label, "stage": args.stage, "params": params,
                                 "protocol_sha256": protocol_sha, "neutrality": neutrality,
-                                "sessions": sum(len(b["sessions"]) for b in blocks), "funnel": table})
+                                "sessions": sum(len(b["sessions"]) for b in blocks), "funnel": table,
+                                "anatomy": anat})
     (out_dir / "report.json").write_text(json.dumps(document, indent=2, allow_nan=False, default=str))
     print_table(table)
+    print_anatomy(anat)
     print(f"\nwrote {out_dir / 'report.json'}")
     return 0
 

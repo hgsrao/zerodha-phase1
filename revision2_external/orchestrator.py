@@ -691,6 +691,15 @@ class Revision2ExternalEngineOrchestrator:
         if self.gate_observer is not None:
             self.gate_observer.on_gate(stage, symbol, str(timestamp), int(bar_idx), side)
 
+    def _decide(self, point, symbol, timestamp, bar_idx, side, passed, reason, features) -> None:
+        """Research-only: one admit/reject decision at an entry choke point, with its reason.
+        ``features`` is a zero-argument callable, evaluated only when an observer is attached."""
+        if self.gate_observer is not None and hasattr(self.gate_observer, "on_decision"):
+            book = Counter(str(t.get("side")) for t in self.open_trades.values())
+            self.gate_observer.on_decision(
+                point, symbol, str(timestamp), int(bar_idx), side, bool(passed), str(reason),
+                {"book_buy": book.get("BUY", 0), "book_sell": book.get("SELL", 0), **features()})
+
     @staticmethod
     def _signal_side(signal) -> str:
         return "BUY" if signal.direction > 0 else "SELL" if signal.direction < 0 else "FLAT"
@@ -1621,6 +1630,15 @@ class Revision2ExternalEngineOrchestrator:
                     **regime_risk_derate(regime_observation),
                     "hysteresis": hysteresis.update(regime_observation),
                 })
+                if signal.direction != 0:
+                    self._decide("id", symbol, timestamp, bar_idx, self._signal_side(signal), decision.approved,
+                                 decision.reason, lambda: {
+                                     "pa_confidence": float(signal.confidence),
+                                     "pa_quality_band": str(signal.quality_band),
+                                     "pa_volatility": float(signal.volatility),
+                                     "id_risk_reward": float(decision.risk_reward_ratio),
+                                     "hmm_stress_probability": (regime_observation or {}).get("stress_probability"),
+                                     "hmm_available": (regime_observation or {}).get("available")})
                 if not decision.approved:
                     funnel["id_rejections"] += 1
                     continue
@@ -1804,6 +1822,32 @@ class Revision2ExternalEngineOrchestrator:
                         "fsr_selected", "controlling_limiter", "limiters", "entry_hurdle", "vibration",
                         "velocity", "z_score", "bay_exhaust_spread", "comparator")},
                 })
+                self._decide("governor", symbol, timestamp, bar_idx, plan.side, governor_entry["action"] == "ENTRY",
+                             governor_entry["reason"], lambda: {
+                                 "enforced": bool(self._governor_full),
+                                 "conviction_fsrn": governor_entry.get("conviction"),
+                                 "pa_rank": (self._conviction_rank.get(symbol) or {}).get("pa"),
+                                 "studies_rank": (self._conviction_rank.get(symbol) or {}).get("studies"),
+                                 "studies_direction_aligned": (
+                                     None if composite_result.get("direction") is None
+                                     else int(composite_result.get("direction")) * (1 if plan.side == "BUY" else -1)),
+                                 "pa_confidence": float(signal.confidence),
+                                 "studies_confidence": float(chart_studies_confidence),
+                                 "grid_return_fraction": governor_entry.get("grid_return_fraction"),
+                                 "signed_grid_return": (
+                                     None if governor_entry.get("grid_return_fraction") is None
+                                     else (1 if plan.side == "BUY" else -1) * float(governor_entry["grid_return_fraction"])),
+                                 "z_score": governor_entry.get("z_score"),
+                                 "signed_z": (governor_entry.get("comparator") or {}).get("signed_z"),
+                                 "signed_z_limit": (governor_entry.get("comparator") or {}).get("signed_z_limit"),
+                                 "dynamic_z": (governor_entry.get("comparator") or {}).get("dynamic_z"),
+                                 "fsr_selected": governor_entry.get("fsr_selected"),
+                                 "entry_hurdle": governor_entry.get("entry_hurdle"),
+                                 "controlling_limiter": governor_entry.get("controlling_limiter"),
+                                 **{f"limiter_{k}": v for k, v in (governor_entry.get("limiters") or {}).items()},
+                                 "velocity": governor_entry.get("velocity"),
+                                 "vibration": governor_entry.get("vibration"),
+                                 "bay_exhaust_spread": governor_entry.get("bay_exhaust_spread")})
                 if self._governor_full and governor_entry["action"] != "ENTRY":
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "governor_no_action")
                     continue
@@ -1894,12 +1938,16 @@ class Revision2ExternalEngineOrchestrator:
                         float(pid_info["execution_market_price"]), plan.side, self.broker.slippage_fraction))
                     quantity = self._paper_plant_entry_limit(symbol, quantity, cap_price, timestamp)
                     if quantity <= 0:
+                        self._decide("risk", symbol, timestamp, bar_idx, plan.side, False, "plant_control_paper_cap",
+                                     lambda: {"quantity": int(quantity)})
                         self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "plant_control_paper_cap")
                         funnel["portfolio_cap_rejections"] += 1
                         continue
 
                 real_notional = plan.entry_price * quantity
                 if self._gross_exposure_notional() + real_notional > equity_now * max_gross_fraction:
+                    self._decide("risk", symbol, timestamp, bar_idx, plan.side, False, "gross_exposure_cap",
+                                 lambda: {"quantity": int(quantity)})
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "gross_exposure_cap")
                     funnel["portfolio_cap_rejections"] += 1
                     continue
@@ -1908,6 +1956,8 @@ class Revision2ExternalEngineOrchestrator:
                     if self.sector_map.get(s, "Unclassified") == sector
                 )
                 if sector_notional + real_notional > equity_now * sector_cap_fraction:
+                    self._decide("risk", symbol, timestamp, bar_idx, plan.side, False, "sector_exposure_cap",
+                                 lambda: {"quantity": int(quantity)})
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "sector_exposure_cap")
                     funnel["portfolio_cap_rejections"] += 1
                     continue
@@ -1918,10 +1968,14 @@ class Revision2ExternalEngineOrchestrator:
                 )
                 self._record(trace)
                 if not post_ok:
+                    self._decide("risk", symbol, timestamp, bar_idx, plan.side, False, "post_sizing_safety",
+                                 lambda: {"quantity": int(quantity)})
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "post_sizing_safety")
                     funnel["safety_rejections"] += 1
                     continue
                 funnel["safety_approvals"] += 1
+                self._decide("risk", symbol, timestamp, bar_idx, plan.side, True, "passed",
+                             lambda: {"quantity": int(quantity)})
                 self._gate("risk_checked", symbol, timestamp, bar_idx, plan.side)
 
                 order, trace = self.p01d.create_order(symbol, plan, quantity, self.config)
@@ -1948,6 +2002,14 @@ class Revision2ExternalEngineOrchestrator:
                     proposed_notional=real_notional,
                 )
                 funnel["gates_evaluated"] += 1
+                self._decide("pre_submit", symbol, timestamp, bar_idx, plan.side, gate_result["passed"],
+                             gate_result["gate"], lambda: {
+                                 "detail": str(gate_result.get("reason")),
+                                 "open_positions_count": int(state.open_positions_count),
+                                 "signal_confidence": float(entry_signal.confidence),
+                                 "risk_reward_ratio": float(entry_signal.risk_reward_ratio),
+                                 "seen_recent": bool(self._intent_ledger.seen_recent(symbol, order.side, current_time)),
+                                 "proposed_notional": float(real_notional)})
                 if not gate_result["passed"]:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_gate",
                         details={**gate_result, "decisions": [asdict(d) for d in gate_result["decisions"]]})

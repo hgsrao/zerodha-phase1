@@ -1,5 +1,6 @@
 """R5 entry-gate funnel: the observer is passive, stages nest, and the side table is computed."""
 import importlib.util
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -108,3 +109,58 @@ def test_stratified_sample_keeps_every_stratum():
     picked = funnel.stratified(items, 60, rng)
     assert len(picked) <= 60 and {(it[1], it[2][:10]) for it in picked} == {("A", "2024-03-01"), ("A", "2024-03-04"),
                                                                             ("B", "2024-03-05")}
+
+
+@pytest.mark.parametrize("seed", [3, 11])
+def test_choke_point_decisions_reconcile_with_gate_events(seed):
+    recorder = funnel.GateRecorder()
+    observed, _ = _replay(recorder, seed=seed)
+    plain, _ = _replay(None, seed=seed)
+    assert funnel.ledger_sha256(observed["trades"]) == funnel.ledger_sha256(plain["trades"])
+    gate = Counter(e[0] for e in recorder.events)
+    passed = Counter(d[0] for d in recorder.decisions if d[5])
+    seen = Counter(d[0] for d in recorder.decisions)
+    assert seen["id"] == gate["eligible"] and passed["id"] == gate["id_approved"]
+    assert seen["governor"] == gate["pre_sizing_ok"] and passed["governor"] == gate["governor_admitted"]
+    assert passed["risk"] == gate["risk_checked"] and passed["pre_submit"] == gate["gates_passed"]
+    assert passed["pre_submit"] <= seen["pre_submit"] <= gate["risk_checked"]   # order construction sits between
+    for point, *_rest, feats in recorder.decisions:
+        assert {"book_buy", "book_sell"} <= set(feats)
+        if point == "governor":
+            assert {"signed_z", "signed_z_limit", "limiter_FSRN", "controlling_limiter"} <= set(feats)
+
+
+def test_plain_gate_observer_without_on_decision_still_works():
+    class GatesOnly:
+        def __init__(self):
+            self.events = []
+
+        def on_gate(self, *event):
+            self.events.append(event)
+    observer = GatesOnly()
+    observed, _ = _replay(observer)
+    assert observer.events and observed["trades"] == _replay(None)[0]["trades"]
+
+
+def test_anatomy_counts_reasons_by_side_and_splits_feature_distributions():
+    decisions = [
+        ("id", "INFY", "t1", 1, "BUY", False, "confidence 0.41 below entry threshold 0.55", "r1",
+         {"pa_confidence": 0.41, "pa_quality_band": "amber"}),
+        ("id", "INFY", "t2", 2, "BUY", False, "confidence 0.30 below entry threshold 0.55", "r1",
+         {"pa_confidence": 0.30, "pa_quality_band": "amber"}),
+        ("id", "INFY", "t3", 3, "BUY", True, "approved", "r2", {"pa_confidence": 0.70, "pa_quality_band": "green"}),
+        ("id", "INFY", "t4", 4, "SELL", True, "approved", "r3", {"pa_confidence": 0.80, "pa_quality_band": "green"}),
+        ("pre_submit", "INFY", "t5", 5, "BUY", False, "Gate05ConcurrentPositions", "r2", {"open_positions_count": 3}),
+        ("pre_submit", "INFY", "t6", 6, "SELL", True, "EntryDecisionEngine", "r3", {"open_positions_count": 1}),
+        ("governor", "INFY", "t7", 7, "FLAT", False, "ignored", None, {}),
+    ]
+    anat = funnel.anatomy([decisions], [{}], controls=5, stop_atr_mult=1.2, measure=False)
+    buy = anat["id"]["BUY"]
+    assert buy["total"] == 3
+    assert buy["reasons"]["confidence # below entry threshold #"] == {"bars": 2, "share": pytest.approx(2 / 3), "runs": 1}
+    assert buy["reasons"]["PASS"]["bars"] == 1 and anat["id"]["SELL"]["reasons"]["PASS"]["bars"] == 1
+    assert buy["features"]["rejected"]["numeric"]["pa_confidence"]["p50"] == pytest.approx(0.355)
+    assert buy["features"]["admitted"]["categorical"]["pa_quality_band"] == {"green": 1}
+    assert anat["pre_submit"]["BUY"]["reasons"]["Gate05ConcurrentPositions"]["bars"] == 1
+    assert "governor" not in anat                                         # only FLAT: nothing by side
+    funnel.print_anatomy(anat)
