@@ -99,3 +99,6 @@ __pycache__/
 # Protocol V3 (2026-09-30): run state and raw per-bar market traces stay local
 outputs/protocol_v3_state/
 *.jsonl
+
+# R5 diagnostics (2026-09-30): trade-level reports stay local (public repository)
+outputs/diagnostics/
