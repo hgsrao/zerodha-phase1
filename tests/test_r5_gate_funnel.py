@@ -126,6 +126,9 @@ def test_choke_point_decisions_reconcile_with_gate_events(seed):
     assert passed["pre_submit"] <= seen["pre_submit"] <= gate["risk_checked"]   # order construction sits between
     for point, *_rest, feats in recorder.decisions:
         assert {"book_buy", "book_sell"} <= set(feats)
+        if point == "id":
+            assert feats["pa_direction_from_directional_terms"] in ("agrees", "flips_to_BUY", "flips_to_SELL",
+                                                                   "flips_to_FLAT")
         if point == "governor":
             assert {"signed_z", "signed_z_limit", "limiter_FSRN", "controlling_limiter"} <= set(feats)
 

@@ -700,6 +700,27 @@ class Revision2ExternalEngineOrchestrator:
                 point, symbol, str(timestamp), int(bar_idx), side, bool(passed), str(reason),
                 {"book_buy": book.get("BUY", 0), "book_sell": book.get("SELL", 0), **features()})
 
+    def _pa_components(self, symbol, signal) -> Dict[str, Any]:
+        """Research-only: PA's four weighted inputs for this bar.  Momentum and VWAP deviation are
+        signed; the volatility score and volume confirmation carry no direction, yet enter the
+        same signed sum.  Reports the side the directional terms alone would give."""
+        baseline = float((self.pa._scale.get(symbol) or {}).get("baseline_vol", float("nan")))
+        vol_score = (max(-1.0, min(1.0, (baseline - float(signal.volatility)) / baseline))
+                     if baseline and math.isfinite(baseline) else float("nan"))
+        w = {k: float(self.config.require(k)) for k in
+             ("momentum_weight", "vwap_weight", "volatility_weight", "confirmation_2bar_weight")}
+        directional = (max(-1.0, min(1.0, float(signal.momentum))) * w["momentum_weight"]
+                       + float(signal.vwap_deviation) * w["vwap_weight"])
+        undirected = (vol_score * w["volatility_weight"]
+                      + max(-1.0, min(1.0, float(signal.volume_confirmation))) * w["confirmation_2bar_weight"])
+        side = self._signal_side(signal)
+        directional_side = "BUY" if directional > 0 else "SELL" if directional < 0 else "FLAT"
+        return {"pa_momentum": float(signal.momentum), "pa_vwap_deviation": float(signal.vwap_deviation),
+                "pa_volatility_score": vol_score, "pa_volume_confirmation": float(signal.volume_confirmation),
+                "pa_directional_part": directional, "pa_undirected_part": undirected,
+                "pa_direction_from_directional_terms": ("agrees" if directional_side == side
+                                                        else f"flips_to_{directional_side}")}
+
     @staticmethod
     def _signal_side(signal) -> str:
         return "BUY" if signal.direction > 0 else "SELL" if signal.direction < 0 else "FLAT"
@@ -1638,7 +1659,8 @@ class Revision2ExternalEngineOrchestrator:
                                      "pa_volatility": float(signal.volatility),
                                      "id_risk_reward": float(decision.risk_reward_ratio),
                                      "hmm_stress_probability": (regime_observation or {}).get("stress_probability"),
-                                     "hmm_available": (regime_observation or {}).get("available")})
+                                     "hmm_available": (regime_observation or {}).get("available"),
+                                     **self._pa_components(symbol, signal)})
                 if not decision.approved:
                     funnel["id_rejections"] += 1
                     continue
