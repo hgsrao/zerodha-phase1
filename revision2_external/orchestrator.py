@@ -63,6 +63,7 @@ from revision2.transaction_costs import leg_cost, paper_fill_price
 from revision5.ccpp_protection_cubicles import nifty_intertie_measurements
 from revision5.governor import BAY_GOVERNOR_SPECS, BayTurbineClosedLoopGovernor
 from revision5.governor_position_policy import absolute_conviction, update_conviction
+from revision5 import position_lifecycle as lifecycle
 from revision5.governor_authority import (
     PARAMETER_NAMES as GOVERNOR_AUTHORITY_PARAMETERS, BarTelemetry, GovernorAuthorityConfig,
     GovernorInputError, bar_telemetry, causal_percentile_rank, entry_decision as governor_entry_decision,
@@ -271,6 +272,9 @@ class Revision2ExternalEngineOrchestrator:
         self._last_close: Dict[str, float] = {}
         self._mtm_equity_curve: List[Tuple[str, float]] = [("", starting_equity)]
         self._mtm_peak = starting_equity
+        # Ownership contract per trade_id (revision5/position_lifecycle.py).  Kept out of the trade
+        # dicts so completed-trade records are unchanged; a trade with no record is Engine A / MIS.
+        self._position_lifecycle: Dict[str, lifecycle.PositionLifecycleRecord] = {}
         self._mtm_max_drawdown_fraction = 0.0
         self._active_trading_date = None
         self._day_start_equity = starting_equity
@@ -977,6 +981,7 @@ class Revision2ExternalEngineOrchestrator:
                 # Any profitable exit breaks consecutive loss streak
                 self.symbol_consecutive_losses[symbol] = 0
             self._equity_curve.append(self._equity())
+            self._close_position_lifecycle(trade)
             del self.open_trades[symbol]
             self._exit_controller_states.pop(symbol, None)
             _, governor = self._governor_for(symbol)
@@ -1052,6 +1057,33 @@ class Revision2ExternalEngineOrchestrator:
         if self.telemetry_mode == "full":
             self.controller_telemetry.append(event)
 
+    def _register_position_lifecycle(self, symbol: str, trade: Dict[str, Any], timestamp) -> None:
+        """Every replay fill starts as an Engine A / MIS position."""
+        entry = float(trade["entry_price"])
+        self._position_lifecycle[trade["trade_id"]] = lifecycle.open_position(
+            position_id=trade["trade_id"], symbol=symbol, direction=trade["side"],
+            initial_risk_r=abs(entry - float(trade["stop_price"])), anchor_price=entry,
+            initial_stop_price=float(trade["stop_price"]), created_bar_timestamp=pd.Timestamp(timestamp))
+
+    def _close_position_lifecycle(self, trade: Dict[str, Any]) -> None:
+        record = self._position_lifecycle.get(trade.get("trade_id"))
+        if record is not None and record.is_open:
+            self._position_lifecycle[trade["trade_id"]] = lifecycle.close_position(record)
+
+    def _owner_engine(self, trade: Dict[str, Any]) -> str:
+        """Owning engine of an open trade; a trade without a lifecycle record is Engine A (intraday MIS)."""
+        record = self._position_lifecycle.get(trade.get("trade_id"))
+        return record.owner_engine if record is not None else lifecycle.ENGINE_A
+
+    def _transition_position_lifecycle(self, trade: Dict[str, Any], new_state: str, timestamp) -> None:
+        """Apply one contract transition and record it; illegal transitions raise."""
+        before = self._position_lifecycle[trade["trade_id"]]
+        after = lifecycle.transition(before, new_state)
+        self._position_lifecycle[trade["trade_id"]] = after
+        self._record_controller_event("POSITION_LIFECYCLE_TRANSITION", timestamp, trade.get("symbol", before.symbol), {
+            "trade_id": trade.get("trade_id"), "from_state": before.lifecycle_state, "to_state": after.lifecycle_state,
+            "owner_engine": after.owner_engine, "product": after.product})
+
     def _maybe_exit(
         self, symbol: str, timestamp, bar, signal, held_bars: int, session_last_bar: bool,
         chart_studies_confidence: float, chart_studies_audit: Optional[Dict[str, Any]] = None,
@@ -1067,7 +1099,12 @@ class Revision2ExternalEngineOrchestrator:
         studies_direction = (chart_studies_audit or {}).get("direction")
         if studies_direction is not None and studies_direction != (1 if trade["side"] == "BUY" else -1):
             chart_studies_confidence = 0.0
-        if pd.Timestamp(timestamp).strftime("%H:%M") >= self.entry_decision_engine.config.force_close_time:
+        # Intraday square-off duties belong to Engine A only.  An Engine B (B_OPEN / CNC) position
+        # bypasses force_close_time and the MIS session close, but stays under every protective exit
+        # below: drawdown halt, MiCOM trip, hard/governor stop, target, max hold and governor exits.
+        owned_by_engine_a = self._owner_engine(trade) == lifecycle.ENGINE_A
+        if owned_by_engine_a and (pd.Timestamp(timestamp).strftime("%H:%M")
+                                  >= self.entry_decision_engine.config.force_close_time):
             self._execute_exit(symbol, timestamp, trade, float(bar["open"]), "force_close_time")
             return
         halt_dd = min(float(self.config.require("drawdown_halt_threshold")),
@@ -1251,7 +1288,7 @@ class Revision2ExternalEngineOrchestrator:
         if exit_price is not None:
             self._execute_exit(symbol, timestamp, trade, exit_price, reason)
             return
-        if session_last_bar:
+        if session_last_bar and owned_by_engine_a:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "mis_session_close")
             return
         # maximum_hold_bars is now a REAL, independent hard ceiling -- it
@@ -2053,6 +2090,7 @@ class Revision2ExternalEngineOrchestrator:
                         "governor_stop_price": float(plan.stop_price), "governor_mfe_r": 0.0,
                         "governor_entry_conviction": governor_entry.get("entry_absolute_conviction"),
                     })
+                    self._register_position_lifecycle(symbol, self.open_trades[symbol], next_ts)
                     _, governor = self._governor_for(symbol)
                     if governor is not None:
                         governor.begin_position(hard_stop_r=-1.0, position_id=f"trade-{self._trade_sequence}")
