@@ -342,19 +342,32 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
         return {**detail, "action": "EXIT", "reason": inner["reason"], "load_shed": False}
     if spread is not None and spread >= cfg.exhaust_spread_trip:
         return {**detail, "action": "EXIT", "reason": "EXHAUST_SPREAD_TRIP", "load_shed": False}
+    # Authority hierarchy.  The inner PID loop already returned EXIT for every hard safety trip
+    # (target, hard stop, ratchet floor, max hold) above, and the spread trip has fired.  What is
+    # left is the advisory conviction limiter (FSRN).  While the position is inside its minimum
+    # hold window the inner loop's HOLD takes precedence over it; independent protective limiters
+    # (drawdown, velocity, session) keep their authority at all times.
+    in_min_hold = int(elapsed_bars) < int(min_hold_bars)
+    conviction_deferred = False
+    others = {k: v for k, v in gate["limiters"].items() if k != "FSRN"}
+    limiter = min(others, key=lambda k: (others[k], k))
     if fuel_cut_confirmed is not None:
         # Only conviction receives persistence. Independent protective limiters retain authority.
-        others = {k: v for k, v in gate["limiters"].items() if k != "FSRN"}
-        limiter = min(others, key=lambda k: (others[k], k))
         if others[limiter] < cfg.fsr_exit_threshold:
             return {**detail, "action": "EXIT", "reason": f"FSR_BELOW_EXIT:{limiter}", "load_shed": False}
         if fuel_cut_confirmed:
-            return {**detail, "action": "EXIT", "reason": "FSRN_SUSTAINED_DETERIORATION", "load_shed": False}
+            if not in_min_hold:
+                return {**detail, "action": "EXIT", "reason": "FSRN_SUSTAINED_DETERIORATION", "load_shed": False}
+            conviction_deferred = True
     elif gate["fsr_selected"] < cfg.fsr_exit_threshold:
-        return {**detail, "action": "EXIT", "reason": f"FSR_BELOW_EXIT:{gate['controlling_limiter']}",
-                "load_shed": False}
+        if not (in_min_hold and gate["controlling_limiter"] == "FSRN"):
+            return {**detail, "action": "EXIT", "reason": f"FSR_BELOW_EXIT:{gate['controlling_limiter']}",
+                    "load_shed": False}
+        if others[limiter] < cfg.fsr_exit_threshold:
+            return {**detail, "action": "EXIT", "reason": f"FSR_BELOW_EXIT:{limiter}", "load_shed": False}
+        conviction_deferred = True
     # Between the exit and entry thresholds Mark V sheds load.  The replay engine carries one
     # indivisible position per symbol, so load shedding is reported and the position is held.
     load_shed = gate["fsr_selected"] < cfg.fsr_entry_threshold
     return {**detail, "action": "HOLD", "reason": "GOVERNOR_LOAD_SHED" if load_shed else "GOVERNOR_TRACKING",
-            "load_shed": load_shed}
+            "load_shed": load_shed, "conviction_exit_deferred": conviction_deferred}

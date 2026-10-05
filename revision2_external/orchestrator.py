@@ -754,7 +754,7 @@ class Revision2ExternalEngineOrchestrator:
             **{key: result.get(key) for key in (
                 "action", "reason", "load_shed", "measured_r", "max_favorable_r", "protected_r_floor",
                 "fsr_selected", "fsr_effective", "controlling_limiter", "limiters", "bay_exhaust_spread",
-                "conviction_detail", "inner")},
+                "conviction_detail", "inner", "conviction_exit_deferred")},
         })
         if not self._governor_full:
             return result
