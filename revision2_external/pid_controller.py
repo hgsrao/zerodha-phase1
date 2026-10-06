@@ -45,6 +45,7 @@ from __future__ import annotations
 from revision2_external.dynamic_parameter_controller import DynamicParameterController
 
 from collections import deque
+from math import isfinite
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from simple_pid import PID
@@ -60,6 +61,47 @@ from revision2.contracts import EffectiveConfig, IDDecision, ParameterUse, PASig
 
 def _np_clip(value: float, lo: float, hi: float) -> float:
     return float(max(lo, min(hi, value)))
+
+
+_STATE_VERSION = 1
+# Construction contract of every MPC PID (see _get_pid / build_plan): any other value is foreign state.
+_PID_MODE = dict(dt=1, sample_time=None, auto_mode=True, proportional_on_measurement=False,
+                 differential_on_measurement=True, error_map=None)
+_PID_STATE_FIELDS = {'tunings', 'setpoint', 'output_limits', 'proportional', 'integral', 'derivative',
+                     'last_input', 'last_error', 'last_output'}
+_STATE_FIELDS = {'version', 'config_hash', 'simple_pid_version', 'pid_enabled', 'pid_mode',
+                 'confidence_history', 'entry_pids', 'exit_pids'}
+
+
+def _simple_pid_version() -> str:
+    from importlib.metadata import version
+    return version("simple_pid")
+
+
+def _state_real(value: Any, what: str) -> float:
+    """Finite real number; bool/str/None/NaN/inf are never accepted as numeric PID state."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"Invalid MPC PID state: {what} is not a number")
+    try:
+        number = float(value)  # an oversized JSON int raises OverflowError here
+        finite = isfinite(number)
+    except (OverflowError, TypeError, ValueError):
+        raise ValueError(f"Invalid MPC PID state: {what} is not finite") from None
+    if not finite:
+        raise ValueError(f"Invalid MPC PID state: {what} is not finite")
+    return number
+
+
+def _state_dict(value: Any, keys: set, what: str) -> dict:
+    if not isinstance(value, dict) or set(value) != keys:
+        raise ValueError(f"Invalid MPC PID state: {what} schema")
+    return value
+
+
+def _state_pair(value: Any, count: int, what: str) -> List[float]:
+    if not isinstance(value, list) or len(value) != count:
+        raise ValueError(f"Invalid MPC PID state: {what} shape")
+    return [_state_real(v, what) for v in value]
 
 
 class SimplePIDModelPredictiveControlBox:
@@ -78,6 +120,127 @@ class SimplePIDModelPredictiveControlBox:
         # Rolling per-symbol confidence history backing BOTH PIDs' adaptive
         # setpoint -- see _confidence_baseline below for why this exists.
         self._confidence_history: Dict[str, Deque[float]] = {}
+
+    # ---- exact state continuity (mpc_v1) -------------------------------------------------------
+    # Only semantic controller state is persisted.  PID._last_time is a monotonic wall-clock stamp that
+    # is meaningless across processes and unused here (dt=1 is always explicit), so it is excluded.
+    # Config is bound by config_hash and *validated*, never reapplied: tunings are per-call scheduled
+    # values and are restored as saved; limits/window must equal what the live config would produce.
+
+    @staticmethod
+    def _config_bounds(config: EffectiveConfig) -> Tuple[int, float]:
+        window = config.require("pid_integral_window_bars")
+        clamp = config.require("pid_integral_max_clamp")
+        if isinstance(window, bool) or int(window) != window or int(window) < 1:
+            raise ValueError("Invalid MPC PID state: configured confidence window")
+        return int(window), abs(_state_real(clamp, "configured clamp"))
+
+    @staticmethod
+    def _export_pid(pid: PID) -> Dict[str, Any]:
+        live_mode = dict(sample_time=pid.sample_time, auto_mode=pid.auto_mode,
+                         proportional_on_measurement=pid.proportional_on_measurement,
+                         differential_on_measurement=pid.differential_on_measurement, error_map=pid.error_map)
+        if live_mode != {k: v for k, v in _PID_MODE.items() if k != 'dt'} or any(
+                type(live_mode[k]) is not type(_PID_MODE[k]) for k in live_mode):
+            raise ValueError("Invalid MPC PID state: live PID mode differs from the MPC contract")
+        low, high = pid.output_limits
+        proportional, integral, derivative = pid.components
+        return dict(tunings=[pid.Kp, pid.Ki, pid.Kd], setpoint=pid.setpoint, output_limits=[low, high],
+                    proportional=proportional, integral=integral, derivative=derivative,
+                    last_input=pid._last_input, last_error=pid._last_error, last_output=pid._last_output)
+
+    def export_state(self, config: EffectiveConfig) -> Dict[str, Any]:
+        """JSON-safe ``mpc_v1`` payload; validated here so an invalid state never reaches disk."""
+        def encode(pids: Dict[str, PID]) -> Dict[str, Any]:
+            out = {}
+            for symbol, pid in pids.items():
+                state = self._export_pid(pid)
+                out[symbol] = {k: ([_state_real(v, k) for v in x] if isinstance(x, (list, tuple))
+                                   else _state_real(x, k)) for k, x in state.items()}
+            return out
+
+        payload = dict(
+            version=_STATE_VERSION, config_hash=config.config_hash, simple_pid_version=_simple_pid_version(),
+            pid_enabled=self.pid_enabled, pid_mode=dict(_PID_MODE),
+            confidence_history={symbol: dict(maxlen=history.maxlen,
+                                             values=[_state_real(v, 'confidence') for v in history])
+                                for symbol, history in self._confidence_history.items()},
+            entry_pids=encode(self._entry_pids), exit_pids=encode(self._exit_pids))
+        self._stage_state(payload, config)
+        return payload
+
+    def _stage_state(self, payload: Any, config: EffectiveConfig):
+        """Strictly validate and rebuild into NEW objects; touches no live attribute."""
+        payload = _state_dict(payload, _STATE_FIELDS, "payload")
+        if type(payload['version']) is not int or payload['version'] != _STATE_VERSION:
+            raise ValueError("Unsupported MPC PID state version")
+        if payload['config_hash'] != config.config_hash or type(payload['config_hash']) is not str:
+            raise ValueError("MPC PID state was saved under a different config")
+        if payload['simple_pid_version'] != _simple_pid_version() or type(payload['simple_pid_version']) is not str:
+            raise ValueError("MPC PID state was saved under a different simple_pid version")
+        if type(payload['pid_enabled']) is not bool or payload['pid_enabled'] != self.pid_enabled:
+            raise ValueError("MPC PID state pid_enabled binding mismatch")
+        mode = payload['pid_mode']
+        if (not isinstance(mode, dict) or set(mode) != set(_PID_MODE)
+                or any(type(mode[k]) is not type(v) or mode[k] != v for k, v in _PID_MODE.items())):
+            raise ValueError("MPC PID state mode differs from the MPC contract")
+        window, clamp = self._config_bounds(config)
+
+        histories: Dict[str, Deque[float]] = {}
+        raw_histories = payload['confidence_history']
+        if not isinstance(raw_histories, dict):
+            raise ValueError("Invalid MPC PID state: confidence_history")
+        for symbol, entry in raw_histories.items():
+            if type(symbol) is not str or not symbol:
+                raise ValueError("Invalid MPC PID state: symbol")
+            entry = _state_dict(entry, {'maxlen', 'values'}, "confidence history")
+            if type(entry['maxlen']) is not int or entry['maxlen'] != window:
+                raise ValueError("Invalid MPC PID state: confidence window differs from config")
+            if not isinstance(entry['values'], list) or len(entry['values']) > window:
+                raise ValueError("Invalid MPC PID state: confidence history length")
+            histories[symbol] = deque((_state_real(v, 'confidence') for v in entry['values']), maxlen=window)
+
+        def decode(raw: Any, role: str) -> Dict[str, PID]:
+            if not isinstance(raw, dict):
+                raise ValueError(f"Invalid MPC PID state: {role} PIDs")
+            if not self.pid_enabled and raw:
+                raise ValueError("Disabled MPC cannot carry PID state")
+            pids: Dict[str, PID] = {}
+            for symbol, state in raw.items():
+                if symbol not in histories:
+                    raise ValueError("Orphaned MPC PID without confidence history")
+                state = _state_dict(state, _PID_STATE_FIELDS, f"{role} PID")
+                kp, ki, kd = _state_pair(state['tunings'], 3, 'tunings')
+                low, high = _state_pair(state['output_limits'], 2, 'output_limits')
+                if (low, high) != (-clamp, clamp):
+                    raise ValueError("MPC PID output limits differ from the configured clamp")
+                values = {name: _state_real(state[name], name) for name in
+                          ('setpoint', 'proportional', 'integral', 'derivative',
+                           'last_input', 'last_error', 'last_output')}
+                if abs(values['integral']) > clamp or abs(values['last_output']) > clamp:
+                    raise ValueError("MPC PID integral/output exceeds the configured clamp")
+                pid = PID(Kp=kp, Ki=ki, Kd=kd, setpoint=values['setpoint'], sample_time=None,
+                          output_limits=(low, high), auto_mode=True, proportional_on_measurement=False,
+                          differential_on_measurement=True, error_map=None)
+                pid._proportional, pid._integral, pid._derivative = (
+                    values['proportional'], values['integral'], values['derivative'])
+                pid._last_input, pid._last_error, pid._last_output = (
+                    values['last_input'], values['last_error'], values['last_output'])
+                pids[symbol] = pid
+            return pids
+
+        entry_pids = decode(payload['entry_pids'], 'entry')
+        exit_pids = decode(payload['exit_pids'], 'exit')
+        if set(entry_pids) != set(exit_pids) or (self.pid_enabled and set(entry_pids) != set(histories)):
+            raise ValueError("MPC PID symbol mapping is incomplete")
+        return histories, entry_pids, exit_pids
+
+    def restore_state(self, payload: Any, config: EffectiveConfig) -> None:
+        """Install a saved ``mpc_v1`` payload into this EMPTY box; all-or-nothing."""
+        if self._entry_pids or self._exit_pids or self._confidence_history:
+            raise ValueError("MPC PID state can only be restored into an empty controller")
+        histories, entry_pids, exit_pids = self._stage_state(payload, config)
+        self._confidence_history, self._entry_pids, self._exit_pids = histories, entry_pids, exit_pids
 
     def _get_pid(self, store: Dict[str, PID], symbol: str, kp: float, ki: float, kd: float,
                  target: float, clamp: float) -> PID:

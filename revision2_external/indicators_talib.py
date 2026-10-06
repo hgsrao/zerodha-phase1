@@ -49,6 +49,84 @@ def _valid_period(period: int, size: int) -> int:
     return max(1, min(period, size - 1))
 
 
+_STATE_VERSION = 1
+_STATE_FIELDS = {"version", "config_hash", "symbols"}
+_SYMBOL_FIELDS = {"atr_period", "scale", "warmup", "history"}
+_SCALE_FIELDS = {"dp_scale", "dv_scale", "baseline_vol"}
+_WARMUP_FIELDS = {"timestamp", "open", "high", "low", "close", "volume"}
+_HISTORY_FIELDS = {"maxlen", "values"}
+_EXCHANGE_TZ = "Asia/Kolkata"
+# STRUCTURAL_NOT_PARAMETER: payload-size guard against a corrupt/hostile file, not a market horizon.
+_MAX_WARMUP_ROWS = 200_000
+
+
+def _history_capacity(entry_smoothing, exit_smoothing, pa_persistence_lookback):
+    """Shared existing deque reserve; recovery must use the same capacity as evaluation."""
+    return max(entry_smoothing, exit_smoothing, pa_persistence_lookback, 20)
+
+
+def _state_real(value: Any, what: str) -> float:
+    """Finite real number; bool/str/None/NaN/inf/oversized ints are never accepted as PA state."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"Invalid PA state: {what} is not a number")
+    try:
+        number = float(value)  # an oversized JSON int raises OverflowError here
+        finite = math.isfinite(number)
+    except (OverflowError, TypeError, ValueError):
+        raise ValueError(f"Invalid PA state: {what} is not finite") from None
+    if not finite:
+        raise ValueError(f"Invalid PA state: {what} is not finite")
+    return number
+
+
+def _state_int(value: Any, what: str, minimum: int) -> int:
+    if type(value) is not int or value < minimum:
+        raise ValueError(f"Invalid PA state: {what}")
+    return value
+
+
+def _state_dict(value: Any, keys: set, what: str) -> dict:
+    if not isinstance(value, dict) or set(value) != keys:
+        raise ValueError(f"Invalid PA state: {what} schema")
+    return value
+
+
+def _exchange_time(value: Any, what: str, *, localize_naive: bool) -> pd.Timestamp:
+    """Nanosecond Timestamp in exchange-local time; an equivalent UTC/offset form is accepted."""
+    try:
+        stamp = pd.Timestamp(value)
+    except (ValueError, OverflowError, TypeError):
+        raise ValueError(f"Invalid PA state: {what} is not a timestamp") from None
+    if pd.isna(stamp):
+        raise ValueError(f"Invalid PA state: {what} is not a timestamp")
+    if stamp.tzinfo is None:
+        if not localize_naive:
+            raise ValueError(f"Invalid PA state: {what} is not timezone-aware")
+        stamp = stamp.tz_localize(_EXCHANGE_TZ)
+    return stamp.tz_convert(_EXCHANGE_TZ).as_unit("ns")
+
+
+def _calibration_scale(warmup_bars: pd.DataFrame, atr_period: int) -> Dict[str, float]:
+    close = warmup_bars["close"].to_numpy(dtype=float)
+    high = warmup_bars["high"].to_numpy(dtype=float)
+    low = warmup_bars["low"].to_numpy(dtype=float)
+    volume = warmup_bars["volume"].to_numpy(dtype=float)
+
+    returns = pd.Series(close).pct_change().dropna()
+    dp_scale = float(returns.std())
+    dp_scale = dp_scale if math.isfinite(dp_scale) and dp_scale > 0 else _NUMERICAL_EPSILON
+    vol_pct_change = pd.Series(volume).pct_change().replace([np.inf, -np.inf], np.nan).dropna()
+    dv_scale = float(vol_pct_change.std())
+    dv_scale = dv_scale if math.isfinite(dv_scale) and dv_scale > 0 else _NUMERICAL_EPSILON
+
+    atr_period = _valid_period(atr_period, len(close))
+    atr_series = talib.ATR(high, low, close, timeperiod=atr_period)
+    baseline_atr = float(np.nanmean(atr_series)) if np.isfinite(atr_series).any() else _NUMERICAL_EPSILON
+    baseline_vol = baseline_atr / close[-1] if close[-1] else _NUMERICAL_EPSILON
+
+    return {"dp_scale": dp_scale, "dv_scale": dv_scale, "baseline_vol": max(baseline_vol, _NUMERICAL_EPSILON)}
+
+
 class TALibPredictiveAnalyticsBox:
     def __init__(self) -> None:
         self._history: Dict[str, deque] = {}
@@ -65,24 +143,137 @@ class TALibPredictiveAnalyticsBox:
             raise ValueError("BB04 calibration requires at least one bar")
         self._warmup[symbol] = warmup_bars.copy()
         self._atr_period[symbol] = atr_period
-        close = warmup_bars["close"].to_numpy(dtype=float)
-        high = warmup_bars["high"].to_numpy(dtype=float)
-        low = warmup_bars["low"].to_numpy(dtype=float)
-        volume = warmup_bars["volume"].to_numpy(dtype=float)
+        self._scale[symbol] = _calibration_scale(warmup_bars, atr_period)
 
-        returns = pd.Series(close).pct_change().dropna()
-        dp_scale = float(returns.std())
-        dp_scale = dp_scale if math.isfinite(dp_scale) and dp_scale > 0 else _NUMERICAL_EPSILON
-        vol_pct_change = pd.Series(volume).pct_change().replace([np.inf, -np.inf], np.nan).dropna()
-        dv_scale = float(vol_pct_change.std())
-        dv_scale = dv_scale if math.isfinite(dv_scale) and dv_scale > 0 else _NUMERICAL_EPSILON
+    # ---- exact state continuity (pa_v1) --------------------------------------------------------
+    # Persisted: the calibration warmup frame (OHLCV + exchange-local timestamps), the ATR period it
+    # was calibrated with, the derived scale, and the raw-signal smoothing deque.  The scale is
+    # recomputed once from the restored warmup on staging and must equal the saved value exactly, so
+    # a changed library/numeric path fails closed.  This box has no compute_signal; evaluate() is the
+    # only signal path and is not touched by restoration.
 
-        atr_period = _valid_period(atr_period, len(close))
-        atr_series = talib.ATR(high, low, close, timeperiod=atr_period)
-        baseline_atr = float(np.nanmean(atr_series)) if np.isfinite(atr_series).any() else _NUMERICAL_EPSILON
-        baseline_vol = baseline_atr / close[-1] if close[-1] else _NUMERICAL_EPSILON
+    @staticmethod
+    def _config_bounds(config: EffectiveConfig) -> Tuple[int, int]:
+        def positive_int(name: str) -> int:
+            value = config.require(name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or int(value) != value or int(value) < 1:
+                raise ValueError(f"Invalid PA state: configured {name}")
+            return int(value)
 
-        self._scale[symbol] = {"dp_scale": dp_scale, "dv_scale": dv_scale, "baseline_vol": max(baseline_vol, _NUMERICAL_EPSILON)}
+        history_len = _history_capacity(positive_int("entry_signal_smoothing_window"),
+                          positive_int("exit_signal_smoothing_window"),
+                          positive_int("pa_persistence_lookback"))
+        return positive_int("atr_calculation_period"), history_len
+
+    @staticmethod
+    def _live_columns(frame: Any) -> Tuple[List[pd.Timestamp], Dict[str, List[float]]]:
+        if not isinstance(frame, pd.DataFrame) or not _WARMUP_FIELDS.issubset(frame.columns):
+            raise ValueError("Invalid PA state: live warmup is not a timestamped OHLCV frame")
+        try:
+            stamps = list(pd.to_datetime(frame["timestamp"]))
+            columns = {name: frame[name].to_numpy(dtype=float).tolist() for name in _WARMUP_FIELDS - {"timestamp"}}
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("Invalid PA state: live warmup is not a certified OHLCV frame") from None
+        return stamps, columns
+
+    def export_state(self, config: EffectiveConfig) -> Dict[str, Any]:
+        """JSON-safe ``pa_v1`` payload; validated here so an invalid state never reaches disk."""
+        if not (set(self._scale) == set(self._warmup) == set(self._atr_period)) \
+                or not set(self._history).issubset(self._scale):
+            raise ValueError("Invalid PA state: live calibration maps are inconsistent")
+        symbols: Dict[str, Any] = {}
+        for symbol in self._scale:
+            stamps, columns = self._live_columns(self._warmup[symbol])
+            history = self._history.get(symbol)
+            symbols[symbol] = dict(
+                atr_period=self._atr_period[symbol],
+                scale={k: _state_real(v, f"scale {k}") for k, v in self._scale[symbol].items()},
+                warmup=dict(timestamp=[_exchange_time(s, "warmup timestamp", localize_naive=False).isoformat()
+                                       for s in stamps], **columns),
+                history=None if history is None else dict(
+                    maxlen=history.maxlen, values=[_state_real(v, "raw signal") for v in history]))
+        payload = dict(version=_STATE_VERSION, config_hash=config.config_hash, symbols=symbols)
+        self._stage_state(payload, config, None)
+        return payload
+
+    def _stage_state(self, payload: Any, config: EffectiveConfig, not_after: Any):
+        """Strictly validate and rebuild into NEW objects; touches no live attribute."""
+        payload = _state_dict(payload, _STATE_FIELDS, "payload")
+        if type(payload["version"]) is not int or payload["version"] != _STATE_VERSION:
+            raise ValueError("Unsupported PA state version")
+        if type(payload["config_hash"]) is not str or payload["config_hash"] != config.config_hash:
+            raise ValueError("PA state was saved under a different config")
+        atr_period, history_len = self._config_bounds(config)
+        cutoff = None if not_after is None else _exchange_time(not_after, "not_after", localize_naive=True)
+        if not isinstance(payload["symbols"], dict):
+            raise ValueError("Invalid PA state: symbols")
+
+        scale_map: Dict[str, Dict[str, float]] = {}
+        warmup_map: Dict[str, pd.DataFrame] = {}
+        atr_map: Dict[str, int] = {}
+        history_map: Dict[str, deque] = {}
+        for symbol, entry in payload["symbols"].items():
+            if type(symbol) is not str or not symbol:
+                raise ValueError("Invalid PA state: symbol")
+            entry = _state_dict(entry, _SYMBOL_FIELDS, "symbol entry")
+            if _state_int(entry["atr_period"], "atr period", 1) != atr_period:
+                raise ValueError("PA state ATR period differs from config")
+            saved_scale = _state_dict(entry["scale"], _SCALE_FIELDS, "scale")
+            saved_scale = {k: _state_real(saved_scale[k], f"scale {k}") for k in sorted(_SCALE_FIELDS)}
+            if any(v <= 0 for v in saved_scale.values()):
+                raise ValueError("Invalid PA state: scale must be positive")
+
+            raw = _state_dict(entry["warmup"], _WARMUP_FIELDS, "warmup")
+            rows = raw["timestamp"]
+            if not isinstance(rows, list) or not 1 <= len(rows) <= _MAX_WARMUP_ROWS:
+                raise ValueError("Invalid PA state: warmup length")
+            if any(type(v) is not str for v in rows):
+                raise ValueError("Invalid PA state: warmup timestamp is not text")
+            stamps = [_exchange_time(v, "warmup timestamp", localize_naive=False) for v in rows]
+            if any(b <= a for a, b in zip(stamps, stamps[1:])):
+                raise ValueError("Invalid PA state: warmup timestamps are not strictly increasing")
+            if cutoff is not None and stamps[-1] > cutoff:
+                raise ValueError("PA warmup contains bars after the durable cursor")
+            columns = {}
+            for name in ("open", "high", "low", "close", "volume"):
+                values = raw[name]
+                if not isinstance(values, list) or len(values) != len(stamps):
+                    raise ValueError(f"Invalid PA state: warmup {name} shape")
+                columns[name] = [_state_real(v, f"warmup {name}") for v in values]
+                limit_ok = all(v >= 0 for v in columns[name]) if name == "volume" else all(v > 0 for v in columns[name])
+                if not limit_ok:
+                    raise ValueError(f"Invalid PA state: warmup {name} range")
+            for op, high, low, close in zip(columns["open"], columns["high"], columns["low"], columns["close"]):
+                if high < max(op, low, close) or low > min(op, high, close):
+                    raise ValueError("Invalid PA state: warmup OHLC geometry")
+            frame = pd.DataFrame(dict(timestamp=pd.DatetimeIndex(stamps).as_unit("ns"), **columns))
+
+            recomputed = _calibration_scale(frame, atr_period)
+            if recomputed != saved_scale:
+                raise ValueError("PA scale differs from recomputation on the saved warmup")
+
+            saved_history = entry["history"]
+            if saved_history is not None:
+                saved_history = _state_dict(saved_history, _HISTORY_FIELDS, "history")
+                if type(saved_history["maxlen"]) is not int or saved_history["maxlen"] != history_len:
+                    raise ValueError("Invalid PA state: signal history maxlen differs from config")
+                if not isinstance(saved_history["values"], list) or len(saved_history["values"]) > history_len:
+                    raise ValueError("Invalid PA state: signal history length")
+                history_map[symbol] = deque((_state_real(v, "raw signal") for v in saved_history["values"]),
+                                            maxlen=history_len)
+            scale_map[symbol], warmup_map[symbol], atr_map[symbol] = recomputed, frame, atr_period
+        return scale_map, warmup_map, atr_map, history_map
+
+    def restore_state(self, payload: Any, config: EffectiveConfig, not_after: Any = None) -> None:
+        """Install a saved ``pa_v1`` payload into this EMPTY box; all-or-nothing.
+
+        ``not_after`` (exchange-local if naive) bounds the newest warmup bar: a warmup that postdates
+        the durable cursor would leak future data into calibration.
+        """
+        if self._history or self._scale or self._warmup or self._atr_period:
+            raise ValueError("PA state can only be restored into an empty box")
+        scale, warmup, atr, history = self._stage_state(payload, config, not_after)
+        self._scale, self._warmup, self._atr_period, self._history = scale, warmup, atr, history
 
     def _scale_for(self, symbol: str) -> Dict[str, float]:
         # evaluate() always calibrates first; no unreachable anonymous operating defaults.
@@ -199,7 +390,7 @@ class TALibPredictiveAnalyticsBox:
         raw_signal *= regime_mult * vol_regime_mult
 
         # 20 is a storage reserve, above all configured smoothing/persistence maxima.
-        history = self._history.setdefault(snapshot.symbol, deque(maxlen=max(entry_smoothing, exit_smoothing, pa_persistence_lookback, 20)))
+        history = self._history.setdefault(snapshot.symbol, deque(maxlen=_history_capacity(entry_smoothing, exit_smoothing, pa_persistence_lookback)))
         history.append(raw_signal)
         smoothed = sum(list(history)[-entry_smoothing:]) / min(len(history), entry_smoothing)
         exit_smoothed = sum(list(history)[-exit_smoothing:]) / min(len(history), exit_smoothing)

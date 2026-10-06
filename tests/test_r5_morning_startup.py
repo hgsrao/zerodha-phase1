@@ -54,6 +54,16 @@ def carry(path):
     engine.symbol_tripped['TITAN'] = False
     engine.plant_control.dispatch_controller.merit_source.register_trade(bay_id, -1)
     engine.real_plant_dcs.bays[bay_id].cooldown_until_bar_exclusive = 16
+    # This fixture manually constructs a carried position without entering the
+    # normal run() warmup path.  Initialize ID exactly through the production
+    # calibration API before checkpointing; no HMM fit/history is fabricated.
+    for symbol in engine.symbols:
+        if symbol not in engine.id_box._bar_history:
+            engine.id_box.calibrate(
+                symbol,
+                pd.DataFrame({'close': pd.Series(dtype=float)}),
+                engine.config,
+            )
     engine._checkpoint_morning_recovery(account_id='fixture-account', timestamp=pd.Timestamp('2023-12-05 15:25'))
     truth = engine.broker.snapshot()
     for order in truth['paper_state']['protection'].values():
@@ -87,8 +97,7 @@ def test_overnight_hydrates_supported_fleet_and_requests_simulated_gtt(tmp_path)
     assert second._exit_controller_states['TITAN'].initial_stop_price == 90
     assert broker._simulated_gtts['trade-1']['limit_price'] == 85.5
     assert receipt['prepared'] and not receipt['admissions_allowed'] and second._execution_halted
-    with pytest.raises(RuntimeError, match='resume cursor'):
-        second.run({})
+    assert second._morning_recovery_prepared
     store.close()
 
 

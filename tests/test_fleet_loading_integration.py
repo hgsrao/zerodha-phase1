@@ -175,3 +175,53 @@ def test_offline_restore_refuses_broker_claim_unsampled_and_wrong_next_clock(tmp
     sample(chain,next_ts,0)
     assert chain._fleet_expected_next_timestamp is None
     store.close()
+
+
+def test_c04b_certified_resume_consumes_pending_fleet_state(tmp_path):
+    from copy import deepcopy
+    from tests.test_r5_c04b_resume_equivalence import (
+        run_until_checkpoint_crash,
+        restored_broker,
+    )
+
+    policy = FleetLoadingPolicy(enabled=True, kp=.1, ki=.001)
+
+    first, first_store, bars, warmup = build(tmp_path / "restart", policy)
+    first.recovery_account_id = "fixture-account"
+
+    crash = run_until_checkpoint_crash(first, bars, warmup)
+
+    expected_fleet = deepcopy(
+        first.plant_control.export_fleet_loading_state()
+    )
+    assert expected_fleet is not None
+    assert expected_fleet["actual_exposure_pu"] is not None
+
+    broker = restored_broker(crash["broker_snapshot"])
+    first_store.close()
+
+    resumed, resumed_store, resumed_bars, resumed_warmup = \
+        build(tmp_path / "restart", policy)
+
+    receipt = resumed._reconcile_morning_startup(
+        account_id="fixture-account",
+        broker=broker,
+    )
+
+    # Morning preparation must still defer fleet hydration.
+    assert receipt["fleet_loading_restored"] is False
+    assert resumed._pending_fleet_loading_recovery_state == expected_fleet
+    assert resumed._morning_recovery_prepared
+    assert resumed._execution_halted
+
+    resumed.run(
+        {"TITAN": resumed_bars},
+        warmup=resumed_warmup,
+    )
+
+    # Certified execution continuation must consume the staged fleet state.
+    assert resumed._pending_fleet_loading_recovery_state is None
+    assert resumed.plant_control._fleet_timestamp is not None
+    assert resumed.plant_control._fleet_expected_next_timestamp is None
+
+    resumed_store.close()

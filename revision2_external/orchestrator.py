@@ -401,6 +401,13 @@ class Revision2ExternalEngineOrchestrator:
         # rank over the governor's z window), updated on every evaluated bar including warm-up.
         self._conviction_history: Dict[str, Dict[str, deque]] = {}
         self._conviction_rank: Dict[str, Dict[str, Optional[float]]] = {}
+
+        # C04-B: execution state required for exact checkpoint continuation.
+        self._resume_entry_bar_index: Dict[str, int] = {}
+        self._resume_ticks_since_reweight: int = 0
+        self._resume_processed_bar_indices: Dict[str, int] = {}
+        self._resume_data_identity: Dict[str, str] = {}
+        self._resume_execution_halted: bool = False
         # MiCOM substation protection (PAPER_APPLY with the native plant): evaluated every
         # portfolio timestamp from the causal NIFTY grid and the daily fleet MTM drawdown.
         self.micom_vol_z_window = int(require(self.config, "micom_nifty_vol_z_window"))
@@ -1722,6 +1729,18 @@ class Revision2ExternalEngineOrchestrator:
         return {symbol: certify_bars(frame)[0] for symbol, frame in symbol_bars.items()}
 
     @staticmethod
+    def _resume_prefix_digest(frame: pd.DataFrame, bar_idx: int) -> str:
+        """SHA-256 identity of the certified frame prefix through bar_idx."""
+        import hashlib
+
+        if type(bar_idx) is not int or bar_idx < 0 or bar_idx >= len(frame):
+            raise ValueError("resume cursor outside certified frame")
+
+        prefix = frame.iloc[:bar_idx + 1]
+        hashed = pd.util.hash_pandas_object(prefix, index=True).values.tobytes()
+        return hashlib.sha256(hashed).hexdigest()
+
+    @staticmethod
     def build_clock(symbol_bars: Dict[str, pd.DataFrame], warmup: int) -> List[_ClockEvent]:
         events: List[_ClockEvent] = []
         for symbol, bars in symbol_bars.items():
@@ -1765,8 +1784,7 @@ class Revision2ExternalEngineOrchestrator:
         self, symbol_bars: Dict[str, pd.DataFrame], warmup: int = 60,
         precomputed_clock: Optional[List[_ClockEvent]] = None,
     ) -> Dict[str, Any]:
-        if getattr(self, '_morning_recovery_prepared', False):
-            raise RuntimeError('Hydrated morning state cannot enter fresh-input replay; certified resume cursor required')
+        recovering = bool(getattr(self, '_morning_recovery_prepared', False))
         self._assert_paper_plant_broker()
         if self.paper_journal is not None:
             self.paper_journal.bind(self, symbol_bars, warmup)
@@ -1793,30 +1811,54 @@ class Revision2ExternalEngineOrchestrator:
             local = (local.dt.tz_localize("Asia/Kolkata") if local.dt.tz is None
                      else local.dt.tz_convert("Asia/Kolkata"))
             self._session_bar_index[symbol] = frame.groupby(local.dt.date.to_numpy()).cumcount().to_numpy()
-        if precomputed_clock is not None:
-            expected_clock = self.build_clock(symbol_bars, warmup)
-            if precomputed_clock != expected_clock:
-                raise ValueError("precomputed clock does not match certified frames")
+        expected_clock = self.build_clock(symbol_bars, warmup)
+        if precomputed_clock is not None and precomputed_clock != expected_clock:
+            raise ValueError("precomputed clock does not match certified frames")
 
-        for symbol, bars in symbol_bars.items():
-            self.pa.calibrate(symbol, bars.iloc[:warmup], self.config)
-            self.id_box.calibrate(symbol, bars.iloc[:0], self.config)
-            # Replay warmup through sensor histories and eligible planner PIDs,
-            # with no order construction, portfolio allocation, or submission.
-            for idx in range(min(warmup, len(bars))):
-                snapshot = MarketSnapshot(symbol, str(bars.iloc[idx]["timestamp"]), bars.iloc[:idx + 1])
-                warm_signal, _ = self.pa.evaluate(snapshot, self.config)
-                self.chart_studies.configure(self.config)
-                self._observe_conviction(symbol, warm_signal, self.chart_studies.evaluate(symbol, snapshot.bars))
-                if warm_signal.direction == 0:
-                    self.id_box._current_regime(symbol, float(bars.iloc[idx]["close"]))
-                    continue
-                warm_decision, _ = self.id_box.evaluate(
-                    warm_signal, self.config, latest_close=float(bars.iloc[idx]["close"]))
-                if warm_decision.approved:
-                    close = float(bars.iloc[idx]["close"])
-                    self.mpc.build_plan(warm_signal, warm_decision, close,
-                                        max(float(warm_signal.volatility) * close, 1e-6), self.config)
+        if recovering:
+            saved = self._resume_processed_bar_indices
+            identities = self._resume_data_identity
+
+            if not saved:
+                raise RuntimeError("Recovered execution has no certified resume cursor")
+            if set(saved) != set(identities):
+                raise RuntimeError("Recovered execution identity/cursor mismatch")
+            if not set(saved).issubset(symbol_bars):
+                raise RuntimeError("Recovered cursor names symbol outside supplied frames")
+
+            for symbol, bar_idx in saved.items():
+                frame = symbol_bars[symbol]
+                if bar_idx < warmup or bar_idx >= len(frame) - 1:
+                    raise RuntimeError("Recovered cursor outside executable certified frame")
+                actual = self._resume_prefix_digest(frame, bar_idx)
+                if actual != identities[symbol]:
+                    raise RuntimeError(
+                        "Certified resume data mismatch for " + symbol)
+
+            # Prefix/cursor identity is certified here.  Keep the recovery
+            # preparation halt active until the filtered continuation clock is
+            # available and any pending fleet-loading state is verified.
+
+        if not recovering:
+            for symbol, bars in symbol_bars.items():
+                self.pa.calibrate(symbol, bars.iloc[:warmup], self.config)
+                self.id_box.calibrate(symbol, bars.iloc[:0], self.config)
+                # Replay warmup through sensor histories and eligible planner PIDs,
+                # with no order construction, portfolio allocation, or submission.
+                for idx in range(min(warmup, len(bars))):
+                    snapshot = MarketSnapshot(symbol, str(bars.iloc[idx]["timestamp"]), bars.iloc[:idx + 1])
+                    warm_signal, _ = self.pa.evaluate(snapshot, self.config)
+                    self.chart_studies.configure(self.config)
+                    self._observe_conviction(symbol, warm_signal, self.chart_studies.evaluate(symbol, snapshot.bars))
+                    if warm_signal.direction == 0:
+                        self.id_box._current_regime(symbol, float(bars.iloc[idx]["close"]))
+                        continue
+                    warm_decision, _ = self.id_box.evaluate(
+                        warm_signal, self.config, latest_close=float(bars.iloc[idx]["close"]))
+                    if warm_decision.approved:
+                        close = float(bars.iloc[idx]["close"])
+                        self.mpc.build_plan(warm_signal, warm_decision, close,
+                                            max(float(warm_signal.volatility) * close, 1e-6), self.config)
 
         funnel = {
             "pa_evaluations": 0, "directional_signals": 0, "confidence_qualified": 0,
@@ -1846,9 +1888,51 @@ class Revision2ExternalEngineOrchestrator:
         # can build this once and pass it via precomputed_clock= -- mirrors
         # revision2/portfolio_orchestrator.py's identical optimization, so
         # the two engines' calibration supervisors can share one code path.
-        clock = precomputed_clock if precomputed_clock is not None else self.build_clock(symbol_bars, warmup)
-        entry_bar_index: Dict[str, int] = {}
-        ticks_since_reweight = 0
+        clock = precomputed_clock if precomputed_clock is not None else expected_clock
+        if recovering:
+            clock = [
+                event for event in clock
+                if event.bar_idx > self._resume_processed_bar_indices.get(event.symbol, -1)
+            ]
+
+            # C04-B fleet recovery gate.  Morning preparation deliberately
+            # stages fleet state without trusting its saved exposure as current
+            # broker truth.  The certified continuation clock now supplies the
+            # exact next portfolio timestamp, while exposure is reconstructed
+            # independently from restored positions, marks and account state.
+            pending_fleet = getattr(
+                self, "_pending_fleet_loading_recovery_state", None
+            )
+            if pending_fleet is not None:
+                if not clock:
+                    raise RuntimeError(
+                        "Recovered fleet loading has no certified next execution timestamp"
+                    )
+
+                equity_now = self._mark_to_market_equity()
+                if equity_now <= 0.0:
+                    raise RuntimeError(
+                        "Recovered fleet loading requires positive current equity"
+                    )
+
+                reconstructed_exposure = (
+                    self._gross_exposure_notional() / equity_now
+                )
+
+                self.plant_control.restore_offline_fleet_loading_state(
+                    pending_fleet,
+                    next_timestamp=pd.Timestamp(clock[0].timestamp),
+                    reconstructed_last_exposure_pu=reconstructed_exposure,
+                )
+                self._pending_fleet_loading_recovery_state = None
+
+            # Release the preparation halt only after prefix/cursor
+            # certification and fleet restoration both succeed.
+            self._morning_recovery_prepared = False
+            self._execution_halted = bool(self._resume_execution_halted)
+
+        entry_bar_index = self._resume_entry_bar_index
+        ticks_since_reweight = self._resume_ticks_since_reweight
 
         # BB08 operational controls.  These are explicit runtime parameters,
         # but remain FIXED / NOT_CALIBRATED until the parameter surface is
@@ -1864,7 +1948,7 @@ class Revision2ExternalEngineOrchestrator:
             "portfolio_optimizer_risk_free_rate",
         })
 
-        processed_bar_indices = {}
+        processed_bar_indices = self._resume_processed_bar_indices
         for timestamp, tick_events in itertools.groupby(clock, key=lambda e: e.timestamp):
             tick_events = list(tick_events)
             event_ts = pd.Timestamp(timestamp)
@@ -1878,6 +1962,7 @@ class Revision2ExternalEngineOrchestrator:
 
             for event in tick_events:
                 processed_bar_indices[event.symbol] = event.bar_idx
+                self._resume_processed_bar_indices[event.symbol] = int(event.bar_idx)
                 self._last_close[event.symbol] = float(symbol_bars[event.symbol].iloc[event.bar_idx]["close"])
             self._record_mtm(timestamp)
             if self.paper_journal is not None:
@@ -1890,8 +1975,10 @@ class Revision2ExternalEngineOrchestrator:
             # would dominate runtime for no real benefit at 1-minute
             # granularity).
             ticks_since_reweight += 1
+            self._resume_ticks_since_reweight = int(ticks_since_reweight)
             if ticks_since_reweight >= portfolio_refit_bars:
                 ticks_since_reweight = 0
+                self._resume_ticks_since_reweight = 0
                 price_history = {}
                 for symbol in self.symbols:
                     bars = symbol_bars[symbol]
@@ -2398,6 +2485,7 @@ class Revision2ExternalEngineOrchestrator:
                         if governor is not None:
                             governor.begin_position(hard_stop_r=-1.0, position_id=f"trade-{self._trade_sequence}")
                         entry_bar_index[symbol] = bar_idx + 1
+                        self._resume_entry_bar_index[symbol] = int(bar_idx + 1)
                         self._exit_controller_states[symbol] = self.exit_controller.open_position(
                             plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
                         )
@@ -2479,6 +2567,16 @@ class Revision2ExternalEngineOrchestrator:
                 except Exception:
                     self._execution_halted = True
                     raise
+
+            # C04-B: publish exact execution continuation state before
+            # either journal or morning-recovery persistence.
+            self._resume_entry_bar_index = dict(entry_bar_index)
+            self._resume_ticks_since_reweight = int(ticks_since_reweight)
+            self._resume_processed_bar_indices = dict(processed_bar_indices)
+            self._resume_data_identity = {
+                symbol: self._resume_prefix_digest(symbol_bars[symbol], bar_idx)
+                for symbol, bar_idx in self._resume_processed_bar_indices.items()
+            }
 
             if self.paper_journal is not None:
                 self.paper_journal.checkpoint(self, timestamp)

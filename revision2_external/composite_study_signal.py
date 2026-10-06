@@ -70,9 +70,10 @@ the unnegated sign produced.
 
 from __future__ import annotations
 
+import math
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict, List
+from typing import Deque, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -95,6 +96,48 @@ _GRADING_HORIZON = require(default_config(), "studies_grading_horizon_bars")
 
 def _clip(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
+
+
+_STATE_VERSION = 1
+# Construction contract of every study PID (see _get_symbol_state / evaluate): dt=1 is always explicit.
+_PID_MODE = dict(dt=1, sample_time=None, auto_mode=True, proportional_on_measurement=False,
+                 differential_on_measurement=True, error_map=None)
+_PID_STATE_FIELDS = {"tunings", "setpoint", "output_limits", "proportional", "integral", "derivative",
+                     "last_input", "last_error", "last_output"}
+_STUDY_FIELDS = {"weight", "pid", "vote_history", "close_history", "hit_history"}
+_STATE_FIELDS = {"version", "config_hash", "simple_pid_version", "pid_mode", "grading_horizon",
+                 "hit_rate_window", "symbols"}
+
+
+def _simple_pid_version() -> str:
+    from importlib.metadata import version
+    return version("simple_pid")
+
+
+def _state_real(value: object, what: str) -> float:
+    """Finite real number; bool/str/None/NaN/inf are never accepted as numeric studies state."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"Invalid studies state: {what} is not a number")
+    try:
+        number = float(value)  # an oversized JSON int raises OverflowError here
+        finite = math.isfinite(number)
+    except (OverflowError, TypeError, ValueError):
+        raise ValueError(f"Invalid studies state: {what} is not finite") from None
+    if not finite:
+        raise ValueError(f"Invalid studies state: {what} is not finite")
+    return number
+
+
+def _state_dict(value: object, keys: set, what: str) -> dict:
+    if not isinstance(value, dict) or set(value) != keys:
+        raise ValueError(f"Invalid studies state: {what} schema")
+    return value
+
+
+def _state_pair(value: object, count: int, what: str) -> List[float]:
+    if not isinstance(value, list) or len(value) != count:
+        raise ValueError(f"Invalid studies state: {what} shape")
+    return [_state_real(v, what) for v in value]
 
 
 def _ichimoku_vote(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> int:
@@ -251,6 +294,150 @@ class CompositeStudySignal:
                 state.vote_history = deque(state.vote_history, maxlen=self.grading_horizon + 1)
                 state.close_history = deque(state.close_history, maxlen=self.grading_horizon + 1)
                 state.hit_history = deque(state.hit_history, maxlen=self.hit_rate_window)
+
+    # ---- exact state continuity (studies_v1) ---------------------------------------------------
+    # Only semantic controller state is persisted (PID._last_time is a process-local monotonic stamp,
+    # unused because dt=1 is always explicit).  Config is bound by config_hash and *validated*, never
+    # reapplied: a legacy kp/ki/kd/clamp override that differs from the config is foreign state.
+
+    def _bound_controls(self) -> Tuple[float, float, float, float]:
+        values = {name: require(self.config, name) for name in self._NAMES}
+        controls = (values["studies_pid_kp"], values["studies_pid_ki"], values["studies_pid_kd"],
+                    abs(values["studies_pid_output_clamp"]))
+        if ((self.kp, self.ki, self.kd, self.clamp) != controls
+                or self.grading_horizon != values["studies_grading_horizon_bars"]
+                or self.hit_rate_window != values["studies_hit_rate_window_bars"]):
+            raise ValueError("Studies state requires controls equal to the bound config (legacy override active)")
+        for horizon in (self.grading_horizon, self.hit_rate_window):
+            if type(horizon) is not int or horizon < 1:
+                raise ValueError("Invalid studies state: configured horizon/window")
+        return controls
+
+    def export_state(self) -> Dict[str, object]:
+        """JSON-safe ``studies_v1`` payload; validated here so an invalid state never reaches disk."""
+        symbols: Dict[str, object] = {}
+        for symbol, states in self._symbols.items():
+            studies: Dict[str, object] = {}
+            for name, state in states.items():
+                pid = state.pid
+                live_mode = dict(sample_time=pid.sample_time, auto_mode=pid.auto_mode,
+                                 proportional_on_measurement=pid.proportional_on_measurement,
+                                 differential_on_measurement=pid.differential_on_measurement,
+                                 error_map=pid.error_map)
+                if live_mode != {k: v for k, v in _PID_MODE.items() if k != "dt"} or any(
+                        type(live_mode[k]) is not type(_PID_MODE[k]) for k in live_mode):
+                    raise ValueError("Invalid studies state: live PID mode differs from the studies contract")
+                proportional, integral, derivative = pid.components
+                studies[name] = dict(
+                    weight=state.weight,
+                    pid=dict(tunings=list(pid.tunings), setpoint=pid.setpoint, output_limits=list(pid.output_limits),
+                             proportional=proportional, integral=integral, derivative=derivative,
+                             last_input=pid._last_input, last_error=pid._last_error, last_output=pid._last_output),
+                    vote_history=list(state.vote_history), close_history=list(state.close_history),
+                    hit_history=list(state.hit_history))
+            symbols[symbol] = studies
+        payload = dict(version=_STATE_VERSION, config_hash=self.config.config_hash,
+                       simple_pid_version=_simple_pid_version(), pid_mode=dict(_PID_MODE),
+                       grading_horizon=self.grading_horizon, hit_rate_window=self.hit_rate_window,
+                       symbols=symbols)
+        self._stage_state(payload)
+        return payload
+
+    def _stage_state(self, payload: object) -> Dict[str, Dict[str, _StudyState]]:
+        """Strictly validate and rebuild into NEW objects; touches no live attribute."""
+        kp, ki, kd, clamp = self._bound_controls()
+        payload = _state_dict(payload, _STATE_FIELDS, "payload")
+        if type(payload["version"]) is not int or payload["version"] != _STATE_VERSION:
+            raise ValueError("Unsupported studies state version")
+        if type(payload["config_hash"]) is not str or payload["config_hash"] != self.config.config_hash:
+            raise ValueError("Studies state was saved under a different config")
+        if type(payload["simple_pid_version"]) is not str or payload["simple_pid_version"] != _simple_pid_version():
+            raise ValueError("Studies state was saved under a different simple_pid version")
+        mode = payload["pid_mode"]
+        if (not isinstance(mode, dict) or set(mode) != set(_PID_MODE)
+                or any(type(mode[k]) is not type(v) or mode[k] != v for k, v in _PID_MODE.items())):
+            raise ValueError("Studies state mode differs from the studies contract")
+        for key, live in (("grading_horizon", self.grading_horizon), ("hit_rate_window", self.hit_rate_window)):
+            if type(payload[key]) is not int or payload[key] != live:
+                raise ValueError(f"Invalid studies state: {key} differs from config")
+        raw_symbols = payload["symbols"]
+        if not isinstance(raw_symbols, dict):
+            raise ValueError("Invalid studies state: symbols")
+
+        horizon_len, window = self.grading_horizon + 1, self.hit_rate_window
+        staged: Dict[str, Dict[str, _StudyState]] = {}
+        for symbol, raw_studies in raw_symbols.items():
+            if type(symbol) is not str or not symbol:
+                raise ValueError("Invalid studies state: symbol")
+            raw_studies = _state_dict(raw_studies, set(STUDY_NAMES), "symbol studies")
+            states: Dict[str, _StudyState] = {}
+            for name in STUDY_NAMES:
+                entry = _state_dict(raw_studies[name], _STUDY_FIELDS, "study")
+                weight = _state_real(entry["weight"], "weight")
+                if not MIN_WEIGHT <= weight <= MAX_WEIGHT:
+                    raise ValueError("Invalid studies state: weight outside configured bounds")
+                votes, closes, hits = entry["vote_history"], entry["close_history"], entry["hit_history"]
+                if not all(isinstance(h, list) for h in (votes, closes, hits)):
+                    raise ValueError("Invalid studies state: history shape")
+                if len(votes) != len(closes) or len(votes) > horizon_len or len(hits) > window:
+                    raise ValueError("Invalid studies state: history lengths")
+                if any(type(v) is not int or v not in (-1, 0, 1) for v in votes):
+                    raise ValueError("Invalid studies state: vote")
+                if any(type(h) is not int or h not in (0, 1) for h in hits):
+                    raise ValueError("Invalid studies state: hit")
+                closes = [_state_real(c, "close") for c in closes]
+                if any(c <= 0 for c in closes):
+                    raise ValueError("Invalid studies state: close must be positive")
+                if hits and len(votes) != horizon_len:
+                    raise ValueError("Invalid studies state: graded hits before the horizon elapsed")
+
+                p = _state_dict(entry["pid"], _PID_STATE_FIELDS, "study PID")
+                if (_state_pair(p["tunings"], 3, "tunings") != [kp, ki, kd]
+                        or _state_pair(p["output_limits"], 2, "output_limits") != [-clamp, clamp]):
+                    raise ValueError("Studies PID gains/limits differ from the configured controls")
+                values = {n: _state_real(p[n], n) for n in ("setpoint", "proportional", "integral", "derivative")}
+                last = {n: (None if p[n] is None else _state_real(p[n], n))
+                        for n in ("last_input", "last_error", "last_output")}
+                hit_rate = (sum(hits) / len(hits)) if hits else 0.5
+                if all(v is None for v in last.values()):
+                    # Created but never stepped: nothing may have been learned yet.
+                    if (votes or hits or weight != 1.0 / len(STUDY_NAMES) or values["setpoint"] != 0.5
+                            or any(values[n] != 0 for n in ("proportional", "integral", "derivative"))):
+                        raise ValueError("Invalid studies state: unstepped PID carries state")
+                else:
+                    if any(v is None for v in last.values()) or not votes:
+                        raise ValueError("Invalid studies state: incomplete PID memory")
+                    if last["last_input"] != hit_rate or last["last_error"] != values["setpoint"] - hit_rate:
+                        raise ValueError("Invalid studies state: PID memory incoherent with hit history")
+                    if abs(last["last_output"]) > clamp:
+                        raise ValueError("Invalid studies state: PID output exceeds the configured clamp")
+                if abs(values["integral"]) > clamp:
+                    raise ValueError("Invalid studies state: PID integral exceeds the configured clamp")
+                pid = PID(Kp=kp, Ki=ki, Kd=kd, setpoint=values["setpoint"], sample_time=None,
+                          output_limits=(-clamp, clamp))
+                pid._proportional, pid._integral, pid._derivative = (
+                    values["proportional"], values["integral"], values["derivative"])
+                pid._last_input, pid._last_error, pid._last_output = (
+                    last["last_input"], last["last_error"], last["last_output"])
+                states[name] = _StudyState(
+                    weight=weight, pid=pid, vote_history=deque(votes, maxlen=horizon_len),
+                    close_history=deque(closes, maxlen=horizon_len), hit_history=deque(hits, maxlen=window))
+            # All four studies are stepped together on the same bars with the same close.
+            first = states[STUDY_NAMES[0]]
+            if any(list(s.close_history) != list(first.close_history)
+                   or len(s.vote_history) != len(first.vote_history)
+                   or s.pid.setpoint != first.pid.setpoint for s in states.values()):
+                raise ValueError("Invalid studies state: studies disagree on shared bars/baseline")
+            if first.vote_history and first.pid.setpoint != sum(s.hit_rate for s in states.values()) / len(states):
+                raise ValueError("Invalid studies state: setpoint is not the cross-study baseline")
+            staged[symbol] = states
+        return staged
+
+    def restore_state(self, payload: object) -> None:
+        """Install a saved ``studies_v1`` payload into this EMPTY signal; all-or-nothing."""
+        if self._symbols:
+            raise ValueError("Studies state can only be restored into an empty signal")
+        self._symbols = self._stage_state(payload)
 
     def _get_symbol_state(self, symbol: str) -> Dict[str, _StudyState]:
         if symbol not in self._symbols:

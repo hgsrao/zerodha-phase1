@@ -14,6 +14,7 @@ before any actuator is permitted to consume them.
 from __future__ import annotations
 
 import math
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List
 
@@ -36,6 +37,33 @@ _GAIN_SCALE_BOUNDS = (0.5, 1.5)
 _LATCHED_DERATE = 0.0
 # Registry-derived compatibility alias (not an owner).
 _DEFAULT_RESPONSE_TIME_BARS = require(default_config(), "cl_response_time_default_bars")
+
+
+def _state_number(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("Invalid closed-loop recovery number")
+    try:
+        finite = math.isfinite(value)
+    except (OverflowError, ValueError):
+        finite = False
+    if not finite:
+        raise ValueError("Invalid closed-loop recovery number")
+    return value
+
+
+def _state_json(value):
+    if value is None or type(value) in (str, bool):
+        return
+    if type(value) in (int, float):
+        _state_number(value)
+    elif type(value) is list:
+        for item in value:
+            _state_json(item)
+    elif type(value) is dict and all(type(k) is str for k in value):
+        for item in value.values():
+            _state_json(item)
+    else:
+        raise ValueError("Invalid closed-loop recovery JSON metadata")
 
 
 def _clip(value: float, low: float, high: float) -> float:
@@ -117,6 +145,53 @@ class HMMRiskHysteresis:
                 or not 0.0 < self.minimum_derate_step <= 1.0
                 or not 0.0 < self.deadband_derate <= 1.0):
             raise ValueError("invalid hysteresis confirmation or smoothing")
+
+    def export_state(self, config):
+        controls = {attribute: require(config, name) for attribute, name in self._CONFIG_FIELDS}
+        if any(getattr(self, k) != v for k, v in controls.items()):
+            raise ValueError("Hysteresis controls differ from bound config")
+        payload = dict(version=1, config_hash=config.config_hash, state=asdict(self))
+        self._stage_state(payload, config)
+        return payload
+
+    @classmethod
+    def _stage_state(cls, payload, config):
+        if (type(payload) is not dict or set(payload) != {"version", "config_hash", "state"}
+                or type(payload["version"]) is not int or payload["version"] != 1
+                or payload["config_hash"] != config.config_hash):
+            raise ValueError("Invalid hysteresis recovery identity/schema")
+        state = payload["state"]
+        expected = set(cls.__dataclass_fields__) - {"_CONFIG_FIELDS"}
+        if type(state) is not dict or set(state) != expected:
+            raise ValueError("Invalid hysteresis recovery state schema")
+        for attribute, name in cls._CONFIG_FIELDS:
+            if state[attribute] != require(config, name) or isinstance(state[attribute], bool):
+                raise ValueError("Hysteresis recovery controls differ from config")
+        if type(state["confirmation_bars"]) is not int:
+            raise ValueError("Invalid hysteresis confirmation count")
+        for key in ("enter_count", "exit_count"):
+            if type(state[key]) is not int or state[key] < 0:
+                raise ValueError("Invalid hysteresis recovery counter")
+        if type(state["stressed_latched"]) is not bool:
+            raise ValueError("Invalid hysteresis recovery latch")
+        probability = state["filtered_probability"]
+        if probability is not None and not 0 <= _state_number(probability) <= 1:
+            raise ValueError("Invalid hysteresis recovery probability")
+        if not 0 <= _state_number(state["applied_derate"]) <= 1:
+            raise ValueError("Invalid hysteresis recovery derate")
+        if state["stressed_latched"] and state["applied_derate"] != 0:
+            raise ValueError("Latched hysteresis recovery must retain brake")
+        if probability is None and (state["stressed_latched"] or state["enter_count"]
+                                   or state["exit_count"] or state["applied_derate"] != 1):
+            raise ValueError("Unobserved hysteresis recovery state is inconsistent")
+        return cls(**state)
+
+    def restore_state(self, payload, config):
+        if (self.filtered_probability is not None or self.stressed_latched or self.enter_count
+                or self.exit_count or self.applied_derate != 1):
+            raise ValueError("Hysteresis recovery requires a cold instance")
+        staged = self._stage_state(payload, config)
+        self.__dict__.update(staged.__dict__)
 
     def update(self, observation: Dict[str, Any]) -> Dict[str, Any]:
         probability = observation.get("stress_probability")
@@ -247,6 +322,52 @@ class CausalOutcomeLedger:
         values = [require(config, n) for n in
                   ("cl_outcome_min_history", "cl_confidence_offset_gain", "cl_confidence_offset_max")]
         self.minimum_history, self.confidence_offset_gain, self.confidence_offset_max = values
+
+    def export_state(self, config, universe):
+        if isinstance(universe, (str, bytes)):
+            raise ValueError("Outcome universe must be a collection of symbols")
+        controls = {"minimum_history": require(config, "cl_outcome_min_history"),
+                    "confidence_offset_gain": require(config, "cl_confidence_offset_gain"),
+                    "confidence_offset_max": require(config, "cl_confidence_offset_max")}
+        if any(getattr(self, k) != v for k, v in controls.items()):
+            raise ValueError("Outcome ledger controls differ from bound config")
+        payload = dict(version=1, config_hash=config.config_hash, universe=sorted(universe),
+                       outcomes=deepcopy(self._outcomes))
+        self._stage_state(payload, config, universe)
+        return payload
+
+    @staticmethod
+    def _stage_state(payload, config, universe):
+        if isinstance(universe, (str, bytes)):
+            raise ValueError("Outcome universe must be a collection of symbols")
+        symbols = list(universe)
+        if (any(type(s) is not str or not s for s in symbols) or len(set(symbols)) != len(symbols)
+                or type(payload) is not dict
+                or set(payload) != {"version", "config_hash", "universe", "outcomes"}
+                or type(payload["version"]) is not int or payload["version"] != 1
+                or payload["config_hash"] != config.config_hash or payload["universe"] != sorted(symbols)
+                or type(payload["outcomes"]) is not list):
+            raise ValueError("Invalid outcome ledger recovery identity/schema")
+        for row in payload["outcomes"]:
+            if type(row) is not dict or not {"symbol", "net_pnl"}.issubset(row):
+                raise ValueError("Invalid outcome ledger recovery row")
+            if type(row["symbol"]) is not str or row["symbol"] not in symbols:
+                raise ValueError("Unknown outcome ledger recovery symbol")
+            _state_number(row["net_pnl"])
+            if "side" in row and row["side"] not in ("BUY", "SELL"):
+                raise ValueError("Invalid outcome ledger recovery side")
+            if "regime" in row and (type(row["regime"]) is not str or not row["regime"]):
+                raise ValueError("Invalid outcome ledger recovery regime")
+            _state_json(row)
+        return deepcopy(payload["outcomes"])
+
+    def restore_state(self, payload, config, universe):
+        if self._outcomes:
+            raise ValueError("Outcome ledger recovery requires a cold instance")
+        rows = self._stage_state(payload, config, universe)
+        staged = type(self)(config=config)
+        staged._outcomes = rows
+        self.__dict__.update(staged.__dict__)
 
     def record(self, outcome: Dict[str, Any]) -> None:
         if "net_pnl" not in outcome or "symbol" not in outcome:
