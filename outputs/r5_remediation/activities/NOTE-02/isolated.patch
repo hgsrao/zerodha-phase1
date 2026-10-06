@@ -1,0 +1,169 @@
+--- before/revision5/combined_cycle_runtime.py
++++ after/revision5/combined_cycle_runtime.py
+@@ -91,11 +91,86 @@
+ 
+     def _receipt(self, engine, request, timestamp):
+         receipt=engine.broker.conversion_receipt(request.request_id)
+-        if receipt is None or receipt.get('status') in ('UNKNOWN','PENDING'):
+-            raise CombinedCycleReconciliationError('conversion outcome unknown; reconciliation required')
++        if receipt is not None and not isinstance(receipt.get('status'), str):
++            engine._execution_halted = True
++            raise CombinedCycleReconciliationError('invalid conversion receipt status')
++        outcome = receipt['status'].upper() if receipt is not None else 'UNKNOWN'
++        if outcome in ('UNKNOWN','PENDING','TIMEOUT'):
++            engine._execution_halted = True
++            if receipt is not None:
++                if receipt.get('request_id') != request.request_id:
++                    raise CombinedCycleReconciliationError('uncorrelated conversion receipt')
++                self.handoff.resolve(request.request_id, outcome)
++            return None
+         if receipt.get('request_id')!=request.request_id:
+             raise CombinedCycleReconciliationError('uncorrelated conversion receipt')
+-        return self.handoff.resolve(request.request_id,receipt['status'],receipt.get('product'),receipt.get('quantity'),receipt.get('timestamp',timestamp))
++        try:
++            resolved = self.handoff.resolve(request.request_id,outcome,receipt.get('product'),receipt.get('quantity'),receipt.get('timestamp',timestamp))
++        except (ValueError, KeyError):
++            engine._execution_halted = True
++            raise
++        if 'transfer_unresolved' in resolved.protection:
++            protection = dict(resolved.protection)
++            protection.pop('transfer_unresolved')
++            self.store.save(resolved.record, resolved.trade, protection, resolved.revision)
++            resolved = self.store.load(resolved.record.position_id)
++        return resolved
++
++    def _manage_unresolved_transfer(self, engine, snapshot, symbol, timestamp, bar, session_last_bar):
++        """Paper-only protective management while a correlated ACK is unavailable.
++
++        Broker product determines protection routing, never ownership promotion.
++        Conversion is not resubmitted. Engine A retains the square-off duty.
++        """
++        engine._execution_halted = True
++        record = snapshot.record
++        trade = engine.open_trades[symbol]
++        position = engine.broker.get_position(symbol)
++        quantity = self.store.trade_quantity(snapshot.trade)
++        expected = quantity * (1 if record.direction == 'BUY' else -1)
++        product = position.get('product')
++        if (getattr(engine.broker, 'environment', None) != 'paper'
++                or position.get('quantity') != expected or product not in ('MIS', 'CNC')):
++            raise CombinedCycleReconciliationError('unresolved transfer lacks reconcilable paper broker truth')
++        protection = dict(snapshot.protection)
++        protection['protective_order_id'] = engine.broker.ensure_protection(
++            symbol, record.current_stop_price, quantity, product)
++        protection['broker_snapshot'] = engine.broker.snapshot()
++        if not protection['broker_snapshot'].get('passed'):
++            raise CombinedCycleReconciliationError('unresolved transfer broker snapshot unavailable')
++        protection['transfer_unresolved'] = {'observed_product': product, 'new_risk_allowed': False}
++        self.store.save(record, dict(trade), protection, snapshot.revision)
++        self._sync(engine, self.store.load(record.position_id))
++        if self._protective_exit(engine, symbol, timestamp, trade, record, bar):
++            return True
++        if (session_last_bar or pd.Timestamp(timestamp).strftime('%H:%M')
++                >= engine.entry_decision_engine.config.force_close_time):
++            engine._execute_exit(symbol, timestamp, trade, float(bar['open']), 'force_close_time')
++        return True
++
++    def _protective_exit(self, engine, symbol, timestamp, trade, record, bar):
++        # Preserve mandatory portfolio protection before every discretionary controller.
++        halt=min(float(engine.config.require('drawdown_halt_threshold')),float(engine.safety_contract.values['safety_drawdown_halt_threshold']))
++        if engine._current_drawdown()>=halt:
++            engine._execute_exit(symbol,timestamp,trade,float(bar['close']),'forced_close_drawdown_halt');return True
++        if engine._micom_trip is not None and engine._micom_trip['ansi_code']!='MICOM_INPUT_UNAVAILABLE':
++            engine._execute_exit(symbol,timestamp,trade,float(bar['close']),f"micom_trip:{engine._micom_trip['ansi_code']}");return True
++        stop=record.current_stop_price
++        target=float(trade['target_price'])
++        price,reason=None,None
++        if record.direction=='BUY':
++            if float(bar['open'])<=stop: price,reason=float(bar['open']),'stop_gap'
++            elif float(bar['open'])>=target: price,reason=float(bar['open']),'target_gap'
++            elif float(bar['low'])<=stop: price,reason=stop,'stop'
++            elif float(bar['high'])>=target: price,reason=target,'target'
++        else:
++            if float(bar['open'])>=stop: price,reason=float(bar['open']),'stop_gap'
++            elif float(bar['open'])<=target: price,reason=float(bar['open']),'target_gap'
++            elif float(bar['high'])>=stop: price,reason=stop,'stop'
++            elif float(bar['low'])<=target: price,reason=target,'target'
++        if price is not None:
++            engine._execute_exit(symbol,timestamp,trade,price,reason);return True
++        return False
+ 
+     def handle_bar(self, engine, symbol, timestamp, bar, session_last_bar):
+         trade=engine.open_trades[symbol]
+@@ -118,29 +193,13 @@
+             from revision5.handoff_manager import ConversionRequest
+             data=next(x for x in self.store.requests() if x['position_id']==record.position_id)
+             request=ConversionRequest(**{k:v for k,v in data.items() if k in ConversionRequest.__dataclass_fields__})
+-            snapshot=self._receipt(engine,request,timestamp); self._sync(engine,snapshot); record=snapshot.record
++            resolved=self._receipt(engine,request,timestamp)
++            if resolved is None:
++                return self._manage_unresolved_transfer(engine, snapshot, symbol, timestamp, bar, session_last_bar)
++            snapshot=resolved; self._sync(engine,snapshot); record=snapshot.record
+         self.reconcile(engine,snapshot)
+-        # Preserve mandatory portfolio protection before every discretionary controller.
+-        halt=min(float(engine.config.require('drawdown_halt_threshold')),float(engine.safety_contract.values['safety_drawdown_halt_threshold']))
+-        if engine._current_drawdown()>=halt:
+-            engine._execute_exit(symbol,timestamp,trade,float(bar['close']),'forced_close_drawdown_halt');return True
+-        if engine._micom_trip is not None and engine._micom_trip['ansi_code']!='MICOM_INPUT_UNAVAILABLE':
+-            engine._execute_exit(symbol,timestamp,trade,float(bar['close']),f"micom_trip:{engine._micom_trip['ansi_code']}");return True
+-        stop=record.current_stop_price
+-        target=float(trade['target_price'])
+-        price,reason=None,None
+-        if record.direction=='BUY':
+-            if float(bar['open'])<=stop: price,reason=float(bar['open']),'stop_gap'
+-            elif float(bar['open'])>=target: price,reason=float(bar['open']),'target_gap'
+-            elif float(bar['low'])<=stop: price,reason=stop,'stop'
+-            elif float(bar['high'])>=target: price,reason=target,'target'
+-        else:
+-            if float(bar['open'])>=stop: price,reason=float(bar['open']),'stop_gap'
+-            elif float(bar['open'])<=target: price,reason=float(bar['open']),'target_gap'
+-            elif float(bar['high'])>=stop: price,reason=stop,'stop'
+-            elif float(bar['low'])<=target: price,reason=target,'target'
+-        if price is not None:
+-            engine._execute_exit(symbol,timestamp,trade,price,reason);return True
++        if self._protective_exit(engine, symbol, timestamp, trade, record, bar):
++            return True
+         protection=dict(snapshot.protection)
+         history=protection.get('history',[])
+         ts=pd.Timestamp(timestamp)
+@@ -164,6 +223,9 @@
+             if request.status=='PENDING':
+                 engine.broker.request_product_conversion(request.request_id,symbol,request.quantity,from_product='MIS',to_product='CNC',timestamp=ts)
+                 snapshot=self._receipt(engine,request,ts)
++                if snapshot is None:
++                    return self._manage_unresolved_transfer(
++                        engine, self.store.load(record.position_id), symbol, ts, bar, session_last_bar)
+                 self._sync(engine,snapshot);record=snapshot.record
+                 if record.lifecycle_state!=B_OPEN: return False
+                 trade.pop('controller_exit_pending',None)
+--- before/revision5/handoff_manager.py
++++ after/revision5/handoff_manager.py
+@@ -91,7 +91,7 @@
+             resolution = dict(status=outcome, product=product, quantity=quantity,
+                               timestamp=self._local(timestamp) if timestamp is not None else None)
+             if receipt['status'] != 'PENDING':
+-                if outcome not in ('UNKNOWN', 'PENDING'):
++                if outcome not in ('UNKNOWN', 'PENDING', 'TIMEOUT'):
+                     previous = receipt.get('resolution')
+                     if previous is None and receipt['status'] != 'CLOSED_RACE':
+                         # Older receipts stored ACK time and requested quantity,
+@@ -100,12 +100,17 @@
+                                         product='CNC' if receipt['status']=='ACKNOWLEDGED' else None,
+                                         quantity=receipt['quantity'] if receipt['status']=='ACKNOWLEDGED' else None,
+                                         timestamp=self._local(receipt['resolved_at']) if receipt.get('resolved_at') is not None else None)
+-                    if resolution != previous:
++                    if resolution != previous or (outcome == 'ACKNOWLEDGED' and type(quantity) is not int):
+                         raise ValueError('conflicting terminal conversion receipt: reconcile broker before proceeding')
+                 db.execute('COMMIT')
+                 return snapshot
+             record = snapshot.record
+-            if outcome in ('UNKNOWN','PENDING'):
++            if outcome in ('UNKNOWN','PENDING','TIMEOUT'):
++                # A timeout is an absence of a broker outcome, not rejection.
++                # Keep the correlated request pending for reconciliation.
++                receipt['last_observation'] = outcome
++                db.execute('UPDATE conversions SET payload=? WHERE request_id=?',
++                           (json.dumps(receipt,default=_default),request_id))
+                 db.execute('COMMIT')
+                 return snapshot
+             if outcome not in ('ACKNOWLEDGED','REJECTED','TIMEOUT'):

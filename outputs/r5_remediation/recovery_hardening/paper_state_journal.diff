@@ -1,0 +1,62 @@
+--- outputs/r5_remediation/recovery_hardening/paper_state_journal.before.py	2026-10-05 22:58:37.563850555 +0530
++++ revision5/paper_state_journal.py	2026-10-05 23:00:10.046424745 +0530
+@@ -59,6 +59,8 @@
+         'merit_history': engine.plant_control.dispatch_controller.merit_source.trade_history_r,
+         'merit_weights': engine.plant_control.dispatch_controller.merit_source.weights,
+         'mtm_peak_equity': engine._mtm_peak,
++        'ecs_demand_pu': engine.plant_control.ecs._previous_demand,
++        'native_cursor': [engine._native_bar_index, engine._native_timestamp],
+         'symbol_cooldowns': engine.symbol_cooldown_until_bar,
+         'symbol_trips': engine.symbol_tripped,
+         'execution_halted': engine._execution_halted,
+@@ -73,8 +75,10 @@
+     Direct, unrecorded plant mutations are unsupported during durable replay.
+     ``after_commit`` is a harness hook for killing a worker after a real commit.
+     """
+-    def __init__(self, path, *, commands=(), after_commit=None):
++    def __init__(self, path, *, commands=(), after_commit=None, require_existing=False):
+         self.path = Path(path)
++        if require_existing and not self.path.is_file():
++            raise RuntimeError('Verified paper resume requires an existing journal')
+         self.path.parent.mkdir(parents=True, exist_ok=True)
+         self._lease = self.path.with_suffix(self.path.suffix + '.lock').open('a')
+         try:
+@@ -99,6 +103,14 @@
+         self.previous_hash = ''
+         self.bound = False
+         self.reconciled_checkpoints = 0
++        self.prefix_length = self.con.execute('SELECT COUNT(*) FROM checkpoints').fetchone()[0]
++        self.prefix_verified = self.prefix_length == 0
++        self.resume_boundary = None
++        if require_existing:
++            last = self.con.execute('SELECT timestamp FROM checkpoints ORDER BY seq DESC LIMIT 1').fetchone()
++            if self.prefix_length == 0 or last[0] == 'FINAL':
++                self.close()
++                raise RuntimeError('Verified paper resume requires an interrupted prefix, not a completed run')
+ 
+     def bind(self, engine, frames, warmup):
+         if self.bound:
+@@ -119,7 +131,12 @@
+             'schema': 1, 'python': sys.version, 'source': source,
+             'packages': sorted((d.metadata['Name'], d.version) for d in importlib.metadata.distributions()),
+             'modes': [engine.closed_loop_mode, engine.pid_mode, engine.risk_profile,
+-                      engine.dynamic_target_setpoint_mode],
++                      engine.dynamic_target_setpoint_mode, engine.governor_authority,
++                      engine.plant_control.mode.value],
++            'combined_cycle': None if engine.combined_cycle_runtime is None else {
++                'runtime': asdict(engine.combined_cycle_runtime.config),
++                'handoff': asdict(engine.combined_cycle_runtime.handoff.config),
++                'engine_b': asdict(engine.combined_cycle_runtime.engine_b.policy)},
+             'sectors': engine.sector_map, 'sessions': engine.session_schedule,
+             'config': engine.config.config_hash, 'safety': engine.safety_contract.contract_hash,
+             'warmup': warmup, 'symbols': engine.symbols, 'equity': engine.starting_equity,
+@@ -189,6 +206,9 @@
+             raise
+         self.previous_hash = checksum
+         self.cursor += 1
++        if not self.prefix_verified and self.cursor == self.prefix_length:
++            self.prefix_verified = True
++            self.resume_boundary = timestamp
+         if self.after_commit is not None:
+             self.after_commit(self, engine)
+ 

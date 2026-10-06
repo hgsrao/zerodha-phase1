@@ -1,0 +1,32 @@
+{
+  "status": "blocked_unsaved_documents",
+  "attempts": [
+    {
+      "command": [
+        "/usr/sbin/shutdown",
+        "-h",
+        "+1"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Failed to schedule shutdown: Operation denied due to active block inhibitor\n"
+    },
+    {
+      "command": [
+        "sudo",
+        "-n",
+        "/usr/sbin/shutdown",
+        "-h",
+        "+1"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "sudo: interactive authentication is required\n"
+    }
+  ],
+  "inhibitor": {
+    "application": "org.gnome.TextEditor",
+    "reason": "There are unsaved documents",
+    "forced": false
+  }
+}

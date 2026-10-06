@@ -1,0 +1,22 @@
+--- before/revision2_external/orchestrator.py
++++ after/revision2_external/orchestrator.py
+@@ -1147,7 +1147,7 @@
+         # bypasses force_close_time and the MIS session close, but stays under every protective exit
+         # below: drawdown halt, MiCOM trip, hard/governor stop, target, max hold and governor exits.
+         owned_by_engine_a = self._owner_engine(trade) == lifecycle.ENGINE_A
+-        if owned_by_engine_a and (pd.Timestamp(timestamp).strftime("%H:%M")
++        if owned_by_engine_a and (self._exchange_local_time(timestamp).strftime("%H:%M")
+                                   >= self.entry_decision_engine.config.force_close_time):
+             self._execute_exit(symbol, timestamp, trade, float(bar["open"]), "force_close_time")
+             return
+--- before/revision5/combined_cycle_runtime.py
++++ after/revision5/combined_cycle_runtime.py
+@@ -143,7 +143,7 @@
+         self._sync(engine, self.store.load(record.position_id))
+         if self._protective_exit(engine, symbol, timestamp, trade, record, bar):
+             return True
+-        if (session_last_bar or pd.Timestamp(timestamp).strftime('%H:%M')
++        if (session_last_bar or engine._exchange_local_time(timestamp).strftime('%H:%M')
+                 >= engine.entry_decision_engine.config.force_close_time):
+             engine._execute_exit(symbol, timestamp, trade, float(bar['open']), 'force_close_time')
+         return True

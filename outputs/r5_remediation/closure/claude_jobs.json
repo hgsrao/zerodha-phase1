@@ -1,0 +1,15 @@
+{
+  "scope": "read-only engine/harness closure review",
+  "first_job": {
+    "job_id": "40d1e9b6-4c3a-4fd5-8e93-a56493dd4c59",
+    "status": "failed",
+    "reason": "OAuth token refresh contention; no model output"
+  },
+  "retry": {
+    "job_id": "11260a29-926f-4ef8-9a02-46a84b59307d",
+    "status": "completed",
+    "exit_code": 0,
+    "review": "CLAUDE_REVIEW.md"
+  },
+  "shared_checkout_edits": false
+}

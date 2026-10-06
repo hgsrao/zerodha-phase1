@@ -59,7 +59,9 @@ class FinalExecutionController:
         self, *, path: Dict[str, Any] | None, exit_pid: Dict[str, Any],
         held_bars: int, minimum_hold_bars: int, maximum_hold_bars: int, side: str = "BUY",
     ) -> Dict[str, Any]:
-        saturation = bool(exit_pid.get("studies_clamped"))
+        # Absolute clamping includes negative/high-confidence output and a
+        # single bar. Only the controller's positive sustained streak qualifies.
+        saturation = exit_pid.get("studies_saturation_exit") is True
         behind_path = bool((path or {}).get("behind_path"))
         if side not in {"BUY", "SELL"}:
             raise ValueError("invalid exit side")
@@ -84,6 +86,8 @@ class FinalExecutionController:
             "maximum_hold_bars": int(maximum_hold_bars),
             "behind_path": behind_path,
             "studies_pid_output": exit_pid.get("studies_output"),
+            "studies_positive_saturation_count": exit_pid.get("studies_positive_saturation_count"),
+            "saturation_exit_bars": exit_pid.get("saturation_exit_bars"),
             "studies_tightness": exit_pid.get("studies_tightness"),
             "stop_before": exit_pid.get("stop_before"),
             "stop_after": exit_pid.get("stop_after"),

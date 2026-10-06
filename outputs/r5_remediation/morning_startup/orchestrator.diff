@@ -1,0 +1,63 @@
+--- /home/srinivas/projects/zerodha-r5-governor-refactor/outputs/r5_remediation/morning_startup/orchestrator.before.py	2026-10-05 22:35:35.758857417 +0530
++++ /home/srinivas/projects/zerodha-r5-governor-refactor/revision2_external/orchestrator.py	2026-10-05 22:40:30.116950331 +0530
+@@ -140,7 +140,12 @@
+         paper_journal: Optional[Any] = None,
+         governor_authority: str = "advisory",
+         combined_cycle_runtime: Optional[Any] = None,
++        recovery_account_id: Optional[str] = None,
+     ) -> None:
++        if recovery_account_id is not None and (not isinstance(recovery_account_id, str) or not recovery_account_id
++                                                or combined_cycle_runtime is None or real_plant_dcs is None):
++            raise ValueError('Recovery checkpoints require explicit account, native plant and combined-cycle runtime')
++        self.recovery_account_id = recovery_account_id
+         self.combined_cycle_runtime = combined_cycle_runtime
+         # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
+         # Default None -- unchanged behaviour: this replay engine does not instantiate a real plant,
+@@ -399,6 +404,16 @@
+         self._micom_trip_counts: Counter[str] = Counter()
+         self.startup_certificate = self._issue_startup_certificate()
+ 
++    def _checkpoint_morning_recovery(self, *, account_id, timestamp):
++        """Explicit shutdown checkpoint; shared lifecycle/fleet database."""
++        from revision5.morning_recovery import capture
++        return capture(self, account_id, timestamp)
++
++    def _reconcile_morning_startup(self, *, account_id, broker=None):
++        """Opt-in recovery preparation. Admissions remain blocked after hydration."""
++        from revision5.morning_recovery import prepare
++        return prepare(self, account_id, self.broker if broker is None else broker)
++
+     def _build_safety_gate_config(self) -> SafetyGateConfig:
+         v = self.safety_contract.values
+         return SafetyGateConfig(
+@@ -1454,6 +1469,8 @@
+         self, symbol_bars: Dict[str, pd.DataFrame], warmup: int = 60,
+         precomputed_clock: Optional[List[_ClockEvent]] = None,
+     ) -> Dict[str, Any]:
++        if getattr(self, '_morning_recovery_prepared', False):
++            raise RuntimeError('Hydrated morning state cannot enter fresh-input replay; certified resume cursor required')
+         self._assert_paper_plant_broker()
+         if self.paper_journal is not None:
+             self.paper_journal.bind(self, symbol_bars, warmup)
+@@ -2160,6 +2177,12 @@
+ 
+             if self.paper_journal is not None:
+                 self.paper_journal.checkpoint(self, timestamp)
++            if self.recovery_account_id is not None:
++                try:
++                    self._checkpoint_morning_recovery(account_id=self.recovery_account_id, timestamp=timestamp)
++                except Exception:
++                    self._execution_halted = True
++                    raise
+ 
+         for symbol in list(self.open_trades.keys()):
+             if getattr(self, "combined_cycle_runtime", None) is not None and self.combined_cycle_runtime.persist_end_of_run(self, symbol):
+@@ -2170,6 +2193,8 @@
+ 
+         if self.paper_journal is not None:
+             self.paper_journal.checkpoint(self, "FINAL")
++        if self.recovery_account_id is not None:
++            self._checkpoint_morning_recovery(account_id=self.recovery_account_id, timestamp='FINAL')
+         self.entry_candidate_observations.finalize_pending()
+         gross_pnl = self.broker.realized_pnl
+         assert abs(gross_pnl - sum(t["pnl"] for t in self.completed_trades)) < 1e-6

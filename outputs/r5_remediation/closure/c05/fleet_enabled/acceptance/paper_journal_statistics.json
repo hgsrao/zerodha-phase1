@@ -1,0 +1,7 @@
+{
+  "checkpoints": 1876,
+  "current_epoch_applied": 52,
+  "feedback_epochs": 1,
+  "policy": "OPT_IN_VERIFIED_CLOSED_CURRENT_EPOCH_COMPACTION",
+  "retained_memory_receipts": 0
+}

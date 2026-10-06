@@ -1,0 +1,16 @@
+--- outputs/r5_remediation/recovery_hardening/paper_execution.before.py	2026-10-05 22:58:37.566142012 +0530
++++ revision2_external/paper_execution.py	2026-10-05 22:58:37.592706238 +0530
+@@ -145,11 +145,10 @@
+ 
+     def ensure_cnc_gtt(self, position_id, symbol, stop_price, quantity):
+         """Simulated GTT boot request; no exchange-hosted guarantee."""
+-        from decimal import Decimal, ROUND_FLOOR
++        from revision2_external.protection_policy import gtt_sell_limit
+         if self.get_position(symbol).get('quantity') != quantity or self.get_position(symbol).get('product') != 'CNC':
+             raise ValueError('Simulated GTT requires matching long CNC position')
+-        tick = Decimal('0.05')
+-        limit = float((Decimal(str(stop_price))*Decimal('0.995')/tick).to_integral_value(rounding=ROUND_FLOOR)*tick)
++        limit = gtt_sell_limit(stop_price, self.protection_tick_size(symbol))
+         oid = self.ensure_protection(symbol, stop_price, quantity, 'CNC')
+         self._contingent_protection[oid]['validity'] = 'GTT_SIMULATED'
+         receipt = dict(passed=True, verified=True, trigger_id='paper-gtt-'+position_id,

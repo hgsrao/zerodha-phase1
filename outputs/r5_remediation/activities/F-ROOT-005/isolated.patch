@@ -1,0 +1,55 @@
+--- before/revision2_external/orchestrator.py
++++ after/revision2_external/orchestrator.py
+@@ -983,22 +983,13 @@
+                 # Any profitable exit breaks consecutive loss streak
+                 self.symbol_consecutive_losses[symbol] = 0
+             self._equity_curve.append(self._equity())
+-            self._close_position_lifecycle(trade)
+             del self.open_trades[symbol]
+             self._exit_controller_states.pop(symbol, None)
+             _, governor = self._governor_for(symbol)
+             if governor is not None:
+                 governor.confirm_position_closed(trade.get("trade_id"))
+             self._record_mtm(timestamp)
+-            self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
+-                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
+-                "exit_reason": reason, "net_pnl": completed["net_pnl"], "pnl": pnl, "costs": trade_costs,
+-                "entry_atr": completed["entry_atr"], "planned_entry_price": completed["planned_entry_price"],
+-                "planned_stop_price": completed["planned_stop_price"], "planned_target_price": completed["planned_target_price"],
+-                "mfe_r": completed.get("mfe_r"), "mae_r": completed.get("mae_r"),
+-                "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
+-                "shadow_r_trajectory": shadow,
+-            })
++            self._close_position_lifecycle(trade)
+ 
+             # ---- 2. Authoritative realized-R close feedback -------------------------------
+             # Plant-level dispatch feedback (BLOCKER 2) and local governor feedback: after the
+@@ -1021,6 +1012,15 @@
+                             symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r, reason=reason)
+ 
+             # ---- 3. Research telemetry (never part of the authoritative books) -------------
++            self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
++                "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
++                "exit_reason": reason, "net_pnl": completed["net_pnl"], "pnl": pnl, "costs": trade_costs,
++                "entry_atr": completed["entry_atr"], "planned_entry_price": completed["planned_entry_price"],
++                "planned_stop_price": completed["planned_stop_price"], "planned_target_price": completed["planned_target_price"],
++                "mfe_r": completed.get("mfe_r"), "mae_r": completed.get("mae_r"),
++                "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
++                "shadow_r_trajectory": shadow,
++            })
+             if completed["bars_held"] is None:
+                 # Without exit-controller state the holding period is unknown.  It is never
+                 # fabricated: the pre-entry evidence stays pending instead of being paired
+@@ -1074,7 +1074,11 @@
+         if record is not None and record.is_open:
+             self._position_lifecycle[trade["trade_id"]] = lifecycle.close_position(record)
+             if getattr(self, "combined_cycle_runtime", None) is not None:
+-                self.combined_cycle_runtime.close(self._position_lifecycle[trade["trade_id"]], trade)
++                try:
++                    self.combined_cycle_runtime.close(self._position_lifecycle[trade["trade_id"]], trade)
++                except Exception:
++                    self._execution_halted = True
++                    raise
+ 
+     def _owner_engine(self, trade: Dict[str, Any]) -> str:
+         """Owning engine of an open trade; a trade without a lifecycle record is Engine A (intraday MIS)."""

@@ -1,0 +1,761 @@
+#!/usr/bin/env python3
+"""Canonical registry for the frozen Revision 2 engine target surface."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional
+
+from calibration_config import Revision2ParameterManifest
+
+
+@dataclass
+class ParameterSpec:
+    name: str
+    black_box: str
+    param_type: str
+    default: Any
+    minimum: Any
+    maximum: Any
+    calibratable: bool = True
+    notes: str = ""
+    # Which engine(s) actually consume this parameter at runtime: "IN_HOUSE"
+    # (revision2/revision4), "EXTERNAL" (revision2_external + revision5) or
+    # "BOTH".  Deliberately independent of ``calibratable`` (may an optimizer
+    # move it at all?) -- an optimizer surface is calibratable AND applicable.
+    applicable_engines: str = "BOTH"
+
+
+class CanonicalParameterRegistry:
+    CONTRACT_ID = "ECS_REVISION_2_PARAMETER_SURFACE_V3"
+    # Updated deliberately, three times now:
+    # 1. minimum_absolute_profit_rupees (a fixed per-share rupee constant,
+    #    checked before quantity existed) was replaced with
+    #    minimum_profit_margin_over_cost (a scale-invariant cost-margin
+    #    fraction, checked post-sizing against the real round-trip cost).
+    # 2. rebalance_frequency_minutes was replaced with
+    #    trailing_stop_atr_mult. rebalance_frequency_minutes was confirmed
+    #    dead in BOTH engines (read via req() for coverage tracking only --
+    #    the real PyPortfolioOpt refit cadence is a hardcoded constant,
+    #    PORTFOLIO_WEIGHT_REFIT_EVERY_BARS -- and it was already in
+    #    FIXED_TARGET_NAMES, non-calibratable, so removing it changes no
+    #    calibratable-parameter count anywhere). trailing_stop_atr_mult is
+    #    the ATR multiplier for continuous_exit_controller.py's real,
+    #    per-bar-recomputed trailing stop -- previously borrowed
+    #    stop_loss_atr_mult (tuned for a one-shot entry-time stop) for a
+    #    continuously re-measured droop, which real data showed was far
+    #    too tight (INFY's real median single-bar range is ~0.95x its own
+    #    median ATR -- a 1x-ATR-wide continuous stop barely survives ONE
+    #    bar, let alone a multi-bar hold). This is a genuinely new,
+    #    independently-calibratable control, not a rename.
+    # 3. saturation_exit_bars was added (not swapped) to expose the
+    #    ContinuousExitController's PID saturation-exit streak threshold
+    #    (default 5) to the automated optimizer. This lets the calibration
+    #    engine tune the joint space of (trailing_stop_atr_mult ×
+    #    saturation_exit_bars) to find the combination that actually lets
+    #    saturation_exit fire on real data, rather than being perpetually
+    #    starved by a stop that closes trades in 1-2 bars. This is a
+    #    deliberate expansion, net +1 calibratable (68→69 total).
+    # Parameter count changed twice: first 68/20 (both), then 69/20 with
+    # saturation_exit_bars. These changes are exactly what this hash tracks.
+    # Recomputed and verified when the approved intraday-only Gate16 default
+    # moved from 0.10% to 0.15%. Cross-session orders remain prohibited.
+    # 2026-09-20: user-approved monotonic PA band defaults/ranges. Safety defaults unchanged.
+    # BB04 expansion: 16 engineering-initial parameters; 85 targets / 63 eligible (not calibrated).
+    # Engine applicability: BB04(16)+BB05-BB06(29)+three-controller(22)=67 parameters are EXTERNAL-only (62 optimizer-eligible,
+    # 5 fixed); BB08 adds 5 fixed PositionManager controls (external portfolio optimizer). Optimizer surfaces are engine-scoped:
+    # see surface_counts().
+    # 2026-09-27: governor-authority expansion (+17: 13 EXTERNAL-only eligible, 4 fixed) for
+    # revision5/governor_authority.py: 169 targets / 121 eligible.  Any calibration protocol sealed
+    # against the previous identity must be re-sealed.
+    # 2026-09-28: + gov_path_error_sigma (EXTERNAL-only eligible): the inner loop's noise-scaled
+    # path-error tolerance.  170 targets / 122 eligible.
+    FROZEN_IDENTITY_SHA256 = "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d"
+    SAFETY_ALIASES = {
+        "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
+        "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
+    }
+    CORE_SAFETY_KEYS = {
+        "kill_switch_enabled",
+        "safety_drawdown_halt_threshold",
+        "max_daily_loss_rupees",
+        "max_concurrent_positions",
+    }
+
+    LEGACY_SAFETY_ALIASES = {v: k for k, v in SAFETY_ALIASES.items()}
+
+    FIXED_TARGET_NAMES = {
+        "data_validation_mode",
+        "drawdown_derated_threshold",
+        "drawdown_halt_threshold",
+        "drawdown_normal_threshold",
+        "exclude_symbols",
+        "limit_order_offset_percent",
+        "lot_size_by_symbol",
+        "max_loss_per_day_rupees",
+        "max_loss_per_trade_rupees",
+        "max_retry_attempts",
+        "max_sector_exposure_fraction",
+        "max_symbol_concentration",
+        "portfolio_weight_refit_bars",
+        "portfolio_weight_lookback_minute_bars",
+        "portfolio_min_15min_observations",
+        "portfolio_aggressive_scale",
+        "portfolio_optimizer_risk_free_rate",
+        "order_timeout_seconds",
+        "order_type",
+        "phase1_exploration_intensity",
+        "phase2_optimization_intensity",
+        "portfolio_lambda_risk_limit",
+        "retry_delay_seconds",
+        "slippage_tolerance_percent",
+        "symbols_to_trade",
+        "trading_hours_end",
+        "trading_hours_start",
+    }
+    # ---- engine applicability (separate from calibration eligibility) ----
+    ENGINE_IN_HOUSE = "IN_HOUSE"
+    ENGINE_EXTERNAL = "EXTERNAL"
+    ENGINE_BOTH = "BOTH"
+    VALID_ENGINES = (ENGINE_IN_HOUSE, ENGINE_EXTERNAL)
+
+    # Parameters whose ONLY runtime consumer is the external engine
+    # (revision2_external, revision5).  Each was source-proved: the name has a
+    # consumer in revision2_external/revision5 and none anywhere in revision2/
+    # (the in-house engine) or revision4/.  They stay calibratable in
+    # principle; they simply are not part of the in-house search space.
+    EXTERNAL_ONLY_NAMES = frozenset({
+        # BB04 external Price-Action (revision2_external/indicators_talib.py)
+        "momentum_normalization_divisor", "pa_atr_absolute_floor",
+        "pa_atr_fallback_price_fraction", "pa_persistence_threshold_divisor",
+        "pa_persistence_bonus_gain", "pa_persistence_bonus_cap",
+        "pa_direction_activation_fraction", "pa_vwap_normalization_divisor",
+        "pa_volume_normalization_divisor", "pa_low_vol_ratio_boundary",
+        "pa_high_vol_ratio_boundary", "pa_persistence_lookback",
+        "pa_green_confidence_multiplier", "pa_amber_confidence_multiplier",
+        "pa_red_confidence_multiplier", "pa_auto_warmup_bars",
+        # BB05 (HMM regime / discrimination)
+        "id_feature_window", "id_refit_every_bars", "id_min_history_bars",
+        "id_volatility_window", "id_volatility_min_samples", "id_hmm_iterations",
+        "id_hmm_tolerance", "id_min_state_occupancy", "id_variance_ratio",
+        "id_slippage_cap", "id_slippage_gain", "id_reward_floor", "id_reward_gain",
+        "id_risk_floor", "id_risk_gain", "id_variance_floor",
+        "id_initial_variance_regularizer",
+        # BB06 (PID/MPC and continuous exit)
+        "mpc_entry_price_gain", "mpc_base_slippage_fraction", "mpc_time_decay_gain",
+        "mpc_shadow_r_gamma", "mpc_schedule_kp_gain", "mpc_schedule_ki_gain",
+        "mpc_schedule_kd_gain", "mpc_environment_lookback", "mpc_range_atr_period",
+        "mpc_range_fallback_fraction", "mpc_atr_floor_gain", "mpc_slippage_vol_gain",
+        # BB08 PositionManager portfolio-optimizer controls (fixed; consumed only by
+        # revision2_external position_sizing_pyportfolioopt / orchestrator)
+        "portfolio_weight_refit_bars", "portfolio_weight_lookback_minute_bars",
+        "portfolio_min_15min_observations", "portfolio_aggressive_scale",
+        "portfolio_optimizer_risk_free_rate",
+        # Plant control: PlantGridSynchronizer / ECSPlantSupervisor (revision5/plant_control.py)
+        "grid_vix_operating_min", "grid_vix_operating_max", "grid_vix_derate_start", "grid_vix_slope_bars", "grid_vix_slope_derate_fraction",
+        "grid_nifty_ema_period", "grid_nifty_deviation_derate_fraction", "grid_max_staleness_seconds", "grid_min_aligned_bars", "ecs_derate_demand_pu", "ecs_demand_restore_step_pu",
+        # Governor authority / Mark V / MiCOM (revision5/governor_authority.py)
+        "gov_z_window_bars", "mv_fsr_entry_threshold", "mv_fsr_exit_threshold", "mv_fsrt_drawdown_span", "mv_fsrt_slope", "mv_fsra_base", "mv_fsra_slope", "mv_fsrs_warmup_bars", "mv_fsrs_floor", "mv_vibration_damper_start", "mv_vibration_damper_gain", "mv_exhaust_spread_hold", "mv_exhaust_spread_trip", "mv_fsr_min_floor", "mv_fsrm_manual_limit", "gov_telemetry_atr_bars", "micom_nifty_vol_z_window", "gov_path_error_sigma",
+        # Studies PID / local signal weighting (CompositeStudySignal)
+        "studies_pid_kp", "studies_pid_ki", "studies_pid_kd", "studies_pid_output_clamp",
+        "studies_grading_horizon_bars", "studies_hit_rate_window_bars",
+        # CLOSED-LOOP SUPPORTING SUBSYSTEM (ClosedLoopSupervisor, ledger, profiler,
+        # HMM hysteresis).  NOT the ECS plant supervisor (grid -> sector demand),
+        # which has no coherent implementation yet.
+        "cl_outcome_min_history", "cl_confidence_offset_gain", "cl_confidence_offset_max",
+        "cl_dynamics_lookback_bars", "cl_dynamics_ema_span", "cl_response_time_min_bars",
+        "cl_response_time_max_bars", "cl_response_time_default_bars", "cl_damping_response_gain",
+        "cl_hmm_stress_enter", "cl_hmm_stress_exit", "cl_hmm_confirmation_bars",
+        "cl_hmm_smoothing_alpha", "cl_hmm_min_derate_step", "cl_hmm_deadband_derate",
+        "cl_portfolio_soft_budget_fraction",
+    })
+    # Consumed only by the in-house engine (revision2/, revision4/), never by the
+    # external engine.  learning_rate_exploration_factor feeds UnifiedExecutionBox's
+    # diagnostic exploration_bias, which every caller discards, so it is also FIXED
+    # (see FIXED_TARGET_NAMES): applicability does not imply optimizer eligibility.
+    IN_HOUSE_ONLY_NAMES = frozenset({"learning_rate_exploration_factor"})
+
+    # Runtime-configurable but deliberately never optimizer-eligible: cost-model
+    # realism, numerical regularization, shadow/telemetry-only.  Fixed regardless
+    # of engine applicability.
+    FIXED_TARGET_NAMES = FIXED_TARGET_NAMES | frozenset({
+        "mpc_base_slippage_fraction", "mpc_shadow_r_gamma", "mpc_slippage_vol_gain",
+        "id_variance_floor", "id_initial_variance_regularizer",
+        # Diagnostic-only meta parameter: same doctrine as the already-fixed
+        # phase1/phase2 intensities it is multiplied with (no trading effect).
+        "learning_rate_exploration_factor",
+        # Plant-control (grid synchronizer / ECS supervisor) controls: fixed, NOT_CALIBRATED.
+        "grid_vix_operating_min",
+        "grid_vix_operating_max",
+        "grid_vix_derate_start",
+        "grid_vix_slope_bars",
+        "grid_vix_slope_derate_fraction",
+        "grid_nifty_ema_period",
+        "grid_nifty_deviation_derate_fraction",
+        "grid_max_staleness_seconds",
+        "grid_min_aligned_bars",
+        "ecs_derate_demand_pu",
+        "ecs_demand_restore_step_pu",
+        # Governor authority fixed controls
+        "mv_fsr_min_floor",
+        "mv_fsrm_manual_limit",
+        "gov_telemetry_atr_bars",
+        "micom_nifty_vol_z_window",
+    })
+    APPROVED_CALIBRATABLE = set(Revision2ParameterManifest.all_68()) - FIXED_TARGET_NAMES
+
+    def __init__(self):
+        self.params: Dict[str, ParameterSpec] = {}
+        self.safety_params: Dict[str, ParameterSpec] = {}
+        self._build_registry()
+
+    def _build_registry(self):
+        entries = [
+            ParameterSpec('id_feature_window', 'ID', 'int', 200, 100, 400, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Trailing regime feature history"),
+            ParameterSpec('id_refit_every_bars', 'ID', 'int', 20, 10, 40, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Refit cadence; retains existing counter convention"),
+            ParameterSpec('id_min_history_bars', 'ID', 'int', 60, 30, 100, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Minimum closes before regime evaluation"),
+            ParameterSpec('id_volatility_window', 'ID', 'int', 10, 5, 20, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Rolling volatility window"),
+            ParameterSpec('id_volatility_min_samples', 'ID', 'int', 3, 2, 5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Minimum volatility samples"),
+            ParameterSpec('id_hmm_iterations', 'ID', 'int', 20, 10, 40, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 EM iteration ceiling"),
+            ParameterSpec('id_hmm_tolerance', 'ID', 'float', 0.0001, 1e-06, 0.001, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 EM convergence tolerance"),
+            ParameterSpec('id_min_state_occupancy', 'ID', 'float', 0.05, 0.01, 0.15, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Minimum supported regime occupancy"),
+            ParameterSpec('id_variance_ratio', 'ID', 'float', 2.5, 1.5, 4.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Distinct stressed state variance ratio"),
+            ParameterSpec('id_slippage_cap', 'ID', 'float', 0.2, 0.15, 0.3, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Estimated slippage cap"),
+            ParameterSpec('id_slippage_gain', 'ID', 'float', 2.0, 1.0, 3.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Volatility to estimated slippage gain"),
+            ParameterSpec('id_reward_floor', 'ID', 'float', 0.05, 0.01, 0.1, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Confidence floor in assumed reward"),
+            ParameterSpec('id_reward_gain', 'ID', 'float', 4.0, 2.0, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Assumed reward scale"),
+            ParameterSpec('id_risk_floor', 'ID', 'float', 0.1, 0.05, 0.2, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Complement confidence floor in assumed risk"),
+            ParameterSpec('id_risk_gain', 'ID', 'float', 2.0, 1.0, 3.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Assumed risk scale"),
+            ParameterSpec('id_variance_floor', 'ID', 'float', 1e-08, 1e-10, 1e-06, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Emission covariance floor; operational regularization"),
+            ParameterSpec('id_initial_variance_regularizer', 'ID', 'float', 1e-06, 1e-08, 0.0001, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Initial covariance regularization"),
+            ParameterSpec('mpc_entry_price_gain', 'MPC', 'float', 0.001, 0.0005, 0.002, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 PID adjustment to submitted market reference"),
+            ParameterSpec('mpc_base_slippage_fraction', 'MPC', 'float', 0.0005, 0.0003, 0.001, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Shared plan and external paper fill base slippage"),
+            ParameterSpec('mpc_time_decay_gain', 'MPC', 'float', 0.5, 0.25, 0.75, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Continuous exit time tightness decay"),
+            ParameterSpec('mpc_shadow_r_gamma', 'MPC', 'float', 0.65, 0.4, 1.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Shadow-only R reference exponent; excluded from external optimization"),
+            ParameterSpec('mpc_schedule_kp_gain', 'MPC', 'float', 1.2, 0.6, 2.4, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Tier3 proportional scheduling scale"),
+            ParameterSpec('mpc_schedule_ki_gain', 'MPC', 'float', 2.0, 1.0, 4.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Tier3 integral scheduling scale"),
+            ParameterSpec('mpc_schedule_kd_gain', 'MPC', 'float', 0.8, 0.4, 1.6, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Tier3 derivative scheduling scale"),
+            ParameterSpec('mpc_environment_lookback', 'MPC', 'int', 50, 30, 100, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Range proxy lookback offset; includes current bar"),
+            ParameterSpec('mpc_range_atr_period', 'MPC', 'int', 14, 7, 28, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 DPC range proxy period; distinct from the TA-Lib PA ATR period"),
+            ParameterSpec('mpc_range_fallback_fraction', 'MPC', 'float', 0.01, 0.005, 0.02, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Short-history range proxy fallback"),
+            ParameterSpec('mpc_atr_floor_gain', 'MPC', 'float', 0.005, 0.0025, 0.01, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 Volatility-scaled plan ATR floor before fixed envelope"),
+            ParameterSpec('mpc_slippage_vol_gain', 'MPC', 'float', 0.5, 0.25, 1.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB05-BB06 DPC slippage volatility gain; advisory only"),
+            ParameterSpec('studies_pid_kp', 'PA', 'float', 0.15, 0.05, 0.3, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; STUDIES-PID Studies weight PID proportional gain"),
+            ParameterSpec('studies_pid_ki', 'PA', 'float', 0.05, 0.01, 0.15, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; STUDIES-PID Studies weight PID integral gain"),
+            ParameterSpec('studies_pid_kd', 'PA', 'float', 0.05, 0.01, 0.15, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; STUDIES-PID Studies weight PID derivative gain"),
+            ParameterSpec('studies_pid_output_clamp', 'PA', 'float', 0.15, 0.05, 0.25, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; STUDIES-PID Studies weight PID output/integral clamp"),
+            ParameterSpec('studies_grading_horizon_bars', 'PA', 'int', 5, 3, 10, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Bars before a study vote is graded"),
+            ParameterSpec('studies_hit_rate_window_bars', 'PA', 'int', 20, 10, 40, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Graded votes averaged into a study hit rate"),
+            ParameterSpec('cl_outcome_min_history', 'MPC', 'int', 20, 10, 40, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Outcome-ledger evidence scale, neutral-prior strength and active entry-quality gate"),
+            ParameterSpec('cl_confidence_offset_gain', 'MPC', 'float', 0.1, 0.05, 0.2, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Entry-quality confidence-offset gain"),
+            ParameterSpec('cl_confidence_offset_max', 'MPC', 'float', 0.05, 0.02, 0.08, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Entry-quality confidence-offset cap"),
+            ParameterSpec('cl_dynamics_lookback_bars', 'MPC', 'int', 60, 40, 120, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Symbol dynamics lookback"),
+            ParameterSpec('cl_dynamics_ema_span', 'MPC', 'int', 20, 10, 40, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Symbol dynamics EMA span"),
+            ParameterSpec('cl_response_time_min_bars', 'MPC', 'float', 5.0, 3.0, 10.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Reference-path response time lower bound"),
+            ParameterSpec('cl_response_time_max_bars', 'MPC', 'float', 45.0, 30.0, 60.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Reference-path response time upper bound"),
+            ParameterSpec('cl_response_time_default_bars', 'MPC', 'float', 20.0, 10.0, 30.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Nominal/fallback response time and gain-scale reference"),
+            ParameterSpec('cl_damping_response_gain', 'MPC', 'float', 2.0, 1.0, 3.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Damping-to-response-time gain"),
+            ParameterSpec('cl_hmm_stress_enter', 'MPC', 'float', 0.75, 0.7, 0.9, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM stress latch entry probability; range is an engineering stability envelope (NOT calibrated) disjoint from the exit range"),
+            ParameterSpec('cl_hmm_stress_exit', 'MPC', 'float', 0.55, 0.3, 0.65, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM stress latch release probability; range is an engineering stability envelope (NOT calibrated) kept strictly below the entry range so exit < enter always holds"),
+            ParameterSpec('cl_hmm_confirmation_bars', 'MPC', 'int', 3, 2, 6, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM latch/release confirmation bars"),
+            ParameterSpec('cl_hmm_smoothing_alpha', 'MPC', 'float', 0.25, 0.1, 0.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM posterior smoothing alpha"),
+            ParameterSpec('cl_hmm_min_derate_step', 'MPC', 'float', 0.15, 0.05, 0.25, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM minimum derate change"),
+            ParameterSpec('cl_hmm_deadband_derate', 'MPC', 'float', 0.9, 0.8, 0.95, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Shadow HMM derate snap-to-normal deadband"),
+            ParameterSpec('cl_portfolio_soft_budget_fraction', 'MPC', 'float', 0.75, 0.5, 0.9, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; CLOSED-LOOP-SUBSYSTEM Portfolio soft exposure budget as a fraction of the hard limit"),
+            ParameterSpec("momentum_normalization_divisor", "PA", "float", 3.0, 1.5, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Momentum amplitude"),
+            ParameterSpec("pa_atr_absolute_floor", "PA", "float", 0.001, 0.0001, 0.01, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Absolute ATR fallback trigger and floor"),
+            ParameterSpec("pa_atr_fallback_price_fraction", "PA", "float", 0.005, 0.0005, 0.01, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Price-relative ATR fallback"),
+            ParameterSpec("pa_persistence_threshold_divisor", "PA", "float", 2.0, 1.0, 3.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Persistence qualification normalization"),
+            ParameterSpec("pa_persistence_bonus_gain", "PA", "float", 0.1, 0.0, 0.25, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Persistence strength gain"),
+            ParameterSpec("pa_persistence_bonus_cap", "PA", "float", 2.0, 1.0, 2.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Persistence bonus input ceiling"),
+            ParameterSpec("pa_direction_activation_fraction", "PA", "float", 0.2, 0.0, 1.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Directional activation fraction"),
+            ParameterSpec("pa_vwap_normalization_divisor", "PA", "float", 3.0, 1.5, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 VWAP amplitude"),
+            ParameterSpec("pa_volume_normalization_divisor", "PA", "float", 3.0, 1.5, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Volume confirmation amplitude"),
+            ParameterSpec("pa_low_vol_ratio_boundary", "PA", "float", 0.7, 0.5, 0.9, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Low volatility regime boundary"),
+            ParameterSpec("pa_high_vol_ratio_boundary", "PA", "float", 1.5, 1.1, 2.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 High volatility regime boundary"),
+            ParameterSpec("pa_persistence_lookback", "PA", "int", 5, 1, 10, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Persistence observation window"),
+            ParameterSpec("pa_green_confidence_multiplier", "PA", "float", 1.1, 1.0, 1.25, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Green band confidence gain"),
+            ParameterSpec("pa_amber_confidence_multiplier", "PA", "float", 0.85, 0.7, 1.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Amber band confidence gain"),
+            ParameterSpec("pa_red_confidence_multiplier", "PA", "float", 0.5, 0.25, 0.75, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Red band confidence gain"),
+            ParameterSpec("pa_auto_warmup_bars", "PA", "int", 60, 30, 120, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB04 Automatic calibration warmup length"),
+            ParameterSpec("base_dp_dt_multiplier", "PA", "float", 1.0, 0.5, 2.0, True, "Base price momentum multiplier"),
+            ParameterSpec("base_dv_dt_multiplier", "PA", "float", 1.0, 0.5, 2.0, True, "Base volume momentum multiplier"),
+            ParameterSpec("entry_confidence_threshold", "PA", "float", 0.15, 0.02, 0.35, True, "Minimum signal confidence"),
+            ParameterSpec("exit_confidence_threshold", "ID", "float", 0.60, 0.4, 0.9, True, "Minimum exit confidence"),
+            ParameterSpec("min_risk_reward_ratio", "MPC", "float", 1.50, 1.0, 3.0, True, "Minimum risk/reward"),
+            ParameterSpec("profit_target_margin_buffer", "MPC", "float", 0.10, 0.0, 0.5, True, "Buffer above target"),
+            ParameterSpec("vwap_weight", "PA", "float", 0.25, 0.1, 0.4, True, "VWAP weight"),
+            ParameterSpec("confirmation_2bar_weight", "PA", "float", 0.25, 0.1, 0.4, True, "2-bar confirmation"),
+            ParameterSpec("momentum_weight", "PA", "float", 0.25, 0.1, 0.4, True, "Momentum weight"),
+            ParameterSpec("volatility_weight", "PA", "float", 0.25, 0.05, 0.4, True, "Volatility weight"),
+            ParameterSpec("green_threshold", "PA", "float", 0.75, 0.60, 0.85, True, "Green signal threshold"),
+            ParameterSpec("amber_threshold_lower", "PA", "float", 0.50, 0.40, 0.60, True, "Amber threshold lower bound"),
+            ParameterSpec("red_threshold", "PA", "float", 0.25, 0.15, 0.35, True, "Red threshold"),
+            ParameterSpec("slippage_guard_threshold", "ID", "float", 0.05, 0.01, 0.15, True, "Max slippage"),
+            ParameterSpec("volatility_regime_multiplier", "PA", "float", 1.00, 0.7, 1.5, True, "Volatility regime multiplier"),
+            ParameterSpec("low_vol_regime_multiplier", "PA", "float", 1.00, 0.8, 1.5, True, "Low vol multiplier"),
+            ParameterSpec("medium_vol_regime_multiplier", "PA", "float", 1.00, 0.7, 1.5, True, "Medium vol multiplier"),
+            ParameterSpec("high_vol_regime_multiplier", "PA", "float", 1.00, 0.8, 1.5, True, "High vol multiplier"),
+            ParameterSpec("profit_target_atr_mult", "MPC", "float", 1.50, 0.8, 2.5, True, "ATR profit target multiplier"),
+            ParameterSpec("stop_loss_atr_mult", "MPC", "float", 1.2, 0.3, 1.2, True, "ATR stop multiplier"),
+            ParameterSpec("atr_calculation_period", "PA", "int", 20, 10, 30, True, "ATR period"),
+            ParameterSpec("entry_signal_smoothing_window", "PA", "int", 3, 1, 8, True, "Entry smoothing window"),
+            ParameterSpec("exit_signal_smoothing_window", "PA", "int", 2, 1, 4, True, "Exit smoothing window"),
+            ParameterSpec("slippage_cost_multiplier", "MPC", "float", 1.00, 0.8, 1.5, True, "Cost multiplier"),
+            # Replaced minimum_absolute_profit_rupees (a fixed per-share rupee
+            # proxy checked before quantity existed -- structurally unable to
+            # represent whether a trade was actually worth its real cost,
+            # since real round-trip cost scales with price x quantity, not a
+            # fixed constant). Checked post-sizing now (SafetyGatesTargetBox.
+            # evaluate_post_sizing), against the real round-trip cost for the
+            # actual quantity -- see that method for the full rationale.
+            ParameterSpec("minimum_profit_margin_over_cost", "SafetyGates", "float", 0.5, 0.0, 2.0, True,
+                          "Required fraction by which projected total trade profit must exceed real round-trip cost"),
+            ParameterSpec("momentum_calculation_period", "PA", "int", 20, 10, 30, True, "Momentum period"),
+            ParameterSpec("vwap_calculation_period", "PA", "int", 20, 10, 30, True, "VWAP period"),
+            ParameterSpec("signal_persistence_requirement", "PA", "float", 1.50, 1.0, 2.5, True, "Persistence requirement"),
+            ParameterSpec("min_hold_bars", "MPC", "int", 2, 1, 5, True, "Minimum hold bars"),
+            ParameterSpec("max_hold_bars", "MPC", "int", 60, 20, 120, True, "Maximum hold bars"),
+            ParameterSpec("phase1_exploration_intensity", "UnifiedExecution", "int", 50, 30, 100, True, "Optimizer phase 1 exploration"),
+            ParameterSpec("phase2_optimization_intensity", "UnifiedExecution", "int", 250, 100, 500, True, "Optimizer phase 2 intensity"),
+            ParameterSpec("learning_rate_exploration_factor", "UnifiedExecution", "float", 0.05, 0.01, 0.10, True, "Meta learning rate; DIAGNOSTIC_ONLY exploration_bias, never gates a trade; FIXED, not optimizer-eligible"),
+            ParameterSpec("lot_size_by_symbol", "PositionManager", "dict", {}, 0, 0, True, "Per-symbol lot sizing"),
+            ParameterSpec("max_positions_live", "PositionManager", "int", 5, 1, 12, True, "Max live positions"),
+            ParameterSpec("max_positions_per_symbol", "PositionManager", "int", 1, 1, 3, True, "Max per symbol"),
+            ParameterSpec("capital_per_trade_fraction", "PositionManager", "float", 0.02, 0.005, 0.10, True, "Capital per trade fraction"),
+            ParameterSpec("min_capital_buffer_fraction", "PositionManager", "float", 0.10, 0.05, 0.30, True, "Cash reserve fraction"),
+            ParameterSpec("capital_allocation_mode", "PositionManager", "str", "equal", 0, 0, True, "Allocation mode"),
+            ParameterSpec(
+                "portfolio_weight_refit_bars", "PositionManager", "int",
+                500, 60, 2000, False,
+                "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 PyPortfolioOpt refit cadence in one-minute bars"
+            ),
+            ParameterSpec(
+                "portfolio_weight_lookback_minute_bars", "PositionManager", "int",
+                2000, 500, 10000, False,
+                "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 trailing one-minute history supplied to portfolio optimizer"
+            ),
+            ParameterSpec(
+                "portfolio_min_15min_observations", "PositionManager", "int",
+                100, 30, 500, False,
+                "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 minimum completed 15-minute observations before optimization"
+            ),
+            ParameterSpec(
+                "portfolio_aggressive_scale", "PositionManager", "float",
+                1.5, 1.0, 2.0, False,
+                "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 aggressive allocation risk-budget multiplier"
+            ),
+            ParameterSpec(
+                "portfolio_optimizer_risk_free_rate", "PositionManager", "float",
+                0.0, -0.05, 0.20, False,
+                "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; BB08 annual risk-free rate passed explicitly to max_sharpe"
+            ),
+            # Governor authority, Mark V limiter gate and MiCOM (revision5/governor_authority.py).
+            ParameterSpec("gov_z_window_bars", "PlantControl", "int", 20, 10, 60, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Rolling close z-score window for the bay governor's entry comparator (causal, completed bars)"),
+            ParameterSpec("gov_path_error_sigma", "PlantControl", "float", 2.0, 1.0, 3.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Inner-loop path-error exit tolerance in noise envelopes: exit only when the lag behind the reference path exceeds sigma * (ATR / initial risk) * sqrt(elapsed bars)"),
+            ParameterSpec("mv_fsr_entry_threshold", "PlantControl", "float", 0.6, 0.4, 0.85, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V: minimum selected FSR to admit a new entry"),
+            ParameterSpec("mv_fsr_exit_threshold", "PlantControl", "float", 0.25, 0.1, 0.4, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V: selected FSR below which an open position is unwound"),
+            ParameterSpec("mv_fsrt_drawdown_span", "PlantControl", "float", 0.1, 0.04, 0.2, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRT: mark-to-market drawdown over which FSRT falls by mv_fsrt_slope"),
+            ParameterSpec("mv_fsrt_slope", "PlantControl", "float", 0.5, 0.2, 1.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRT: FSRT = 1 - (drawdown / span) * slope"),
+            ParameterSpec("mv_fsra_base", "PlantControl", "float", 1.2, 1.0, 1.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRA: FSRA = base - slope * (|close - prev close| / ATR)"),
+            ParameterSpec("mv_fsra_slope", "PlantControl", "float", 0.25, 0.1, 0.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRA: price-velocity sensitivity"),
+            ParameterSpec("mv_fsrs_warmup_bars", "PlantControl", "int", 15, 5, 45, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRS: session-opening warm-up ramp length in bars"),
+            ParameterSpec("mv_fsrs_floor", "PlantControl", "float", 0.2, 0.0, 0.5, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Mark V FSRS: ramp starting value at the session open"),
+            ParameterSpec("mv_vibration_damper_start", "PlantControl", "float", 1.2, 0.6, 2.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Turbine vibration ((high-low-|close-open|)/ATR) above which the entry hurdle is raised"),
+            ParameterSpec("mv_vibration_damper_gain", "PlantControl", "float", 0.1, 0.0, 0.3, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Entry-hurdle increase per unit of vibration above the damper start"),
+            ParameterSpec("mv_exhaust_spread_hold", "PlantControl", "float", 2.0, 1.0, 4.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Bay exhaust spread (cross-symbol return dispersion / mean ATR fraction) that holds new bay entries"),
+            ParameterSpec("mv_exhaust_spread_trip", "PlantControl", "float", 3.5, 2.0, 6.0, True, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; GOVERNOR-AUTHORITY Bay exhaust spread that trips open bay positions (orderly exit)"),
+            ParameterSpec("mv_fsr_min_floor", "PlantControl", "float", 0.15, 0.05, 0.3, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-AUTHORITY Mark V minimum-value floor (flameout protection): exits always remain possible; never admits an entry"),
+            ParameterSpec("mv_fsrm_manual_limit", "PlantControl", "float", 1.0, 0.0, 1.0, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-AUTHORITY Mark V FSRM operator manual run limit (1.0 = no manual restriction)"),
+            ParameterSpec("gov_telemetry_atr_bars", "PlantControl", "int", 14, 5, 30, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-AUTHORITY ATR window shared by the governor telemetry (vibration, velocity, exhaust spread)"),
+            ParameterSpec("micom_nifty_vol_z_window", "PlantControl", "int", 20, 10, 60, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; FIXED; GOVERNOR-AUTHORITY MiCOM ANSI 21: completed Nifty 15-minute returns used for the volatility z-score"),
+            # Plant-control parameters: FIXED / NOT_CALIBRATED / external-engine only.
+            ParameterSpec("grid_vix_operating_min", "PlantControl", "float", 10.0, 5.0, 15.0, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; NEVER_CALIBRATE_SAFETY; PLANT-CONTROL India VIX lower operating bound: below it the grid is treated as dead (UNSYNCHRONIZED)"),
+            ParameterSpec("grid_vix_operating_max", "PlantControl", "float", 30.0, 20.0, 40.0, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; NEVER_CALIBRATE_SAFETY; PLANT-CONTROL India VIX upper operating bound: above it the grid is treated as panicking (UNSYNCHRONIZED)"),
+            ParameterSpec("grid_vix_derate_start", "PlantControl", "float", 24.0, 15.0, 30.0, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL India VIX level at which the plant is DERATED; must stay below grid_vix_operating_max (validated at construction)"),
+            ParameterSpec("grid_vix_slope_bars", "PlantControl", "int", 5, 3, 10, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL Lookback (completed grid bars) for the VIX rate-of-rise"),
+            ParameterSpec("grid_vix_slope_derate_fraction", "PlantControl", "float", 0.1, 0.05, 0.25, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL VIX rise over the slope lookback that DERATES the plant"),
+            ParameterSpec("grid_nifty_ema_period", "PlantControl", "int", 50, 20, 100, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL Nifty EMA period for the index deviation (voltage) measurement"),
+            ParameterSpec("grid_nifty_deviation_derate_fraction", "PlantControl", "float", 0.03, 0.01, 0.06, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL Absolute Nifty deviation from its EMA that DERATES the plant"),
+            ParameterSpec("grid_max_staleness_seconds", "PlantControl", "int", 1200, 900, 3600, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; NEVER_CALIBRATE_SAFETY; PLANT-CONTROL Maximum age of the latest completed Nifty/VIX bar before the grid is ISLANDED_SAFE"),
+            ParameterSpec("grid_min_aligned_bars", "PlantControl", "int", 63, 30, 200, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL Minimum aligned Nifty/VIX bars before a grid state may be produced (else ISLANDED_SAFE)"),
+            ParameterSpec("ecs_derate_demand_pu", "PlantControl", "float", 0.5, 0.1, 0.9, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL ECS plant demand reference while the grid is DERATED"),
+            ParameterSpec("ecs_demand_restore_step_pu", "PlantControl", "float", 0.1, 0.02, 0.5, False, "ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED; PLANT-CONTROL Maximum ECS demand increase per evaluation when restoring after a reduction (reductions are immediate)"),
+            ParameterSpec("trailing_stop_atr_mult", "MPC", "float", 5.5, 1.0, 8.0, True,
+                           "Continuous exit-controller ATR trail multiplier (independent of the one-shot entry stop's stop_loss_atr_mult)"),
+            ParameterSpec("drawdown_normal_threshold", "SafetyGates", "float", 0.10, 0.05, 0.20, True, "Normal drawdown threshold"),
+            ParameterSpec("drawdown_derated_threshold", "SafetyGates", "float", 0.18, 0.10, 0.25, True, "Derated threshold"),
+            ParameterSpec("drawdown_halt_threshold", "SafetyGates", "float", 0.25, 0.15, 0.35, True, "Hard drawdown halt"),
+            ParameterSpec("max_loss_per_trade_rupees", "SafetyGates", "float", 5000, 1000, 20000, True, "Max loss per trade"),
+            ParameterSpec("max_loss_per_day_rupees", "SafetyGates", "float", 50000, 10000, 150000, True, "Daily loss limit"),
+            ParameterSpec("portfolio_lambda_risk_limit", "SafetyGates", "float", 0.15, 0.05, 0.30, True, "Portfolio lambda risk limit"),
+            ParameterSpec("max_sector_exposure_fraction", "PositionManager", "float", 0.30, 0.10, 0.60, True, "Sector max exposure"),
+            ParameterSpec("max_symbol_concentration", "PositionManager", "float", 0.05, 0.01, 0.15, True, "Single symbol cap"),
+            ParameterSpec("pid_kp_entry", "MPC", "float", 0.15, 0.05, 0.30, True, "Entry KP"),
+            ParameterSpec("pid_ki_entry", "MPC", "float", 0.05, 0.01, 0.20, True, "Entry KI"),
+            ParameterSpec("pid_kd_entry", "MPC", "float", 0.08, 0.01, 0.20, True, "Entry KD"),
+            ParameterSpec("pid_kp_exit", "MPC", "float", 0.12, 0.05, 0.25, True, "Exit KP"),
+            ParameterSpec("pid_ki_exit", "MPC", "float", 0.04, 0.01, 0.15, True, "Exit KI"),
+            ParameterSpec("pid_kd_exit", "MPC", "float", 0.06, 0.01, 0.15, True, "Exit KD"),
+            ParameterSpec("pid_integral_window_bars", "MPC", "int", 10, 5, 30, True, "Integral window"),
+            ParameterSpec("pid_integral_max_clamp", "MPC", "float", 0.10, 0.02, 0.25, True, "Integral clamp"),
+            ParameterSpec("saturation_exit_bars", "MPC", "int", 5, 2, 10, True,
+                           "Consecutive bars at saturation extreme before exit (both PA and studies tracks independently)"),
+            ParameterSpec("pid_derivative_smoothing", "MPC", "int", 3, 1, 10, True, "Derivative smoothing"),
+            ParameterSpec("order_type", "P01D", "str", "MARKET", 0, 0, True, "Execution order type"),
+            ParameterSpec("limit_order_offset_percent", "P01D", "float", 0.02, 0.00, 0.05, True, "Limit offset"),
+            ParameterSpec("order_timeout_seconds", "P01D", "int", 30, 5, 120, True, "Order timeout"),
+            ParameterSpec("max_retry_attempts", "P01D", "int", 2, 0, 5, True, "Retry attempts"),
+            ParameterSpec("retry_delay_seconds", "P01D", "int", 5, 1, 20, True, "Retry delay"),
+            ParameterSpec("slippage_tolerance_percent", "P01D", "float", 0.15, 0.02, 0.20, True,
+                           "Intraday Gate16 slippage tolerance; cross-session orders remain prohibited"),
+            ParameterSpec("trading_hours_start", "UnifiedExecution", "str", "09:15", 0, 0, True, "Trading start"),
+            ParameterSpec("trading_hours_end", "UnifiedExecution", "str", "15:30", 0, 0, True, "Trading end"),
+            ParameterSpec("symbols_to_trade", "DataIngestion", "list", [], 0, 0, True, "Universe to trade"),
+            ParameterSpec("exclude_symbols", "DataIngestion", "list", [], 0, 0, True, "Symbols excluded"),
+            ParameterSpec("data_validation_mode", "L2DataCertifier", "str", "strict", 0, 0, True, "Validation mode"),
+        ]
+
+        safety_entries = [
+            ParameterSpec("kill_switch_enabled", "StartupCapabilityLock", "bool", True, 0, 0, False, "Kill switch invariant"),
+            ParameterSpec("safety_drawdown_halt_threshold", "SafetyGates", "float", 0.25, 0, 0, False, "Hard drawdown halt"),
+            ParameterSpec("max_daily_loss_rupees", "SafetyGates", "float", 50000, 0, 0, False, "Daily loss hard cap"),
+            ParameterSpec("max_concurrent_positions", "SafetyGates", "int", 5, 0, 0, False, "Concurrent positions cap"),
+            ParameterSpec("max_gross_exposure_fraction", "SafetyGates", "float", 0.50, 0, 0, False, "Gross exposure cap"),
+            ParameterSpec("max_market_data_age_seconds", "SafetyGates", "int", 30, 0, 0, False, "Market data age max"),
+            ParameterSpec(
+                "max_broker_offline_seconds", "SafetyGates", "int",
+                300, 0, 0, False,
+                "FIXED_SAFETY_ENVELOPE; BB07 Gate18 broker-offline circuit-breaker threshold"
+            ),
+            ParameterSpec("max_exposure_per_symbol_fraction", "SafetyGates", "float", 0.15, 0, 0, False, "Per-symbol cap"),
+            ParameterSpec("min_position_quantity", "SafetyGates", "int", 1, 0, 0, False, "Min qty"),
+            ParameterSpec("max_position_quantity", "SafetyGates", "int", 100, 0, 0, False, "Max qty"),
+            ParameterSpec("drawdown_derate_threshold", "SafetyGates", "float", 0.18, 0, 0, False, "Drawdown derate trigger"),
+            ParameterSpec("drawdown_derate_multiplier", "SafetyGates", "float", 0.80, 0, 0, False, "Drawdown derate multiplier"),
+            ParameterSpec("lambda_derate_threshold", "SafetyGates", "float", 0.15, 0, 0, False, "Lambda risk trigger"),
+            ParameterSpec("lambda_derate_multiplier", "SafetyGates", "float", 0.80, 0, 0, False, "Lambda reduction factor"),
+            ParameterSpec("min_signal_confidence", "PA", "float", 0.55, 0, 0, False, "Minimum signal confidence"),
+            ParameterSpec("safety_min_risk_reward_ratio", "ID", "float", 1.50, 0, 0, False, "Minimum reward/risk"),
+            ParameterSpec("order_dedup_window_seconds", "P01D", "int", 5, 0, 0, False, "Order dedup window"),
+            ParameterSpec("order_timeout_seconds_execution", "P01D", "int", 30, 0, 0, False, "Execution timeout"),
+            ParameterSpec("max_reconciliation_qty_diff", "P01D", "int", 0, 0, 0, False, "Qty reconciliation diff"),
+            ParameterSpec("max_slippage_fraction", "P01D", "float", 0.001, 0, 0, False, "Max slippage fraction"),
+            ParameterSpec("no_entry_cutoff_time", "UnifiedExecution", "str", "15:20", 0, 0, False, "Cutoff time"),
+            ParameterSpec(
+                "force_close_time", "SafetyGates", "str",
+                "15:25", 0, 0, False,
+                "FIXED_SAFETY_ENVELOPE; BB07 forced-close threshold used by Gate17 and external orchestrator"
+            ),
+        ]
+
+        target_names = Revision2ParameterManifest.all_68()
+        calibratable = set(self.APPROVED_CALIBRATABLE) & set(target_names)
+        for item in entries:
+            item.calibratable = item.name in calibratable
+            if item.name in self.EXTERNAL_ONLY_NAMES:
+                item.applicable_engines = self.ENGINE_EXTERNAL
+            elif item.name in self.IN_HOUSE_ONLY_NAMES:
+                item.applicable_engines = self.ENGINE_IN_HOUSE
+            self.params[item.name] = item
+        for item in safety_entries:
+            self.safety_params[item.name] = item
+        self.validate_contract()
+
+    def base_33(self) -> List[str]:
+        return Revision2ParameterManifest.base_33()
+
+    def revision2_35(self) -> List[str]:
+        return Revision2ParameterManifest.revision2_35()
+
+    def hardcoded_20(self) -> List[str]:
+        return sorted(self.safety_params)
+
+    def _check_engine(self, engine: Optional[str]) -> None:
+        if engine is not None and engine not in self.VALID_ENGINES:
+            raise ValueError(
+                f"unknown engine {engine!r}; expected one of {self.VALID_ENGINES} or None")
+
+    def is_calibratable(self, name: str, engine: Optional[str] = None) -> bool:
+        """True when ``name`` may be moved by an optimizer for ``engine``:
+        calibratable in principle AND consumed by that engine.  ``engine=None``
+        means "for any engine"."""
+        self._check_engine(engine)
+        spec = self.params[name]
+        if not spec.calibratable:
+            return False
+        return engine is None or spec.applicable_engines in (engine, self.ENGINE_BOTH)
+
+    def calibratable_names(self, engine: Optional[str] = None) -> List[str]:
+        """Optimizer-eligible names.  ``engine=None`` (legacy default) is the
+        union over engines; pass "IN_HOUSE" or "EXTERNAL" for the surface a
+        specific engine's optimizer may search."""
+        self._check_engine(engine)
+        return sorted(n for n in self.params if self.is_calibratable(n, engine))
+
+    def applicable_names(self, engine: str) -> List[str]:
+        """Every target parameter the given engine consumes (eligible or fixed),
+        used to scope parameter-coverage accounting per engine."""
+        self._check_engine(engine)
+        return sorted(n for n, s in self.params.items() if s.applicable_engines in (engine, self.ENGINE_BOTH))
+
+    def surface_counts(self) -> Dict[str, int]:
+        """Engine-scoped accounting (no single misleading "calibratable" number)."""
+        in_house = set(self.calibratable_names(self.ENGINE_IN_HOUSE))
+        external = set(self.calibratable_names(self.ENGINE_EXTERNAL))
+        return {
+            "total_targets": len(self.params),
+            "fixed_targets": len(self.fixed_target_names()),
+            "safety_params": len(self.safety_params),
+            "in_house_eligible": len(in_house),
+            "external_eligible": len(external),
+            "shared_eligible": len(in_house & external),
+            "external_only_eligible": len(external - in_house),
+            "in_house_only_eligible": len(in_house - external),
+        }
+
+    def calibratable_45(self) -> List[str]:
+        # Name kept for historical continuity (same reasoning as all_68()
+        # keeping its name) -- the real optimizer surface is now 46, not
+        # 45 (see FROZEN_IDENTITY_SHA256's comment). Callers that need the
+        # true, current count should use calibratable_names() directly,
+        # not this [:45] slice, which would silently drop whichever name
+        # sorts last. The only caller of this specific method is
+        # oos_calibration_engine.py, a discredited, unused scoring path
+        # (see revision2/calibration_supervisor.py's own module docstring)
+        # -- not part of any real calibration this project runs.
+        return self.calibratable_names(self.ENGINE_IN_HOUSE)[:45]
+
+    def hardcoded_names(self) -> List[str]:
+        return self.hardcoded_20()
+
+    def fixed_target_names(self) -> List[str]:
+        return sorted(name for name, spec in self.params.items() if not spec.calibratable)
+
+    def total_target_surface(self) -> int:
+        return len(self.params)
+
+    def validate_contract(self) -> None:
+        expected = Revision2ParameterManifest.all_68()
+        # NOTE: Adding saturation_exit_bars (2025) expands from 68 → 69 total.
+        # BB04 adds 16, BB05-BB06 29, three-controller 22, BB08 5 and plant control 11
+        # fixed controls: base_33() + revision2_35() = 33 + 119 = 152.
+        # Governor authority adds 17 (13 eligible + 4 fixed) and the path-error tolerance 1:
+        # 152 + 18 = 170.
+        if len(expected) != 170 or len(set(expected)) != 170:
+            raise ValueError("Revision 2 target names must contain 170 unique values")
+        if set(expected) != set(self.params):
+            raise ValueError("registry does not exactly match the Revision 2 manifest")
+        if len(self.safety_params) != 22:
+            raise ValueError("hardcoded safety layer must contain exactly 22 values")
+        if set(self.params) & set(self.safety_params):
+            overlap = sorted(set(self.params) & set(self.safety_params))
+            raise ValueError(f"target and safety surfaces must not overlap: {overlap}")
+        calibratable = set(self.calibratable_names())
+        # 46, not 45: rebalance_frequency_minutes (FIXED, non-calibratable)
+        # was replaced by trailing_stop_atr_mult (genuinely calibratable) --
+        # see FROZEN_IDENTITY_SHA256's comment. A like-for-like swap (fixed
+        # for fixed, or calibratable for calibratable) would have kept this
+        # at 45; this one is a deliberate net expansion of the real,
+        # tunable surface, not a bug.
+        # Further expanded by saturation_exit_bars (2025) from 46 → 47, another
+        # genuine calibratable addition to Box 6's exit control surface.
+        # BB04 adds 16, BB05-BB06 24 and the three-controller work 22 eligible
+        # (NOT_CALIBRATED) parameters, all EXTERNAL-only, on top of 46 shared ones
+        # (learning_rate_exploration_factor is now FIXED): 46 + 62 = 108 across
+        # engines.  The per-engine surfaces are the ones an optimizer may use:
+        # in-house 46, external 108 (46 shared + 62 external-only).
+        # Governor authority adds 14 EXTERNAL-only eligible parameters: 108 + 14 = 122.
+        if len(calibratable) != 122:
+            raise ValueError(f"optimizer surface must contain exactly 122 values; got {len(calibratable)}")
+        counts = self.surface_counts()
+        if (counts["in_house_eligible"], counts["external_eligible"], counts["shared_eligible"],
+                counts["external_only_eligible"]) != (46, 122, 46, 76):
+            raise ValueError(f"engine-scoped optimizer surfaces changed unexpectedly: {counts}")
+        for name, spec in self.params.items():
+            if spec.applicable_engines not in (self.ENGINE_IN_HOUSE, self.ENGINE_EXTERNAL, self.ENGINE_BOTH):
+                raise ValueError(f"invalid applicable_engines for {name}: {spec.applicable_engines!r}")
+        if set(self.APPROVED_CALIBRATABLE) != calibratable:
+            missing = sorted(set(self.APPROVED_CALIBRATABLE) - calibratable)
+            extra = sorted(calibratable - set(self.APPROVED_CALIBRATABLE))
+            raise ValueError(f"approved calibration surface mismatch: missing={missing}, extra={extra}")
+
+    def identity_payload(self) -> Dict[str, Any]:
+        return {
+            "contract": self.CONTRACT_ID,
+            "base_33": self.base_33(),
+            "revision2_35": self.revision2_35(),
+            "target_parameters": [asdict(self.params[name]) for name in sorted(self.params)],
+            "hardcoded_safety": [asdict(self.safety_params[name]) for name in sorted(self.safety_params)],
+        }
+
+    def identity_sha256(self) -> str:
+        payload = json.dumps(self.identity_payload(), sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def verify_frozen_identity(self) -> None:
+        if self.identity_sha256() != self.FROZEN_IDENTITY_SHA256:
+            raise ValueError("frozen identity mismatch")
+
+    def get(self, name: str) -> ParameterSpec:
+        return self.params[name]
+
+    def validate_calibration_payload(self, payload: Dict[str, Any], engine: Optional[str] = None) -> List[str]:
+        if not isinstance(payload, dict):
+            return ["calibration payload must be a dictionary"]
+
+        reasons: List[str] = []
+        allowed = set(self.params)
+        self._check_engine(engine)
+        calibratable = set(self.calibratable_names(engine))
+
+        unknown = sorted(set(payload.keys()) - allowed)
+        if unknown:
+            reasons.append(f"unknown parameter(s): {', '.join(unknown)}")
+
+        for name, value in payload.items():
+            if name not in self.params:
+                continue
+
+            spec = self.params[name]
+            if not spec.calibratable:
+                reasons.append(f"non-calibratable parameter {name} cannot be updated")
+                continue
+
+            if name not in calibratable:
+                reasons.append(f"parameter {name} is not part of the approved calibration surface"
+                               + (f" for engine {engine}" if engine else ""))
+                continue
+
+            expected_type = spec.param_type
+            if expected_type == "int":
+                if not isinstance(value, int) or isinstance(value, bool):
+                    reasons.append(f"type mismatch for {name}: expected int")
+                    continue
+                if not (spec.minimum <= value <= spec.maximum):
+                    reasons.append(f"range violation for {name}: {value} outside [{spec.minimum}, {spec.maximum}]")
+            elif expected_type == "float":
+                if not isinstance(value, (int, float)) or isinstance(value, bool):
+                    reasons.append(f"type mismatch for {name}: expected float")
+                    continue
+                numeric_value = float(value)
+                if not (float(spec.minimum) <= numeric_value <= float(spec.maximum)):
+                    reasons.append(f"range violation for {name}: {numeric_value} outside [{spec.minimum}, {spec.maximum}]")
+            elif expected_type == "bool":
+                if not isinstance(value, bool):
+                    reasons.append(f"type mismatch for {name}: expected bool")
+            elif expected_type == "str":
+                if not isinstance(value, str):
+                    reasons.append(f"type mismatch for {name}: expected str")
+            elif expected_type == "list":
+                if not isinstance(value, list):
+                    reasons.append(f"type mismatch for {name}: expected list")
+            elif expected_type == "dict":
+                if not isinstance(value, dict):
+                    reasons.append(f"type mismatch for {name}: expected dict")
+
+        return reasons
+
+    def validate_execution_payload(self, payload: Dict[str, Any]) -> List[str]:
+        if not isinstance(payload, dict):
+            return ["execution payload must be a dictionary"]
+
+        normalized: Dict[str, Any] = {}
+        reasons: List[str] = []
+        for key, value in payload.items():
+            canonical_key = self.SAFETY_ALIASES.get(key, key)
+            if canonical_key in normalized and normalized[canonical_key] != value:
+                reasons.append(
+                    f"alias conflict for {canonical_key}: both {key} and {canonical_key} were provided with different values"
+                )
+                continue
+            normalized[canonical_key] = value
+
+        required = self.CORE_SAFETY_KEYS
+        missing = sorted(required - set(normalized.keys()))
+        if missing:
+            reasons.append(f"missing required safety parameter(s): {', '.join(missing)}")
+
+        unknown = sorted(set(normalized.keys()) - set(self.safety_params))
+        if unknown:
+            reasons.append(f"unknown parameter(s): {', '.join(unknown)}")
+
+        for name, value in sorted(normalized.items()):
+            if name not in self.safety_params:
+                continue
+
+            spec = self.safety_params[name]
+            expected_type = spec.param_type
+
+            if expected_type == "bool":
+                if not isinstance(value, bool):
+                    reasons.append(f"type mismatch for {name}: expected bool")
+                    continue
+                if name == "kill_switch_enabled":
+                    if value is False:
+                        reasons.append("kill switch cannot be disabled during execution")
+                    elif value is not spec.default:
+                        reasons.append(f"safety invariant mismatch for {name}: expected {spec.default}")
+            elif expected_type == "int":
+                if not isinstance(value, int) or isinstance(value, bool):
+                    reasons.append(f"type mismatch for {name}: expected int")
+                    continue
+                if not math.isfinite(float(value)):
+                    reasons.append(f"non-finite numeric value for {name}")
+                    continue
+                if value != spec.default:
+                    reasons.append(f"safety invariant mismatch for {name}: expected {spec.default}")
+            elif expected_type == "float":
+                if not isinstance(value, (int, float)) or isinstance(value, bool):
+                    reasons.append(f"type mismatch for {name}: expected float")
+                    continue
+                numeric_value = float(value)
+                if not math.isfinite(numeric_value):
+                    reasons.append(f"non-finite numeric value for {name}")
+                    continue
+                if name == "safety_drawdown_halt_threshold" and numeric_value > float(spec.default):
+                    reasons.append("execution exceeds drawdown halt threshold")
+                if name == "max_daily_loss_rupees" and numeric_value > float(spec.default):
+                    reasons.append("execution exceeds max daily loss rupees cap")
+                if numeric_value != float(spec.default):
+                    reasons.append(f"safety invariant mismatch for {name}: expected {spec.default}")
+
+        return reasons
+
+    def trial_profile(self):
+        """User-approved paper trial ceiling; never modifies this registry."""
+        from copy import deepcopy
+        from dataclasses import replace
+        trial = deepcopy(self)
+        for name, ceiling in {
+            "max_concurrent_positions": 1,
+            "max_daily_loss_rupees": 5000.0,
+            "safety_drawdown_halt_threshold": 0.03,
+            # Existing 50% gross cap is already stricter than no leverage.
+            "max_gross_exposure_fraction": 1.0,
+        }.items():
+            spec = trial.safety_params[name]
+            trial.safety_params[name] = replace(spec, default=min(spec.default, ceiling))
+        capital = trial.params["capital_per_trade_fraction"]
+        trial.params["capital_per_trade_fraction"] = replace(
+            capital, default=min(capital.default, 0.005), maximum=0.005,
+        )
+        trial.FROZEN_IDENTITY_SHA256 = trial.identity_sha256()
+        return trial
+
+    def black_box_mapping(self) -> Dict[str, List[str]]:
+        mapping: Dict[str, List[str]] = {}
+        for spec in list(self.params.values()) + list(self.safety_params.values()):
+            mapping.setdefault(spec.black_box, []).append(spec.name)
+        return {k: sorted(set(v)) for k, v in mapping.items()}
+
+
+if __name__ == "__main__":
+    registry = CanonicalParameterRegistry()
+    print('total=', registry.total_target_surface())
+    print('calibratable=', len(registry.calibratable_names()))
+    print('hardcoded=', len(registry.hardcoded_names()))
+    print('identity_sha256=', registry.identity_sha256())

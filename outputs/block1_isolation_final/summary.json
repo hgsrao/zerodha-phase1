@@ -1,0 +1,243 @@
+{
+ "determinism": {
+  "00": {
+   "repeats": 1,
+   "ledger_identical": true,
+   "trace_identical": true,
+   "distinct_pids": 1,
+   "zero_state_checks": 30,
+   "trade_ledger_sha256": "051143f6bd1d5988a0bf97a5b53d23b4a165177e0b84834d5cc728a583a334c1"
+  },
+  "10": {
+   "repeats": 1,
+   "ledger_identical": true,
+   "trace_identical": true,
+   "distinct_pids": 1,
+   "zero_state_checks": 30,
+   "trade_ledger_sha256": "051143f6bd1d5988a0bf97a5b53d23b4a165177e0b84834d5cc728a583a334c1"
+  },
+  "01": {
+   "repeats": 1,
+   "ledger_identical": true,
+   "trace_identical": true,
+   "distinct_pids": 1,
+   "zero_state_checks": 30,
+   "trade_ledger_sha256": "78de5dd20f2d869b7b2fdf5356e12c5debdfbf6eddd2387d1081e6c1d888eec8"
+  },
+  "11": {
+   "repeats": 1,
+   "ledger_identical": true,
+   "trace_identical": true,
+   "distinct_pids": 1,
+   "zero_state_checks": 30,
+   "trade_ledger_sha256": "7d0a3d451f15d6e9c0d13862fdd74e2980ca253256fe653b5708af5599fc8698"
+  }
+ },
+ "geometry": {
+  "stop": 1.1607732769249297,
+  "target": 1.741159915387402,
+  "risk_budget": 174.43144513798643
+ },
+ "arms": {
+  "00": {
+   "ledger_summary": {
+    "trades": 1,
+    "gross_pnl_frictionless_inr": -33.17758879439831,
+    "gross_pnl_fill_inr": -51.00100000000111,
+    "brokerage_inr": 10.6940517,
+    "stt_inr": 4.449479749999999,
+    "turnover_charge_inr": 1.2298159455,
+    "slippage_inr": 17.823411205602802,
+    "total_friction_inr": 34.1967586011028,
+    "total_friction_bps_of_entry_notional": 19.21390843564509,
+    "net_pnl_inr": -67.3743473955011,
+    "mean_gross_r_frictionless": -0.19020417315325638,
+    "mean_net_r": -0.38625115639100327,
+    "mean_friction_r": 0.19604698323774689,
+    "win_rate_net": 0.0,
+    "max_fee_reconciliation_error_inr": 0.0
+   },
+   "exit_quality_summary": {
+    "n": 1,
+    "by_class": {
+     "DEFENSIVE_SAVE": 0,
+     "PREMATURE_CHOKE": 0,
+     "NOISE_CHURN": 1,
+     "CENSORED": 0
+    },
+    "by_exit_kind": {
+     "CONVICTION_FSRN": {
+      "DEFENSIVE_SAVE": 0,
+      "PREMATURE_CHOKE": 0,
+      "NOISE_CHURN": 1,
+      "CENSORED": 0
+     }
+    }
+   },
+   "exits_before_min_hold": 0,
+   "fsrn_exits_before_min_hold": 0,
+   "deferred_conviction_exits": 0,
+   "trade_ledger_sha256": "051143f6bd1d5988a0bf97a5b53d23b4a165177e0b84834d5cc728a583a334c1",
+   "controller_trace_sha256": "716a3997e313be3ff595789230fe78aa6d9976510b265a32e29701c8ae1b5788",
+   "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50"
+  },
+  "10": {
+   "ledger_summary": {
+    "trades": 1,
+    "gross_pnl_frictionless_inr": -33.17758879439831,
+    "gross_pnl_fill_inr": -51.00100000000111,
+    "brokerage_inr": 10.6940517,
+    "stt_inr": 4.449479749999999,
+    "turnover_charge_inr": 1.2298159455,
+    "slippage_inr": 17.823411205602802,
+    "total_friction_inr": 34.1967586011028,
+    "total_friction_bps_of_entry_notional": 19.21390843564509,
+    "net_pnl_inr": -67.3743473955011,
+    "mean_gross_r_frictionless": -0.19020417315325638,
+    "mean_net_r": -0.38625115639100327,
+    "mean_friction_r": 0.19604698323774689,
+    "win_rate_net": 0.0,
+    "max_fee_reconciliation_error_inr": 0.0
+   },
+   "exit_quality_summary": {
+    "n": 1,
+    "by_class": {
+     "DEFENSIVE_SAVE": 0,
+     "PREMATURE_CHOKE": 0,
+     "NOISE_CHURN": 1,
+     "CENSORED": 0
+    },
+    "by_exit_kind": {
+     "CONVICTION_FSRN": {
+      "DEFENSIVE_SAVE": 0,
+      "PREMATURE_CHOKE": 0,
+      "NOISE_CHURN": 1,
+      "CENSORED": 0
+     }
+    }
+   },
+   "exits_before_min_hold": 0,
+   "fsrn_exits_before_min_hold": 0,
+   "deferred_conviction_exits": 0,
+   "trade_ledger_sha256": "051143f6bd1d5988a0bf97a5b53d23b4a165177e0b84834d5cc728a583a334c1",
+   "controller_trace_sha256": "716a3997e313be3ff595789230fe78aa6d9976510b265a32e29701c8ae1b5788",
+   "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50"
+  },
+  "01": {
+   "ledger_summary": {
+    "trades": 10,
+    "gross_pnl_frictionless_inr": 6.076485669106887,
+    "gross_pnl_fill_inr": -657.7871000000146,
+    "brokerage_inr": 353.94839213,
+    "stt_inr": 165.88367265,
+    "turnover_charge_inr": 45.806587306349996,
+    "slippage_inr": 663.8635856691214,
+    "total_friction_inr": 1229.5022377554715,
+    "total_friction_bps_of_entry_notional": 18.515624382409744,
+    "net_pnl_inr": -1223.4257520863646,
+    "mean_gross_r_frictionless": -0.010477180384420585,
+    "mean_net_r": -0.3457458080995209,
+    "mean_friction_r": 0.3352686277151003,
+    "win_rate_net": 0.0,
+    "max_fee_reconciliation_error_inr": 1.4210854715202004e-14
+   },
+   "exit_quality_summary": {
+    "n": 10,
+    "by_class": {
+     "DEFENSIVE_SAVE": 0,
+     "PREMATURE_CHOKE": 0,
+     "NOISE_CHURN": 10,
+     "CENSORED": 0
+    },
+    "by_exit_kind": {
+     "CONVICTION_FSRN": {
+      "DEFENSIVE_SAVE": 0,
+      "PREMATURE_CHOKE": 0,
+      "NOISE_CHURN": 7,
+      "CENSORED": 0
+     },
+     "GOVERNOR_GOVERNOR_PATH_ERROR": {
+      "DEFENSIVE_SAVE": 0,
+      "PREMATURE_CHOKE": 0,
+      "NOISE_CHURN": 3,
+      "CENSORED": 0
+     }
+    }
+   },
+   "exits_before_min_hold": 1,
+   "fsrn_exits_before_min_hold": 1,
+   "deferred_conviction_exits": 0,
+   "trade_ledger_sha256": "78de5dd20f2d869b7b2fdf5356e12c5debdfbf6eddd2387d1081e6c1d888eec8",
+   "controller_trace_sha256": "839a953969013e8ce2539d6965b8015098635bb53ef2d2c1e00f7a4e2787be30",
+   "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50"
+  },
+  "11": {
+   "ledger_summary": {
+    "trades": 10,
+    "gross_pnl_frictionless_inr": 18.825360106329427,
+    "gross_pnl_fill_inr": -645.0446000000106,
+    "brokerage_inr": 353.95221488,
+    "stt_inr": 165.886858275,
+    "turnover_charge_inr": 45.8070269226,
+    "slippage_inr": 663.86996010634,
+    "total_friction_inr": 1229.51606018394,
+    "total_friction_bps_of_entry_notional": 18.515832540545386,
+    "net_pnl_inr": -1210.6907000776107,
+    "mean_gross_r_frictionless": -0.005100304931922751,
+    "mean_net_r": -0.3403747622970594,
+    "mean_friction_r": 0.3352744573651366,
+    "win_rate_net": 0.0,
+    "max_fee_reconciliation_error_inr": 1.4210854715202004e-14
+   },
+   "exit_quality_summary": {
+    "n": 10,
+    "by_class": {
+     "DEFENSIVE_SAVE": 0,
+     "PREMATURE_CHOKE": 0,
+     "NOISE_CHURN": 10,
+     "CENSORED": 0
+    },
+    "by_exit_kind": {
+     "CONVICTION_FSRN": {
+      "DEFENSIVE_SAVE": 0,
+      "PREMATURE_CHOKE": 0,
+      "NOISE_CHURN": 7,
+      "CENSORED": 0
+     },
+     "GOVERNOR_GOVERNOR_PATH_ERROR": {
+      "DEFENSIVE_SAVE": 0,
+      "PREMATURE_CHOKE": 0,
+      "NOISE_CHURN": 3,
+      "CENSORED": 0
+     }
+    }
+   },
+   "exits_before_min_hold": 0,
+   "fsrn_exits_before_min_hold": 0,
+   "deferred_conviction_exits": 1,
+   "trade_ledger_sha256": "7d0a3d451f15d6e9c0d13862fdd74e2980ca253256fe653b5708af5599fc8698",
+   "controller_trace_sha256": "f9e3a0bbc8a6ba15f83ca7f6f27cdd003e3414e23ca1a881f9e3b813502388db",
+   "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50"
+  }
+ },
+ "null": {
+  "ledger_summary": {
+   "trades": 198,
+   "gross_pnl_frictionless_inr": -6564.234095658283,
+   "gross_pnl_fill_inr": -44674.98079999976,
+   "brokerage_inr": 7897.0928345,
+   "stt_inr": 9522.10271375,
+   "turnover_charge_inr": 2629.6416358326,
+   "slippage_inr": 38110.74670434148,
+   "total_friction_inr": 58159.58388842408,
+   "total_friction_bps_of_entry_notional": 15.261397625489735,
+   "net_pnl_inr": -64723.81798408236,
+   "mean_gross_r_frictionless": -0.191917418628615,
+   "mean_net_r": -1.891495485718162,
+   "mean_friction_r": 1.699578067089547,
+   "win_rate_net": 0.10101010101010101,
+   "max_fee_reconciliation_error_inr": 2.842170943040401e-14
+  },
+  "seed": 20241005
+ }
+}

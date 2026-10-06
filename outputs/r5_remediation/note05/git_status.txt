@@ -1,0 +1,65 @@
+ M revision2_external/broker_adapter_kite.py
+ M revision2_external/orchestrator.py
+ M revision2_external/paper_execution.py
+ M revision4/gates_proper.py
+ M revision4/tests/test_intraday_trade_ledger.py
+ M revision4/tests/test_ray_optuna_v3_calibration.py
+ M revision5/paper_state_journal.py
+ M runtime/contract_validator.py
+ M runtime/operating_mode.py
+ M scripts/run_r5_step5_candidate.py
+ M tests/legacy_quarantine/test_oos_runner.py
+ M tests/legacy_quarantine/test_risk_manager_corrected.py
+ M tests/legacy_quarantine/test_runtime_startup_gate.py
+ M tests/test_r5_native_durability.py
+ M tests/test_r5_paper_apply_blocker_closure.py
+ M tests_external/test_broker_adapter_kite.py
+?? docs/experiment_outputs/steam/after/block1/
+?? docs/experiment_outputs/steam/before/block1/
+?? docs/r5_remediation_project/
+?? outputs/CLAUDE_BRIDGE_SUPERVISOR_RECEIPT.md
+?? outputs/CLAUDE_FLEET_LOADING_WORK_ORDER.md
+?? outputs/R5_D01_1_INTEGRATION_REGRESSION_AUDIT.md
+?? outputs/R5_D01_1_evidence/
+?? outputs/R5_D01_ACCEPTANCE_AUDIT.md
+?? outputs/R5_D01_VERIFICATION_REPORT.md
+?? outputs/R5_D01_evidence/
+?? outputs/R5_D02_IMPLEMENTATION_AUDIT.md
+?? outputs/R5_D02_evidence/
+?? outputs/R5_EXISTING_WORK_FORENSIC_AUDIT.md
+?? outputs/block1_isolation_final/
+?? outputs/diagnostics/
+?? outputs/r5_remediation/
+?? revision2_external/broker_reconciliation.py
+?? revision2_external/protection_policy.py
+?? revision5/combined_cycle_runtime.py
+?? revision5/combined_cycle_store.py
+?? revision5/engine_b_management.py
+?? revision5/handoff_manager.py
+?? revision5/morning_recovery.py
+?? revision5/state_recovery.py
+?? scripts/diagnostics/
+?? tests/fixtures/
+?? tests/test_block1_isolation_harness.py
+?? tests/test_broker_reconciliation_lifecycle.py
+?? tests/test_combined_cycle_handoff.py
+?? tests/test_combined_cycle_runtime.py
+?? tests/test_engine_b_management.py
+?? tests/test_paper_combined_cycle_adapter.py
+?? tests/test_r5_close_feedback_recovery.py
+?? tests/test_r5_close_persistence_fault.py
+?? tests/test_r5_contract_order_quantity.py
+?? tests/test_r5_conversion_quantity_coherence.py
+?? tests/test_r5_d01_orchestrator_run_integration.py
+?? tests/test_r5_d01_product_reconciliation.py
+?? tests/test_r5_d02_product_reentry.py
+?? tests/test_r5_durable_close_outcome.py
+?? tests/test_r5_engine_b_restore_validation.py
+?? tests/test_r5_morning_startup.py
+?? tests/test_r5_post_fill_observer_faults.py
+?? tests/test_r5_recovery_hardening.py
+?? tests/test_r5_squareoff_exchange_clock.py
+?? tests/test_r5_state_recovery.py
+?? tests/test_r5_terminal_conversion_receipts.py
+?? tests/test_r5_unknown_conversion_protection.py
+?? tests/test_r5_worker_runtime_wiring.py

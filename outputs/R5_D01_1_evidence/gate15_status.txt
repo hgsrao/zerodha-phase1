@@ -1,0 +1,31 @@
+ M revision2_external/broker_adapter_kite.py
+ M revision2_external/orchestrator.py
+ M revision2_external/paper_execution.py
+?? docs/experiment_outputs/steam/after/block1/
+?? docs/experiment_outputs/steam/before/block1/
+?? docs/r5_remediation_project/
+?? outputs/CLAUDE_BRIDGE_SUPERVISOR_RECEIPT.md
+?? outputs/CLAUDE_FLEET_LOADING_WORK_ORDER.md
+?? outputs/R5_D01_1_evidence/
+?? outputs/R5_D01_ACCEPTANCE_AUDIT.md
+?? outputs/R5_D01_VERIFICATION_REPORT.md
+?? outputs/R5_D01_evidence/
+?? outputs/R5_EXISTING_WORK_FORENSIC_AUDIT.md
+?? outputs/block1_isolation_final/
+?? outputs/diagnostics/
+?? outputs/r5_remediation/
+?? revision2_external/broker_reconciliation.py
+?? revision5/combined_cycle_runtime.py
+?? revision5/combined_cycle_store.py
+?? revision5/engine_b_management.py
+?? revision5/handoff_manager.py
+?? scripts/diagnostics/
+?? tests/fixtures/
+?? tests/test_block1_isolation_harness.py
+?? tests/test_broker_reconciliation_lifecycle.py
+?? tests/test_combined_cycle_handoff.py
+?? tests/test_combined_cycle_runtime.py
+?? tests/test_engine_b_management.py
+?? tests/test_paper_combined_cycle_adapter.py
+?? tests/test_r5_d01_orchestrator_run_integration.py
+?? tests/test_r5_d01_product_reconciliation.py

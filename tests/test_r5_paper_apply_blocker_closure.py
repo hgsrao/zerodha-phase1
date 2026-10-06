@@ -320,9 +320,8 @@ def test_retried_execute_exit_is_rejected_by_reconciliation_and_never_feeds_twic
     assert len(dispatcher.trade_history_r[bay_id]) == 1
 
 
-def test_fault_after_dispatcher_mutation_leaves_unresolved_receipt_and_blocks_retry():
-    """Requirement 14: an unexpected exception after the dispatcher mutation propagates, and
-    leaves the receipt PENDING (not DONE) so a retry cannot feed the same close again."""
+def test_fault_after_dispatcher_mutation_rolls_back_and_allows_complete_retry():
+    """A failed feedback pair rolls back; explicit retry feeds each owner once."""
     orch = Engine(["INFY"])
     bay_id = bay_for_symbol("INFY")
     dispatcher = orch.plant_control.dispatch_controller.merit_source
@@ -336,15 +335,15 @@ def test_fault_after_dispatcher_mutation_leaves_unresolved_receipt_and_blocks_re
     with pytest.raises(RuntimeError, match="simulated unexpected failure"):
         orch._register_realized_r_close_feedback(symbol="INFY", trade=trade, bay_id=bay_id, realized_r=0.4)
 
-    assert len(dispatcher.trade_history_r[bay_id]) == 1             # dispatcher mutation is retained
+    assert len(dispatcher.trade_history_r[bay_id]) == 0
     key = orch._close_feedback_key("INFY", trade)
-    assert orch._close_feedback_receipts[key] == "PENDING"          # left unresolved, never DONE
+    assert key not in orch._close_feedback_receipts
 
     del governor.register_trade                                    # restore the real bound method
     orch._register_realized_r_close_feedback(symbol="INFY", trade=trade, bay_id=bay_id, realized_r=0.4)
-    assert len(dispatcher.trade_history_r[bay_id]) == 1             # retry still did not feed again
-    assert len(governor.history_r) == 0                             # governor never actually fed
-    assert orch._close_feedback_receipts[key] == "PENDING"          # stays unresolved (no restart recovery)
+    assert len(dispatcher.trade_history_r[bay_id]) == 1
+    assert len(governor.history_r) == 1
+    assert orch._close_feedback_receipts[key] == "DONE"
 
 
 def test_local_governor_and_plant_dispatch_feedback_are_separate_and_each_fires_once():

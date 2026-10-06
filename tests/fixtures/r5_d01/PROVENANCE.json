@@ -1,0 +1,44 @@
+{
+ "classification": "DERIVED_REAL_REPLAY_FIXTURE",
+ "origin": "Block 1 (sessions 2024-02-13..2024-02-19) of revision5/step5_sealed_calibration_protocol_v2.json, Stage A; symbol TITAN",
+ "loader": "scripts/run_r5_step5_candidate.prepare_block",
+ "loader_slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+ "stock_manifest": {
+  "path": "revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json",
+  "sha256": "2dcb04eb74fc2abec77a838b20dfb5ce6d730c10ba359203a7fc045eccffef66"
+ },
+ "stock_source_csv": "see manifest entry for TITAN (file sha256 f9b34afbceee6fc7269255fc4d2363a057d1ec5b8921e75b729b440b14533a1e, verified by the loader)",
+ "grid_source": "local_workspace/records/grid-manifest-local.json (NIFTY 50 15min sha256 c2e78705f61b5bad66257890ed1ec0cd3703571e721c16e1b2d2128ee4ea5443, INDIA VIX 15min sha256 9992deda85005fdb9ee2d6684f8a84a3cabd3f591655450207aeeaacbe7c1a8d, verified by the loader)",
+ "params_source": {
+  "path": "/home/srinivas/projects/zerodha-phase1/outputs/r5_step5_stage_a_v2_state/params/trial_007.json",
+  "sha256": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359"
+ },
+ "files": {
+  "titan_1min_block1_session1.csv": {
+   "sha256": "870219ad920fbbbd78172e4882b05325c90bad0e8c1e8ea3fcf9e8ed3197da68",
+   "rows": 436,
+   "first": "2024-02-12 14:30:00+05:30",
+   "last": "2024-02-14 09:15:00+05:30"
+  },
+  "nifty_50_15min_prefix.csv": {
+   "sha256": "902ddbb561713b99a5a5fde0ab07e3fffc483f0c522341433b1342b30b97fafc",
+   "rows": 3104,
+   "first": "2023-08-14 04:00:00+00:00",
+   "last": "2024-02-13 10:00:00+00:00"
+  },
+  "india_vix_15min_prefix.csv": {
+   "sha256": "ec8c3eaf36ef2ad5c81e4a2caa07008f50933362c00785be81b741fad36f3640",
+   "rows": 3104,
+   "first": "2023-08-14 04:00:00+00:00",
+   "last": "2024-02-13 10:00:00+00:00"
+  }
+ },
+ "loader_rows": {
+  "titan": 1936,
+  "nifty": 3203,
+  "vix": 50164
+ },
+ "round_trip_exact_equal_to_loader_rows": true,
+ "grid_context_identical_full_vs_selected_decisions_checked": 375,
+ "extractor_sha256": "2aef3788364f82f800a79910a2ba2903718acb940433d4f8db91242b1ca1e035"
+}

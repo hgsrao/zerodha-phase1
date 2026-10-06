@@ -1,0 +1,188 @@
+--- before/revision2_external/orchestrator.py
++++ after/revision2_external/orchestrator.py
+@@ -2027,12 +2027,96 @@
+                     config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+                 )
+                 funnel["orders_submitted"] += 1
++                if fill["passed"]:
++                    try:
++                        actual_quantity = int(fill["filled_quantity"])
++                        if actual_quantity <= 0:
++                            raise RuntimeError("Paper fill has no reconcilable positive quantity")
++                        self._trade_sequence += 1
++                        self.open_trades[symbol] = {
++                            "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
++                            "target_price": plan.target_price, "quantity": actual_quantity,
++                            "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
++                            "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
++                            "entry_atr": float(atr), "planned_entry_price": float(plan.entry_price),
++                            "planned_stop_price": float(plan.stop_price), "planned_target_price": float(plan.target_price),
++                            "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
++                            "controller_exit_pending": None,
++                            "closed_loop": {},
++                        }
++                        self.open_trades[symbol].update({
++                            "governor_stop_price": float(plan.stop_price), "governor_mfe_r": 0.0,
++                            "governor_entry_conviction": governor_entry.get("entry_absolute_conviction"),
++                        })
++                        self._register_position_lifecycle(symbol, self.open_trades[symbol], next_ts)
++                        _, governor = self._governor_for(symbol)
++                        if governor is not None:
++                            governor.begin_position(hard_stop_r=-1.0, position_id=f"trade-{self._trade_sequence}")
++                        entry_bar_index[symbol] = bar_idx + 1
++                        self._exit_controller_states[symbol] = self.exit_controller.open_position(
++                            plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
++                        )
++                        post_fill = self.entry_decision_engine.evaluate_post_fill(
++                            target_price=float(pid_info["execution_market_price"]), fill_price=float(fill["filled_price"]),
++                            expected_qty=quantity, actual_qty=actual_quantity,
++                            elapsed_seconds=float(fill["ack_elapsed_seconds"]),
++                            expected_position=actual_quantity * (1 if order.side == "BUY" else -1),
++                            actual_position=self.broker.get_position(symbol)["quantity"],
++                        )
++                        self._post_fill_checks.append({
++                            "candidate_id": candidate_id, **post_fill,
++                            "decisions": [asdict(d) for d in post_fill["decisions"]],
++                        })
++                        if not post_fill["passed"]:
++                            # A fill already happened: retain it in the ledger and halt NEW entries.
++                            # Existing protective exits remain enabled.
++                            self._execution_halted = True
++                        quantity = actual_quantity
++                        self.entry_candidate_observations.dispose(candidate_id, "FILLED", "paper_fill")
++                        funnel["fills"] += 1
++                        risk = abs(float(plan.entry_price) - float(plan.stop_price))
++                        target_r = abs(float(plan.target_price) - float(plan.entry_price)) / risk if risk > 0.0 else 0.0
++                        entry_evidence = self.entry_expectancy_ledger.observe_fill({
++                            "candidate_id": candidate_id,
++                            "symbol": symbol,
++                            "side": plan.side,
++                            "timestamp": str(timestamp),
++                            "fill_timestamp": str(next_ts),
++                            "pa_confidence": float(signal.confidence),
++                            "id_confidence": float(decision.confidence),
++                            "studies_confidence": chart_studies_confidence,
++                            "studies_direction": int(composite_result["direction"]),
++                            "atr_fraction": float(atr) / max(abs(float(plan.entry_price)), 1e-12),
++                            "target_r": target_r,
++                            "maximum_hold_bars": int(plan.maximum_hold_bars),
++                            "session_minute": int(next_ts.hour * 60 + next_ts.minute),
++                        })
++                        self._record_controller_event("ENTRY_EXPECTANCY_CANDIDATE", timestamp, symbol, entry_evidence)
++                        # Causal plant/dynamics estimate: this slice ends at
++                        # the decision bar. It cannot see the fill bar or any
++                        # subsequent held-position price action.
++                        closed_loop_snapshot = self.closed_loop.entry_snapshot(
++                            symbol=symbol, side=plan.side, entry_price=float(fill["filled_price"]),
++                            stop_price=float(plan.stop_price), target_price=float(plan.target_price),
++                            max_hold_bars=int(plan.maximum_hold_bars), regime="unknown", dynamics=symbol_dynamics,
++                        )
++                        self.open_trades[symbol]["closed_loop"] = closed_loop_snapshot
++                        self._record_controller_event("CLOSED_LOOP_ENTRY_SNAPSHOT", next_ts, symbol, {
++                            "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
++                            **closed_loop_snapshot,
++                        })
++                    except Exception:
++                        self._execution_halted = True
++                        raise
++                else:
++                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "paper_fill_rejected")
++
+                 # BB09/BB10 supervisory hand-off: a read-only record of what
+                 # P01D constructed and what UnifiedExecution did with it.
+                 # The order already exists, so this observer has NO veto, NO
+                 # rollback and NO authority: only the bridge's own data-validation
+                 # error is contained (recorded); any other exception is a real
+-                # defect and still propagates.  Bookkeeping below always runs.
++                # defect and still propagates. Filled-position bookkeeping is already complete.
+                 try:
+                     self.bb09_bb10_supervisory_by_symbol[symbol] = (
+                         self.supervisory_bridge.snapshot_bb09_bb10(
+@@ -2047,84 +2131,9 @@
+                         "fill_passed": bool(fill.get("passed")),
+                         "error_type": type(exc).__name__, "error": str(exc),
+                     })
+-                if fill["passed"]:
+-                    actual_quantity = int(fill["filled_quantity"])
+-                    post_fill = self.entry_decision_engine.evaluate_post_fill(
+-                        target_price=float(pid_info["execution_market_price"]), fill_price=float(fill["filled_price"]),
+-                        expected_qty=quantity, actual_qty=actual_quantity,
+-                        elapsed_seconds=float(fill["ack_elapsed_seconds"]),
+-                        expected_position=actual_quantity * (1 if order.side == "BUY" else -1),
+-                        actual_position=self.broker.get_position(symbol)["quantity"],
+-                    )
+-                    self._post_fill_checks.append({
+-                        "candidate_id": candidate_id, **post_fill,
+-                        "decisions": [asdict(d) for d in post_fill["decisions"]],
+-                    })
+-                    if not post_fill["passed"]:
+-                        # A fill already happened: retain it in the ledger and halt NEW entries.
+-                        # Existing protective exits remain enabled.
+-                        self._execution_halted = True
+-                    if actual_quantity <= 0:
+-                        raise RuntimeError("Paper fill has no reconcilable positive quantity")
+-                    quantity = actual_quantity
+-                    self.entry_candidate_observations.dispose(candidate_id, "FILLED", "paper_fill")
+-                    funnel["fills"] += 1
+-                    self._trade_sequence += 1
+-                    risk = abs(float(plan.entry_price) - float(plan.stop_price))
+-                    target_r = abs(float(plan.target_price) - float(plan.entry_price)) / risk if risk > 0.0 else 0.0
+-                    entry_evidence = self.entry_expectancy_ledger.observe_fill({
+-                        "candidate_id": candidate_id,
+-                        "symbol": symbol,
+-                        "side": plan.side,
+-                        "timestamp": str(timestamp),
+-                        "fill_timestamp": str(next_ts),
+-                        "pa_confidence": float(signal.confidence),
+-                        "id_confidence": float(decision.confidence),
+-                        "studies_confidence": chart_studies_confidence,
+-                        "studies_direction": int(composite_result["direction"]),
+-                        "atr_fraction": float(atr) / max(abs(float(plan.entry_price)), 1e-12),
+-                        "target_r": target_r,
+-                        "maximum_hold_bars": int(plan.maximum_hold_bars),
+-                        "session_minute": int(next_ts.hour * 60 + next_ts.minute),
+-                    })
+-                    self._record_controller_event("ENTRY_EXPECTANCY_CANDIDATE", timestamp, symbol, entry_evidence)
+-                    # Causal plant/dynamics estimate: this slice ends at
+-                    # the decision bar. It cannot see the fill bar or any
+-                    # subsequent held-position price action.
+-                    closed_loop_snapshot = self.closed_loop.entry_snapshot(
+-                        symbol=symbol, side=plan.side, entry_price=float(fill["filled_price"]),
+-                        stop_price=float(plan.stop_price), target_price=float(plan.target_price),
+-                        max_hold_bars=int(plan.maximum_hold_bars), regime="unknown", dynamics=symbol_dynamics,
+-                    )
+-                    self._record_controller_event("CLOSED_LOOP_ENTRY_SNAPSHOT", next_ts, symbol, {
+-                        "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
+-                        **closed_loop_snapshot,
+-                    })
+-                    self.open_trades[symbol] = {
+-                        "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
+-                        "target_price": plan.target_price, "quantity": quantity,
+-                        "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
+-                        "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
+-                        "entry_atr": float(atr), "planned_entry_price": float(plan.entry_price),
+-                        "planned_stop_price": float(plan.stop_price), "planned_target_price": float(plan.target_price),
+-                        "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
+-                        "controller_exit_pending": None,
+-                        "closed_loop": closed_loop_snapshot,
+-                    }
+-                    self.open_trades[symbol].update({
+-                        "governor_stop_price": float(plan.stop_price), "governor_mfe_r": 0.0,
+-                        "governor_entry_conviction": governor_entry.get("entry_absolute_conviction"),
+-                    })
+-                    self._register_position_lifecycle(symbol, self.open_trades[symbol], next_ts)
+-                    _, governor = self._governor_for(symbol)
+-                    if governor is not None:
+-                        governor.begin_position(hard_stop_r=-1.0, position_id=f"trade-{self._trade_sequence}")
+-                    entry_bar_index[symbol] = bar_idx + 1
+-                    self._exit_controller_states[symbol] = self.exit_controller.open_position(
+-                        plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
+-                    )
+-                else:
+-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "paper_fill_rejected")
++                except Exception:
++                    self._execution_halted = True
++                    raise
+ 
+             if self.paper_journal is not None:
+                 self.paper_journal.checkpoint(self, timestamp)

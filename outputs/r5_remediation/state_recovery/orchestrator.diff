@@ -1,0 +1,13 @@
+--- /home/srinivas/projects/zerodha-r5-governor-refactor/outputs/r5_remediation/state_recovery/orchestrator.before.py	2026-10-05 22:23:30.956485478 +0530
++++ /home/srinivas/projects/zerodha-r5-governor-refactor/revision2_external/orchestrator.py	2026-10-05 22:23:30.989923180 +0530
+@@ -885,6 +885,10 @@
+                                      bar_index=max(0, self._native_bar_index))
+             else:
+                 governor.register_trade(realized_r)
++            self._close_feedback_receipts[key] = "DONE"
++            journal = getattr(self, 'paper_journal', None)
++            if journal is not None:
++                journal.commit_feedback(self, key)
+         except Exception:
+             merit.trade_history_r, merit.weights = merit_before
+             for name, value in governor_before.items():

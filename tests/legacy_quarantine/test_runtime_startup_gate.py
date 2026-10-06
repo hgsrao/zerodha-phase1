@@ -1,6 +1,9 @@
 import unittest
 from typing import Optional
 
+import pytest
+pytest.importorskip("ecs_runtime_v2", reason="Archived legacy controller dependency absent; coverage not executed")
+
 from canonical_parameter_registry import CanonicalParameterRegistry
 from ecs_runtime_v2 import ECSRuntimeV2
 from runtime.operating_mode import OperatingMode, RuntimeConfig, StartupGate, SimulatedBrokerAdapter, PaperBrokerAdapter, KiteBrokerAdapter

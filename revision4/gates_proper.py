@@ -293,7 +293,8 @@ class ProperGateEvaluator:
             proposed_notional = quantity * entry_signal.entry_price
             return gate.evaluate(order_intent.symbol, proposed_notional, system_state)
         elif isinstance(gate, Gate09PositionQuantity):
-            return gate.evaluate(quantity)
+            decision, _ = gate.evaluate(quantity)
+            return decision
         elif isinstance(gate, Gate10DrawdownDerating):
             decision, _ = gate.evaluate(system_state, quantity)
             return decision

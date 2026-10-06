@@ -1,0 +1,6 @@
+DATA ROOT (symlinks to the repo's own revision2/ manifest and zerodha-phase1's local_workspace/ grid manifest): /tmp/block1_data_root_lw22ltrp
+total 0
+drwx------   2 srinivas srinivas    80 Oct  5 11:43 .
+drwxrwxrwt 195 root     root     25800 Oct  5 16:04 ..
+lrwxrwxrwx   1 srinivas srinivas    54 Oct  5 11:43 local_workspace -> /home/srinivas/projects/zerodha-phase1/local_workspace
+lrwxrwxrwx   1 srinivas srinivas    62 Oct  5 11:43 revision2 -> /home/srinivas/projects/zerodha-r5-governor-refactor/revision2

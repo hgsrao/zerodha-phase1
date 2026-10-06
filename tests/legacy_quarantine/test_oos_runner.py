@@ -4,6 +4,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import pytest
+pytest.importorskip("ecs_runtime_v2", reason="Archived legacy controller dependency absent; coverage not executed")
+
 from oos_calibration_engine import OOSBacktestRunner
 
 

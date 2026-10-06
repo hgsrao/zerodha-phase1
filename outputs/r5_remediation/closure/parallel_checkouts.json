@@ -1,0 +1,14 @@
+[
+  {
+    "package": "lifecycle-acceptance",
+    "checkout": "/home/srinivas/projects/zerodha-codex-lifecycle-acceptance"
+  },
+  {
+    "package": "recovery-retention",
+    "checkout": "/home/srinivas/projects/zerodha-codex-recovery-retention"
+  },
+  {
+    "package": "execution-boundary",
+    "checkout": "/home/srinivas/projects/zerodha-codex-execution-boundary"
+  }
+]

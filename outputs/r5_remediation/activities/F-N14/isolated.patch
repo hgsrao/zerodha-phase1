@@ -1,0 +1,65 @@
+--- before/revision5/engine_b_management.py
++++ after/revision5/engine_b_management.py
+@@ -5,6 +5,7 @@
+ """
+ from dataclasses import dataclass, asdict
+ from math import isfinite
++from copy import deepcopy
+ import pandas as pd
+ from revision5.position_lifecycle import ENGINE_B, B_OPEN, PositionLifecycleRecord
+ 
+@@ -45,17 +46,47 @@
+         self._states = {}
+ 
+     def export_state(self):
+-        return {'version': 1, 'policy': asdict(self.policy), 'positions': {k:dict(v) for k,v in self._states.items()}}
++        return {'version': 1, 'policy': asdict(self.policy), 'positions': deepcopy(self._states)}
+ 
+     def restore_state(self, receipt):
+-        if receipt.get('version') != 1 or receipt.get('policy') != asdict(self.policy):
++        if not isinstance(receipt, dict) or receipt.get('version') != 1 or receipt.get('policy') != asdict(self.policy):
+             raise ValueError('incompatible Engine B state')
+         states = {}
+-        for key, value in receipt['positions'].items():
+-            pd.Timestamp(value['last_timestamp'])
+-            if value['reversal_count'] < 0 or not isfinite(value['high_water']):
+-                raise ValueError('invalid Engine B state')
+-            states[key] = dict(value)
++        try:
++            for key, value in receipt['positions'].items():
++                if not isinstance(key, str) or not key or not isinstance(value, dict):
++                    raise ValueError('invalid Engine B position identity')
++                if set(value) != {'last_timestamp', 'high_water', 'reversal_count',
++                                  'sessions_elapsed', 'session_last_bar', 'decision'}:
++                    raise ValueError('invalid Engine B state schema')
++                if pd.isna(pd.Timestamp(value['last_timestamp'])):
++                    raise ValueError('invalid Engine B timestamp')
++                count, sessions = value['reversal_count'], value['sessions_elapsed']
++                if (type(count) is not int or count < 0 or type(sessions) is not int or sessions < 1
++                        or type(value['session_last_bar']) is not bool):
++                    raise ValueError('invalid Engine B session/reversal metadata')
++                decision = EngineBDecision(**value['decision'])
++                numbers = [value['high_water'], decision.proposed_stop_price, decision.current_r]
++                if decision.structural_reference is not None:
++                    numbers.append(decision.structural_reference)
++                if any(type(n) not in (int, float) or not isfinite(n) for n in numbers):
++                    raise ValueError('invalid Engine B numeric state')
++                if (value['high_water'] <= 0 or decision.proposed_stop_price <= 0
++                        or decision.structural_reference is not None and decision.structural_reference <= 0):
++                    raise ValueError('invalid Engine B price state')
++                if (type(decision.reversal_count) is not int or decision.reversal_count != count
++                        or decision.effective_from != 'NEXT_BAR'):
++                    raise ValueError('invalid Engine B cached decision metadata')
++                expected = ('HOLD', 'ENGINE_B_HOLD')
++                if sessions > self.policy.max_sessions or (sessions == self.policy.max_sessions and value['session_last_bar']):
++                    expected = ('EXIT', 'ENGINE_B_MAX_SESSIONS')
++                elif count >= self.policy.reversal_confirmation_bars:
++                    expected = ('EXIT', 'ENGINE_B_STRUCTURAL_REVERSAL')
++                if (decision.action, decision.reason) != expected:
++                    raise ValueError('cached Engine B action contradicts restored state')
++                states[key] = deepcopy(value)
++        except (KeyError, TypeError, AttributeError) as exc:
++            raise ValueError('invalid Engine B state schema') from exc
+         self._states = states
+ 
+     def evaluate(self, record: PositionLifecycleRecord, completed_bars: pd.DataFrame, timestamp, sessions_elapsed: int, *, session_last_bar: bool = False):

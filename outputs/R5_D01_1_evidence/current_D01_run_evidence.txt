@@ -1,0 +1,18 @@
+command: PYTHONDONTWRITEBYTECODE=1 /home/srinivas/.venvs/zerodha-phase1-r5/bin/python outputs/R5_D01_1_evidence/fixture_run_evidence.py
+paper_execution module: /home/srinivas/projects/zerodha-r5-governor-refactor/revision2_external/paper_execution.py sha256 4630aa718441b13f28694bb4aba082077717517c98a772e808a3508c48e52c7f
+input classification: DERIVED_REAL_REPLAY_FIXTURE | symbol: TITAN | fixture rows: {'titan_1min_block1_session1.csv': 436, 'nifty_50_15min_prefix.csv': 3104, 'india_vix_15min_prefix.csv': 3104}
+broker class (before run): revision2_external.paper_execution.CostedPaperBrokerAdapter | environment: paper
+broker class: revision2_external.paper_execution.CostedPaperBrokerAdapter | environment: paper
+runtime class: revision5.combined_cycle_runtime.CombinedCycleRuntime | store: CombinedCycleStore | handoff: HandoffManager | engine_b: EngineBController
+bars in fixture frame: 436 | scored bars processed: 375
+fills through paper broker: 2 | first fill: {'symbol': 'TITAN', 'side': 'SELL', 'quantity': 5}
+trades: 1 | side: SELL | qty: 5 | entry: 2024-02-13 09:33:00+05:30 @ 3559.5838 | exit: 2024-02-13 09:36:00+05:30 @ 3569.784 | reason: governor_exit:FSR_BELOW_EXIT:FSRN | bars_held: 3
+reconcile calls observed (TEST_OBSERVATION_SPY): 4 | after the fill (fills_so_far>=1): 4
+  reconcile 1 {'trade_id': 'trade-1', 'state': 'A_OPEN', 'record_product': 'MIS', 'broker_quantity': -5, 'broker_product': 'MIS', 'fills_so_far': 1}
+  reconcile 2 {'trade_id': 'trade-1', 'state': 'A_OPEN', 'record_product': 'MIS', 'broker_quantity': -5, 'broker_product': 'MIS', 'fills_so_far': 1}
+  reconcile 3 {'trade_id': 'trade-1', 'state': 'A_OPEN', 'record_product': 'MIS', 'broker_quantity': -5, 'broker_product': 'MIS', 'fills_so_far': 1}
+  reconcile 4 {'trade_id': 'trade-1', 'state': 'A_OPEN', 'record_product': 'MIS', 'broker_quantity': -5, 'broker_product': 'MIS', 'fills_so_far': 1}
+trade ledger sha256 (json.dumps(trades, sort_keys, default=str)): 051143f6bd1d5988a0bf97a5b53d23b4a165177e0b84834d5cc728a583a334c1
+durable record: CLOSED ENGINE_A MIS | open in store: 0 | open_trades: [] | handoff requests: 0
+broker position after run: {'quantity': 0, 'avg_price': 3559.5837999999994, 'product': 'MIS'}
+exit status: 0

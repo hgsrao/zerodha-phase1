@@ -1,0 +1,24 @@
+{
+  "head": "411712afaecaeb44a6899a12db94ac547fef0186",
+  "branch": "feature/engine-ab-handoff-lifecycle",
+  "source_sha256": {
+    "revision5/state_recovery.py": "b53ea2f8ffd1ca8409df2840357fb4afc9824f3c9e3ee74a1f4ca6191a266805",
+    "revision5/paper_state_journal.py": "3ca6acd456788618583089a58be556088851a883cf3af78ec5eb346081c838ef",
+    "revision2_external/orchestrator.py": "43b56f2fc534bfa0c514428324ba3360eafacbdf0ddebda2f618d3767405ab08",
+    "revision2_external/broker_adapter_kite.py": "60d472240f9250a9c5d5a75eed48aa0c1fe88e06cb761542882c5088cab73545",
+    "tests/test_r5_state_recovery.py": "9ef54916bf65b2741146f45b5a89d38fdc7f7d933f3985e626baa2b816fd0f67",
+    "tests/test_r5_native_durability.py": "512de958de898d57e9c3f0c9500425fd30296379ba9c3aed6b6de9c7758956e0"
+  },
+  "scope": "Offline paper prefix recovery and mock-tested opt-in conversion deduplication",
+  "live_calls": 0,
+  "committed": false,
+  "remaining": [
+    "Direct startup hydration with broker reconciliation",
+    "Complete controller/global-state inventory",
+    "Verified durable overnight broker protection",
+    "Combined-cycle recovery database and cursor coordination"
+  ],
+  "focused_tests": "25 passed, 29 warnings",
+  "full_tests": "298 passed, 501 warnings in 62.37s",
+  "verification_exit_code": 0
+}

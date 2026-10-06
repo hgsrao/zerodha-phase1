@@ -364,19 +364,18 @@ class ExecutionGate:
                 reasons.append(f"missing order fields: {', '.join(missing)}")
 
             qty = order.get("quantity")
-            if qty is not None:
-                if isinstance(qty, bool) or not isinstance(qty, int) or not math.isfinite(float(qty)) or qty <= 0:
+            if isinstance(qty, bool) or not isinstance(qty, int) or qty <= 0:
+                passed = False
+                reasons.append("order quantity must be a positive integer")
+            else:
+                min_qty = config.get("min_position_quantity") if isinstance(config, dict) else None
+                max_qty = config.get("max_position_quantity") if isinstance(config, dict) else None
+                if min_qty is not None and qty < int(min_qty):
                     passed = False
-                    reasons.append("order quantity must be a positive integer")
-                else:
-                    min_qty = config.get("min_position_quantity") if isinstance(config, dict) else None
-                    max_qty = config.get("max_position_quantity") if isinstance(config, dict) else None
-                    if min_qty is not None and qty < int(min_qty):
-                        passed = False
-                        reasons.append("order quantity below minimum position quantity")
-                    if max_qty is not None and qty > int(max_qty):
-                        passed = False
-                        reasons.append("order quantity exceeds maximum position quantity")
+                    reasons.append("order quantity below minimum position quantity")
+                if max_qty is not None and qty > int(max_qty):
+                    passed = False
+                    reasons.append("order quantity exceeds maximum position quantity")
 
             symbol = order.get("symbol")
             if symbol is not None and (not isinstance(symbol, str) or not symbol.strip()):

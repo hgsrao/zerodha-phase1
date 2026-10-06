@@ -1,0 +1,255 @@
+{
+  "milestones": [
+    {
+      "id": "M00",
+      "title": "Source audit and documentary baseline",
+      "activities": [
+        "DOC-001"
+      ],
+      "status": "DONE",
+      "audit_report": "audits/milestones/M00.md",
+      "exit_criteria": [
+        "All listed activities have evidence-backed acceptance or explicit reviewed disposition.",
+        "No unresolved prerequisite is represented as passed."
+      ],
+      "acceptance_dependencies": [],
+      "execution_rule": "Preparatory source review may proceed independently; acceptance is released only after the previous milestone receipt and activity dependencies close."
+    },
+    {
+      "id": "M01",
+      "title": "Isolated flat-outcome grading",
+      "activities": [
+        "NOTE-01",
+        "F-SIG-001"
+      ],
+      "status": "IN_PROGRESS",
+      "audit_report": "audits/milestones/M01.md",
+      "exit_criteria": [
+        "All listed activities have evidence-backed acceptance or explicit reviewed disposition.",
+        "No unresolved prerequisite is represented as passed."
+      ],
+      "acceptance_dependencies": [
+        "M00"
+      ],
+      "execution_rule": "Preparatory source review may proceed independently; acceptance is released only after the previous milestone receipt and activity dependencies close."
+    },
+    {
+      "id": "M02",
+      "title": "Authoritative fill and close bookkeeping",
+      "activities": [
+        "F-N01",
+        "F-N02",
+        "F-ROOT-001",
+        "F-ROOT-005"
+      ],
+      "status": "IN_PROGRESS",
+      "audit_report": "audits/milestones/M02.md",
+      "exit_criteria": [
+        "All listed activities have evidence-backed acceptance or explicit reviewed disposition.",
+        "No unresolved prerequisite is represented as passed."
+      ],
+      "acceptance_dependencies": [
+        "M01"
+      ],
+      "execution_rule": "Preparatory source review may proceed independently; acceptance is released only after the previous milestone receipt and activity dependencies close."
+    },
+    {
+      "id": "M03",
+      "title": "Correlated conversion and ambiguity resolution",
+      "activities": [
+        "NOTE-02",
+        "F-N05",
+        "F-N06",
+        "F-ROOT-009"
+      ],
+      "status": "IN_PROGRESS",
+      "audit_report": "audits/milestones/M03.md",
+      "exit_criteria": [
+        "All listed activities have evidence-backed acceptance or explicit reviewed disposition.",
+        "No unresolved prerequisite is represented as passed."
+      ],
+      "acceptance_dependencies": [
+        "M02"
+      ],
+      "execution_rule": "Preparatory source review may proceed independently; acceptance is released only after the previous milestone receipt and activity dependencies close."
+    },
+    {
+      "id": "M04",
+      "title": "Complete durable checkpoint and close feedback",
+      "activities": [
+        "NOTE-03",
+        "F-N03",
+        "F-N04",
+        "F-N07",
+        "F-N15",
+        "F-ROOT-004",
+        "F-ROOT-015"
+      ],
+      "status": "IN_PROGRESS",
+      "audit_report": "audits/milestones/M04.md",
+      "exit_criteria": [
+        "All listed activities have evidence-backed acceptance or explicit reviewed disposition.",
+        "No unresolved prerequisite is represented as passed."
+      ],
+      "acceptance_dependencies": [
+        "M03"
+      ],
+      "execution_rule": "Preparatory source review may proceed independently; acceptance is released only after the previous milestone receipt and activity dependencies close."
+    },
+    {
+      "id": "M05",
+      "title": "Protection, reconciliation and Engine B management",
+      "activities": [
+        "F-N14",
+        "F-ROOT-006",
+        "F-ROOT-010"
+      ],
+      "status": "IN_PROGRESS",
+      "audit_report": "audits/milestones/M05.md",
+      "exit_criteria": [
+        "All listed activities have evidence-backed acceptance or explicit reviewed disposition.",
+        "No unresolved prerequisite is represented as passed."
+      ],
+      "acceptance_dependencies": [
+        "M04"
+      ],
+      "execution_rule": "Preparatory source review may proceed independently; acceptance is released only after the previous milestone receipt and activity dependencies close."
+    },
+    {
+      "id": "M06",
+      "title": "Explicit integrated execution and evidence boundaries",
+      "activities": [
+        "NOTE-05",
+        "NOTE-07",
+        "F-ROOT-002",
+        "F-ROOT-007",
+        "F-ROOT-008",
+        "F-SIG-003",
+        "F-SIG-004"
+      ],
+      "status": "PLANNED",
+      "audit_report": "audits/milestones/M06.md",
+      "exit_criteria": [
+        "All listed activities have evidence-backed acceptance or explicit reviewed disposition.",
+        "No unresolved prerequisite is represented as passed."
+      ],
+      "acceptance_dependencies": [
+        "M05"
+      ],
+      "execution_rule": "Preparatory source review may proceed independently; acceptance is released only after the previous milestone receipt and activity dependencies close."
+    },
+    {
+      "id": "M07",
+      "title": "Sector dispatch and controller authority verification",
+      "activities": [
+        "NOTE-04",
+        "NOTE-06",
+        "F-N08",
+        "F-N11",
+        "F-N12",
+        "F-N16",
+        "F-N17",
+        "F-ROOT-003",
+        "F-ROOT-011",
+        "F-ROOT-013",
+        "F-ROOT-014",
+        "F-ROOT-016",
+        "F-SIG-002",
+        "F-SIG-005",
+        "F-SIG-006",
+        "F-SIG-012"
+      ],
+      "status": "PLANNED",
+      "audit_report": "audits/milestones/M07.md",
+      "exit_criteria": [
+        "All listed activities have evidence-backed acceptance or explicit reviewed disposition.",
+        "No unresolved prerequisite is represented as passed."
+      ],
+      "acceptance_dependencies": [
+        "M06"
+      ],
+      "execution_rule": "Preparatory source review may proceed independently; acceptance is released only after the previous milestone receipt and activity dependencies close."
+    },
+    {
+      "id": "M08",
+      "title": "Current nonsealed controller and validation defects",
+      "activities": [
+        "F-ROOT-012",
+        "F-SIG-009",
+        "F-SIG-010",
+        "F-SIG-011",
+        "F-SIG-013",
+        "F-SIG-014"
+      ],
+      "status": "IN_PROGRESS",
+      "audit_report": "audits/milestones/M08.md",
+      "exit_criteria": [
+        "All listed activities have evidence-backed acceptance or explicit reviewed disposition.",
+        "No unresolved prerequisite is represented as passed."
+      ],
+      "acceptance_dependencies": [
+        "M07"
+      ],
+      "execution_rule": "Preparatory source review may proceed independently; acceptance is released only after the previous milestone receipt and activity dependencies close."
+    },
+    {
+      "id": "M09",
+      "title": "Historical, sealed and alternate-path disposition",
+      "activities": [
+        "F-N09",
+        "F-N10",
+        "F-N13",
+        "F-SIG-007",
+        "F-SIG-008",
+        "F-LEG-001",
+        "F-LEG-002",
+        "F-LEG-003",
+        "F-LEG-004",
+        "F-LEG-005",
+        "F-LEG-006",
+        "F-LEG-007",
+        "F-LEG-008",
+        "F-LEG-009",
+        "F-LEG-010",
+        "F-LEG-011",
+        "F-LEG-012",
+        "F-LEG-013",
+        "F-LEG-014",
+        "F-LEG-015",
+        "F-LEG-016",
+        "F-LEG-017",
+        "F-LEG-018",
+        "F-LEG-019",
+        "F-LEG-020",
+        "F-LEG-021"
+      ],
+      "status": "PLANNED",
+      "audit_report": "audits/milestones/M09.md",
+      "exit_criteria": [
+        "All listed activities have evidence-backed acceptance or explicit reviewed disposition.",
+        "No unresolved prerequisite is represented as passed."
+      ],
+      "acceptance_dependencies": [
+        "M08"
+      ],
+      "execution_rule": "Preparatory source review may proceed independently; acceptance is released only after the previous milestone receipt and activity dependencies close."
+    },
+    {
+      "id": "M10",
+      "title": "Integrated closeout and activity audit completion",
+      "activities": [
+        "VERIFY-01"
+      ],
+      "status": "PLANNED",
+      "audit_report": "audits/milestones/M10.md",
+      "exit_criteria": [
+        "All listed activities have evidence-backed acceptance or explicit reviewed disposition.",
+        "No unresolved prerequisite is represented as passed."
+      ],
+      "acceptance_dependencies": [
+        "M09"
+      ],
+      "execution_rule": "Preparatory source review may proceed independently; acceptance is released only after the previous milestone receipt and activity dependencies close."
+    }
+  ]
+}

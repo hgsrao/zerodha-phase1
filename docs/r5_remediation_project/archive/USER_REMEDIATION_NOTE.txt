@@ -1,0 +1,147 @@
+This is the reality check the project desperately needed. The DISPATCH_ECS_NOTE_CHECK.md document strips away the metaphors and exposes exactly how the software was actually written, rather than how we conceptually wished it was written.
+
+As a power plant engineer, you saw the physical analogy (GTG → Steam), but the developers coded the "Bays" merely as static industry sectors (e.g., RELIANCE is permanently mapped to GTG1; TITAN is permanently mapped to CSTG2).
+
+The architectural truth is this:
+
+A trade does not move from a "Gas Bay" to a "Steam Bay" to hold overnight. It stays in its original mapped Bay (which dictates its capital budget).
+
+What actually changes is the Ownership Lifecycle (Engine A / MIS → Engine B / CNC).
+
+The ECS and Fleet Dispatchers are already closed-loop via exposure headroom and realized-R smoothing. Adding a new "Fleet PID" would double-subtract exposure and choke the plant.
+
+Below is the 10x deep-dive into the 5 critical defects verified by this document, complete with the exact, unyielding logic required to fix the black boxes without breaking the existing validated code.
+
+PROBLEM 1: The Handoff Transaction Race (Double-Exit Danger)
+The Deep Dive: The note exposes a lethal race condition. If the orchestrator requests an MIS → CNC conversion at 15:10 IST, but the Kite API times out or lags, what happens? If the code naively assumes failure, reverts the ticket to A_OPEN, and fires a 15:20 market exit, but Kite did actually convert it to CNC, you just sent an intraday exit for a delivery position. This causes a margin penalty or a naked short.
+The 10x Solution: We must implement the TRANSFER_UNKNOWN state to freeze the orchestrator, forcing a definitive broker reconciliation before any exit is allowed.
+
+The Code Implementation:
+
+Python
+# In revision5/position_lifecycle.py and revision2_external/orchestrator.py
+def execute_handoff(self, symbol: str, record: PositionLifecycleRecord):
+    # 1. State goes to REQUESTED before the network call
+    record = transition(record, "TRANSFER_REQUESTED")
+    self._journal_state(record)
+    
+    try:
+        # 2. Network call to broker adapter
+        result = self.broker.convert_product(symbol, from_product="MIS", to_product="CNC")
+        if result["status"] == "SUCCESS":
+            # 3. Clean promotion to B_OPEN
+            record = acknowledge_transfer(record) 
+        else:
+            # Clean rejection: revert to A_OPEN for standard 15:20 liquidation
+            record = transition(record, "A_OPEN")
+    except BrokerNetworkTimeout:
+        # THE FIX: If ambiguous, freeze the position. 
+        # The exit router will mathematically ignore TRANSFER_UNKNOWN.
+        record = transition(record, "TRANSFER_UNKNOWN")
+    
+    self._journal_state(record)
+    self.open_trades[symbol] = record
+
+def _maybe_exit(self, symbol, timestamp):
+    record = self.open_trades[symbol]
+    if record.lifecycle_state == "TRANSFER_UNKNOWN":
+        # Force reconciliation before making an exit decision
+        actual_broker_position = self.broker.get_position(symbol)
+        if actual_broker_position["product"] == "CNC":
+            record = acknowledge_transfer(record) # Recovered: it actually succeeded
+        else:
+            record = transition(record, "A_OPEN") # Recovered: it actually failed
+        self.open_trades[symbol] = record
+PROBLEM 2: The Persistence & Protective Continuity Vacuum
+The Deep Dive: The note confirms that setting B_OPEN and CNC in a Python dictionary does not magically create an overnight stop order at the exchange. Broker DAY stop orders expire at 15:30 IST. If the Python process reboots overnight, self.open_trades initializes empty, and your delivery stocks are flying blind at 09:15 the next morning.
+The 10x Solution: The PositionLifecycleRecord and the governor's inner protected_r_floor must be written to a local SQLite/JSONL WAL (Write-Ahead Log) synchronously on every bar. On morning boot, the orchestrator must read the WAL, match it against kite.positions(), and issue a Kite GTT (Good Till Triggered) order for the stop.
+
+The Code Implementation:
+
+Python
+# In revision2_external/orchestrator.py (Startup Routine)
+def _reconcile_morning_startup(self):
+    # 1. Load authoritative open positions from Broker
+    live_positions = self.broker.get_positions()
+    
+    # 2. Load frozen engine state from disk
+    local_journal = SQLiteLifecycleJournal.load_active()
+    
+    for symbol, journaled_record in local_journal.items():
+        if symbol in live_positions and live_positions[symbol]["product"] == "CNC":
+            # 3. Restore the Engine B position to memory
+            self.open_trades[symbol] = journaled_record
+            
+            # 4. Extract the mathematically ratcheted stop price from yesterday
+            ratcheted_stop = journaled_record.current_stop_price
+            
+            # 5. RE-ARM THE BROKER: Submit the GTT Stop Loss to Zerodha
+            self.broker.place_gtt(
+                symbol=symbol, 
+                trigger_price=ratcheted_stop, 
+                limit_price=ratcheted_stop * 0.995, # 0.5% slip guard
+                side="SELL"
+            )
+PROBLEM 3: Avoiding the "Double-Subtraction" Fleet Choke
+The Deep Dive: The note explicitly states: "The demand reference is a plant LOADING setpoint... The paper admission cap closes the loop on actual loading (budget * reference - current exposure). Doing so subtracted exposure twice and capped reachable gross at roughly half."
+The 10x Solution: Stop trying to build a new Fleet PID. The current architecture (ECSPlantSupervisor → SectorDispatchController → cap_dispatch_entry) is already mechanically correct. It rate-limits the demand ramp and caps the exact lot size based on current headroom. The only reason the plant wasn't holding trades is because HandoffConfig is disabled by default (enabled: bool = False). We just need to turn the existing handoff keys on.
+
+The Fix:
+No code rewrites for the dispatcher. We simply pass a validated HandoffConfig(enabled=True, minimum_r=0.75, start='15:10', deadline='15:14') into the engine payload, and the existing capacity allocator will natively handle the retained CNC exposure without choking.
+
+PROBLEM 4: Flat-Bar Grading Isolation (The Study Defect)
+The Deep Dive: The note warns: "The claim that one flat-bar bug explains the entire 53-SELL/1-BUY distribution is not established... We should not cherry-pick, add damping and change holding policy together."
+The 10x Solution: The engineer who wrote the note is absolutely right. Changing three variables at once destroys the scientific control. The fix for the neutral bar grading (f1c7d63) must be applied and tested in total isolation.
+
+The Action Plan:
+
+Execute the run_r5_step5_candidate.py using Block 1 data on the baseline code. Log the output (53 SELLs).
+
+Merge only commit f1c7d63 (which modifies causal_percentile_rank / study grading to equal-weight unchanged prices).
+
+Re-run run_r5_step5_candidate.py. We will measure the exact shift in the BUY/SELL ratio. If the studies are fixed, we will see momentum BUY signals surviving the Minimum Value Gate (FSRN).
+
+PROBLEM 5: The "Zero Steam-Bay Feedback" Fallacy
+The Deep Dive: The previous assumption was that CSTG/BPSTG (Steam Bays) had zero feedback because no trades were handed off to them. The note corrects this: external admission can natively map an intraday trade directly into a Steam Bay (e.g., TITAN mapping natively to CSTG2).
+The 10x Solution: We must respect the native _R5_SYMBOL_TO_BAY mapping. When an Engine A trade on TITAN closes, its realized R feeds back into CSTG2's merit history, updating CSTG2's dispatch weights.
+
+The Code Verification:
+
+Python
+# This existing code in orchestrator.py:868 is already structurally correct:
+try:
+    bay_id = _r5_bay_for_symbol(symbol) # Maps TITAN -> CSTG2
+except KeyError:
+    bay_id = None
+if bay_id is not None:
+    realized_r = self.exit_controller._r_multiple(state, float(result["filled_price"]))
+    # Properly feeds realized R to the symbol's assigned bay, NOT a hardcoded GTG.
+    self._register_realized_r_close_feedback(
+        symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r, reason=reason)
+We do not touch this logic. It is architecturally sound.
+
+Your Final Project Manager Directive
+We now have the verified, ground-truth mechanics of the engine. We will execute the fixes in three strictly isolated, mathematically verifiable steps.
+
+You can hand this exact directive to Claude:
+
+Markdown
+Target Repository: hgsrao/zerodha-phase1
+Branch: feature/engine-ab-handoff-lifecycle (branched from PR #7 head 440ca5f)
+
+We are executing targeted structural fixes based strictly on the verified `DISPATCH_ECS_NOTE_CHECK.md` architecture. Do NOT bundle these changes. We will execute Phase 1 ONLY.
+
+### PHASE 1: ISOLATED CORRECTNESS & FLAT-BAR GRADING
+1. Cherry-pick commit `f1c7d63` (neutral grading for unchanged price outcomes).
+2. Do NOT add 2-bar damping, do NOT change Engine B holding limits, and do NOT alter the governor yet.
+3. Run the canonical Block 1 candidate replay:
+   `python scripts/run_r5_step5_candidate.py --block 1`
+4. Output the trade ledger. We must explicitly measure the shift in the BUY/SELL ratio caused solely by the flat-bar neutral grading fix.
+
+### PHASE 2: TRANSACTION RACE & TRANSFER_UNKNOWN (To follow Phase 1)
+1. In `revision5/position_lifecycle.py`, define the `TRANSFER_UNKNOWN` state.
+2. In `orchestrator.py`, update `_maybe_exit` to bypass `TRANSFER_UNKNOWN`.
+3. Implement `_reconcile_broker_transfers()` to resolve ambiguous states via `broker.get_positions()`.
+
+Deliver the output of Phase 1 (the isolated flat-bar replay ledger) immediately.
+By enforcing this strict, step-by-step approach, we eliminate the surprises, honor the actual CCPP framework written in revision5, and systematically close the execution gaps safely.

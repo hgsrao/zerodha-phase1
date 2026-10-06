@@ -1,0 +1,9 @@
+{
+  "by_side": {
+    "BUY": 52,
+    "SELL": 52
+  },
+  "classification": "BROKER_BOTH_ENTRY_AND_EXIT_LEGS",
+  "native_entry_fills": 52,
+  "total": 104
+}

@@ -1,0 +1,57 @@
+# COUNTERFACTUAL: identical new test on PRE-D01 production code (temp tree; only revision2_external/paper_execution.py differs from the working tree)
+cwd: /tmp/claude-1000/d01_1_before_tree
+command: cd /tmp/claude-1000/d01_1_before_tree && PYTHONDONTWRITEBYTECODE=1 /home/srinivas/.venvs/zerodha-phase1-r5/bin/python -m pytest -v -p no:cacheprovider -p no:warnings tests/test_r5_d01_orchestrator_run_integration.py
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0 -- /home/srinivas/.venvs/zerodha-phase1-r5/bin/python
+rootdir: /tmp/claude-1000/d01_1_before_tree
+plugins: timeout-2.4.0, typeguard-4.6.0, socket-0.8.1
+collecting ... collected 2 items
+
+tests/test_r5_d01_orchestrator_run_integration.py::test_fixture_files_match_their_recorded_hashes PASSED [ 50%]
+tests/test_r5_d01_orchestrator_run_integration.py::test_orchestrator_run_reconciles_after_the_paper_fill_beyond_the_d01_failure_point FAILED [100%]
+
+=================================== FAILURES ===================================
+_ test_orchestrator_run_reconciles_after_the_paper_fill_beyond_the_d01_failure_point _
+
+tmp_path = PosixPath('/tmp/pytest-of-srinivas/pytest-32/test_orchestrator_run_reconcil0')
+
+    def test_orchestrator_run_reconciles_after_the_paper_fill_beyond_the_d01_failure_point(tmp_path):
+        orch, runtime, store, observed, titan, warmup = build_orchestrator(tmp_path)
+    
+        # The concrete broker and the runtime are established before anything runs.
+        assert type(orch.broker).__qualname__ == "CostedPaperBrokerAdapter"
+        assert orch.broker.environment == "paper"
+        assert orch.combined_cycle_runtime is runtime and type(runtime).__qualname__ == "CombinedCycleRuntime"
+    
+>       report = orch.run({SYMBOL: titan}, warmup=warmup)           # the real replay; any reconciliation error propagates
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_r5_d01_orchestrator_run_integration.py:100: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+revision2_external/orchestrator.py:1626: in run
+    self._maybe_exit(
+revision2_external/orchestrator.py:1105: in _maybe_exit
+    if getattr(self, "combined_cycle_runtime", None) is not None and self.combined_cycle_runtime.handle_bar(
+revision5/combined_cycle_runtime.py:115: in handle_bar
+    self.reconcile(engine,snapshot)
+tests/test_r5_d01_orchestrator_run_integration.py:86: in observe_reconcile
+    return real_reconcile(engine, snapshot)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <revision5.combined_cycle_runtime.CombinedCycleRuntime object at 0x7dabc8eaebd0>
+engine = <revision2_external.orchestrator.Revision2ExternalEngineOrchestrator object at 0x7dabc8ef9580>
+snapshot = RuntimeSnapshot(record=PositionLifecycleRecord(position_id='trade-1', symbol='TITAN', direction='SELL', owner_engine='...il_mode': 'R', 'trail_distance_r': 2.0, 'atr_multiple': 3.0, 'trail_activation_r': 1.0}, 'positions': {}}}, revision=1)
+
+    def reconcile(self, engine, snapshot):
+        position=engine.broker.get_position(snapshot.record.symbol)
+        expected=float(snapshot.trade['quantity'])*(1 if snapshot.record.direction=='BUY' else -1)
+        if abs(float(position.get('quantity',0))-expected)>1e-6 or position.get('product')!=snapshot.record.product:
+>           raise CombinedCycleReconciliationError('broker quantity/product differs from durable owner')
+E           revision5.combined_cycle_runtime.CombinedCycleReconciliationError: broker quantity/product differs from durable owner
+
+revision5/combined_cycle_runtime.py:51: CombinedCycleReconciliationError
+=========================== short test summary info ============================
+FAILED tests/test_r5_d01_orchestrator_run_integration.py::test_orchestrator_run_reconciles_after_the_paper_fill_beyond_the_d01_failure_point
+========================= 1 failed, 1 passed in 1.01s ==========================
+exit status: 1

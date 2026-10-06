@@ -1,0 +1,29 @@
+diff --git a/revision2_external/composite_study_signal.py b/revision2_external/composite_study_signal.py
+index a424caf..64ebcdf 100644
+--- a/revision2_external/composite_study_signal.py
++++ b/revision2_external/composite_study_signal.py
+@@ -199,7 +199,7 @@ class _StudyState:
+     pid: PID
+     vote_history: Deque[int]
+     close_history: Deque[float]
+-    hit_history: Deque[int]
++    hit_history: Deque[float]
+ 
+     @property
+     def hit_rate(self) -> float:
+@@ -294,8 +294,13 @@ class CompositeStudySignal:
+                 past_vote = state.vote_history[0]
+                 past_close = state.close_history[0]
+                 if past_vote != 0:
+-                    moved_up = current_close > past_close
+-                    hit = 1 if (past_vote == 1) == moved_up else 0
++                    # No price change supplies no directional evidence. Grade
++                    # both LONG and SHORT neutrally without changing sample count.
++                    if current_close == past_close:
++                        hit = 0.5
++                    else:
++                        moved_up = current_close > past_close
++                        hit = 1.0 if (past_vote == 1) == moved_up else 0.0
+                     state.hit_history.append(hit)
+ 
+         # Cross-study rolling average hit rate -- the adaptive setpoint

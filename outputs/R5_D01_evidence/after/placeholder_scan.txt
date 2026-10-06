@@ -1,0 +1,7 @@
+### revision2_external/paper_execution.py
+(no matches)
+### tests/test_r5_d01_product_reconciliation.py
+12:No mock, no shim, no monkey-patch.  Nothing here is replay evidence; the replay proof is the separate real-run command in
+
+### pre-existing check: same scan over the BEFORE copy of paper_execution.py
+(no matches)

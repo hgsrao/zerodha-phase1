@@ -1,0 +1,29 @@
+{
+  "branch": "feature/engine-ab-handoff-lifecycle",
+  "head": "411712afaecaeb44a6899a12db94ac547fef0186",
+  "protected_hashes": {
+    "scripts/run_r5_step5_candidate.py": "13c0fa46cf6ce38d4c4bab3b59d6eb407acc93135e0a39e93d3ff446a69f1a70",
+    "revision5/step5_sealed_calibration_protocol_v2.json": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+    "canonical_parameter_registry.py": "50382612d9c61a714d4278ed97095bc9c54a3b7e52b3ff0fef2095616863edb0"
+  },
+  "trial000": {
+    "path": "/home/srinivas/projects/zerodha-phase1/outputs/r5_step5_stage_a_v2_state/params/trial_000.json",
+    "sha256": "7bb4a976a31ebee22b8fe8330a7520aba8d1ba4c4f564b618d6701754d59ae3d",
+    "keys_match": true
+  },
+  "block1": {
+    "block": 1,
+    "center_index": 65,
+    "end": "2023-12-11",
+    "sessions": [
+      "2023-12-05",
+      "2023-12-06",
+      "2023-12-07",
+      "2023-12-08",
+      "2023-12-11"
+    ],
+    "start": "2023-12-05"
+  },
+  "execution_mode": "EXPERIMENTAL_PAPER_LIFECYCLE",
+  "claude_job": "c9f06742-8b2d-4d62-9f2b-8ed0d8339308"
+}

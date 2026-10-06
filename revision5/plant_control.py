@@ -41,7 +41,7 @@ NOT_CALIBRATED).  The [0, 1] demand range and the sum/ceiling invariants are str
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import isfinite
 from typing import Any, Dict, Iterable, Mapping, Optional, Protocol, Tuple
@@ -434,6 +434,7 @@ class PlantControlSnapshot:
     governor_references: Tuple[GovernorDispatchReference, ...]
     applied: bool = False
     authority: str = "INFORMATION_ONLY"
+    fleet_loading: object = None
 
 
 class PlantControlChain:
@@ -444,7 +445,7 @@ class PlantControlChain:
     """
 
     def __init__(self, config, grid_provider: SealedGridContextProvider, merit_source,
-                 mode: PlantControlMode | str = PlantControlMode.SHADOW) -> None:
+                 mode: PlantControlMode | str = PlantControlMode.SHADOW, *, fleet_loading_policy=None) -> None:
         try:
             self.mode = PlantControlMode(mode)
         except ValueError as exc:
@@ -452,6 +453,12 @@ class PlantControlChain:
         self.synchronizer = PlantGridSynchronizer(config, grid_provider)
         self.ecs = ECSPlantSupervisor(config)
         self.dispatch_controller = SectorDispatchController(merit_source)
+        from revision5.fleet_loading_controller import FleetLoadingController
+        self.fleet_loading = FleetLoadingController(fleet_loading_policy) if fleet_loading_policy is not None else None
+        self._fleet_timestamp = None
+        self._fleet_snapshot = None
+        self._fleet_exposure = None
+        self._fleet_expected_next_timestamp = None
 
     def configure(self, config) -> None:
         self.synchronizer.configure(config)
@@ -463,12 +470,104 @@ class PlantControlChain:
         supporting_derate: float = 1.0, plant_protection_tripped: Optional[bool] = None,
         bay_availability_source: str = "SYMBOL_TRIPS_ONLY",
     ) -> PlantControlSnapshot:
+        active = self.fleet_loading is not None and self.fleet_loading.policy.enabled
+        timestamp = pd.Timestamp(decision_timestamp) if active else None
+        if active and (set(bay_status) != set(BAY_IDS) or
+            not all(isfinite(v) for v in (gross_exposure_fraction,gross_exposure_limit_fraction,supporting_derate)) or
+            gross_exposure_fraction<0 or gross_exposure_limit_fraction<=0):
+            raise PlantControlError('Invalid fleet feedback or bay availability')
+        if active and (pd.isna(timestamp) or timestamp.tzinfo is None):
+            raise PlantControlError('Fleet loading requires an exchange-aware timestamp')
+        if active and self._fleet_expected_next_timestamp is not None and timestamp != self._fleet_expected_next_timestamp:
+            raise PlantControlError('Offline fleet restoration requires the declared next timestamp')
+        if active and self._fleet_timestamp is not None:
+            if timestamp < self._fleet_timestamp:
+                raise PlantControlError('Fleet loading clock moved backwards')
+            if timestamp == self._fleet_timestamp:
+                if self._fleet_snapshot is None:
+                    raise PlantControlError('Recovered fleet loading requires next timestamp')
+                snapshot = self._fleet_snapshot
+                if plant_protection_tripped:
+                    self.ecs._previous_demand = 0.0
+                    ecs = replace(snapshot.ecs, plant_demand_reference_pu=0.0, plant_derate=1.0,
+                                  operating_mode='HOLD')
+                    dispatch = self.dispatch_controller.dispatch(ecs)
+                    telemetry = replace(snapshot.fleet_loading, allowed_capacity_pu=0.0,
+                                        protection_tripped=True, raw_output_pu=0.0)
+                    import json
+                    state = json.loads(self.fleet_loading.export_state())
+                    state['prev_error_pu'] = None
+                    self.fleet_loading.restore_state(json.dumps(state))
+                    self._fleet_snapshot = replace(snapshot, ecs=ecs, dispatch=dispatch, fleet_loading=telemetry,
+                                   governor_references=build_governor_references(dispatch,self.mode))
+                    return self._fleet_snapshot
+                mask = tuple((bay,bool(bay_status[bay].available and not bay_status[bay].tripped)) for bay in BAY_IDS)
+                if mask != snapshot.ecs.bay_availability_mask:
+                    demand = snapshot.ecs.plant_demand_reference_pu if any(ok for _,ok in mask) else 0.0
+                    if demand == 0.0:
+                        self.ecs._previous_demand = 0.0
+                    ecs = replace(snapshot.ecs,bay_availability_mask=mask,plant_demand_reference_pu=demand,plant_derate=1.0-demand)
+                    dispatch = self.dispatch_controller.dispatch(ecs)
+                    self._fleet_snapshot = replace(snapshot,ecs=ecs,dispatch=dispatch,
+                        governor_references=build_governor_references(dispatch,self.mode))
+                    return self._fleet_snapshot
+                return snapshot  # controller and ECS are sampled once per portfolio timestamp
         grid = self.synchronizer.evaluate(decision_timestamp)
         ecs = self.ecs.evaluate(
             grid, bay_status, gross_exposure_fraction=gross_exposure_fraction,
             gross_exposure_limit_fraction=gross_exposure_limit_fraction,
             supporting_derate=supporting_derate, plant_protection_tripped=plant_protection_tripped,
             bay_availability_source=bay_availability_source)
+        telemetry = None
+        if active:
+            reference = ecs.plant_demand_reference_pu * gross_exposure_limit_fraction
+            dt = 1.0 if self._fleet_timestamp is None else (timestamp-self._fleet_timestamp).total_seconds()
+            telemetry = self.fleet_loading.update(reference, gross_exposure_fraction, dt,
+                capacity_pu=reference, protection_tripped=bool(plant_protection_tripped))
+            demand = telemetry.allowed_capacity_pu / gross_exposure_limit_fraction
+            ecs = replace(ecs, plant_demand_reference_pu=demand, plant_derate=1.0-demand,
+                          authority='FLEET_LOADING_WITHIN_ECS')
         dispatch = self.dispatch_controller.dispatch(ecs)
-        return PlantControlSnapshot(self.mode.value, grid, ecs, dispatch,
-                                    build_governor_references(dispatch, self.mode))
+        snapshot = PlantControlSnapshot(self.mode.value, grid, ecs, dispatch,
+                                    build_governor_references(dispatch, self.mode), fleet_loading=telemetry)
+        if active:
+            self._fleet_timestamp, self._fleet_snapshot = timestamp, snapshot
+            self._fleet_exposure = float(gross_exposure_fraction)
+            self._fleet_expected_next_timestamp = None
+        return snapshot
+
+    def export_fleet_loading_state(self):
+        if self.fleet_loading is None:
+            return None
+        return dict(schema='plant_fleet_loading/1', controller=self.fleet_loading.export_state(),
+                    timestamp=None if self._fleet_timestamp is None else self._fleet_timestamp.isoformat(),
+                    actual_exposure_pu=self._fleet_exposure)
+
+    def restore_fleet_loading_state(self, *args, **kwargs):
+        raise PlantControlError('Direct broker fleet hydration is unsupported; use offline reconstruction only')
+
+    def restore_offline_fleet_loading_state(self, state, *, next_timestamp, reconstructed_last_exposure_pu):
+        """Diagnostic continuity only: exposure comes from reconstructed offline state.
+
+        This method does not verify a broker snapshot or authorize live hydration.
+        The first post-restore sample must equal the declared next timestamp.
+        """
+        if self.fleet_loading is None or not self.fleet_loading.policy.enabled:
+            raise PlantControlError('Fleet restore requires explicit enabled policy')
+        if not isinstance(state,dict) or set(state)!={'schema','controller','timestamp','actual_exposure_pu'} or state['schema']!='plant_fleet_loading/1':
+            raise PlantControlError('Invalid fleet loading state schema')
+        if state['timestamp'] is None or state['actual_exposure_pu'] is None:
+            raise PlantControlError('Offline fleet restoration requires a sampled state; cold-start instead')
+        last = pd.Timestamp(state['timestamp'])
+        next_ts = pd.Timestamp(next_timestamp)
+        exposure = reconstructed_last_exposure_pu
+        if (pd.isna(next_ts) or next_ts.tzinfo is None or last is not None and
+            (pd.isna(last) or last.tzinfo is None or next_ts <= last)):
+            raise PlantControlError('Offline fleet restore requires a declared later aware timestamp')
+        if (type(state['actual_exposure_pu']) not in (int,float) or not isfinite(state['actual_exposure_pu']) or
+            state['actual_exposure_pu']<0 or type(exposure) not in (int,float) or not isfinite(exposure) or exposure<0 or
+            exposure != state['actual_exposure_pu']):
+            raise PlantControlError('Offline fleet exposure differs from reconstructed last sample')
+        self.fleet_loading.restore_state(state['controller'])
+        self._fleet_timestamp, self._fleet_exposure, self._fleet_snapshot = last, exposure, None
+        self._fleet_expected_next_timestamp = next_ts

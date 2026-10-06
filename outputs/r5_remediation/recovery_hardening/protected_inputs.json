@@ -1,0 +1,12 @@
+{
+  "protocol": {
+    "expected": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+    "actual": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+    "match": true
+  },
+  "frozen_trial007": {
+    "expected": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+    "actual": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+    "match": true
+  }
+}

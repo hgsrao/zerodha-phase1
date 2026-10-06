@@ -1,0 +1,92 @@
+--- outputs/r5_remediation/recovery_hardening/morning_recovery.before.py	2026-10-05 22:58:37.562343240 +0530
++++ revision5/morning_recovery.py	2026-10-05 23:01:08.820788664 +0530
+@@ -14,6 +14,7 @@
+ from revision5.governor import _InnerLoopState
+ from revision2_external.continuous_exit_controller import ExitControllerState
+ from revision2_external.broker_reconciliation import BrokerReconciliationService
++from revision2_external.protection_policy import gtt_sell_limit, DELIVERY_UNAUTHORIZED
+ 
+ 
+ def identity(engine, account_id):
+@@ -46,6 +47,7 @@
+     merit = engine.plant_control.dispatch_controller.merit_source
+     state = dict(identity=identity(engine, account_id), timestamp=timestamp,
+                  mtm_peak=engine._mtm_peak, mtm_drawdown=engine._mtm_max_drawdown_fraction,
++                 ecs_demand_pu=engine.plant_control.ecs._previous_demand,
+                  merit_history=deepcopy(merit.trade_history_r), merit_weights=dict(merit.weights),
+                  cooldowns=dict(engine.symbol_cooldown_until_bar), trips=dict(engine.symbol_tripped),
+                  governors=governors, close_receipts=dict(engine._close_feedback_receipts),
+@@ -95,7 +97,7 @@
+         seen.add(symbol)
+         s = by_symbol[symbol]
+         tick = Decimal(str(broker.protection_tick_size(symbol)))
+-        limit = float((Decimal(str(s.record.current_stop_price))*Decimal('0.995')/tick).to_integral_value(rounding=ROUND_FLOOR)*tick)
++        limit = gtt_sell_limit(s.record.current_stop_price, float(tick))
+         orders = row.get('orders', [])
+         expected = dict(exchange='NSE', tradingsymbol=symbol, product='CNC', transaction_type='SELL',
+                         quantity=broker_quantity(s), order_type='LIMIT', price=limit)
+@@ -110,7 +112,7 @@
+     return CombinedCycleStore.trade_quantity(snapshot.trade)
+ 
+ 
+-def prepare(engine, account_id, broker):
++def prepare(engine, account_id, broker, *, next_timestamp=None):
+     engine._execution_halted = True
+     if engine.open_trades or engine.completed_trades or engine._position_lifecycle:
+         raise RuntimeError('Morning recovery requires a fresh engine')
+@@ -120,6 +122,20 @@
+     state = StateRecoveryJournal(runtime.store.connection).load_boot()
+     if state['identity'] != identity(engine, account_id):
+         raise RuntimeError('Morning recovery identity mismatch')
++    import pandas as pd
++    saved_timestamp = state['native_timestamp']
++    if saved_timestamp is not None and pd.isna(pd.Timestamp(saved_timestamp)):
++        raise ValueError('Invalid saved native timestamp')
++    if next_timestamp is not None:
++        if saved_timestamp is None:
++            raise RuntimeError('No completed native tick cursor is available')
++        def utc(value):
++            ts = pd.Timestamp(value)
++            if pd.isna(ts):
++                raise ValueError('Invalid next tick timestamp')
++            return (ts.tz_localize('Asia/Kolkata') if ts.tz is None else ts).tz_convert('UTC')
++        if utc(next_timestamp) <= utc(saved_timestamp):
++            raise RuntimeError('Next tick does not advance the durable cursor')
+     if getattr(broker, 'environment', None) == 'live' and not broker.verify_account_identity(account_id):
+         raise RuntimeError('Broker session account differs from boot checkpoint')
+     snapshots = runtime.store.list_open()
+@@ -149,6 +165,9 @@
+         raise ValueError('Invalid saved merit allocation')
+     histories = {k: [_finite(v) for v in values] for k, values in state['merit_history'].items()}
+     peak = _finite(state['mtm_peak'])
++    ecs_demand = _finite(state['ecs_demand_pu'])
++    if not 0 <= ecs_demand <= 1:
++        raise ValueError('Invalid saved ECS demand')
+     drawdown = _finite(state['mtm_drawdown'])
+     if peak <= 0 or not 0 <= drawdown <= 1:
+         raise ValueError('Invalid saved MTM state')
+@@ -203,6 +222,8 @@
+         receipt = broker.ensure_cnc_gtt(s.record.position_id, s.record.symbol,
+                                        s.record.current_stop_price,
+                                        runtime.store.trade_quantity(s.trade))
++        if receipt.get('trip_code') == DELIVERY_UNAUTHORIZED:
++            engine._trip_delivery_unauthorised(s.record.symbol, state['timestamp'], receipt.get('reason',''))
+         if not receipt.get('passed') or not receipt.get('verified'):
+             raise RuntimeError('CNC GTT protection not verified: '+ str(receipt))
+         protection.append(receipt)
+@@ -212,6 +233,7 @@
+         raise RuntimeError('Broker inventory changed during protection preparation')
+     _check_active_gtts(broker, snapshots)
+     engine._mtm_peak, engine._mtm_max_drawdown_fraction = peak, drawdown
++    engine.plant_control.ecs._previous_demand = ecs_demand
+     engine.symbol_cooldown_until_bar = deepcopy(state['cooldowns'])
+     engine.symbol_tripped = deepcopy(state['trips'])
+     merit.weights, merit.trade_history_r = weights, histories
+@@ -236,5 +258,7 @@
+         runtime._history[s.record.position_id] = deepcopy(s.protection.get('history', []))
+     engine._morning_recovery_prepared = True
+     return dict(prepared=True, admissions_allowed=False, checkpoint_timestamp=state['timestamp'],
++                ecs_demand_pu=ecs_demand, native_timestamp=saved_timestamp,
++                native_bar_index=state['native_bar_index'],
+                 restored_positions=len(snapshots), protection=protection,
+                 remaining_gate='Complete stock PID, ECS, electrical and execution cursor restoration')

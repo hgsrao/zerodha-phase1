@@ -1,0 +1,40 @@
+{
+ "mode": "runtime",
+ "symbols": [
+  "TITAN"
+ ],
+ "broker_class": "revision2_external.paper_execution.CostedPaperBrokerAdapter",
+ "runtime_class": "CombinedCycleRuntime",
+ "input": {
+  "loader": "scripts/run_r5_step5_candidate.prepare_block",
+  "block": 1,
+  "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+  "params_file": "/home/srinivas/projects/zerodha-phase1/outputs/r5_step5_stage_a_v2_state/params/trial_007.json",
+  "params_sha256": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+  "protocol_sha256": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7"
+ },
+ "exception": "D01_evidence/d01_replay_probe.py\", line 62, in <module>\n    rep = orch.run({s: frames[s] for s in symbols}, warmup=int(proto[\"block_execution_contract\"][\"stock_warmup_bars_per_symbol\"]))\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/srinivas/projects/zerodha-r5-governor-refactor/revision2_external/orchestrator.py\", line 1626, in run\n    self._maybe_exit(\n  File \"/home/srinivas/projects/zerodha-r5-governor-refactor/revision2_external/orchestrator.py\", line 1105, in _maybe_exit\n    if getattr(self, \"combined_cycle_runtime\", None) is not None and self.combined_cycle_runtime.handle_bar(\n                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/srinivas/projects/zerodha-r5-governor-refactor/revision5/combined_cycle_runtime.py\", line 115, in handle_bar\n    self.reconcile(engine,snapshot)\n  File \"/home/srinivas/projects/zerodha-r5-governor-refactor/outputs/R5_D01_evidence/d01_replay_probe.py\", line 53, in counted\n    try: return _orig(engine, snapshot)\n                ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/srinivas/projects/zerodha-r5-governor-refactor/revision5/combined_cycle_runtime.py\", line 51, in reconcile\n    raise CombinedCycleReconciliationError('broker quantity/product differs from durable owner')\nrevision5.combined_cycle_runtime.CombinedCycleReconciliationError: broker quantity/product differs from durable owner\n",
+ "completed": false,
+ "exception_line": "CombinedCycleReconciliationError: broker quantity/product differs from durable owner",
+ "reconcile_calls": 1,
+ "reconcile_errors": [
+  "CombinedCycleReconciliationError: broker quantity/product differs from durable owner"
+ ],
+ "broker_positions_after": {
+  "TITAN": {
+   "quantity": -5,
+   "avg_price": 3559.5837999999994
+  }
+ },
+ "open_trades_after": [
+  "TITAN"
+ ],
+ "completed_trades": 0,
+ "store_open_after": [
+  [
+   "trade-1",
+   "A_OPEN"
+  ]
+ ],
+ "handoff_requests": 0
+}

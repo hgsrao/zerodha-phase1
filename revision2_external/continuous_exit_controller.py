@@ -460,6 +460,10 @@ class ContinuousExitController:
             "studies_p": float(studies_p), "studies_i": float(studies_i), "studies_d": float(studies_d),
             "studies_output": float(studies_adjustment),
             "studies_clamped": bool(abs(studies_adjustment) >= self.clamp - 1e-12),
+            "studies_positive_saturation_count": int(state.consecutive_bars_at_low_studies_extreme),
+            "saturation_exit_bars": int(self.saturation_exit_bars),
+            "studies_saturation_exit": bool(not self.disable_saturation_exit and
+                state.consecutive_bars_at_low_studies_extreme >= self.saturation_exit_bars),
             "pa_tightness": float(confidence_tightness),
             "studies_tightness": float(studies_tightness),
             "time_tightness": float(time_tightness), "combined_tightness": float(combined_tightness),

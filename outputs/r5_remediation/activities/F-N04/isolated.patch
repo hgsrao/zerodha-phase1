@@ -1,0 +1,93 @@
+--- before/revision5/combined_cycle_runtime.py
++++ after/revision5/combined_cycle_runtime.py
+@@ -36,9 +36,16 @@
+         self.store.save(record, dict(trade), {'protective_order_id':protective_id,'broker_snapshot':broker.snapshot(),'stop':record.current_stop_price,'target':float(trade['target_price']),
+                                               'sessions':[], 'engine_b_state':self.engine_b.export_state()},expected_revision=0)
+ 
+-    def close(self, record, trade):
++    def close(self, record, trade, *, broker=None, completed_trade=None, close_feedback_receipts=None):
+         snapshot=self.store.load(record.position_id)
+-        self.store.save(record,dict(trade),snapshot.protection,snapshot.revision)
++        protection=dict(snapshot.protection)
++        if broker is not None:
++            protection['broker_snapshot']=broker.snapshot()
++        if completed_trade is not None:
++            protection['completed_trade']=dict(completed_trade)
++        if close_feedback_receipts is not None:
++            protection['close_feedback_receipts']=dict(close_feedback_receipts)
++        self.store.save(record,dict(trade),protection,snapshot.revision)
+ 
+     def _sync(self, engine, snapshot):
+         engine._position_lifecycle[snapshot.record.position_id]=snapshot.record
+--- before/revision2_external/orchestrator.py
++++ after/revision2_external/orchestrator.py
+@@ -989,27 +989,37 @@
+             if governor is not None:
+                 governor.confirm_position_closed(trade.get("trade_id"))
+             self._record_mtm(timestamp)
+-            self._close_position_lifecycle(trade)
++            self._close_position_lifecycle(trade, completed=completed)
+ 
+             # ---- 2. Authoritative realized-R close feedback -------------------------------
+             # Plant-level dispatch feedback (BLOCKER 2) and local governor feedback: after the
+             # authoritative exit fill, after position/ledger reconciliation and after the engine
+             # ledger above already records the trade as closed.  Exactly-once receipts still apply;
+             # an exception here propagates with the ledger already consistent with the broker.
+-            if state is not None:
+-                risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
+-                if risk > 0.0:
++            try:
++                if state is not None:
++                    risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
++                    if risk > 0.0:
++                        try:
++                            bay_id = _r5_bay_for_symbol(symbol)
++                        except KeyError:
++                            # Symbol outside the certified 48-symbol R5 topology (e.g. a synthetic
++                            # test-only symbol): there is no R5 bay to feed, exactly like the native
++                            # plant's own UNMAPPED_SYMBOL admission path.  Never invent a bay mapping.
++                            bay_id = None
++                        if bay_id is not None:
++                            realized_r = self.exit_controller._r_multiple(state, float(result["filled_price"]))
++                            self._register_realized_r_close_feedback(
++                                symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r, reason=reason)
++            finally:
++                if self.combined_cycle_runtime is not None:
+                     try:
+-                        bay_id = _r5_bay_for_symbol(symbol)
+-                    except KeyError:
+-                        # Symbol outside the certified 48-symbol R5 topology (e.g. a synthetic
+-                        # test-only symbol): there is no R5 bay to feed, exactly like the native
+-                        # plant's own UNMAPPED_SYMBOL admission path.  Never invent a bay mapping.
+-                        bay_id = None
+-                    if bay_id is not None:
+-                        realized_r = self.exit_controller._r_multiple(state, float(result["filled_price"]))
+-                        self._register_realized_r_close_feedback(
+-                            symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r, reason=reason)
++                        self.combined_cycle_runtime.close(
++                            self._position_lifecycle[trade['trade_id']], trade, broker=self.broker,
++                            completed_trade=completed, close_feedback_receipts=self._close_feedback_receipts)
++                    except Exception:
++                        self._execution_halted = True
++                        raise
+ 
+             # ---- 3. Research telemetry (never part of the authoritative books) -------------
+             self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
+@@ -1069,13 +1079,15 @@
+         if getattr(self, "combined_cycle_runtime", None) is not None:
+             self.combined_cycle_runtime.register_fill(self._position_lifecycle[trade["trade_id"]], trade, self.broker)
+ 
+-    def _close_position_lifecycle(self, trade: Dict[str, Any]) -> None:
++    def _close_position_lifecycle(self, trade: Dict[str, Any], completed=None) -> None:
+         record = self._position_lifecycle.get(trade.get("trade_id"))
+         if record is not None and record.is_open:
+             self._position_lifecycle[trade["trade_id"]] = lifecycle.close_position(record)
+             if getattr(self, "combined_cycle_runtime", None) is not None:
+                 try:
+-                    self.combined_cycle_runtime.close(self._position_lifecycle[trade["trade_id"]], trade)
++                    self.combined_cycle_runtime.close(
++                        self._position_lifecycle[trade["trade_id"]], trade, broker=self.broker,
++                        completed_trade=completed, close_feedback_receipts=self._close_feedback_receipts)
+                 except Exception:
+                     self._execution_halted = True
+                     raise

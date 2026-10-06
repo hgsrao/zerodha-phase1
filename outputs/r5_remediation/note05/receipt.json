@@ -1,0 +1,92 @@
+{
+  "status": "VERIFIED_PARTIAL",
+  "branch": "feature/engine-ab-handoff-lifecycle",
+  "head": "411712afaecaeb44a6899a12db94ac547fef0186",
+  "focused": {
+    "passed": 23,
+    "exit_code": 0
+  },
+  "comparable_wider_suite": {
+    "command": "/home/srinivas/.venvs/zerodha-phase1-r5/bin/python -m pytest -q --continue-on-collection-errors tests tests_external revision4/tests test_gates_framework.py",
+    "exit_code": 0,
+    "passed": 1187,
+    "skipped": 12,
+    "subtests_passed": 146,
+    "warnings": 777,
+    "seconds": 537.07
+  },
+  "unrestricted_exploration": {
+    "exit_code": 2,
+    "interrupted": true,
+    "passed": 475,
+    "failed": 6,
+    "errors": 27,
+    "skipped": 12,
+    "reason": "Wrong-worktree import pollution and standalone scripts collected; not comparable to prior suite"
+  },
+  "live_cnc_admissions_unblocked": false,
+  "sealed_cli_identity_bypassed": false,
+  "full_48_symbol_block1": "NOT RUN",
+  "protected_inputs": {
+    "protocol": {
+      "path": "revision5/step5_sealed_calibration_protocol_v2.json",
+      "expected": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+      "actual": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+      "match": true
+    },
+    "frozen_trial007": {
+      "path": "tests/fixtures/r5_d01/trial_007_params.json",
+      "expected": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+      "actual": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+      "match": true
+    }
+  },
+  "worker_execution": {
+    "classification": "DERIVED_REAL_TITAN_SINGLE_SESSION_WORKER_EXECUTION",
+    "symbol_count": 1,
+    "trade_count": 1,
+    "ledger_parity": true,
+    "ledger_sha256": "a63a3c0f8b16b291d56627f23861ba035b7f0145dcbdee5db265724582fb42ce",
+    "runtime": {
+      "environment": "paper",
+      "classification": "PROTOTYPE_COMBINED_CYCLE",
+      "live_admissions": false,
+      "handoff": {
+        "enabled": true,
+        "minimum_r": 0.75,
+        "start": "15:10",
+        "deadline": "15:14"
+      },
+      "engine_b": {
+        "enabled": true,
+        "max_sessions": 3,
+        "structural_window": 20,
+        "reversal_confirmation_bars": 3,
+        "trail_mode": "R",
+        "trail_distance_r": 2.0,
+        "atr_multiple": 3.0,
+        "trail_activation_r": 1.0
+      },
+      "runtime": {
+        "end_of_run_disposition": "CLOSE",
+        "strict_session_boundary": true
+      }
+    },
+    "baseline_fingerprint": "9c0350b398662b03527585ac2666f45281a8ef846445675420c0326ed6493676",
+    "wired_fingerprint": "8eb9bfbe4a4d6aa9310eb2eef5fd05de5709244b71b6a58160d7197e6db31f42",
+    "full_48_symbol_block1": "NOT RUN",
+    "live_admissions": false
+  },
+  "source_hashes_verified_after_tests": true,
+  "evidence_sha256": {
+    "AUDIT_REPORT.md": "ea65c8259a340d1554e4d2dd0f663fa4ed0e958c3547d59a4a432008a1c79dac",
+    "focused.log": "9a066d95d29272540586d12ccac06378a28b0e97faa9dcb5eafb08bf0490e53d",
+    "comparable_suite.log": "20f344c475839fdad5d1c82e853801cde468063556230ac0a026d8f90774ff79",
+    "full_suite.log": "7fb5c3786c6928a3476d33f4ffd35339ed33b65c2ed30c206f687f08cdb4a59e",
+    "worker_receipt.json": "f97383bc78eab41b3e2e1e9f2d938b8a2c67457ccd41e2b7741cb50701a46922",
+    "baseline_ledger.json": "a63a3c0f8b16b291d56627f23861ba035b7f0145dcbdee5db265724582fb42ce",
+    "wired_ledger.json": "a63a3c0f8b16b291d56627f23861ba035b7f0145dcbdee5db265724582fb42ce"
+  },
+  "committed": false,
+  "pushed": false
+}

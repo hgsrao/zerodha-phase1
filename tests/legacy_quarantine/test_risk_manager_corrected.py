@@ -4,6 +4,9 @@ Block 5 Risk Manager - Corrected Tests (FRACTION convention)
 
 import pytest
 from decimal import Decimal
+import pytest
+pytest.importorskip("blocks.block_5_risk_manager", reason="Archived legacy controller dependency absent; coverage not executed")
+
 from blocks.block_5_risk_manager import RiskManager, Mode
 
 

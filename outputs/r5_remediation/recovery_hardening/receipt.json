@@ -1,0 +1,84 @@
+{
+  "branch": "feature/engine-ab-handoff-lifecycle",
+  "head": "411712afaecaeb44a6899a12db94ac547fef0186",
+  "source_sha256": {
+    "revision2_external/protection_policy.py": "fda5c91a36698e762425d966f64b99050a181a927edaafecbcac66bb53248e35",
+    "revision2_external/broker_adapter_kite.py": "ac820549157d46f03a62018da34d60591fb359a2f187afe3bbfabf381863c23c",
+    "revision2_external/paper_execution.py": "764488fe2b54fe9ee6c2228600a0f69ec246664043bde70d753d3bcc134ac43f",
+    "revision2_external/orchestrator.py": "1c04af0312143af44bdc0d0be1117fb7ca757780c466760c62cc5bc779900338",
+    "revision5/morning_recovery.py": "7f7181ae39fc76ba1e151c0dfd133e41737f5f19ed5377c775685b1c62df9763",
+    "revision5/state_recovery.py": "3863136661138bcd779172af50282a3e52f5b3d2b7d8afe5e2e355179710c5ee",
+    "revision5/paper_state_journal.py": "3c3b3ccba7917fa2b398a4075df68ad57fc7e3ea46dd0bb15bd81074dc1072bd",
+    "tests/test_r5_morning_startup.py": "9feed1ef8318323d72b576b0fd9661518012c10bd20b6090a2c278a34ff6610d",
+    "tests/test_r5_recovery_hardening.py": "5a2a12d3f769679ed112430354ea0f3d314a5af0cee2393c97b8f06b61f23921"
+  },
+  "focused": "43 passed",
+  "r5": "329 passed, 568 warnings in 94.68 seconds",
+  "r5_exit_code": 0,
+  "repository_suite": "13 failed, 1172 passed, 8 skipped, 713 warnings, 4 errors, 146 subtests passed in 499.11s (0:08:19)",
+  "live_calls": 0,
+  "committed_or_pushed": false,
+  "paper": {
+    "prefix_checkpoints": 1,
+    "reconciled_checkpoints": 1,
+    "resume_after": "2024-02-13 09:15:00+05:30",
+    "appended_checkpoints": 375,
+    "admissions_resumed": true,
+    "environment": "paper",
+    "warmup_bypassed": false,
+    "baseline_ledger_sha256": "be894a7a802f7dcdd222d0cc5ce2878eac5193b587d1d08ecdb0999d33cadffb",
+    "resumed_ledger_sha256": "be894a7a802f7dcdd222d0cc5ce2878eac5193b587d1d08ecdb0999d33cadffb",
+    "ledger_parity": true
+  },
+  "cnc": {
+    "prepared": true,
+    "admissions_allowed": false,
+    "checkpoint_timestamp": "2023-12-05 15:25:00",
+    "ecs_demand_pu": 0.8,
+    "native_timestamp": null,
+    "native_bar_index": -1,
+    "restored_positions": 1,
+    "protection": [
+      {
+        "passed": true,
+        "verified": true,
+        "trigger_id": "paper-gtt-trade-1",
+        "symbol": "TITAN",
+        "quantity": 10,
+        "trigger_price": 90.0,
+        "limit_price": 85.5,
+        "environment": "paper",
+        "simulated": true
+      }
+    ],
+    "remaining_gate": "Complete stock PID, ECS, electrical and execution cursor restoration",
+    "mtm_matches": true,
+    "weights_match": true,
+    "gtt_requests": 1
+  },
+  "protected_inputs": {
+    "protocol": {
+      "expected": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+      "actual": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+      "match": true
+    },
+    "frozen_trial007": {
+      "expected": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+      "actual": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+      "match": true
+    }
+  },
+  "repository_exit_code": 1,
+  "repository_collection_errors": [
+    "ecs_runtime_v2",
+    "blocks.block_5_risk_manager",
+    "ray"
+  ],
+  "adapter_baseline_check": "Pre-change adapter reproduces all three legacy adapter failures; see adapter_before_validation.log",
+  "shutdown": {
+    "requested": true,
+    "status": "blocked_unsaved_documents",
+    "forced": false,
+    "privileged_fallback": "interactive authentication required"
+  }
+}

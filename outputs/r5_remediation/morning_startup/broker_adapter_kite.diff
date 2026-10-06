@@ -1,0 +1,92 @@
+--- /home/srinivas/projects/zerodha-r5-governor-refactor/outputs/r5_remediation/morning_startup/broker_adapter_kite.before.py	2026-10-05 22:35:35.759711586 +0530
++++ /home/srinivas/projects/zerodha-r5-governor-refactor/revision2_external/broker_adapter_kite.py	2026-10-05 22:47:33.610999005 +0530
+@@ -44,6 +44,89 @@
+     def positions(self):
+         return self.client.positions()
+ 
++    def get_gtts(self):
++        return self.client.get_gtts()
++
++    def verify_account_identity(self, account_id):
++        return self.account_id == account_id and self.client.profile().get('user_id') == account_id
++
++    def protection_tick_size(self, symbol):
++        rows = [r for r in self.client.instruments('NSE') if r.get('tradingsymbol') == symbol]
++        if len(rows) != 1:
++            raise ValueError('Instrument tick metadata missing or ambiguous')
++        return rows[0]['tick_size']
++
++    def ensure_cnc_gtt(self, position_id, symbol, stop_price, quantity, *, tick_size=None):
++        """Durable single-leg SELL protection, verified by broker readback.
++
++        A limit order remains subject to gaps, rejection and partial execution.
++        Unknown submissions are never repeated automatically.
++        """
++        import math
++        from decimal import Decimal, ROUND_FLOOR
++        if self.recovery_journal is None or not self.account_id:
++            raise ValueError('GTT recovery requires an account-scoped durable journal')
++        if not self.verify_account_identity(self.account_id):
++            raise ValueError('Broker session account differs from durable account')
++        if type(quantity) is not int or quantity <= 0 or not isinstance(position_id, str) or not position_id:
++            raise ValueError('Invalid GTT identity/quantity')
++        if tick_size is None:
++            tick_size = self.protection_tick_size(symbol)
++        if any(isinstance(v, bool) or not math.isfinite(float(v)) or float(v) <= 0 for v in (stop_price,tick_size)):
++            raise ValueError('Invalid GTT stop/tick')
++        tick = Decimal(str(tick_size))
++        trigger = Decimal(str(stop_price))
++        if trigger % tick != 0:
++            raise ValueError('Governor stop is not aligned to instrument tick size')
++        limit = float((trigger*Decimal('0.995')/tick).to_integral_value(rounding=ROUND_FLOOR)*tick)
++        if limit <= 0:
++            raise ValueError('Invalid GTT limit price')
++        order = dict(exchange='NSE', tradingsymbol=symbol, transaction_type='SELL',
++                     quantity=quantity, order_type='LIMIT', product='CNC', price=limit)
++        def matches(row):
++            condition = row.get('condition', {})
++            orders = row.get('orders', [])
++            return (row.get('status') == 'active' and row.get('type') == 'single'
++                    and condition.get('exchange') == 'NSE' and condition.get('tradingsymbol') == symbol
++                    and condition.get('trigger_values') == [float(stop_price)]
++                    and len(orders) == 1 and all(orders[0].get(k) == v for k,v in order.items()))
++        arguments = dict(account_id=self.account_id, position_id=position_id, order=order,
++                         stop_price=float(stop_price), tick_size=float(tick_size))
++        request_id = f'gtt:{position_id}:{quantity}:{float(stop_price)}'
++        prior = self.recovery_journal.reserve_protection(request_id, arguments)
++        if prior is not None:
++            if not prior.get('passed'):
++                return dict(prior, verified=False)
++            row = self.client.get_gtt(prior['trigger_id'])
++            return dict(prior, verified=matches(row), passed=matches(row))
++        try:
++            # Do not duplicate a matching active trigger or silently replace a conflict.
++            active = [r for r in self.get_gtts() if r.get('status') == 'active'
++                      and r.get('condition', {}).get('tradingsymbol') == symbol]
++            if active:
++                if len(active) != 1 or not matches(active[0]):
++                    raise ValueError('Conflicting active GTT requires reconciliation')
++                trigger_id = active[0]['id']
++            else:
++                quote = self.client.ltp('NSE:'+symbol)
++                last_price = float(quote['NSE:'+symbol]['last_price'])
++                if not math.isfinite(last_price) or last_price <= stop_price:
++                    raise ValueError('Price already at/below stop; protective execution required')
++                response = self.client.place_gtt(trigger_type='single', tradingsymbol=symbol,
++                                               exchange='NSE', trigger_values=[float(stop_price)],
++                                               last_price=last_price, orders=[order])
++                trigger_id = response['trigger_id']
++            row = self.client.get_gtt(trigger_id)
++            result = dict(passed=matches(row), verified=matches(row), trigger_id=trigger_id,
++                          symbol=symbol, quantity=quantity, trigger_price=float(stop_price),
++                          limit_price=limit, retry_allowed=False, environment='live')
++            self.recovery_journal.finish_protection(request_id, result)
++            return result
++        except Exception as exc:
++            # A write may have succeeded. Keep the unresolved durable intent intact.
++            return dict(passed=False, verified=False, ambiguous=True, retry_allowed=False,
++                        reason=str(exc))
++
+     def orders(self):
+         return self.client.orders()
+ 

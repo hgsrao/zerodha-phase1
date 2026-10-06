@@ -1,0 +1,38 @@
+--- before/revision5/handoff_manager.py
++++ after/revision5/handoff_manager.py
+@@ -82,11 +82,26 @@
+                 raise KeyError(request_id)
+             receipt = json.loads(row[0],object_hook=_hook)
+             snapshot = self.store.load(receipt['position_id'])
++            outcome = status.upper()
++            if outcome not in ('UNKNOWN','PENDING','ACKNOWLEDGED','REJECTED','TIMEOUT'):
++                raise ValueError('unknown conversion outcome')
++            resolution = dict(status=outcome, product=product, quantity=quantity,
++                              timestamp=self._local(timestamp) if timestamp is not None else None)
+             if receipt['status'] != 'PENDING':
++                if outcome not in ('UNKNOWN', 'PENDING'):
++                    previous = receipt.get('resolution')
++                    if previous is None and receipt['status'] != 'CLOSED_RACE':
++                        # Older receipts stored ACK time and requested quantity,
++                        # but did not store a separate broker resolution payload.
++                        previous = dict(status=receipt['status'],
++                                        product='CNC' if receipt['status']=='ACKNOWLEDGED' else None,
++                                        quantity=receipt['quantity'] if receipt['status']=='ACKNOWLEDGED' else None,
++                                        timestamp=self._local(receipt['resolved_at']) if receipt.get('resolved_at') is not None else None)
++                    if resolution != previous:
++                        raise ValueError('conflicting terminal conversion receipt: reconcile broker before proceeding')
+                 db.execute('COMMIT')
+                 return snapshot
+             record = snapshot.record
+-            outcome = status.upper()
+             if outcome in ('UNKNOWN','PENDING'):
+                 db.execute('COMMIT')
+                 return snapshot
+@@ -108,6 +123,7 @@
+                 record = reject_transfer(record)
+                 receipt['status'] = outcome
+             receipt['resolved_at'] = timestamp
++            receipt['resolution'] = resolution
+             self.store._save(record,snapshot.trade,snapshot.protection,snapshot.revision)
+             db.execute('UPDATE conversions SET payload=? WHERE request_id=?',(json.dumps(receipt,default=_default),request_id))
+             db.execute('COMMIT')

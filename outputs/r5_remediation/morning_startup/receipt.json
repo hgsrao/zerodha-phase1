@@ -1,0 +1,54 @@
+{
+  "branch": "feature/engine-ab-handoff-lifecycle",
+  "head": "411712afaecaeb44a6899a12db94ac547fef0186",
+  "source_sha256": {
+    "revision5/state_recovery.py": "8a6e9867f126fb09e95c7aa20f2335ae638187ac87324cafe486033c03cfb274",
+    "revision5/morning_recovery.py": "317ea29fe5bfc7c3e4ef596c0c23232c395e9bf1642323ece23d6f7dbe6900cc",
+    "revision2_external/orchestrator.py": "701cf52de91b7347f2ebce3b4c040613217929aa4289c5e6859fc58af829eeb8",
+    "revision2_external/broker_adapter_kite.py": "34a5a3d81212d79c2fda213cec0b6ba79cbde82fc90bb7e7462de15ff49cafd8",
+    "revision2_external/paper_execution.py": "8e1f92d1501ccafd0a89dbcfda7428c6ce369241fb38acec31ed912abc2a6216",
+    "tests/test_r5_morning_startup.py": "0d858daac504e84a7fe0e4bc12e5820410d874df31ffd2ff69d494bda1777480"
+  },
+  "verification": "317 passed, 565 warnings in 69.34 seconds",
+  "exit_code": 0,
+  "overnight_witness": {
+    "prepared": true,
+    "admissions_allowed": false,
+    "checkpoint_timestamp": "2023-12-05 15:25:00",
+    "restored_positions": 1,
+    "protection": [
+      {
+        "passed": true,
+        "verified": true,
+        "trigger_id": "paper-gtt-trade-1",
+        "symbol": "TITAN",
+        "quantity": 10,
+        "trigger_price": 90.0,
+        "limit_price": 89.55,
+        "environment": "paper",
+        "simulated": true
+      }
+    ],
+    "remaining_gate": "Complete stock PID, ECS, electrical and execution cursor restoration",
+    "mtm_matches": true,
+    "weights_match": true,
+    "gtt_requests": 1
+  },
+  "live_calls": 0,
+  "committed_or_pushed": false,
+  "release_status": "BOOT_PREPARATION_VERIFIED_ADMISSIONS_BLOCKED",
+  "protected_inputs": {
+    "protocol": {
+      "path": "/home/srinivas/projects/zerodha-r5-governor-refactor/revision5/step5_sealed_calibration_protocol_v2.json",
+      "expected": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+      "actual": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+      "match": true
+    },
+    "frozen_trial007": {
+      "path": "/home/srinivas/projects/zerodha-r5-governor-refactor/tests/fixtures/r5_d01/trial_007_params.json",
+      "expected": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+      "actual": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+      "match": true
+    }
+  }
+}

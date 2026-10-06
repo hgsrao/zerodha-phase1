@@ -1,0 +1,72 @@
+--- before/revision2_external/orchestrator.py
++++ after/revision2_external/orchestrator.py
+@@ -31,6 +31,7 @@
+ import math
+ from dataclasses import replace, asdict
+ from collections import Counter, deque
++from copy import deepcopy
+ from dataclasses import dataclass
+ from datetime import datetime
+ from typing import Any, Dict, List, Optional, Tuple
+@@ -855,26 +856,44 @@
+     def _register_realized_r_close_feedback(
+         self, *, symbol: str, trade: Dict[str, Any], bay_id: str, realized_r: float, reason: str = "CLOSE",
+     ) -> None:
+-        """Feed one authoritative realized-R close to both separately-owned feedback paths,
+-        exactly once per close, within this process/replay run only (no persistent cross-restart
+-        receipt is implemented -- that remains future work).
+-
+-        State machine per receipt key: absent -> PENDING -> DONE.  A retried/duplicate call for a
+-        key that is already PENDING or DONE is a silent no-op (never fed twice).  If either
+-        ``register_trade`` call raises after the receipt is marked PENDING, the receipt is left at
+-        PENDING (never advanced to DONE, never removed), so a retry is still blocked from feeding
+-        the same close again -- and the exception still propagates unmodified; this never swallows
+-        an unexpected error."""
++        """Apply both paper feedback consumers atomically within this process.
++
++        A failed consumer restores both owners and permits an explicit retry.
++        Completed duplicates are no-ops. Legacy unresolved PENDING receipts fail
++        closed; they cannot safely establish which consumer was already applied.
++        Process-crash recovery still requires the offline paper replay journal.
++        """
+         key = self._close_feedback_key(symbol, trade)
++        if self._close_feedback_receipts.get(key) == "DONE":
++            return
+         if key in self._close_feedback_receipts:
+-            return
++            self._execution_halted = True
++            raise RuntimeError('Unresolved close feedback receipt requires recovery')
++        merit = self.plant_control.dispatch_controller.merit_source
++        bay = self.real_plant_dcs.bays[bay_id] if self.plant_control.mode == PlantControlMode.PAPER_APPLY else None
++        governor = bay.governor if bay is not None else self._bay_governors[bay_id]
++        merit_before = deepcopy((merit.trade_history_r, merit.weights))
++        governor_before = {name: deepcopy(getattr(governor, name)) for name in
++                           ('history_r', 'integral_error', 'last_error', 'last_control_u', '_inner_states')}
++        bay_before = {name: getattr(bay, name) for name in
++                      ('consecutive_stops', 'cooldown_until_bar_exclusive', 'tripped_offline')} if bay is not None else {}
+         self._close_feedback_receipts[key] = "PENDING"
+-        self.plant_control.dispatch_controller.merit_source.register_trade(bay_id, realized_r)
+-        if self.plant_control.mode == PlantControlMode.PAPER_APPLY:
+-            self.real_plant_dcs.bays[bay_id].register_outcome(
+-                realized_r=realized_r, reason=reason, bar_index=max(0, self._native_bar_index))
+-        else:
+-            self._bay_governors[bay_id].register_trade(realized_r)
++        try:
++            merit.register_trade(bay_id, realized_r)
++            if bay is not None:
++                bay.register_outcome(realized_r=realized_r, reason=reason,
++                                     bar_index=max(0, self._native_bar_index))
++            else:
++                governor.register_trade(realized_r)
++        except Exception:
++            merit.trade_history_r, merit.weights = merit_before
++            for name, value in governor_before.items():
++                setattr(governor, name, value)
++            for name, value in bay_before.items():
++                setattr(bay, name, value)
++            del self._close_feedback_receipts[key]
++            self._execution_halted = True
++            raise
+         self._close_feedback_receipts[key] = "DONE"
+ 
+     def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:

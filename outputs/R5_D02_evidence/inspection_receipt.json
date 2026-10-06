@@ -1,0 +1,22 @@
+{
+  "scope": "D02 reproduction only; definition awaiting confirmation",
+  "branch": "feature/engine-ab-handoff-lifecycle",
+  "head": "411712afaecaeb44a6899a12db94ac547fef0186",
+  "initial_dirty_tree": " M revision2_external/broker_adapter_kite.py\n M revision2_external/orchestrator.py\n M revision2_external/paper_execution.py\n?? docs/experiment_outputs/steam/after/block1/\n?? docs/experiment_outputs/steam/before/block1/\n?? docs/r5_remediation_project/\n?? outputs/CLAUDE_BRIDGE_SUPERVISOR_RECEIPT.md\n?? outputs/CLAUDE_FLEET_LOADING_WORK_ORDER.md\n?? outputs/R5_D01_1_INTEGRATION_REGRESSION_AUDIT.md\n?? outputs/R5_D01_1_evidence/\n?? outputs/R5_D01_ACCEPTANCE_AUDIT.md\n?? outputs/R5_D01_VERIFICATION_REPORT.md\n?? outputs/R5_D01_evidence/\n?? outputs/R5_EXISTING_WORK_FORENSIC_AUDIT.md\n?? outputs/block1_isolation_final/\n?? outputs/diagnostics/\n?? outputs/r5_remediation/\n?? revision2_external/broker_reconciliation.py\n?? revision5/combined_cycle_runtime.py\n?? revision5/combined_cycle_store.py\n?? revision5/engine_b_management.py\n?? revision5/handoff_manager.py\n?? scripts/diagnostics/\n?? tests/fixtures/\n?? tests/test_block1_isolation_harness.py\n?? tests/test_broker_reconciliation_lifecycle.py\n?? tests/test_combined_cycle_handoff.py\n?? tests/test_combined_cycle_runtime.py\n?? tests/test_engine_b_management.py\n?? tests/test_paper_combined_cycle_adapter.py\n?? tests/test_r5_d01_orchestrator_run_integration.py\n?? tests/test_r5_d01_product_reconciliation.py\n",
+  "source_sha256": {
+    "revision2_external/paper_execution.py": "4630aa718441b13f28694bb4aba082077717517c98a772e808a3508c48e52c7f",
+    "revision2_external/orchestrator.py": "c32672308254fc73169f4924216b90b5e587cfbc3a0f6d879207592ab7810a87",
+    "revision2_external/broker_adapter_kite.py": "2a45ddc3d33a59065d130b33514d39f5536c1133b654170cc8ed75ff9b6f6705",
+    "runtime/operating_mode.py": "7826d005ccf9364cee3bf448f5fc96c5e4e37917a49f7549696e0321c0b541d0",
+    "revision5/combined_cycle_runtime.py": "8432563f9f0bd16a9bd4a2156dcb6cf27ccd7561d906616b73629d60173d1ec9",
+    "tests/test_r5_d01_product_reconciliation.py": "dc1897e6092325887bdefc8b5f7495f206676a3e35495c15d103a777a21ac16c",
+    "tests/test_r5_d01_orchestrator_run_integration.py": "ff8b901c767b18bae0a9512f59d3e5fcbe938574b8f1a68bfba853ca30b08f13"
+  },
+  "independent_D01_check": {
+    "command": "/home/srinivas/.venvs/zerodha-phase1-r5/bin/python -m pytest -q tests/test_r5_d01_product_reconciliation.py tests/test_r5_d01_orchestrator_run_integration.py",
+    "result": "12 passed, 32 warnings in 5.14s"
+  },
+  "D02_definition": "Not defined in inspected project records. F-N02 / R5-D-STALE-CNC is a candidate, not an established alias for D02.",
+  "claude_modification_authorized": false,
+  "production_changes_this_session": false
+}

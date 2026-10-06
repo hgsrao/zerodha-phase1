@@ -1,0 +1,51 @@
+command: pytest -v tests/test_r5_d01_orchestrator_run_integration.py tests/test_r5_d01_product_reconciliation.py tests/test_combined_cycle_runtime.py tests/test_paper_combined_cycle_adapter.py tests/test_broker_reconciliation_lifecycle.py tests/test_combined_cycle_handoff.py
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0 -- /home/srinivas/.venvs/zerodha-phase1-r5/bin/python
+rootdir: /home/srinivas/projects/zerodha-r5-governor-refactor
+plugins: timeout-2.4.0, typeguard-4.6.0, socket-0.8.1
+collecting ... collected 41 items
+
+tests/test_r5_d01_orchestrator_run_integration.py::test_fixture_files_match_their_recorded_hashes PASSED [  2%]
+tests/test_r5_d01_orchestrator_run_integration.py::test_orchestrator_run_reconciles_after_the_paper_fill_beyond_the_d01_failure_point PASSED [  4%]
+tests/test_r5_d01_product_reconciliation.py::test_concrete_broker_is_the_paper_implementation PASSED [  7%]
+tests/test_r5_d01_product_reconciliation.py::test_real_fill_carries_explicit_mis_product[BUY] PASSED [  9%]
+tests/test_r5_d01_product_reconciliation.py::test_real_fill_carries_explicit_mis_product[SELL] PASSED [ 12%]
+tests/test_r5_d01_product_reconciliation.py::test_fill_does_not_overwrite_a_converted_product PASSED [ 14%]
+tests/test_r5_d01_product_reconciliation.py::test_reconcile_accepts_the_genuine_state_a_real_fill_creates[BUY] PASSED [ 17%]
+tests/test_r5_d01_product_reconciliation.py::test_reconcile_accepts_the_genuine_state_a_real_fill_creates[SELL] PASSED [ 19%]
+tests/test_r5_d01_product_reconciliation.py::test_wrong_quantity_is_still_rejected PASSED [ 21%]
+tests/test_r5_d01_product_reconciliation.py::test_wrong_product_contradicting_the_lifecycle_is_still_rejected PASSED [ 24%]
+tests/test_r5_d01_product_reconciliation.py::test_missing_broker_position_is_still_rejected PASSED [ 26%]
+tests/test_r5_d01_product_reconciliation.py::test_a_position_with_no_product_is_not_defaulted_by_the_runtime PASSED [ 29%]
+tests/test_combined_cycle_runtime.py::test_actual_orchestrator_hook_handoff_day2_gap PASSED [ 31%]
+tests/test_combined_cycle_runtime.py::test_new_stop_effective_next_bar_not_same_low PASSED [ 34%]
+tests/test_combined_cycle_runtime.py::test_third_session_close_and_product_mismatch PASSED [ 36%]
+tests/test_combined_cycle_runtime.py::test_restart_reconciles_before_restoring_and_does_not_repeat_conversion PASSED [ 39%]
+tests/test_paper_combined_cycle_adapter.py::test_conversion_is_not_a_fill_and_duplicate_is_idempotent PASSED [ 41%]
+tests/test_paper_combined_cycle_adapter.py::test_restart_preserves_costs_conversion_and_contingent_protection PASSED [ 43%]
+tests/test_paper_combined_cycle_adapter.py::test_conversion_rejection_does_not_change_position PASSED [ 46%]
+tests/test_broker_reconciliation_lifecycle.py::test_network_after_accept_reconciles_partial_without_duplicate PASSED [ 48%]
+tests/test_broker_reconciliation_lifecycle.py::test_ambiguous_without_receipt_never_retries PASSED [ 51%]
+tests/test_broker_reconciliation_lifecycle.py::test_duplicate_receipts_block PASSED [ 53%]
+tests/test_broker_reconciliation_lifecycle.py::test_conversion_requires_product_quantity_confirmation PASSED [ 56%]
+tests/test_broker_reconciliation_lifecycle.py::test_restart_expired_day_stop_blocks_risk PASSED [ 58%]
+tests/test_broker_reconciliation_lifecycle.py::test_unknown_broker_position_blocks_risk PASSED [ 60%]
+tests/test_broker_reconciliation_lifecycle.py::test_settled_holdings_are_reconciled_and_unknown_holdings_block PASSED [ 63%]
+tests/test_broker_reconciliation_lifecycle.py::test_stop_trigger_and_pending_qty_must_cover_without_reversal PASSED [ 65%]
+tests/test_broker_reconciliation_lifecycle.py::test_network_conversion_ack_confirms_without_retry PASSED [ 68%]
+tests/test_broker_reconciliation_lifecycle.py::test_mixed_holdings_and_net_cannot_be_guessed PASSED [ 70%]
+tests/test_broker_reconciliation_lifecycle.py::test_float_order_quantity_rejected_without_submission PASSED [ 73%]
+tests/test_combined_cycle_handoff.py::test_restart_duplicate_receipt_and_snapshot PASSED [ 75%]
+tests/test_combined_cycle_handoff.py::test_invalid_ack_rolls_back_unknown_and_rejection PASSED [ 78%]
+tests/test_combined_cycle_handoff.py::test_closed_race_never_resurrects PASSED [ 80%]
+tests/test_combined_cycle_handoff.py::test_stop_revision_and_serialization_faults PASSED [ 82%]
+tests/test_combined_cycle_handoff.py::test_qualification_gate[15:09-1-1-True-True] PASSED [ 85%]
+tests/test_combined_cycle_handoff.py::test_qualification_gate[15:15-1-1-True-True] PASSED [ 87%]
+tests/test_combined_cycle_handoff.py::test_qualification_gate[15:10-0.74-1-True-True] PASSED [ 90%]
+tests/test_combined_cycle_handoff.py::test_qualification_gate[15:10-1-0.74-True-True] PASSED [ 92%]
+tests/test_combined_cycle_handoff.py::test_qualification_gate[15:10-1-1-False-True] PASSED [ 95%]
+tests/test_combined_cycle_handoff.py::test_qualification_gate[15:10-1-1-True-False] PASSED [ 97%]
+tests/test_combined_cycle_handoff.py::test_late_ack_requires_reconciliation PASSED [100%]
+
+============================== 41 passed in 5.51s ==============================
+exit status: 0

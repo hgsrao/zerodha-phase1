@@ -1,0 +1,52 @@
+--- outputs/r5_remediation/recovery_hardening/broker_adapter_kite.before.py	2026-10-05 22:58:37.565317135 +0530
++++ revision2_external/broker_adapter_kite.py	2026-10-05 22:58:37.592706238 +0530
+@@ -14,6 +14,7 @@
+ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+ 
+ from runtime.operating_mode import BrokerAdapter
++from revision2_external.protection_policy import gtt_sell_limit, delivery_authorisation_failure, DELIVERY_UNAUTHORIZED
+ 
+ _SIDE_TO_TRANSACTION_TYPE = {"BUY": "BUY", "SELL": "SELL"}
+ _ORDER_TYPE_MAP = {"MARKET": "MARKET", "LIMIT": "LIMIT"}
+@@ -78,7 +79,7 @@
+         trigger = Decimal(str(stop_price))
+         if trigger % tick != 0:
+             raise ValueError('Governor stop is not aligned to instrument tick size')
+-        limit = float((trigger*Decimal('0.995')/tick).to_integral_value(rounding=ROUND_FLOOR)*tick)
++        limit = gtt_sell_limit(stop_price, tick_size)
+         if limit <= 0:
+             raise ValueError('Invalid GTT limit price')
+         order = dict(exchange='NSE', tradingsymbol=symbol, transaction_type='SELL',
+@@ -125,7 +126,7 @@
+         except Exception as exc:
+             # A write may have succeeded. Keep the unresolved durable intent intact.
+             return dict(passed=False, verified=False, ambiguous=True, retry_allowed=False,
+-                        reason=str(exc))
++                        reason=str(exc), trip_code=DELIVERY_UNAUTHORIZED if delivery_authorisation_failure(exc) else None)
+ 
+     def orders(self):
+         return self.client.orders()
+@@ -177,7 +178,9 @@
+                     pass
+             return {"passed": False, "ambiguous": True, "retry_allowed": False, "reason": str(exc)}
+         except KiteException as exc:
+-            return {"passed": False, "accepted": False, "reason": str(exc)}
++            return {"passed": False, "accepted": False, "reason": str(exc),
++                    "error_type": type(exc).__name__,
++                    "trip_code": DELIVERY_UNAUTHORIZED if product == 'CNC' and side == 'SELL' and delivery_authorisation_failure(exc) else None}
+ 
+     def _correlated_receipt(self, matches, request):
+         fields = ('exchange', 'tradingsymbol', 'transaction_type', 'quantity', 'order_type', 'product')
+@@ -188,7 +191,11 @@
+         accepted = status in ('OPEN', 'TRIGGER PENDING', 'COMPLETE', 'PUT ORDER REQ RECEIVED', 'VALIDATION PENDING', 'OPEN PENDING', 'MODIFY PENDING', 'MODIFY VALIDATION PENDING', 'CANCEL PENDING', 'AMO REQ RECEIVED')
+         return {"passed": accepted, "accepted": accepted, "filled": status == 'COMPLETE',
+                 "filled_quantity": int(o.get('filled_quantity', 0)), "order_id": o.get('order_id'),
+-                "status": status, "reconciled": True, "retry_allowed": False}
++                "status": status, "reconciled": True, "retry_allowed": False,
++                "reason": o.get('status_message', o.get('status_message_raw', '')),
++                "trip_code": DELIVERY_UNAUTHORIZED if not accepted and request.get('product') == 'CNC'
++                and request.get('transaction_type') == 'SELL'
++                and delivery_authorisation_failure(o.get('status_message',o.get('status_message_raw',''))) else None}
+ 
+     def convert_position(self, symbol, quantity, old_product='MIS', new_product='CNC', exchange='NSE',
+                          transaction_type='BUY', correlation_id=None):

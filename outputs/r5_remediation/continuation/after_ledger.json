@@ -1,0 +1,37 @@
+{
+  "ledger_sha256": "0d98c37fec3c7728b78e4433e1f6c2e948c0dc9269d721c3e033db790ace05e1",
+  "trades": [
+    {
+      "symbol": "TITAN",
+      "side": "SELL",
+      "entry_price": 3559.5838,
+      "exit_price": 3569.784,
+      "quantity": 5,
+      "entry_timestamp": "2024-02-13 09:33:00+05:30",
+      "exit_timestamp": "2024-02-13 09:36:00+05:30",
+      "reason": "governor_exit:FSR_BELOW_EXIT:FSRN",
+      "pnl": -51.00100000000111,
+      "costs": 16.373347395499998,
+      "net_pnl": -67.3743473955011,
+      "trade_id": "trade-1",
+      "candidate_id": "candidate-7",
+      "bars_held": 3,
+      "entry_atr": 30.054352319357776,
+      "planned_entry_price": 3559.5838,
+      "planned_stop_price": 3594.470089027597,
+      "planned_target_price": 3507.2543664586037,
+      "mfe_price": 3558.95,
+      "mae_price": 3580.75,
+      "mfe_r": 0.01816759585689061,
+      "mae_r": -0.6067197340266344,
+      "terminal_bar_excursion": "intrabar_order_unknown",
+      "mfe_pre_exit_bar_r": 0.01816759585689061,
+      "mae_pre_exit_bar_r": -0.6067197340266344,
+      "mfe_terminal_inclusive_r": 0.01816759585689061,
+      "mae_terminal_inclusive_r": -0.6067197340266344,
+      "terminal_inclusive_is_ohlc_bound": true
+    }
+  ],
+  "gross_pnl": -51.00100000000339,
+  "net_pnl": -67.3743473955011
+}

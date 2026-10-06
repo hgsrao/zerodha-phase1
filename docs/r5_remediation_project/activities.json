@@ -1,0 +1,2920 @@
+{
+  "schema_version": 1,
+  "basis": "Full static audit plus latest remediation note. Status describes remediation evidence, not source-review completion.",
+  "classification_legend": {
+    "current_verified_repair": "Source defect verified; repair and regression still required.",
+    "historical_comparison": "Historical/sealed/alternate defect, preserved and separately dispositioned.",
+    "document_correction": "Correct architecture/authority claim using copied source evidence.",
+    "no_change": "Preserve present behavior; verify/document contract rather than automatic redesign.",
+    "integration_proof": "Prove actual end-to-end invocation/recovery/authority under explicit mode."
+  },
+  "constraints": [
+    "No dates or durations",
+    "No invented completion or certification",
+    "Sector bays are independent of A/B lifecycle ownership",
+    "CNC/GTT does not guarantee live protective fill",
+    "No universal claim that any fleet PID double-subtracts exposure",
+    "No sealed V3, frozen parameter, holdout or master-reference mutation"
+  ],
+  "primary_finding_count": 68,
+  "activities": [
+    {
+      "id": "DOC-001",
+      "milestone": "M00",
+      "title": "Archive completed source audit, note check, diagram and code workbook",
+      "classification": "document_correction",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "All copied artifact SHA256 values equal their originals.",
+        "All 68 primary audit findings remain individually mapped; independent Claude cross-check retained separately.",
+        "Static source review is explicitly distinguished from execution proof."
+      ],
+      "evidence_required": [
+        "archive/archive_manifest.json",
+        "archive/AUDIT_REPORT.md",
+        "archive/DISPATCH_ECS_NOTE_CHECK.md",
+        "archive/R5_Engine_Code_Authority_Audit.xlsx"
+      ],
+      "status": "DONE",
+      "source_finding_ids": [],
+      "scope": "Documentation copies only; no raw reference outputs changed.",
+      "audit_report": "audits/activities/DOC-001.md"
+    },
+    {
+      "id": "NOTE-01",
+      "milestone": "M01",
+      "title": "Apply and evaluate neutral flat-price grading in isolation",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Verify commit/diff content: unchanged grading-horizon price produces 0.5 for LONG and SHORT. Do not attribute this to causal_percentile_rank without source proof.",
+        "Change only studies grading; retain sampling, data, parameters, hold policy, governor and derivative damping.",
+        "Run baseline and corrected Block 1 through an explicit controlled entrypoint; report measured BUY/SELL, rejection funnel and ledger hashes without promising a direction shift."
+      ],
+      "evidence_required": [
+        "Reviewed isolated diff and loaded source hashes",
+        "Equal flat LONG/SHORT unit outcomes",
+        "Baseline/corrected Block 1 manifests, ledgers and side/reason accounting"
+      ],
+      "status": "EVALUATED_NOT_PROMOTED",
+      "source_finding_ids": [
+        "SIG-001"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/NOTE-01.md",
+      "implementation_evidence": "outputs/r5_remediation/phase1_flat_bar/COMPARISON.md"
+    },
+    {
+      "id": "NOTE-02",
+      "milestone": "M03",
+      "title": "Resolve unknown conversion without blind retry or product-only promotion",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Durable correlated request precedes broker call; unknown status blocks new risk and unverified exit routing.",
+        "Resolution verifies symbol, exchange, signed quantity, product, request identity, position ownership and protection rather than product alone.",
+        "Rejected, unknown, timeout, late ACK, duplicate ACK and close races have explicit recoverable dispositions; protective monitoring continues."
+      ],
+      "evidence_required": [
+        "Fault-injected adapter receipts",
+        "Persisted request/state transitions",
+        "Restart and close-race evidence"
+      ],
+      "status": "VERIFIED_COMPONENT",
+      "source_finding_ids": [
+        "N05",
+        "N06",
+        "ROOT-009"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/NOTE-02.md",
+      "implementation_evidence": "outputs/r5_remediation/activities/NOTE-02",
+      "verification_scope": "Normal paper adapter with synthetic trade inputs and withheld transport receipts. No live-broker actuation. A resolved ACK does not automatically clear the entry halt. Initial cutoff fixture assumed 15:15; actual external configuration is 15:25, and the fixture now reads that value without modifying it."
+    },
+    {
+      "id": "NOTE-03",
+      "milestone": "M04",
+      "title": "Recover complete controller/portfolio state and protective continuity",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-02"
+      ],
+      "acceptance_criteria": [
+        "Select one coherent restart contract; persist complete ownership, trade, ledger, controller, exposure, cooldown and feedback state.",
+        "Broker truth and durable state reconcile before admission resumes.",
+        "Protective order capability, expiry and rearm receipts are explicit. Paper contingent orders and live GTT are different; neither product CNC nor GTT guarantees a fill. Fixed 0.995 limit multiplier is not adopted as an unverified universal policy."
+      ],
+      "evidence_required": [
+        "Versioned checkpoint schema and source/config identity",
+        "Interrupted/uninterrupted equivalence",
+        "Missing/expired/mismatched protection and broker reconciliation fixtures"
+      ],
+      "status": "VERIFIED_PARTIAL",
+      "source_finding_ids": [
+        "N03",
+        "N04",
+        "N15",
+        "ROOT-010",
+        "ROOT-015"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/NOTE-03.md",
+      "verification_scope": "ECS/native cursor hydration and verified sealed-input paper reconstruction are tested. Direct live/CNC admission release and full direct PID/electrical hydration remain open.",
+      "current_evidence": "../../outputs/r5_remediation/recovery_hardening/AUDIT_REPORT.md"
+    },
+    {
+      "id": "NOTE-04",
+      "milestone": "M07",
+      "title": "Preserve one exposure-headroom application and document fleet controller scope",
+      "classification": "no_change",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Trace ECS demand, merit weights inside sector water-filling, bay references and current exposure headroom through actual active call sites.",
+        "Do not add a second current-exposure subtraction. Do not claim every possible fleet PID necessarily doubles exposure subtraction.",
+        "A new fleet PID remains separately scoped until reference, measured exposure, dt, saturation/antiwindup and single actuator contract are approved."
+      ],
+      "evidence_required": [
+        "Mode-labelled loading/headroom trace",
+        "Algebra and capacity-bound fixtures",
+        "Explicit prototype/default import map"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "N12",
+        "ROOT-014"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/NOTE-04.md"
+    },
+    {
+      "id": "NOTE-05",
+      "milestone": "M06",
+      "title": "Use explicit opt-in runtime rather than handoff-config-only enablement",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-03"
+      ],
+      "acceptance_criteria": [
+        "An explicit experimental constructor supplies runtime and selected recovery integration; sealed candidate worker remains unchanged.",
+        "Qualified completed BUY bar requires current R and MFE >=0.75, causal alignment and exchange-local 15:10\u201315:14 window under explicit opt-in policy.",
+        "Actual filled trade reaches verified conversion, B management and broker/protection reconciliation; constructor flags alone are insufficient."
+      ],
+      "evidence_required": [
+        "Mode/constructor manifest",
+        "Full orchestrator.run lifecycle trace and ledger",
+        "Default behavior parity and quarantine checks"
+      ],
+      "status": "VERIFIED_PARTIAL",
+      "source_finding_ids": [
+        "ROOT-002",
+        "ROOT-008"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/NOTE-05.md",
+      "current_evidence": "outputs/r5_remediation/note05/AUDIT_REPORT.md",
+      "verification_scope": "Latest user directive authorizes an explicit opt-in extension to the candidate worker. Default runtime remains None; sealed identity/holdout guards retained. Actual single-symbol TITAN worker run ledger parity and closed lifecycle WAL verified. Full 48-symbol Block 1, qualified BUY transfer and direct live/CNC admission are NOT certified; no recovery or DDPI flag bypass."
+    },
+    {
+      "id": "NOTE-06",
+      "milestone": "M07",
+      "title": "Verify canonical sector close feedback without remapping A into steam bays",
+      "classification": "integration_proof",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "TITAN remains CSTG2 and RELIANCE remains GTG1 through A/B ownership changes.",
+        "Measured per-bay close counts and realized-R consumer receipts demonstrate actual feedback, including direct A steam-sector trades.",
+        "Mapping remains unchanged; process-local exactly-once weakness is addressed by durable per-consumer work, not by claiming current mapping guarantees delivery."
+      ],
+      "evidence_required": [
+        "Canonical universe mapping digest",
+        "Per-trade and per-bay feedback receipts",
+        "No bay-remapping diff"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "N07",
+        "ROOT-004"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/NOTE-06.md"
+    },
+    {
+      "id": "NOTE-07",
+      "milestone": "M06",
+      "title": "Correct note runner/provenance and causal interpretation",
+      "classification": "document_correction",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Record actual branch/head and isolated grading diff; do not blindly assume attachment head matches repository.",
+        "Document all required runner arguments and sealed parent identity restrictions; incomplete --block 1 pseudocommand is not acceptance evidence.",
+        "Do not use 53 SELL/1 BUY as new measured baseline or promise that grading explains entire asymmetry."
+      ],
+      "evidence_required": [
+        "Reviewed CLI interface",
+        "Experimental runner manifest",
+        "Note-to-source correction report"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "ROOT-008",
+        "SIG-001"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/NOTE-07.md"
+    },
+    {
+      "id": "F-N01",
+      "milestone": "M02",
+      "title": "Ordinary paper A positions omit product but combined-cycle reconcile requires explicit MIS. Adapter default MIS used by ensure_protection/snapshot does not populate get_position dict.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Add product at fill lifecycle boundary and an actual orchestrator one-fill+nextbar fixture; no change made.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "runtime/operating_mode.py",
+              "start": 79,
+              "end": 108
+            },
+            {
+              "file": "revision5/combined_cycle_runtime.py",
+              "start": 47,
+              "end": 58
+            },
+            {
+              "file": "revision2_external/paper_execution.py",
+              "start": 57,
+              "end": 67
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PREVIOUSLY_CLOSED_VERIFIED",
+      "source_finding_ids": [
+        "N01"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N01.md"
+    },
+    {
+      "id": "F-N02",
+      "milestone": "M02",
+      "title": "After CNC conversion and close,product remains CNC in reused symbol dict; new A/MIS fill contingent protection rejects.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Test broker conversion\u2192flat\u2192refill with actual adapter; define new position product explicitly.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "runtime/operating_mode.py",
+              "start": 87,
+              "end": 108
+            },
+            {
+              "file": "revision2_external/paper_execution.py",
+              "start": 38,
+              "end": 43
+            },
+            {
+              "file": "revision2_external/paper_execution.py",
+              "start": 64,
+              "end": 67
+            },
+            {
+              "file": "revision5/combined_cycle_runtime.py",
+              "start": 34,
+              "end": 37
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_REPLAY_FIXTURE",
+      "source_finding_ids": [
+        "N02"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N02.md",
+      "verification_scope": "Actual paper transitions and synthetic lifecycle component fixture; existing D01 real replay passes. D02 end-to-end replay pending.",
+      "implementation_audit": "../../outputs/R5_D02_IMPLEMENTATION_AUDIT.md"
+    },
+    {
+      "id": "F-N03",
+      "milestone": "M04",
+      "title": "Combined-cycle direct restore only merges open ownership/trades/B receipts and trade sequence; fleet outer/inner governors,merit,ECS,drawdown,symbol cooldowns and completed-close receipts are not restored.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Design atomic portfolio/controller checkpoint with schema,source/config identity and coherent restore; verify interrupted vs uninterrupted equivalence.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/combined_cycle_runtime.py",
+              "start": 61,
+              "end": 83
+            },
+            {
+              "file": "revision5/paper_state_journal.py",
+              "start": 98,
+              "end": 138
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_PARTIAL",
+      "source_finding_ids": [
+        "N03"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N03.md",
+      "verification_scope": "ECS/native cursor hydration and verified sealed-input paper reconstruction are tested. Direct live/CNC admission release and full direct PID/electrical hydration remain open.",
+      "current_evidence": "../../outputs/r5_remediation/recovery_hardening/AUDIT_REPORT.md"
+    },
+    {
+      "id": "F-N04",
+      "milestone": "M04",
+      "title": "Combined-cycle close stores old protection with CLOSED record but does not record postclose broker snapshot or completed P&L/feedback state.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Checkpoint complete portfolio and close receipts at same authoritative boundary; keep completed ledger and broker state coherent.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/combined_cycle_runtime.py",
+              "start": 39,
+              "end": 41
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 970,
+              "end": 1018
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_COMPONENT",
+      "source_finding_ids": [
+        "N04"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N04.md",
+      "implementation_evidence": "outputs/r5_remediation/activities/F-N04",
+      "verification_scope": "Snapshotting completed close data is not a complete portfolio/controller restart implementation. The older minimal runtime test fixture was given the normal constructor's empty receipt dictionary."
+    },
+    {
+      "id": "F-N05",
+      "milestone": "M03",
+      "title": "Already-terminal conversion resolve ignores any subsequent outcome without comparing status/product/qty; late conflicting ACK after TIMEOUT/REJECTED is silently ignored.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Reject conflicting terminal receipt and require adapter reconciliation; test timeout/ACK and close/ACK races.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/handoff_manager.py",
+              "start": 76,
+              "end": 117
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_COMPONENT",
+      "source_finding_ids": [
+        "N05"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N05.md",
+      "implementation_evidence": "outputs/r5_remediation/activities/F-N05",
+      "verification_scope": "Real SQLite/lifecycle component fixtures. No real broker transport."
+    },
+    {
+      "id": "F-N06",
+      "milestone": "M03",
+      "title": "Conversion quantity only requires positive integer and ACK equals request,not authoritative stored trade quantity; store does not validate record/trade/protection coherence.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Require exact durable quantity/side/symbol/stop/target consistency before write/ACK; protect partial fills explicitly.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/handoff_manager.py",
+              "start": 55,
+              "end": 73
+            },
+            {
+              "file": "revision5/combined_cycle_store.py",
+              "start": 70,
+              "end": 87
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_COMPONENT",
+      "source_finding_ids": [
+        "N06"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N06.md",
+      "implementation_evidence": "outputs/r5_remediation/activities/F-N06",
+      "verification_scope": "Legacy qty snapshots remain supported explicitly. These checks do not implement general recovery."
+    },
+    {
+      "id": "F-N07",
+      "milestone": "M04",
+      "title": "Authoritative close feedback receipt is in-process PENDING\u2192DONE only; partial failure leaves PENDING and blocks all retry after one feedback branch may already update.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Persist per-consumer close receipts and transactional replay/reconciliation of unfinished feedback.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 855,
+              "end": 878
+            },
+            {
+              "file": "revision5/combined_cycle_runtime.py",
+              "start": 39,
+              "end": 41
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_PARTIAL",
+      "source_finding_ids": [
+        "N07"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N07.md",
+      "implementation_evidence": "outputs/r5_remediation/activities/F-N07",
+      "verification_scope": "In-process atomicity verified. Existing offline journal subprocess crash tests pass. Complete combined-cycle direct restore and live exactly-once recovery remain open. One old test was updated from the previously documented retained-partial-mutation contract to the new rollback/retry contract."
+    },
+    {
+      "id": "F-N08",
+      "milestone": "M07",
+      "title": "Merit dispatcher clamps raw targets before renormalization; normalized target and smoothed weights can exceed configured max_ceiling.",
+      "classification": "no_change",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Label weight law correctly and audit capacity law separately; use bounded-simplex allocation if weights themselves require strict envelope.",
+        "Keep the current behavior unchanged until a separately isolated design/test requirement is approved; document exact actuator and mode limitations."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/ccpp_unified_plant.py",
+              "start": 122,
+              "end": 206
+            },
+            {
+              "file": "revision5/plant_control.py",
+              "start": 351,
+              "end": 401
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "N08"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N08.md"
+    },
+    {
+      "id": "F-N09",
+      "milestone": "M09",
+      "title": "Native bay direct admission is BUY-only: governor called without side and stop/target always below/above price; in-flight adverse check uses price<entry without side.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Declare native side scope and add side argument/adverse tests before direct SELL use.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/ccpp_unified_plant.py",
+              "start": 888,
+              "end": 1062
+            },
+            {
+              "file": "revision5/ccpp_protection_cubicles.py",
+              "start": 867,
+              "end": 898
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "N09"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N09.md"
+    },
+    {
+      "id": "F-N10",
+      "milestone": "M09",
+      "title": "Native bay direct position_control omits position_id,so same-bay calls share None inner PID state. External full governor path uses explicit trade ids.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Pass durable position identity through native API and test simultaneous same-bay positions.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/ccpp_unified_plant.py",
+              "start": 1065,
+              "end": 1170
+            },
+            {
+              "file": "revision5/governor.py",
+              "start": 648,
+              "end": 906
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 709,
+              "end": 808
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "N10"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N10.md"
+    },
+    {
+      "id": "F-N11",
+      "milestone": "M07",
+      "title": "HRSG allocation and physical startup/machine scans are implemented hooks but no external orchestrator invocation of balance/return history/machine scan/synchronization exists in snapshot.",
+      "classification": "document_correction",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Add mode-labelled executable call map; do not claim full plant hookup from imports/install alone.",
+        "Publish precise source-backed authority/caller/consumer correction; retain static-versus-runtime distinction."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/ccpp_unified_plant.py",
+              "start": 1850,
+              "end": 1978
+            },
+            {
+              "file": "revision5/ccpp_unified_plant.py",
+              "start": 2056,
+              "end": 2246
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 364,
+              "end": 375
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "N11"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N11.md"
+    },
+    {
+      "id": "F-N12",
+      "milestone": "M07",
+      "title": "Fleet dispatch chain has no fleet PID: ECS is immediate cut/fixed restoration,merit is closed-R score smoothing,sector dispatch water-fill and governor admission capacity cap.",
+      "classification": "no_change",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Retain precise controller contracts; any genuine fleet PID requires explicit loading setpoint,measured exposure,antiwindup and actuator design.",
+        "Keep the current behavior unchanged until a separately isolated design/test requirement is approved; document exact actuator and mode limitations."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/plant_control.py",
+              "start": 230,
+              "end": 322
+            },
+            {
+              "file": "revision5/plant_control.py",
+              "start": 347,
+              "end": 401
+            },
+            {
+              "file": "revision5/ccpp_unified_plant.py",
+              "start": 122,
+              "end": 206
+            },
+            {
+              "file": "revision5/governor.py",
+              "start": 239,
+              "end": 266
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "N12"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N12.md"
+    },
+    {
+      "id": "F-N13",
+      "milestone": "M09",
+      "title": "Several standalone definite/differential/distance relay paths omit finite measurement/negative-time validation; NaN can bypass trip comparisons.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Validate sensor/time/settings and failclosed input-unavailable; test NaN,negative dt,duplicate zones.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/relay_coordination.py",
+              "start": 273,
+              "end": 376
+            },
+            {
+              "file": "revision5/relay_coordination.py",
+              "start": 389,
+              "end": 432
+            },
+            {
+              "file": "revision5/relay_coordination.py",
+              "start": 455,
+              "end": 516
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "N13"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N13.md"
+    },
+    {
+      "id": "F-N14",
+      "milestone": "M05",
+      "title": "Engine B restore validates policy/time/highwater/count but trusts nested cached decision and session metadata schema.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Validate complete versioned per-position state including finite stop/R,decision enum and immutable risk/identity association.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/engine_b_management.py",
+              "start": 50,
+              "end": 59
+            },
+            {
+              "file": "revision5/engine_b_management.py",
+              "start": 79,
+              "end": 85
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_COMPONENT",
+      "source_finding_ids": [
+        "N14"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N14.md",
+      "implementation_evidence": "outputs/r5_remediation/activities/F-N14",
+      "verification_scope": "No policy or trading gains changed. No live overnight claim."
+    },
+    {
+      "id": "F-N15",
+      "milestone": "M04",
+      "title": "Paper journal is replay audit not general live recovery: bind requires fresh empty offline engine and checkpoint recomputes sequence from cursorzero.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Document mutually different recovery modes and prove portfolio restart with one explicitly selected contract.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/paper_state_journal.py",
+              "start": 98,
+              "end": 138
+            },
+            {
+              "file": "revision5/paper_state_journal.py",
+              "start": 151,
+              "end": 183
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "N15"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N15.md"
+    },
+    {
+      "id": "F-N16",
+      "milestone": "M07",
+      "title": "Native engine A interlocks14:30 entry cutoff and15:15 squareoff intent differ external force-close config and lifecycle A clocks.",
+      "classification": "no_change",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Define one mode-specific clock owner and record effective values in runtime receipts.",
+        "Keep the current behavior unchanged until a separately isolated design/test requirement is approved; document exact actuator and mode limitations."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/engine_state.py",
+              "start": 42,
+              "end": 43
+            },
+            {
+              "file": "revision5/engine_state.py",
+              "start": 77,
+              "end": 103
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 1112,
+              "end": 1119
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "N16"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N16.md"
+    },
+    {
+      "id": "F-N17",
+      "milestone": "M07",
+      "title": "Physical machine models installed on every bay are engineering analogues with seconds/Hz/pu,not market-entry PID simulation; gas startup hold branch does not mutate sequencing.",
+      "classification": "document_correction",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Keep physical vs trading units separated in architecture and verify explicit adapters before claiming shared closed loop.",
+        "Publish precise source-backed authority/caller/consumer correction; retain static-versus-runtime distinction."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/native_review.json",
+          "source_evidence": [
+            {
+              "file": "revision5/machine_archetypes.py",
+              "start": 22,
+              "end": 24
+            },
+            {
+              "file": "revision5/ccpp_unified_plant.py",
+              "start": 768,
+              "end": 885
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "N17"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-N17.md"
+    },
+    {
+      "id": "F-ROOT-001",
+      "milestone": "M02",
+      "title": "After paper fill, observer/postfill/research/dynamics calls occur before open_trades authoritative record; only SupervisorySnapshotError is contained.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "First record actual filled quantity/price/identity and protective lifecycle durably; run non-authority observers only afterward with explicit fault containment. Require focused fault injection, not performed in this static audit.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 2010,
+              "end": 2098
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_REPLAY_FIXTURE",
+      "source_finding_ids": [
+        "ROOT-001"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-001.md",
+      "implementation_evidence": "outputs/r5_remediation/activities/F-ROOT-001",
+      "verification_scope": "Four fault injections are applied to a real TITAN one-session replay. Exact no-fault trade-ledger/P&L parity is independently verified, not full 48-symbol Block 1 parity."
+    },
+    {
+      "id": "F-ROOT-002",
+      "milestone": "M06",
+      "title": "Default Step5 candidate worker passes neither combined_cycle_runtime nor paper_journal.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Define separate explicit opted-in entrypoint and acceptance contract; preserve unchanged sealed reference worker.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "scripts/run_r5_step5_candidate.py",
+              "start": 690,
+              "end": 719
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 1062,
+              "end": 1077
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 2117,
+              "end": 2128
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_PARTIAL",
+      "source_finding_ids": [
+        "ROOT-002"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-002.md",
+      "current_evidence": "outputs/r5_remediation/note05/AUDIT_REPORT.md",
+      "verification_scope": "Latest user directive authorizes an explicit opt-in extension to the candidate worker. Default runtime remains None; sealed identity/holdout guards retained. Actual single-symbol TITAN worker run ledger parity and closed lifecycle WAL verified. Full 48-symbol Block 1, qualified BUY transfer and direct live/CNC admission are NOT certified; no recovery or DDPI flag bypass."
+    },
+    {
+      "id": "F-ROOT-003",
+      "milestone": "M07",
+      "title": "External _system_state substitutes market age0, brokerconnectedTrue, offline0 and breakerFalse.",
+      "classification": "no_change",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Label paper inputs explicitly; require measured broker/feed/interlock handoff for any live-runtime path.",
+        "Keep the current behavior unchanged until a separately isolated design/test requirement is approved; document exact actuator and mode limitations."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 809,
+              "end": 825
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "ROOT-003"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-003.md"
+    },
+    {
+      "id": "F-ROOT-004",
+      "milestone": "M04",
+      "title": "Close-feedback receipts are processlocal; PENDING is installed before dispatch update then local governor update, and any failure blocks all retries.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Use durable close receipt/outbox with per-consumer acknowledgment and restart recovery; distinguish duplicate prevention from guaranteed delivery.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 855,
+              "end": 878
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_PARTIAL",
+      "source_finding_ids": [
+        "ROOT-004"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-004.md",
+      "verification_scope": "Same in-process rollback/retry evidence as F-N07; full cross-restart/live recovery remains open."
+    },
+    {
+      "id": "F-ROOT-005",
+      "milestone": "M02",
+      "title": "_execute_exit calls controller outcome telemetry before realized-R feedback and optional durable lifecycle close before open_trade deletion.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Put authoritative close receipts/position removal before observer calls, transactionally journal consumer outcomes; use failclosed recovery when persistence fails.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 980,
+              "end": 1028
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 1072,
+              "end": 1077
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_PARTIAL",
+      "source_finding_ids": [
+        "ROOT-005"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-005.md",
+      "implementation_evidence": "outputs/r5_remediation/activities/F-ROOT-005",
+      "verification_scope": "A disk failure can leave the durable row stale. Full transaction/recovery acceptance remains open; the receipt explicitly records this limit."
+    },
+    {
+      "id": "F-ROOT-006",
+      "milestone": "M05",
+      "title": "Force-close _maybe_exit clock compares raw Timestamp.strftime while _in_trading_window normalizes exchange-local time.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Normalize every lifecycle clock to the same exchange-local helper and verify UTC/IST equivalence in a focused approved fixture.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 1112,
+              "end": 1118
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 2222,
+              "end": 2259
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_COMPONENT",
+      "source_finding_ids": [
+        "ROOT-006"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-006.md",
+      "implementation_evidence": "outputs/r5_remediation/activities/F-ROOT-006",
+      "verification_scope": "No cutoff value changed. Native plant intent remains separate from the external runner cutoff."
+    },
+    {
+      "id": "F-ROOT-007",
+      "milestone": "M06",
+      "title": "Stock boundary sentinel is excluded from trading clock but generic end-of-run reconciliation reads last data row.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Assert no remaining intraday positions at block boundary or pass explicit target-end index to reconciler; never infer quarantine proof from clock alone.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "scripts/run_r5_step5_candidate.py",
+              "start": 208,
+              "end": 266
+            },
+            {
+              "file": "scripts/run_r5_step5_candidate.py",
+              "start": 525,
+              "end": 554
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 2117,
+              "end": 2125
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "ROOT-007"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-007.md"
+    },
+    {
+      "id": "F-ROOT-008",
+      "milestone": "M06",
+      "title": "Candidate identity guard allows selected tracked runner/protocol drift and uses git diff name-only; it does not audit all loaded module bytes/untracked code.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Record loaded module hashes in explicit experimental entrypoint; preserve strictparent rule for sealed candidate evaluator.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "scripts/run_r5_step5_candidate.py",
+              "start": 64,
+              "end": 110
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "ROOT-008"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-008.md"
+    },
+    {
+      "id": "F-ROOT-009",
+      "milestone": "M03",
+      "title": "Kite product conversion correlation_id is echoed but not persisted or queried before conversion write.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Keep conversion behind durable request-state/idempotency manager and serialize reconciliation; never treat adapter return correlation as durable exactlyonce.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/broker_adapter_kite.py",
+              "start": 107,
+              "end": 134
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_PARTIAL",
+      "source_finding_ids": [
+        "ROOT-009"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-009.md",
+      "verification_scope": "Optional account-scoped durable adapter conversion intents/receipts and duplicate blocking are mock-tested. Mandatory live composition, unknown-outcome reconciliation and actual broker execution remain open.",
+      "current_evidence": "../../outputs/r5_remediation/state_recovery/AUDIT_REPORT.md"
+    },
+    {
+      "id": "F-ROOT-010",
+      "milestone": "M05",
+      "title": "Standalone live broker reconciliation service is absent from frozen orchestrator imports/calls and default Step5 worker.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Make explicit runtime admission consumer for receipt.new_risk_allowed and durable ownership records before enabling new risk; no live calls performed here.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/broker_reconciliation.py",
+              "start": 18,
+              "end": 83
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 245,
+              "end": 269
+            },
+            {
+              "file": "scripts/run_r5_step5_candidate.py",
+              "start": 648,
+              "end": 731
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "ROOT-010"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-010.md"
+    },
+    {
+      "id": "F-ROOT-011",
+      "milestone": "M07",
+      "title": "simulate_trade_cycle returns submitted=True for nonSafeBrokerAdapter without invoking adapter submission.",
+      "classification": "document_correction",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Label as contract simulation only; do not use as executed trade evidence.",
+        "Publish precise source-backed authority/caller/consumer correction; retain static-versus-runtime distinction."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "runtime/operating_mode.py",
+              "start": 422,
+              "end": 455
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "ROOT-011"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-011.md"
+    },
+    {
+      "id": "F-ROOT-012",
+      "milestone": "M08",
+      "title": "ContractValidator.validate_order_payload accepts positive float/bool quantities, unlike ExecutionGate positiveinteger contract.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Use shared strict order contract in an approved repair; record validationlayer currently differing.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "runtime/contract_validator.py",
+              "start": 56,
+              "end": 68
+            },
+            {
+              "file": "runtime/operating_mode.py",
+              "start": 359,
+              "end": 378
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "VERIFIED_COMPONENT",
+      "source_finding_ids": [
+        "ROOT-012"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-012.md",
+      "implementation_evidence": "outputs/r5_remediation/activities/F-ROOT-012",
+      "verification_scope": "The submission gate previously also skipped validation for a present null quantity; that independently reproduced gap was repaired."
+    },
+    {
+      "id": "F-ROOT-013",
+      "milestone": "M07",
+      "title": "Alternate Nautilus strategy is long-only local Bollinger reversal, its gridPID uses local -z_score, and dynamicstop ignores u_effort.",
+      "classification": "document_correction",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Label independent experimental strategy; trace true reference/measurement/actuator before reconnecting anything.",
+        "Publish precise source-backed authority/caller/consumer correction; retain static-versus-runtime distinction."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "alternate/nautilus_revision2_strategy.py",
+              "start": 32,
+              "end": 60
+            },
+            {
+              "file": "alternate/nautilus_revision2_strategy.py",
+              "start": 215,
+              "end": 297
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "ROOT-013"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-013.md"
+    },
+    {
+      "id": "F-ROOT-014",
+      "milestone": "M07",
+      "title": "Alternate fleet exposure PID has no import/call from frozen external orchestrator or Step5 worker.",
+      "classification": "no_change",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Keep opt-in implementation separate; define actualexposure and ECS/grid references plus one executor headroom application before claiming dispatchPID operational.",
+        "Keep the current behavior unchanged until a separately isolated design/test requirement is approved; document exact actuator and mode limitations."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "alternate/fleet_loading_controller.py",
+              "start": 1,
+              "end": 25
+            },
+            {
+              "file": "alternate/fleet_loading_controller.py",
+              "start": 117,
+              "end": 153
+            },
+            {
+              "file": "scripts/run_r5_step5_candidate.py",
+              "start": 648,
+              "end": 731
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "ROOT-014"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-014.md"
+    },
+    {
+      "id": "F-ROOT-015",
+      "milestone": "M04",
+      "title": "Paper restore validates environment/passed flag/slippage and finite positions, but passed flag is not cryptographic authenticated snapshot identity.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Use durable immutable source/config identity and globalcheckpoint journal; never describe simulated protection as exchange-hosted overnight coverage.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/paper_execution.py",
+              "start": 107,
+              "end": 134
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "ROOT-015"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-015.md"
+    },
+    {
+      "id": "F-ROOT-016",
+      "milestone": "M07",
+      "title": "Canonical names expanded to170targets/22safety with46in-house/122external eligible; legacy method names retain68/45.",
+      "classification": "document_correction",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Report runtime registry identity/counts explicitly and classify each parameter by consumer/actuator, without changing frozen registry.",
+        "Publish precise source-backed authority/caller/consumer correction; retain static-versus-runtime distinction."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/root_review.json",
+          "source_evidence": [
+            {
+              "file": "canonical_parameter_registry.py",
+              "start": 520,
+              "end": 583
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "ROOT-016"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-ROOT-016.md"
+    },
+    {
+      "id": "F-SIG-001",
+      "milestone": "M01",
+      "title": "Frozen studies implementation still treats exactly unchanged grading-horizon prices as a SHORT hit and LONG miss.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Choose neutral 0.5 grading in a separately reviewed change; prove equal LONG/SHORT flat grades and replay without other parameter changes.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/composite_study_signal.py",
+              "start": 287,
+              "end": 299
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "EVALUATED_NOT_PROMOTED",
+      "source_finding_ids": [
+        "SIG-001"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-001.md",
+      "implementation_evidence": "outputs/r5_remediation/phase1_flat_bar/COMPARISON.md"
+    },
+    {
+      "id": "F-SIG-002",
+      "milestone": "M07",
+      "title": "V3 research controller is not the instantiated MPC; default orchestrator explicitly creates SimplePIDModelPredictiveControlBox.",
+      "classification": "document_correction",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Maintain separate implementation/import/authority columns; integrate only with explicit mode and actuator contract.",
+        "Publish precise source-backed authority/caller/consumer correction; retain static-versus-runtime distinction."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/closed_loop_v3.py",
+              "start": 119,
+              "end": 152
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 44,
+              "end": 58
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 250,
+              "end": 255
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-002"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-002.md"
+    },
+    {
+      "id": "F-SIG-003",
+      "milestone": "M06",
+      "title": "PA signed signal adds unsigned volatility and volume terms to signed momentum/VWAP; sign reversal does not negate the full formula.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Treat symmetric generated module as experiment-only until import/hash evidence; mirror-transform fixtures must cover all components.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/indicators_talib.py",
+              "start": 174,
+              "end": 199
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-003"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-003.md"
+    },
+    {
+      "id": "F-SIG-004",
+      "milestone": "M06",
+      "title": "ID applies synthetic confidence RR before MPC computes actual price geometry and independent Gate12 safety checks.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Record sequential reason accounting by side and describe interventions exactly; do not equate RR admission with physical target/stop RR.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/regime_id_box.py",
+              "start": 207,
+              "end": 234
+            },
+            {
+              "file": "revision2_external/pid_controller.py",
+              "start": 179,
+              "end": 188
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 407,
+              "end": 411
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-004"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-004.md"
+    },
+    {
+      "id": "F-SIG-005",
+      "milestone": "M07",
+      "title": "Configured pid_derivative_smoothing is only traced by active SimplePID MPC, not applied.",
+      "classification": "no_change",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Mark trace-only parameter; add actual derivative filter only through isolated controller specification and tests.",
+        "Keep the current behavior unchanged until a separately isolated design/test requirement is approved; document exact actuator and mode limitations."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/pid_controller.py",
+              "start": 165,
+              "end": 172
+            },
+            {
+              "file": "revision2_external/pid_controller.py",
+              "start": 190,
+              "end": 205
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-005"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-005.md"
+    },
+    {
+      "id": "F-SIG-006",
+      "milestone": "M07",
+      "title": "Continuous exit PID ratchets and saturation are advisory when governor_authority is full.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Test mode-specific actuator matrix and trace winning exit authority for each actual trade.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 1141,
+              "end": 1158
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 1328,
+              "end": 1338
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-006"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-006.md"
+    },
+    {
+      "id": "F-SIG-007",
+      "milestone": "M09",
+      "title": "Alternative grid exit prototype open_position supplies initial_stop_price to a dataclass lacking that field.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Fix dataclass constructor consistency before any integration and test opening both sides.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/continuous_exit_controller_with_grid.py",
+              "start": 37,
+              "end": 51
+            },
+            {
+              "file": "revision2_external/continuous_exit_controller_with_grid.py",
+              "start": 157,
+              "end": 165
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-007"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-007.md"
+    },
+    {
+      "id": "F-SIG-008",
+      "milestone": "M09",
+      "title": "Grid prototype compares NIFTY to itself and its documented tightening multiplier increases stop distance.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Keep prototype disconnected; use actual stock series and settle multiplier sign/units with mirrored examples.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/continuous_exit_controller_with_grid.py",
+              "start": 122,
+              "end": 136
+            },
+            {
+              "file": "revision2_external/continuous_exit_controller_with_grid.py",
+              "start": 138,
+              "end": 155
+            },
+            {
+              "file": "revision2_external/continuous_exit_controller_with_grid.py",
+              "start": 224,
+              "end": 240
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-008"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-008.md"
+    },
+    {
+      "id": "F-SIG-009",
+      "milestone": "M08",
+      "title": "Curve entry quality substitutes 1.0 for zero amplitude/frequency errors using Python truthiness.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Use explicit None handling; test exact equality and near-zero errors.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/curve_entry_pid_shadow.py",
+              "start": 44,
+              "end": 54
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-009"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-009.md"
+    },
+    {
+      "id": "F-SIG-010",
+      "milestone": "M08",
+      "title": "Both-stop-and-target shadow outcome label says stop precedence but execution falls through to close.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Apply conservative stop fill or exclude ambiguous outcome consistently; cover gap and both-hit side cases.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/study_entry_shadow.py",
+              "start": 154,
+              "end": 184
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-010"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-010.md"
+    },
+    {
+      "id": "F-SIG-011",
+      "milestone": "M08",
+      "title": "FinalExecutionController uses any absolute studies clamp as sustained low-confidence signal.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Use the actual positive saturation count/reason in the final recommendation and distinguish single clamp versus persistence.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/final_execution_controller.py",
+              "start": 62,
+              "end": 74
+            },
+            {
+              "file": "revision2_external/continuous_exit_controller.py",
+              "start": 474,
+              "end": 488
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-011"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-011.md"
+    },
+    {
+      "id": "F-SIG-012",
+      "milestone": "M07",
+      "title": "Entry PID changes market reference with the same sign for BUY and SELL rather than selecting a later entry bar.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Specify entry actuator units and side semantics; test price realism separately from entry confidence sizing.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/pid_controller.py",
+              "start": 190,
+              "end": 230
+            },
+            {
+              "file": "revision2_external/orchestrator.py",
+              "start": 1679,
+              "end": 1683
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-012"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-012.md"
+    },
+    {
+      "id": "F-SIG-013",
+      "milestone": "M08",
+      "title": "Frozen target fit does not enforce its provided seed timestamp cutoff inside the method.",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Audit caller filtering and hash seed input; add explicit cutoff validation before later promotion.",
+        "Evidence comes from the actual selected orchestrator execution path and named mode, not helper existence or import alone.",
+        "Unexpected, delayed, missing and restart outcomes are explicitly dispositioned without inventing broker protection or exactly-once delivery."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/dynamic_target_setpoint.py",
+              "start": 32,
+              "end": 51
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-013"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-013.md"
+    },
+    {
+      "id": "F-SIG-014",
+      "milestone": "M08",
+      "title": "Intraday PnL shadow stops accepting outcomes after a halt/target lock and has no day reset method.",
+      "classification": "current_verified_repair",
+      "dependencies": [
+        "NOTE-01"
+      ],
+      "acceptance_criteria": [
+        "Separate accounting from admission latch and define explicit session reset before any production use.",
+        "An isolated nonsealed diff addresses the cited trigger; a focused regression reproduces the source defect and verifies the corrected disposition.",
+        "Unchanged controls and authoritative ledger/reference boundaries are recorded; no result is declared until the evidence is attached."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/signals_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2_external/intraday_pnl_setpoint_shadow.py",
+              "start": 32,
+              "end": 50
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "SIG-014"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-SIG-014.md"
+    },
+    {
+      "id": "F-LEG-001",
+      "milestone": "M09",
+      "title": "revision3 MasterControlSystem PID evaluator is explicitly a no-op returning no-exit even when PID is enabled.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Mark prototype unavailable; define and integrate actuator contract before considering this path. No implementation changes in this audit.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision3/master_control_system.py",
+              "start": 253,
+              "end": 288
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-001"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-001.md"
+    },
+    {
+      "id": "F-LEG-002",
+      "milestone": "M09",
+      "title": "Master decision wrapper supplies a one-element stock array; macro Hilbert phase gate permits insufficient (<63) history.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Require independently timestamp-aligned causal stock/index windows and an explicit insufficient-history disposition.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision3/master_control_system.py",
+              "start": 339,
+              "end": 345
+            },
+            {
+              "file": "revision3/macro_grid_synchronizer.py",
+              "start": 151,
+              "end": 155
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-002"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-002.md"
+    },
+    {
+      "id": "F-LEG-003",
+      "milestone": "M09",
+      "title": "Revision3ProtectedSupervisor checks only preflight and substitutes healthy telemetry/zero exposure when absent; engine exceptions return {}.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Keep separate from real measured protection; require caller-sourced telemetry and structured failure receipts for any future use.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision3/integration_supervisor.py",
+              "start": 118,
+              "end": 173
+            },
+            {
+              "file": "revision3/portfolio_orchestrator.py",
+              "start": 63,
+              "end": 88
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-003"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-003.md"
+    },
+    {
+      "id": "F-LEG-004",
+      "milestone": "M09",
+      "title": "Revision3SafetyPanel master_reset clears lockout without validating external safety invariants.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Define measured-reset preconditions and operator receipt before operational use.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision3/safety_panel.py",
+              "start": 43,
+              "end": 60
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-004"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-004.md"
+    },
+    {
+      "id": "F-LEG-005",
+      "milestone": "M09",
+      "title": "Legacy grid volatility denominator is calculated from entire loaded NIFTY history rather than the causal prefix.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Use prefix-only baseline if reviving legacy grid; establish timestamp alignment and missing-data policy.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2/grid_synchronization.py",
+              "start": 61,
+              "end": 101
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-005"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-005.md"
+    },
+    {
+      "id": "F-LEG-006",
+      "milestone": "M09",
+      "title": "Revision4 PipelineAdapter uses undefined entry_cost_pct/fixed_cost, creates BUY-only plans, and does not veto grid_sync=False.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Label this earlier path non-authoritative and quarantine from system completeness claims; repair only under a separate approved scope.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/pipeline.py",
+              "start": 256,
+              "end": 269
+            },
+            {
+              "file": "revision4/pipeline.py",
+              "start": 303,
+              "end": 311
+            },
+            {
+              "file": "revision4/pipeline.py",
+              "start": 327,
+              "end": 352
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-006"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-006.md"
+    },
+    {
+      "id": "F-LEG-007",
+      "milestone": "M09",
+      "title": "Revision4 replay_engine processes symbols serially and submits pending orders without any broker.try_fill_order call in the replay methods.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Use authoritative timestamp validator; mark old ReplayEngine unsuitable as acceptance evidence.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/replay_engine.py",
+              "start": 117,
+              "end": 241
+            },
+            {
+              "file": "revision4/replay_engine.py",
+              "start": 243,
+              "end": 266
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-007"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-007.md"
+    },
+    {
+      "id": "F-LEG-008",
+      "milestone": "M09",
+      "title": "ten_box_orchestrator_clean is a pass-only scaffold for most advertised boxes despite header claims.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Do not count scaffold boxes as delivered implementation; retain as interface documentation or retire explicitly.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/ten_box_orchestrator_clean.py",
+              "start": 151,
+              "end": 193
+            },
+            {
+              "file": "revision4/ten_box_orchestrator_clean.py",
+              "start": 306,
+              "end": 333
+            },
+            {
+              "file": "revision4/ten_box_orchestrator_clean.py",
+              "start": 419,
+              "end": 458
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-008"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-008.md"
+    },
+    {
+      "id": "F-LEG-009",
+      "milestone": "M09",
+      "title": "Revision4 box_adapters computes pid_info but does not apply entry_timing_multiplier to PositionManager sizing.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Document per-path actuator differences; separately approve an isolation fix if desired, without editing sealed baseline.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/box_adapters.py",
+              "start": 173,
+              "end": 199
+            },
+            {
+              "file": "revision2/boxes.py",
+              "start": 420,
+              "end": 450
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-009"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-009.md"
+    },
+    {
+      "id": "F-LEG-010",
+      "milestone": "M09",
+      "title": "Revision4 exit callback sets peak_equity and current_equity to the same snapshot mark.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Trace historical peak/day baseline into this specific exit protection contract in a future approved change.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/box_adapters.py",
+              "start": 313,
+              "end": 337
+            },
+            {
+              "file": "revision4/box_adapters.py",
+              "start": 375,
+              "end": 390
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-010"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-010.md"
+    },
+    {
+      "id": "F-LEG-011",
+      "milestone": "M09",
+      "title": "ProperGateEvaluator discards adjusted quantities returned by drawdown/lambda derating gates.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Record gate-adjusted quantity and propagate explicitly before reservation/submission if changing this sealed path is authorized.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/gates_proper.py",
+              "start": 295,
+              "end": 302
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-011"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-011.md"
+    },
+    {
+      "id": "F-LEG-012",
+      "milestone": "M09",
+      "title": "ProperGateEvaluator only sets slippage in SafetyGateConfig and assumes healthy feed/broker; duplication input is always False.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Expose exact policy sources and real runtime inputs; keep historical gate claims bounded to replay context.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/gates_proper.py",
+              "start": 63,
+              "end": 89
+            },
+            {
+              "file": "revision4/gates_proper.py",
+              "start": 128,
+              "end": 145
+            },
+            {
+              "file": "revision4/gates_proper.py",
+              "start": 303,
+              "end": 317
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-012"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-012.md"
+    },
+    {
+      "id": "F-LEG-013",
+      "milestone": "M09",
+      "title": "Revision4 ledger uses fixed 5 slots, 2x exposure and abs(daily_pnl)>2000 reconciliation threshold.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Document immutable safety policy versus accidental literal; do not silently tune sealed constants.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/portfolio.py",
+              "start": 59,
+              "end": 77
+            },
+            {
+              "file": "revision4/portfolio.py",
+              "start": 260,
+              "end": 285
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-013"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-013.md"
+    },
+    {
+      "id": "F-LEG-014",
+      "milestone": "M09",
+      "title": "PortfolioSnapshot unrealized_pnl is equity minus cash minus starting_cash minus realized_pnl.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Compare snapshot unrealized field to authoritative signed position marks; capture a defect fixture before any approved repair.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/portfolio.py",
+              "start": 291,
+              "end": 310
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-014"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-014.md"
+    },
+    {
+      "id": "F-LEG-015",
+      "milestone": "M09",
+      "title": "DatasetValidator seal uses literal HEAD/v1_68_params/baseline provenance and fixed August2024 dates.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Distinguish measured dataset identity from placeholder provenance; use resolved hashes in future manifests.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/dataset_seal.py",
+              "start": 74,
+              "end": 88
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-015"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-015.md"
+    },
+    {
+      "id": "F-LEG-016",
+      "milestone": "M09",
+      "title": "CanonicalConfigBuilder.validate_config skips numeric bounds if either bound is zero.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Use canonical validation rather than helper for production decisions; add zero-bound fixture if revisiting.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/canonical_config.py",
+              "start": 99,
+              "end": 108
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-016"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-016.md"
+    },
+    {
+      "id": "F-LEG-017",
+      "milestone": "M09",
+      "title": "Calibration _trade_pnl uses trade.get(net_pnl, trade[pnl]); Python evaluates default eagerly.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Use explicit presence check in an approved helper repair; do not infer current reports fail without payload evidence.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2/calibration_supervisor.py",
+              "start": 121,
+              "end": 129
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-017"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-017.md"
+    },
+    {
+      "id": "F-LEG-018",
+      "milestone": "M09",
+      "title": "Older in-house single-symbol and portfolio orchestrators use wall-clock fallback on malformed timestamps and carry synthetic ID RR to final gates.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Require explicit invalid-time disposition and identify each path RR source before comparing gate evidence.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision2/orchestrator.py",
+              "start": 151,
+              "end": 155
+            },
+            {
+              "file": "revision2/orchestrator.py",
+              "start": 444,
+              "end": 453
+            },
+            {
+              "file": "revision2/portfolio_orchestrator.py",
+              "start": 515,
+              "end": 529
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-018"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-018.md"
+    },
+    {
+      "id": "F-LEG-019",
+      "milestone": "M09",
+      "title": "Sealed V3 validator partitions by session and explicitly EOD-flattens remaining positions.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Preserve sealed reference; implement combined cycle as opt-in separately, never relabel this validator as an overnight plant.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/validate_48symbol_sealed.py",
+              "start": 119,
+              "end": 147
+            },
+            {
+              "file": "revision4/validate_48symbol_sealed.py",
+              "start": 220,
+              "end": 246
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-019"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-019.md"
+    },
+    {
+      "id": "F-LEG-020",
+      "milestone": "M09",
+      "title": "Empirical entry-probability validator rejects signature buckets with fewer than20 historical outcomes.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Label experimental, identify source/causal boundaries of seed outcomes, and avoid interpreting win fractions as guaranteed forecasts.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/entry_probability_validator.py",
+              "start": 124,
+              "end": 151
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-020"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-020.md"
+    },
+    {
+      "id": "F-LEG-021",
+      "milestone": "M09",
+      "title": "ProperGateEvaluator._evaluate_gate returns Gate09 evaluate tuple directly, while evaluate_pre_submission expects decision.passed.",
+      "classification": "historical_comparison",
+      "dependencies": [
+        "DOC-001"
+      ],
+      "acceptance_criteria": [
+        "Align Gate09 returned quantity/decision contract in an separately approved repair; preserve sealed artifact provenance.",
+        "Identify historical/sealed/alternate caller and loaded/default status; record this defect as comparison or a separately scoped repair.",
+        "Do not change sealed V3 or silently transfer historical controller results to current R5."
+      ],
+      "evidence_required": [
+        {
+          "source_review": "archive/reviews/legacy_review.json",
+          "source_evidence": [
+            {
+              "file": "revision4/gates_proper.py",
+              "start": 295,
+              "end": 299
+            },
+            {
+              "file": "revision4/gates_proper.py",
+              "start": 159,
+              "end": 170
+            },
+            {
+              "file": "gates_framework.py",
+              "start": 172,
+              "end": 183
+            }
+          ]
+        },
+        "Activity audit records exact tested command, fixture, code/data identity and result, or explicitly NOT RUN"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [
+        "LEG-021"
+      ],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/F-LEG-021.md"
+    },
+    {
+      "id": "VERIFY-01",
+      "milestone": "M10",
+      "title": "Accept integrated paper lifecycle and close project evidence gaps",
+      "classification": "integration_proof",
+      "dependencies": [
+        "NOTE-01",
+        "NOTE-02",
+        "NOTE-03",
+        "NOTE-04",
+        "NOTE-05",
+        "NOTE-06",
+        "NOTE-07",
+        "F-N01",
+        "F-N02",
+        "F-N03",
+        "F-N04",
+        "F-N05",
+        "F-N06",
+        "F-N07",
+        "F-N08",
+        "F-N09",
+        "F-N10",
+        "F-N11",
+        "F-N12",
+        "F-N13",
+        "F-N14",
+        "F-N15",
+        "F-N16",
+        "F-N17",
+        "F-ROOT-001",
+        "F-ROOT-002",
+        "F-ROOT-003",
+        "F-ROOT-004",
+        "F-ROOT-005",
+        "F-ROOT-006",
+        "F-ROOT-007",
+        "F-ROOT-008",
+        "F-ROOT-009",
+        "F-ROOT-010",
+        "F-ROOT-011",
+        "F-ROOT-012",
+        "F-ROOT-013",
+        "F-ROOT-014",
+        "F-ROOT-015",
+        "F-ROOT-016",
+        "F-SIG-001",
+        "F-SIG-002",
+        "F-SIG-003",
+        "F-SIG-004",
+        "F-SIG-005",
+        "F-SIG-006",
+        "F-SIG-007",
+        "F-SIG-008",
+        "F-SIG-009",
+        "F-SIG-010",
+        "F-SIG-011",
+        "F-SIG-012",
+        "F-SIG-013",
+        "F-SIG-014",
+        "F-LEG-001",
+        "F-LEG-002",
+        "F-LEG-003",
+        "F-LEG-004",
+        "F-LEG-005",
+        "F-LEG-006",
+        "F-LEG-007",
+        "F-LEG-008",
+        "F-LEG-009",
+        "F-LEG-010",
+        "F-LEG-011",
+        "F-LEG-012",
+        "F-LEG-013",
+        "F-LEG-014",
+        "F-LEG-015",
+        "F-LEG-016",
+        "F-LEG-017",
+        "F-LEG-018",
+        "F-LEG-019",
+        "F-LEG-020",
+        "F-LEG-021"
+      ],
+      "acceptance_criteria": [
+        "Every finding has a completed audit or explicit reviewed deferral/disposition; unresolved critical implementation activities block readiness.",
+        "Execute opt-in A fill\u2192qualified conversion\u2192B hold/trailing\u2192protective/third-session close\u2192restart/reconcile with fault cases and per-consumer durable feedback.",
+        "Show default/sealed parity, frozen parameter/data identities, fixed universe/session boundaries and no holdout/master reference mutation.",
+        "Report paper versus live capability separately; no trading-system certification or live protection guarantee follows from paper acceptance."
+      ],
+      "evidence_required": [
+        "Milestone acceptance receipts",
+        "Integrated execution/fault evidence",
+        "Comparative ledger and source/config/data hashes",
+        "Final unresolved-issues register"
+      ],
+      "status": "PLANNED",
+      "source_finding_ids": [],
+      "scope": "Nonsealed opt-in remediation only; preserve frozen parameters, holdout quarantine and master reference outputs.",
+      "audit_report": "audits/activities/VERIFY-01.md"
+    }
+  ]
+}

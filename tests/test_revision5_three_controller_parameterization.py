@@ -537,7 +537,9 @@ def test_exit_action_depends_only_on_named_inputs_and_boundaries():
     assert _exit()["action"] == "HOLD"
     assert _exit(held_bars=20)["reason"] == "MAXIMUM_HOLD_REACHED"
     assert _exit(held_bars=19)["action"] == "HOLD" and _exit(held_bars=21)["action"] == "EXIT"
-    saturated = {"studies_clamped": True, "stop_before": 99.0, "stop_after": 99.0}
+    saturated = {"studies_clamped": True, "studies_saturation_exit": True,
+                 "studies_positive_saturation_count": 3,"saturation_exit_bars": 3,
+                 "stop_before": 99.0, "stop_after": 99.0}
     assert _exit(exit_pid=saturated, held_bars=3)["action"] == "EXIT"        # at minimum hold
     assert _exit(exit_pid=saturated, held_bars=2)["action"] == "HOLD"        # before minimum hold
     assert _exit(path={"behind_path": True}, held_bars=3)["action"] == "EXIT_NEXT_BAR"

@@ -1,0 +1,272 @@
+diff --git a/revision4/gates_proper.py b/revision4/gates_proper.py
+index 2c41058..75ffdbb 100644
+--- a/revision4/gates_proper.py
++++ b/revision4/gates_proper.py
+@@ -293,7 +293,8 @@ class ProperGateEvaluator:
+             proposed_notional = quantity * entry_signal.entry_price
+             return gate.evaluate(order_intent.symbol, proposed_notional, system_state)
+         elif isinstance(gate, Gate09PositionQuantity):
+-            return gate.evaluate(quantity)
++            decision, _ = gate.evaluate(quantity)
++            return decision
+         elif isinstance(gate, Gate10DrawdownDerating):
+             decision, _ = gate.evaluate(system_state, quantity)
+             return decision
+diff --git a/revision4/tests/test_intraday_trade_ledger.py b/revision4/tests/test_intraday_trade_ledger.py
+index f53869a..3436617 100644
+--- a/revision4/tests/test_intraday_trade_ledger.py
++++ b/revision4/tests/test_intraday_trade_ledger.py
+@@ -48,7 +48,7 @@ def test_calibration_config_allows_economic_override_but_rejects_gate16_override
+     config = _build_calibration_config(registry, {"profit_target_atr_mult": 2.0})
+     assert config.profit_target_atr_mult == 2.0
+ 
+-    with pytest.raises(ValueError, match="immutable parameter slippage_tolerance_percent"):
++    with pytest.raises(ValueError, match="immutable.*parameter slippage_tolerance_percent"):
+         _build_calibration_config(registry, {"slippage_tolerance_percent": 0.2})
+ 
+ 
+diff --git a/revision4/tests/test_ray_optuna_v3_calibration.py b/revision4/tests/test_ray_optuna_v3_calibration.py
+index 0f21742..382de23 100644
+--- a/revision4/tests/test_ray_optuna_v3_calibration.py
++++ b/revision4/tests/test_ray_optuna_v3_calibration.py
+@@ -1,5 +1,7 @@
+ import pytest
+ 
++pytest.importorskip("ray", reason="Optional Ray calibration dependency absent; coverage not executed")
++
+ import revision4.ray_optuna_v3_calibration as ray_calibration
+ from revision4.ray_optuna_v3_calibration import (
+     INELIGIBLE_SCORE,
+diff --git a/scripts/run_r5_step5_candidate.py b/scripts/run_r5_step5_candidate.py
+index 6571774..f39651e 100755
+--- a/scripts/run_r5_step5_candidate.py
++++ b/scripts/run_r5_step5_candidate.py
+@@ -645,11 +645,35 @@ def metrics(report: dict) -> dict:
+     }
+ 
+ 
++def build_paper_combined_cycle_runtime(state_path: Path):
++    """Explicit prototype paper wiring; never a live broker admission switch.
++
++    Each run owns a new WAL. Existing state must use the certified recovery path.
++    Sealed protocol identity and holdout checks remain enforced by main().
++    """
++    from revision5.combined_cycle_store import CombinedCycleStore
++    from revision5.combined_cycle_runtime import CombinedCycleRuntime
++    from revision5.handoff_manager import HandoffConfig, HandoffManager
++    from revision5.engine_b_management import EngineBController, EngineBPolicy
++
++    state_path = Path(state_path)
++    state_path.parent.mkdir(parents=True, exist_ok=True)
++    # Exclusive reservation prevents accidental reuse of another run's lifecycle.
++    with state_path.open('xb'):
++        pass
++    store = CombinedCycleStore(state_path)
++    return CombinedCycleRuntime(
++        store, HandoffManager(store, HandoffConfig(enabled=True)),
++        EngineBController(EngineBPolicy(enabled=True)),
++    )
++
++
+ def execute_block(
+     root: Path,
+     protocol: dict,
+     block: dict,
+     params: dict,
++    *, combined_cycle_state_path: Path | None = None,
+ ) -> dict:
+     from canonical_parameter_registry import (
+         CanonicalParameterRegistry,
+@@ -702,30 +726,35 @@ def execute_block(
+ 
+     symbols = sorted(frames)
+ 
+-    orch = Revision2ExternalEngineOrchestrator(
+-        symbols,
+-        registry,
+-        calibration_overrides=params,
+-        starting_equity=equity,
+-        grid_context_provider=provider,
+-        real_plant_dcs=plant,
+-        plant_control_mode="PAPER_APPLY",
+-        closed_loop_mode="active_paper",
+-        telemetry_mode="compact",
+-        # V1 predates the key and ran with the advisory default.
+-        governor_authority=protocol["engine"].get("governor_authority", "advisory"),
+-    )
++    runtime = (build_paper_combined_cycle_runtime(combined_cycle_state_path)
++               if combined_cycle_state_path is not None else None)
++
++    try:
++        orch = Revision2ExternalEngineOrchestrator(
++            symbols,
++            registry,
++            calibration_overrides=params,
++            starting_equity=equity,
++            grid_context_provider=provider,
++            real_plant_dcs=plant,
++            plant_control_mode="PAPER_APPLY",
++            closed_loop_mode="active_paper",
++            telemetry_mode="compact",
++            # V1 predates the key and ran with the advisory default.
++            governor_authority=protocol["engine"].get("governor_authority", "advisory"),
++            combined_cycle_runtime=runtime,
++        )
+ 
+-    warmup = int(
+-        protocol["block_execution_contract"][
+-            "stock_warmup_bars_per_symbol"
+-        ]
+-    )
++        warmup = int(
++            protocol["block_execution_contract"][
++                "stock_warmup_bars_per_symbol"
++            ]
++        )
+ 
+-    report = orch.run(
+-        frames,
+-        warmup=warmup,
+-    )
++        report = orch.run(frames, warmup=warmup)
++    finally:
++        if runtime is not None:
++            runtime.store.close()
+ 
+     m = metrics(report)
+ 
+@@ -746,8 +775,21 @@ def execute_block(
+             audit["slice_sha256"],
+     }
+ 
++    runtime_receipt = None
++    if runtime is not None:
++        from dataclasses import asdict
++        runtime_receipt = {
++            "environment": "paper", "classification": "PROTOTYPE_COMBINED_CYCLE",
++            "live_admissions": False,
++            "handoff": asdict(runtime.handoff.config),
++            "engine_b": asdict(runtime.engine_b.policy),
++            "runtime": asdict(runtime.config),
++        }
++        canonical["combined_cycle_runtime"] = runtime_receipt
++
+     return {
+         "audit": audit,
++        **({"combined_cycle_runtime": runtime_receipt} if runtime_receipt else {}),
+         "metrics": m,
+         "plant_control":
+             report["plant_control"],
+@@ -921,8 +963,15 @@ def main() -> None:
+         required=True,
+     )
+ 
++    parser.add_argument('--paper-combined-cycle-state', type=Path,
++                        help='Opt-in prototype paper lifecycle WAL (new file; Stage B Block 1 only).')
++
+     args = parser.parse_args()
+ 
++    if args.paper_combined_cycle_state is not None and (
++            args.stage != 'B' or args.block != 1 or args.audit_only):
++        parser.error('paper combined-cycle execution requires Stage B Block 1, not audit-only')
++
+     root = Path(args.root).resolve()
+     protocol_path = Path(
+         args.protocol
+@@ -1046,6 +1095,7 @@ def main() -> None:
+                 protocol,
+                 block,
+                 params,
++                combined_cycle_state_path=args.paper_combined_cycle_state,
+             )
+             for block in blocks
+         ]
+diff --git a/tests/legacy_quarantine/test_oos_runner.py b/tests/legacy_quarantine/test_oos_runner.py
+index 460fcbc..8a4c210 100644
+--- a/tests/legacy_quarantine/test_oos_runner.py
++++ b/tests/legacy_quarantine/test_oos_runner.py
+@@ -4,6 +4,9 @@ import tempfile
+ import unittest
+ from unittest.mock import patch
+ 
++import pytest
++pytest.importorskip("ecs_runtime_v2", reason="Archived legacy controller dependency absent; coverage not executed")
++
+ from oos_calibration_engine import OOSBacktestRunner
+ 
+ 
+diff --git a/tests/legacy_quarantine/test_risk_manager_corrected.py b/tests/legacy_quarantine/test_risk_manager_corrected.py
+index 66d46a7..339638b 100644
+--- a/tests/legacy_quarantine/test_risk_manager_corrected.py
++++ b/tests/legacy_quarantine/test_risk_manager_corrected.py
+@@ -4,6 +4,9 @@ Block 5 Risk Manager - Corrected Tests (FRACTION convention)
+ 
+ import pytest
+ from decimal import Decimal
++import pytest
++pytest.importorskip("blocks.block_5_risk_manager", reason="Archived legacy controller dependency absent; coverage not executed")
++
+ from blocks.block_5_risk_manager import RiskManager, Mode
+ 
+ 
+diff --git a/tests/legacy_quarantine/test_runtime_startup_gate.py b/tests/legacy_quarantine/test_runtime_startup_gate.py
+index f72711f..d781e29 100644
+--- a/tests/legacy_quarantine/test_runtime_startup_gate.py
++++ b/tests/legacy_quarantine/test_runtime_startup_gate.py
+@@ -1,6 +1,9 @@
+ import unittest
+ from typing import Optional
+ 
++import pytest
++pytest.importorskip("ecs_runtime_v2", reason="Archived legacy controller dependency absent; coverage not executed")
++
+ from canonical_parameter_registry import CanonicalParameterRegistry
+ from ecs_runtime_v2 import ECSRuntimeV2
+ from runtime.operating_mode import OperatingMode, RuntimeConfig, StartupGate, SimulatedBrokerAdapter, PaperBrokerAdapter, KiteBrokerAdapter
+diff --git a/tests_external/test_broker_adapter_kite.py b/tests_external/test_broker_adapter_kite.py
+index 69d7180..01880bb 100644
+--- a/tests_external/test_broker_adapter_kite.py
++++ b/tests_external/test_broker_adapter_kite.py
+@@ -21,7 +21,8 @@ def test_valid_market_order_is_translated_and_submitted():
+     adapter, client = _adapter()
+     client.place_order.return_value = "ORDER123"
+     result = adapter.place_order("INFY", "BUY", 10, "MARKET")
+-    assert result == {"passed": True, "order_id": "ORDER123"}
++    assert result == {"passed": True, "accepted": True, "filled": False,
++                      "order_id": "ORDER123", "status": "ACCEPTED"}
+     kwargs = client.place_order.call_args.kwargs
+     assert kwargs["tradingsymbol"] == "INFY"
+     assert kwargs["transaction_type"] == "BUY"
+@@ -43,20 +44,24 @@ def test_limit_order_requires_a_positive_price():
+     client.place_order.assert_not_called()
+ 
+ 
+-def test_network_exception_is_retried_and_eventually_succeeds():
++def test_network_timeout_is_ambiguous_and_never_blindly_retried():
+     adapter, client = _adapter()
+-    client.place_order.side_effect = [NetworkException("timeout"), NetworkException("timeout"), "ORDER456"]
++    client.place_order.side_effect = [NetworkException("timeout"), "DUPLICATE"]
+     result = adapter.place_order("INFY", "BUY", 5, "MARKET")
+-    assert result == {"passed": True, "order_id": "ORDER456"}
+-    assert client.place_order.call_count == 3
++    assert result["passed"] is False
++    assert result["ambiguous"] is True
++    assert result["retry_allowed"] is False
++    assert client.place_order.call_count == 1
+ 
+ 
+-def test_network_exception_gives_up_after_max_attempts():
++def test_network_exception_returns_receipt_without_claiming_a_fill():
+     adapter, client = _adapter()
+     client.place_order.side_effect = NetworkException("timeout")
+-    with pytest.raises(NetworkException):
+-        adapter.place_order("INFY", "BUY", 5, "MARKET")
+-    assert client.place_order.call_count == 4  # stop_after_attempt(4)
++    result = adapter.place_order("INFY", "BUY", 5, "MARKET")
++    assert result["passed"] is False
++    assert result["ambiguous"] is True
++    assert "order_id" not in result
++    assert client.place_order.call_count == 1
+ 
+ 
+ def test_broker_rejection_is_not_retried():

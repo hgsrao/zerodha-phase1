@@ -1,0 +1,4 @@
+19a20,22
+>             # A fill carries an explicit product on the position.  Conversion, protection and snapshot below
+>             # already read an absent product as MIS; a converted position keeps its explicit product.
+>             self.positions[symbol].setdefault("product", "MIS")

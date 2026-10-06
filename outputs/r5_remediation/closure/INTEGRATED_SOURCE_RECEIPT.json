@@ -1,0 +1,50 @@
+{
+  "changed_existing": [
+    "revision2_external/orchestrator.py",
+    "revision2_external/continuous_exit_controller.py",
+    "revision2_external/final_execution_controller.py",
+    "revision2_external/live_execution_boundary.py",
+    "revision5/morning_recovery.py",
+    "revision5/paper_state_journal.py",
+    "revision5/state_recovery.py",
+    "revision5/plant_control.py",
+    "scripts/run_r5_paper_lifecycle.py",
+    "tests/test_revision5_three_controller_parameterization.py",
+    "tests/test_r5_paper_lifecycle_entry.py",
+    "tests/test_r5_live_execution_boundary.py"
+  ],
+  "new_package_files": [
+    "revision5/fleet_loading_controller.py",
+    "scripts/diagnostics/r5_block1_acceptance.py",
+    "tests/test_fleet_loading_controller.py",
+    "tests/test_fleet_loading_integration.py",
+    "tests/test_r5_retention_recovery.py",
+    "tests/test_r5_feedback_compaction.py",
+    "tests/test_r5_terminal_sentinel.py",
+    "tests/test_r5_block1_acceptance_counters.py",
+    "tests/test_fsig011_sustained_studies.py"
+  ],
+  "sha256": {
+    "revision2_external/continuous_exit_controller.py": "b31e24e26f5f126f1cf7f880930f7ef8d457a2012819da6c790037c2c736e9e9",
+    "revision2_external/final_execution_controller.py": "7eb36337c5b231d3535a46ca91a61e4b3fa13d3ca0dc40e140c4fd90786a4b37",
+    "revision2_external/live_execution_boundary.py": "08bc09f2bedca59ad1c6d6433fce330f4d7b94e02aa4842c18b6f3f0bf6c44ae",
+    "revision2_external/orchestrator.py": "7a0e7ad71590c28f09d14733d88eec72aeb0e630d1430a24996470c17f0cf96b",
+    "revision5/fleet_loading_controller.py": "77a3f158ba09e23a12d3e1e2e05760fa0aae1de94c35d3ff9c4a44d7e93fcf2b",
+    "revision5/morning_recovery.py": "e40000108bbb6d2b942eafc5692d62730ee8a0de75fc0581990431754650acd9",
+    "revision5/paper_state_journal.py": "755b6a96970b0746f334c4829e772721986b671e73c8bdf8c6292b7fbc6f3229",
+    "revision5/plant_control.py": "57fa04eda11434ae98b02df68908d4099dbf6c5e78bfb7ce9e1eefe45e2233e2",
+    "revision5/state_recovery.py": "0c47292cda2bd8fea11e911316b84fc9910728c9a60604ef6786535023ef9d2b",
+    "scripts/diagnostics/r5_block1_acceptance.py": "76cb323d287443ba3802a0ae9267eddc338644b442208c7c8fc1623d97386b6f",
+    "scripts/run_r5_paper_lifecycle.py": "910002e924bb2a7ec5256a27b01fb3da15d80c3f0f86997e2b29831938ed402a",
+    "tests/test_fleet_loading_controller.py": "65774fdd9f4881717b07aa3bc4e85cb0d6ab621ca97fbfc5ffe3862e44fea1c4",
+    "tests/test_fleet_loading_integration.py": "f6725cfc9130ba55d35d57e115efdc87ef727db7b655f1e448b604e2bad3d116",
+    "tests/test_fsig011_sustained_studies.py": "9f74791a6ee41fa87ff5bf0245d08d38b6514a0638618e603b06fc0129e08e60",
+    "tests/test_r5_block1_acceptance_counters.py": "238f78e854a31395c03bd2e44b5fd5bd255d96be28d77dd7216145794abdd19d",
+    "tests/test_r5_feedback_compaction.py": "3e5901218e90e6eba0bac8d2180afa9e08bae3ab756543c47fda484acb8e146a",
+    "tests/test_r5_live_execution_boundary.py": "fab11173b3516ed7eaa716fa620cd969258a340aef8f5b7f228d753bb3186a67",
+    "tests/test_r5_paper_lifecycle_entry.py": "4b8c66caaa1125cd2312d215ce792c4a7e820e7413568455a5a1f952213859ec",
+    "tests/test_r5_retention_recovery.py": "2a4c364a53922519b5d134f9a523dcf53f3b3ae39eb8ff7151fdead91d2ee7bf",
+    "tests/test_r5_terminal_sentinel.py": "03cd23393b4b6f9cad6edd286e0d819bb24ad853db9aaadcc177fb82a86bb8a6",
+    "tests/test_revision5_three_controller_parameterization.py": "8a174902a64da2954756f7fe6cf315f4c69a7b827ebbef2d0892cb8a2934ee1f"
+  }
+}

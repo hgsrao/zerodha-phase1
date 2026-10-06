@@ -1,0 +1,99 @@
+--- outputs/r5_remediation/recovery_hardening/orchestrator.before.py	2026-10-05 22:58:37.564545580 +0530
++++ revision2_external/orchestrator.py	2026-10-05 23:01:08.820788664 +0530
+@@ -409,10 +409,49 @@
+         from revision5.morning_recovery import capture
+         return capture(self, account_id, timestamp)
+ 
+-    def _reconcile_morning_startup(self, *, account_id, broker=None):
++    def _reconcile_morning_startup(self, *, account_id, broker=None, next_timestamp=None):
+         """Opt-in recovery preparation. Admissions remain blocked after hydration."""
+         from revision5.morning_recovery import prepare
+-        return prepare(self, account_id, self.broker if broker is None else broker)
++        return prepare(self, account_id, self.broker if broker is None else broker, next_timestamp=next_timestamp)
++
++    def resume_verified_paper_replay(self, symbol_bars, *, journal_path, warmup=60, commands=()):
++        """Rebuild every controller from sealed inputs; verify prefix before new ticks.
++
++        Historical orders are simulated into a NEW empty paper broker. This is
++        deliberately distinct from resuming live execution on a hydrated broker.
++        """
++        from revision5.paper_state_journal import PaperStateJournal
++        if (type(self.broker) is not CostedPaperBrokerAdapter or self.broker.environment != 'paper'
++            or self.plant_control.mode != PlantControlMode.PAPER_APPLY
++            or self.open_trades or self.completed_trades or self.broker.fills
++            or getattr(self,'_morning_recovery_prepared',False) or self.paper_journal is not None):
++            self._execution_halted = True
++            raise RuntimeError('Verified resume requires a fresh offline PAPER_APPLY engine')
++        if self.combined_cycle_runtime is not None and self.combined_cycle_runtime.store.connection.execute('SELECT COUNT(*) FROM positions').fetchone()[0]:
++            self._execution_halted = True
++            raise RuntimeError('Historical paper reconstruction requires a fresh simulation lifecycle store')
++        try:
++            journal = PaperStateJournal(journal_path, commands=commands, require_existing=True)
++        except Exception:
++            self._execution_halted = True
++            raise
++        self.paper_journal = journal
++        try:
++            report = self.run(symbol_bars, warmup=warmup)
++            if not journal.prefix_verified:
++                raise RuntimeError('Recovery prefix was not fully verified')
++            report['paper_recovery'] = dict(prefix_checkpoints=journal.prefix_length,
++                reconciled_checkpoints=journal.reconciled_checkpoints,
++                resume_after=journal.resume_boundary,
++                appended_checkpoints=journal.cursor-journal.prefix_length,
++                admissions_resumed=not self._execution_halted, environment='paper',
++                warmup_bypassed=False)
++            return report
++        except BaseException:
++            self._execution_halted = True
++            raise
++        finally:
++            journal.close()
+ 
+     def _build_safety_gate_config(self) -> SafetyGateConfig:
+         v = self.safety_contract.values
+@@ -915,15 +954,40 @@
+             raise
+         self._close_feedback_receipts[key] = "DONE"
+ 
++    def _trip_delivery_unauthorised(self, symbol, timestamp, detail):
++        from revision2_external.protection_policy import DeliveryAuthorisationTrip, DELIVERY_UNAUTHORIZED
++        self._execution_halted = True
++        self._delivery_authorisation_trip = dict(code=DELIVERY_UNAUTHORIZED, symbol=symbol,
++                                                timestamp=str(timestamp), detail=str(detail))
++        try:
++            self._record_controller_event('PLANT_TRIP', timestamp, symbol, self._delivery_authorisation_trip)
++        except Exception:
++            pass  # A failed observer must not obscure the fatal delivery rejection.
++        raise DeliveryAuthorisationTrip(f'{DELIVERY_UNAUTHORIZED}: {symbol}: {detail}')
++
+     def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
+         self._assert_paper_plant_broker()
+         self._verify_broker_position_reconciles(symbol, trade)
+         close_side = "SELL" if trade["side"] == "BUY" else "BUY"
+         self._exit_orders_submitted += 1
+-        result = self.broker.place_order(
+-            symbol=symbol, side=close_side, quantity=trade["quantity"], order_type="MARKET",
+-            market_price=exit_price, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+-        )
++        from kiteconnect.exceptions import InputException, OrderException
++        from revision2_external.protection_policy import delivery_authorisation_failure, DELIVERY_UNAUTHORIZED
++        owner = self._position_lifecycle.get(trade.get('trade_id'))
++        product = owner.product if owner is not None else self.broker.get_position(symbol).get('product','MIS')
++        try:
++            result = self.broker.place_order(
++                symbol=symbol, side=close_side, quantity=trade["quantity"], order_type="MARKET",
++                market_price=exit_price, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
++            )
++        except (InputException, OrderException) as exc:
++            self._execution_halted = True
++            if product == 'CNC' and close_side == 'SELL' and delivery_authorisation_failure(exc):
++                self._trip_delivery_unauthorised(symbol, timestamp, str(exc))
++            raise
++        if (not result.get('passed') and product == 'CNC' and close_side == 'SELL'
++            and (result.get('trip_code') == DELIVERY_UNAUTHORIZED or
++                 delivery_authorisation_failure(result.get('reason', result.get('reasons',''))))):
++            self._trip_delivery_unauthorised(symbol, timestamp, result.get('reason', result.get('reasons','')))
+         if result["passed"]:
+             state = self._exit_controller_states.get(symbol)
+             pnl = (

@@ -1,0 +1,20 @@
+usage: run_r5_step5_candidate.py [-h] --root ROOT --protocol PROTOCOL
+                                 --expected-protocol-sha EXPECTED_PROTOCOL_SHA
+                                 --stage {A,B} [--block BLOCK]
+                                 [--params PARAMS] [--audit-only] --output
+                                 OUTPUT
+                                 [--paper-combined-cycle-state PAPER_COMBINED_CYCLE_STATE]
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --protocol PROTOCOL
+  --expected-protocol-sha EXPECTED_PROTOCOL_SHA
+  --stage {A,B}
+  --block BLOCK
+  --params PARAMS
+  --audit-only
+  --output OUTPUT
+  --paper-combined-cycle-state PAPER_COMBINED_CYCLE_STATE
+                        Opt-in prototype paper lifecycle WAL (new file; Stage
+                        B Block 1 only).

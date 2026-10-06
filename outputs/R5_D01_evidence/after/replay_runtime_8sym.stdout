@@ -1,0 +1,5 @@
+BROKER CLASS: revision2_external.paper_execution.CostedPaperBrokerAdapter  environment='paper'
+RUNTIME CLASS: revision5.combined_cycle_runtime.CombinedCycleRuntime
+ORCHESTRATOR CLASS: revision2_external.orchestrator.Revision2ExternalEngineOrchestrator (constructed normally; run() will be called)
+completed=True exception=None reconcile_calls=56 trades=7
+exit status: 0

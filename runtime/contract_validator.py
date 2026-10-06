@@ -61,8 +61,9 @@ class ContractValidator:
         missing = sorted(required - set(order.keys()))
         if missing:
             reasons.append(f"missing order fields: {', '.join(missing)}")
-        if order.get("quantity") is not None and (not isinstance(order.get("quantity"), (int, float)) or order.get("quantity") <= 0):
-            reasons.append("order quantity must be positive")
+        quantity = order.get("quantity")
+        if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
+            reasons.append("order quantity must be a positive integer")
         if order.get("side") not in {"BUY", "SELL"}:
             reasons.append("order side must be BUY or SELL")
         return reasons

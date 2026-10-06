@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "purpose": "Immutable copies of existing audit artifacts; not raw reference datasets or remedial execution results.",
+  "files": [
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/AUDIT_REPORT.md",
+      "archive_path": "archive/AUDIT_REPORT.md",
+      "sha256": "db7c92229fca97dd4d9455f43f11321d1315b32f77acf993542251a8afea8302",
+      "bytes": 39659
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/DISPATCH_ECS_NOTE_CHECK.md",
+      "archive_path": "archive/DISPATCH_ECS_NOTE_CHECK.md",
+      "sha256": "e8e8f1f482e9291dae0cb79e82d447fd83de8151ee891bb60b18483b60566c08",
+      "bytes": 101090
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/R5_Engine_Code_Authority_Audit.xlsx",
+      "archive_path": "archive/R5_Engine_Code_Authority_Audit.xlsx",
+      "sha256": "11fef6a4b0e12d48e034680f02c6d6c505609313a9949ae69091797150c49afd",
+      "bytes": 1607384
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/source_manifest.json",
+      "archive_path": "archive/source_manifest.json",
+      "sha256": "d015215e92431b8f088a7a2da0bf1d34b9f20e19db4839d42f9771f64b36c176",
+      "bytes": 396836
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/workbook_data.json",
+      "archive_path": "archive/workbook_data.json",
+      "sha256": "b12f177290e2d6c88814abcef9d1a1e3b510ffc4c39fa1e79bdede684b011f71",
+      "bytes": 11767037
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/workbook_inspection.json",
+      "archive_path": "archive/workbook_inspection.json",
+      "sha256": "1e99790c6415e921cc05e0d32bfbf9eee5a2b8a0d947459ba25a2ea940407a65",
+      "bytes": 447
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/reviews/claude_review.json",
+      "archive_path": "archive/reviews/claude_review.json",
+      "sha256": "c8d600eca0d9756805f70fa31d730e350ff66017466c706bcd93cc2e2099c992",
+      "bytes": 34610
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/reviews/claude_validation.json",
+      "archive_path": "archive/reviews/claude_validation.json",
+      "sha256": "474979102bf18b7451fecf35cbc34ee012e269a3f25bf70ba80cd612bf76b69e",
+      "bytes": 23621
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/reviews/legacy_review.json",
+      "archive_path": "archive/reviews/legacy_review.json",
+      "sha256": "ed654ef779e5ab17d512e716ef684c1ee2972aa5f6036c3d801a909ccb3b30eb",
+      "bytes": 898439
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/reviews/native_review.json",
+      "archive_path": "archive/reviews/native_review.json",
+      "sha256": "18aea853d855d3181cd4e75eb2239d8d9eac90832c5b585c890921128156eb31",
+      "bytes": 453586
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/reviews/root_review.json",
+      "archive_path": "archive/reviews/root_review.json",
+      "sha256": "320fd5ddd577bdaefac99ca8388c664121f769e7908c7223d44448c6c11ff14b",
+      "bytes": 489418
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/reviews/signals_review.json",
+      "archive_path": "archive/reviews/signals_review.json",
+      "sha256": "8f9996d22de2044bd15049683aa9436ec880fcda0fe84c5ac98108e884f9a8d2",
+      "bytes": 436942
+    },
+    {
+      "original_path": "/home/srinivas/.codex/attachments/13c69bb1-7b69-4bbe-9e36-d2614ab459ec/Pasted text.txt",
+      "archive_path": "archive/USER_REMEDIATION_NOTE.txt",
+      "sha256": "6ec25e76075ab2056ea719bfaf58004d7f7396f551699c920b676a3a35eca6c3",
+      "bytes": 9865
+    },
+    {
+      "original_path": "/home/srinivas/Documents/Codex/2026-10-01/referenced-chatgpt-conversation-this-is-an/outputs/engine_code_audit/DISPATCH_ECS_NOTE_CHECK.md corrected implementation diagram",
+      "archive_path": "archive/ARCHITECTURE_DIAGRAM.md",
+      "sha256": "d4230d43a53978c6a173123e07a7b4e97502931d6671e310c5c175acc270c252",
+      "bytes": 1256
+    }
+  ]
+}

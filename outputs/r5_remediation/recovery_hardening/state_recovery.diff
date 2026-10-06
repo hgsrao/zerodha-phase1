@@ -1,0 +1,52 @@
+--- outputs/r5_remediation/recovery_hardening/state_recovery.before.py	2026-10-05 22:58:37.563025163 +0530
++++ revision5/state_recovery.py	2026-10-05 23:00:10.046424745 +0530
+@@ -39,6 +39,10 @@
+             CREATE TRIGGER IF NOT EXISTS receipt_no_delete BEFORE DELETE ON receipts
+                 BEGIN SELECT RAISE(ABORT,'append-only receipts'); END;
+         ''')
++        for table in ('fleet_state', 'boot_checkpoints'):
++            columns = {row[1] for row in connection.execute(f'PRAGMA table_info({table})')}
++            if 'ecs_demand_pu' not in columns:
++                connection.execute(f'ALTER TABLE {table} ADD COLUMN ecs_demand_pu REAL CHECK(ecs_demand_pu IS NULL OR (ecs_demand_pu >= 0 AND ecs_demand_pu <= 1))')
+ 
+     def checkpoint_boot(self, state, *, store=None, position_updates=()):
+         """Pin fleet state to lifecycle rows in this SAME database transaction."""
+@@ -56,7 +60,8 @@
+                                       conversions=conversions), sort_keys=True,
+                                  default=_default, allow_nan=False)
+             checksum = hashlib.sha256(payload.encode()).hexdigest()
+-            con.execute('INSERT INTO boot_checkpoints(payload,checksum) VALUES (?,?)', (payload, checksum))
++            con.execute('INSERT INTO boot_checkpoints(payload,checksum,ecs_demand_pu) VALUES (?,?,?)',
++                        (payload, checksum, state.get('ecs_demand_pu')))
+             con.execute('COMMIT')
+         except BaseException:
+             con.execute('ROLLBACK')
+@@ -66,7 +71,7 @@
+         con = self.connection
+         con.execute('BEGIN IMMEDIATE')
+         try:
+-            row = con.execute('SELECT payload,checksum FROM boot_checkpoints ORDER BY seq DESC LIMIT 1').fetchone()
++            row = con.execute('SELECT payload,checksum,ecs_demand_pu FROM boot_checkpoints ORDER BY seq DESC LIMIT 1').fetchone()
+             if row is None or hashlib.sha256(row[0].encode()).hexdigest() != row[1]:
+                 raise RuntimeError('Missing or corrupt boot checkpoint')
+             # Compare raw canonical lifecycle rows before decoding timestamp objects.
+@@ -76,6 +81,8 @@
+             if raw.get('version') != 1 or raw['positions'] != positions or raw['conversions'] != conversions:
+                 raise RuntimeError('Lifecycle store advanced beyond boot checkpoint; recovery reconciliation required')
+             result = json.loads(row[0], object_hook=_hook)['state']
++            if row[2] != result.get('ecs_demand_pu'):
++                raise RuntimeError('ECS checkpoint column differs from hashed payload')
+             con.execute('COMMIT')
+             return result
+         except BaseException:
+@@ -154,8 +161,8 @@
+                 if row != (payload, checksum) or receipt != ('DONE',):
+                     raise RuntimeError('Feedback recovery checkpoint mismatch')
+             else:
+-                con.execute('INSERT INTO fleet_state VALUES (?,?,?)',
+-                            (event_id, payload, checksum))
++                con.execute('INSERT INTO fleet_state(event_id,payload,checksum,ecs_demand_pu) VALUES (?,?,?,?)',
++                            (event_id, payload, checksum, state.get('ecs_demand_pu')))
+                 con.execute('INSERT INTO receipts VALUES (?,?)', (event_id, 'DONE'))
+             con.execute('COMMIT')
+         except BaseException:

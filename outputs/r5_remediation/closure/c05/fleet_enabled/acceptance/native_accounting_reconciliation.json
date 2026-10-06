@@ -1,0 +1,58 @@
+{
+  "checks": {
+    "ALL_STAGE_ACCOUNTING": {
+      "passed": true
+    },
+    "GATE12_REACHED_BUY": {
+      "not_reached": 0,
+      "passed": true,
+      "pre_submit": 50,
+      "reached": 50
+    },
+    "GATE12_REACHED_SELL": {
+      "not_reached": 0,
+      "passed": true,
+      "pre_submit": 431,
+      "reached": 431
+    },
+    "GOVERNOR_INPUT": {
+      "native": 7859,
+      "passed": true,
+      "passive": 7859
+    },
+    "ID_INPUT": {
+      "native": 87101,
+      "passed": true,
+      "passive": 87101
+    },
+    "ID_PASS": {
+      "native": 8440,
+      "passed": true,
+      "passive": 8440
+    },
+    "ID_REJECT": {
+      "native": 78661,
+      "passed": true,
+      "passive": 78661
+    },
+    "PRE_SUBMIT_INPUT": {
+      "native": 481,
+      "passed": true,
+      "passive": 481
+    },
+    "PRE_SUBMIT_PASS": {
+      "native": 53,
+      "passed": true,
+      "passive": 53
+    },
+    "PRE_SUBMIT_REJECT": {
+      "native": 428,
+      "passed": true,
+      "passive": 428
+    }
+  },
+  "gate12": "Not reached counts exclude candidates rejected before Gate12; zero is explicit",
+  "governor": "NO_ACTION observations are actual vetoes only under full governor authority",
+  "passed": true,
+  "warmup": "ID_WARMUP is reported separately and excluded from native scored ID totals"
+}

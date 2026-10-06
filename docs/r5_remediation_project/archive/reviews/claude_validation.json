@@ -1,0 +1,622 @@
+{
+  "findings": [
+    {
+      "id": "F01",
+      "status": "CONFIRMED_WITH_QUALIFICATIONS",
+      "evidence": [
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 121,
+          "end": 142
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 259,
+          "end": 262
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 427,
+          "end": 436
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 580,
+          "end": 583
+        },
+        {
+          "file": "scripts/run_r5_step5_candidate.py",
+          "start": 698,
+          "end": 717
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 24,
+          "end": 32
+        }
+      ],
+      "correction": "Default sealed candidate constructs an offline synchronous paper broker and does not inject combined-cycle runtime/journal. No runtime instantiation was found in the frozen non-test source set. The statement that tests are absent describes snapshot packaging only: the supervising run has 222 passing targeted tests. StartupCertificate is issued passed=True after explicit Pydantic config/safety validation; it is not evidence of live startup certification, but calling it wholly unvalidated would be inaccurate.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F02",
+      "status": "CONFIRMED_STATIC",
+      "evidence": [
+        {
+          "file": "runtime/operating_mode.py",
+          "start": 79,
+          "end": 108
+        },
+        {
+          "file": "revision2_external/paper_execution.py",
+          "start": 38,
+          "end": 51
+        },
+        {
+          "file": "revision2_external/paper_execution.py",
+          "start": 57,
+          "end": 67
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 47,
+          "end": 52
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 93,
+          "end": 115
+        }
+      ],
+      "correction": "Initial fill leaves product absent, while CC reconcile reads product without MIS fallback. This is a statically demonstrated contract mismatch, also independently confirmed by the native source reviewer. No new execution was performed during validation. Test-file absence in the snapshot does not establish absence of project tests.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F03",
+      "status": "CONFIRMED_STATIC",
+      "evidence": [
+        {
+          "file": "runtime/operating_mode.py",
+          "start": 88,
+          "end": 108
+        },
+        {
+          "file": "revision2_external/paper_execution.py",
+          "start": 38,
+          "end": 43
+        },
+        {
+          "file": "revision2_external/paper_execution.py",
+          "start": 64,
+          "end": 67
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1062,
+          "end": 1070
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 2087,
+          "end": 2102
+        }
+      ],
+      "correction": "Closing leaves product CNC in the retained symbol dict and re-entry does not reset it; MIS protection then conflicts after an actual paper fill. This is static code evidence, independently corroborated by native reviewer. It is not a claim that the optional runtime was exercised by the sealed candidate.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F04",
+      "status": "CONFIRMED_WITH_QUALIFICATIONS",
+      "evidence": [
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 2008,
+          "end": 2109
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1062,
+          "end": 1070
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 34,
+          "end": 37
+        }
+      ],
+      "correction": "Fallible post-fill telemetry/persistence precedes complete ownership/entry-state setup, and CC store/journal transactions are separate. A failed post-fill safety verdict already sets _execution_halted; the finding concerns raised exceptions in later bookkeeping, not every failed verdict. Reordering alone cannot provide cross-store or broker atomicity; durable intent/fill ownership and recoverable commit boundaries are needed.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F05",
+      "status": "CONFIRMED_WITH_QUALIFICATIONS",
+      "evidence": [
+        {
+          "file": "revision5/paper_state_journal.py",
+          "start": 1,
+          "end": 7
+        },
+        {
+          "file": "revision5/paper_state_journal.py",
+          "start": 98,
+          "end": 103
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 61,
+          "end": 83
+        },
+        {
+          "file": "revision5/combined_cycle_store.py",
+          "start": 70,
+          "end": 74
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1498,
+          "end": 1498
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1518,
+          "end": 1524
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1625,
+          "end": 1625
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1008,
+          "end": 1021
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 2106,
+          "end": 2109
+        }
+      ],
+      "correction": "Current direct CC restore does not reconstruct local entry_bar_index or exit/controller/lockout/day state, and combining a populated direct restore with fresh-journal bind is rejected. Fresh-engine replay journal recovery remains a supported offline mechanism for its covered path; therefore do not say no supported restart exists for the whole engine. Say no demonstrated compatible complete CC-plus-journal restart in this frozen path.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F06",
+      "status": "CONFIRMED_WITH_QUALIFICATIONS",
+      "evidence": [
+        {
+          "file": "revision5/paper_state_journal.py",
+          "start": 31,
+          "end": 61
+        },
+        {
+          "file": "revision5/paper_state_journal.py",
+          "start": 98,
+          "end": 138
+        },
+        {
+          "file": "revision5/paper_state_journal.py",
+          "start": 151,
+          "end": 183
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 2113,
+          "end": 2124
+        }
+      ],
+      "correction": "Journal atomically checkpoints broker/ledger/native plant at portfolio ticks and compares replay prefix. It rebuilds uncheckpointed controller histories through deterministic replay; omission does not mean those controllers are never recovered, but internal equivalence is checked only indirectly through covered output state. git dependency is true for running bind; the original worktree has .git, the exported read-only snapshot does not. Targeted tests exist outside snapshot.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F07",
+      "status": "CONFIRMED_STATIC",
+      "evidence": [
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 855,
+          "end": 878
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 967,
+          "end": 1021
+        },
+        {
+          "file": "revision5/ccpp_unified_plant.py",
+          "start": 1172,
+          "end": 1209
+        },
+        {
+          "file": "revision5/paper_state_journal.py",
+          "start": 57,
+          "end": 57
+        }
+      ],
+      "correction": "Receipts guard duplicate feedback only in process/replay; a first sink success and second sink exception leaves PENDING and prevents retry of both. Journal can regenerate prefix through offline replay, but CC store alone has no per-sink receipt/outbox. Do not infer native and per-symbol latches are the same protection state.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F08",
+      "status": "CONFIRMED_STATIC",
+      "evidence": [
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 880,
+          "end": 890
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 972,
+          "end": 988
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1072,
+          "end": 1077
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 2116,
+          "end": 2121
+        }
+      ],
+      "correction": "Rejected exit result has no explicit failed-close branch; lifecycle persistence occurs before deleting open_trades. This permits silent failure or inconsistency on a raised store write. No exception-injection run was performed in this validation.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F09",
+      "status": "CONFIRMED_WITH_QUALIFICATIONS",
+      "evidence": [
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 885,
+          "end": 889
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 2008,
+          "end": 2041
+        },
+        {
+          "file": "revision2_external/broker_adapter_kite.py",
+          "start": 60,
+          "end": 94
+        },
+        {
+          "file": "revision2_external/broker_adapter_kite.py",
+          "start": 107,
+          "end": 133
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 85,
+          "end": 91
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 158,
+          "end": 158
+        },
+        {
+          "file": "revision2_external/paper_execution.py",
+          "start": 28,
+          "end": 75
+        }
+      ],
+      "correction": "Direct replacement with Kite is incompatible with synchronous paper signature/fill bookkeeping and CC protection/conversion APIs. Kite safeguards are an isolated mocked adapter foundation, not a completed live execution layer. Accepted is not filled; async fills, partials, explicit product and durable correlated conversion receipts require an execution port.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F10",
+      "status": "CONFIRMED_STATIC",
+      "evidence": [
+        {
+          "file": "revision2_external/broker_reconciliation.py",
+          "start": 17,
+          "end": 83
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 47,
+          "end": 83
+        }
+      ],
+      "correction": "No BrokerReconciliationService caller exists in the frozen source snapshot; CC uses separate paper-shaped reconciliation. It is tested as a unit in the project, so unwired does not mean untested.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F11",
+      "status": "CONFIRMED_WITH_QUALIFICATIONS",
+      "evidence": [
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 85,
+          "end": 91
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 110,
+          "end": 114
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 155,
+          "end": 161
+        },
+        {
+          "file": "revision5/handoff_manager.py",
+          "start": 55,
+          "end": 117
+        },
+        {
+          "file": "revision2_external/paper_execution.py",
+          "start": 28,
+          "end": 51
+        }
+      ],
+      "correction": "UNKNOWN/PENDING conversion raises in runtime rather than continuing protective management, and late ACK resolution rejects without broker-truth ownership resolution. HandoffManager.resolve itself can retain PENDING for unknown status; runtime _receipt raises before using that behavior. Rejected existing request is intentionally not retried automatically. Do not assume synchronous paper ACK tests cover network ambiguity.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F12",
+      "status": "CONFIRMED_WITH_QUALIFICATIONS",
+      "evidence": [
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1140,
+          "end": 1175
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 765,
+          "end": 787
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1105,
+          "end": 1107
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 170,
+          "end": 191
+        },
+        {
+          "file": "revision5/engine_b_management.py",
+          "start": 1,
+          "end": 5
+        }
+      ],
+      "correction": "Inspected A/B stop paths use prior armed stops and arm newly completed-bar proposals for later bars. This supports local causal ordering, not a whole-repository proof that all look-ahead is absent. B_OPEN returns before A governor/exit PID updates, so ownership split is Engine B for B discretionary management; old A excursion telemetry can be stale.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F13",
+      "status": "CONFIRMED_STATIC",
+      "evidence": [
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 14,
+          "end": 22
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 143,
+          "end": 146
+        },
+        {
+          "file": "revision5/combined_cycle_runtime.py",
+          "start": 173,
+          "end": 181
+        },
+        {
+          "file": "revision5/engine_b_management.py",
+          "start": 11,
+          "end": 20
+        },
+        {
+          "file": "revision2/transaction_costs.py",
+          "start": 2,
+          "end": 7
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 806,
+          "end": 806
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1375,
+          "end": 1382
+        }
+      ],
+      "correction": "Prototype B uses observed session dates, existing-bar open gap checks and product-agnostic costs. It lacks exchange calendar/missing-bar/corporate-action model. Last frame row is excluded as next-open sentinel; exclusion alone is not automatically dropped market data when runner supplies sentinel correctly. B results remain prototype paper evidence.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F14",
+      "status": "CONFIRMED_WITH_QUALIFICATIONS",
+      "evidence": [
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 470,
+          "end": 578
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 872,
+          "end": 878
+        },
+        {
+          "file": "revision5/ccpp_unified_plant.py",
+          "start": 1850,
+          "end": 1957
+        },
+        {
+          "file": "revision5/ccpp_unified_plant.py",
+          "start": 2056,
+          "end": 2170
+        },
+        {
+          "file": "revision5/hrsg.py",
+          "start": 467,
+          "end": 693
+        },
+        {
+          "file": "revision5/governor.py",
+          "start": 239,
+          "end": 266
+        },
+        {
+          "file": "revision5/plant_control.py",
+          "start": 223,
+          "end": 319
+        }
+      ],
+      "correction": "Within frozen orchestrator path, native HRSG evaluate_entry/correlation-return recording/superheat recommendations are not invoked; plant/control protection and dispatch links are partial. Restrict no-caller claims to frozen included source rather than entire historical repo, tests or excluded research artifacts. ECS bounded restore is not a conventional fleet PID.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F15",
+      "status": "CONFIRMED_WITH_QUALIFICATIONS",
+      "evidence": [
+        {
+          "file": "revision5/hrsg.py",
+          "start": 1,
+          "end": 22
+        },
+        {
+          "file": "revision5/hrsg.py",
+          "start": 425,
+          "end": 465
+        },
+        {
+          "file": "revision5/hrsg.py",
+          "start": 547,
+          "end": 643
+        },
+        {
+          "file": "revision5/hrsg.py",
+          "start": 651,
+          "end": 665
+        },
+        {
+          "file": "revision5/hrsg.py",
+          "start": 695,
+          "end": 744
+        },
+        {
+          "file": "revision5/ccpp_unified_plant.py",
+          "start": 96,
+          "end": 120
+        }
+      ],
+      "correction": "HRSG law is curtailed GTG capital routing to healthy STG bays plus reserve/correlation derate, not realized-profit recovery. Superheat is expectancy-R recommendation and no default caller. Post-routing max-ceiling gap is a static potential risk, not a demonstrated replay violation. Frozen design defaults are not calibrated trading conclusions.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F16",
+      "status": "CONFIRMED_WITH_QUALIFICATIONS",
+      "evidence": [
+        {
+          "file": "alternate/fleet_loading_controller.py",
+          "start": 1,
+          "end": 28
+        },
+        {
+          "file": "alternate/fleet_loading_controller.py",
+          "start": 53,
+          "end": 75
+        },
+        {
+          "file": "alternate/fleet_loading_controller.py",
+          "start": 104,
+          "end": 152
+        },
+        {
+          "file": "revision5/plant_control.py",
+          "start": 223,
+          "end": 319
+        },
+        {
+          "file": "revision5/governor.py",
+          "start": 239,
+          "end": 266
+        }
+      ],
+      "correction": "Standalone alternate/fleet_loading_controller has enabled=False default and no import in frozen production call graph. Its code contains conditional anti-windup and state export/restore, but source reading alone does not prove all numerical/unit behavior. Existing ECS/dispatch capacity actuation must not be relabeled a deployed fleet PID.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F17",
+      "status": "CONFIRMED_WITH_NAMESPACE_QUALIFICATION",
+      "evidence": [
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 46,
+          "end": 46
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 324,
+          "end": 324
+        },
+        {
+          "file": "revision2_external/closed_loop_control.py",
+          "start": 366,
+          "end": 449
+        },
+        {
+          "file": "revision2_external/closed_loop_v3.py",
+          "start": 37,
+          "end": 141
+        }
+      ],
+      "correction": "Frozen orchestrator instantiates closed_loop_control.ClosedLoopSupervisor and pid_controller.SimplePIDModelPredictiveControlBox. closed_loop_v3.py defines a separate research tester/contract and is not imported by the frozen orchestrator. This says nothing about all earlier namespace/module versions or sealed V3 experiment identifiers; historical V3 identity requires exact commit/module/hash/mode evidence. Do not delete research code as an audit action.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    },
+    {
+      "id": "F18",
+      "status": "CONFIRMED_WITH_QUALIFICATIONS",
+      "evidence": [
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 153,
+          "end": 167
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1115,
+          "end": 1128
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1328,
+          "end": 1360
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1566,
+          "end": 1575
+        },
+        {
+          "file": "revision2_external/orchestrator.py",
+          "start": 1917,
+          "end": 1925
+        },
+        {
+          "file": "revision5/supervisory_bridge.py",
+          "start": 240,
+          "end": 285
+        }
+      ],
+      "correction": "Mode-specific actuation boundaries are explicit. Governor full owns A discretionary positions, but optional acknowledged B ownership delegates B discretion to Engine B; full does not imply universal B governor ownership. SHADOW is plant-control shadow and can coexist with separate paper trading/closed_loop mode: it does not mean no trades anywhere. Static upstream skip may suppress management without CC; frequency/likelihood was not measured.",
+      "method": "Frozen-source inspection and scoped call-site search; no runtime execution in this validation."
+    }
+  ],
+  "scope": "Independent qualification of all 18 Claude findings against the frozen source_snapshot. No engine edits or new harness runs.",
+  "test_qualification": "The source snapshot intentionally excludes tests. The supervising session reports 222 passing targeted tests in the actual worktree; their passing status does not establish full runtime integration, live broker readiness, or CC complete restart. No tests were rerun here.",
+  "v3_wording": "In this frozen checkout the external orchestrator loads ClosedLoopSupervisor from revision2_external.closed_loop_control and SimplePIDModelPredictiveControlBox from revision2_external.pid_controller. revision2_external.closed_loop_v3 is a separate research tester and is not loaded by that orchestrator. Historical sealed V3 labels and earlier implementations must be identified by commit, imported module/hash and authority mode; their identity or deployment cannot be inferred from the name alone.",
+  "overall": "Static findings substantially corroborated with scope and evidence qualifications. Unit-test absence claims must be limited to exported snapshot, not the project. No blanket completeness, absence-of-lookahead or trading-readiness verdict is supported."
+}

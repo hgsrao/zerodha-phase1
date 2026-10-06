@@ -1,0 +1,11 @@
+--- before/revision5/handoff_manager.py
++++ after/revision5/handoff_manager.py
+@@ -115,7 +115,7 @@
+             elif record.lifecycle_state != TRANSFER_REQUESTED:
+                 raise ValueError('conversion has no pending lifecycle')
+             elif outcome == 'ACKNOWLEDGED':
+-                if timestamp is None or product != 'CNC' or quantity != receipt['quantity']:
++                if timestamp is None or product != 'CNC' or type(quantity) is not int or quantity != receipt['quantity']:
+                     raise ValueError('acknowledgement requires exact product, quantity and timestamp')
+                 stamp = self._local(timestamp)
+                 if stamp.date() != receipt['requested_at'].date() or stamp < receipt['requested_at'] or stamp.strftime('%H:%M') > self.config.deadline:

@@ -1,0 +1,86 @@
+{
+  "identity_checks": {
+    "params_sha256": true,
+    "protocol_sha256": true,
+    "slice_sha256": true,
+    "symbols": true,
+    "sessions": true
+  },
+  "results": {
+    "baseline": {
+      "trades": 58,
+      "BUY": 1,
+      "SELL": 57,
+      "gross_pnl": -4984.113099999973,
+      "friction": 3036.26973586965,
+      "net_pnl": -8020.382835869623,
+      "holding_quartiles_bars": [
+        3.0,
+        4.0,
+        6.0
+      ],
+      "ID_approvals": 8535,
+      "ID_rejections": 78544,
+      "governor_decisions": {
+        "mode": "full",
+        "entry_decisions": {
+          "NO_ACTION:GRID_REFERENCE_UNAVAILABLE": 256,
+          "ENTRY:GOVERNOR_ENTRY": 1556,
+          "NO_ACTION:FSR_BELOW_ENTRY_HURDLE:FSRN": 3967,
+          "NO_ACTION:GOVERNOR_OVERSPEED_LIMIT": 2165,
+          "NO_ACTION:EXHAUST_SPREAD_HOLD": 19
+        },
+        "position_decisions": {
+          "HOLD:GOVERNOR_LOAD_SHED": 117,
+          "HOLD:GOVERNOR_TRACKING": 109,
+          "EXIT:GOVERNOR_PATH_ERROR": 13,
+          "EXIT:FSR_BELOW_EXIT:FSRN": 44
+        }
+      },
+      "final_gate_pass": 58,
+      "final_gate_reject": 385,
+      "final_gate_input": 443,
+      "final_gate_accounting_closes": true,
+      "exact_full_ledger_sha": "5036664d07f62bbaa1684a4b51601cb52fe28065e441613024be418c4aaa4b6b"
+    },
+    "neutral": {
+      "trades": 58,
+      "BUY": 1,
+      "SELL": 57,
+      "gross_pnl": -5169.968799999944,
+      "friction": 3118.506046794,
+      "net_pnl": -8288.474846793944,
+      "holding_quartiles_bars": [
+        3.0,
+        4.0,
+        6.0
+      ],
+      "ID_approvals": 8518,
+      "ID_rejections": 78558,
+      "governor_decisions": {
+        "mode": "full",
+        "entry_decisions": {
+          "NO_ACTION:GRID_REFERENCE_UNAVAILABLE": 256,
+          "ENTRY:GOVERNOR_ENTRY": 1550,
+          "NO_ACTION:FSR_BELOW_ENTRY_HURDLE:FSRN": 3959,
+          "NO_ACTION:GOVERNOR_OVERSPEED_LIMIT": 2174,
+          "NO_ACTION:EXHAUST_SPREAD_HOLD": 19
+        },
+        "position_decisions": {
+          "HOLD:GOVERNOR_LOAD_SHED": 120,
+          "HOLD:GOVERNOR_TRACKING": 109,
+          "EXIT:GOVERNOR_PATH_ERROR": 14,
+          "EXIT:FSR_BELOW_EXIT:FSRN": 43
+        }
+      },
+      "final_gate_pass": 58,
+      "final_gate_reject": 372,
+      "final_gate_input": 430,
+      "final_gate_accounting_closes": true,
+      "exact_full_ledger_sha": "a683dd39cb8693c32f1a0c59e20db6fb86a3dc5ec9c4ec34ba1e18d8fdba0479"
+    }
+  },
+  "net_pnl_delta": -268.0920109243216,
+  "promoted_to_active_engine": false,
+  "expanded_to_six_blocks": false
+}

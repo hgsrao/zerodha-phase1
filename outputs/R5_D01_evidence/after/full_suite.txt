@@ -1,0 +1,65 @@
+........................................................................ [  7%]
+..............ssss...................................................... [ 15%]
+........................................................................ [ 22%]
+........................................................................ [ 30%]
+.......................................... [ 34%]
+...sss...................... [ 37%]
+........................................................................ [ 44%]
+........................................................................ [ 52%]
+........................................................................ [ 60%]
+........................................................................ [ 67%]
+........................................................................ [ 75%]
+....................................................................F..F [ 82%]
+F....................................................................... [ 90%]
+........................................................................ [ 97%]
+......................                                                   [100%]
+=================================== FAILURES ===================================
+_____________ test_valid_market_order_is_translated_and_submitted ______________
+
+    def test_valid_market_order_is_translated_and_submitted():
+        adapter, client = _adapter()
+        client.place_order.return_value = "ORDER123"
+        result = adapter.place_order("INFY", "BUY", 10, "MARKET")
+>       assert result == {"passed": True, "order_id": "ORDER123"}
+E       AssertionError: assert {'passed': Tr...RDER123', ...} == {'passed': Tr...': 'ORDER123'}
+E         
+E         Omitting 2 identical items, use -vv to show
+E         Left contains 3 more items:
+E         {'accepted': True, 'filled': False, 'status': 'ACCEPTED'}
+E         Use -v to get more diff
+
+tests_external/test_broker_adapter_kite.py:24: AssertionError
+__________ test_network_exception_is_retried_and_eventually_succeeds ___________
+
+    def test_network_exception_is_retried_and_eventually_succeeds():
+        adapter, client = _adapter()
+        client.place_order.side_effect = [NetworkException("timeout"), NetworkException("timeout"), "ORDER456"]
+        result = adapter.place_order("INFY", "BUY", 5, "MARKET")
+>       assert result == {"passed": True, "order_id": "ORDER456"}
+E       AssertionError: assert {'passed': Fa...n': 'timeout'} == {'passed': Tr...': 'ORDER456'}
+E         
+E         Differing items:
+E         {'passed': False} != {'passed': True}
+E         Left contains 3 more items:
+E         {'ambiguous': True, 'reason': 'timeout', 'retry_allowed': False}
+E         Right contains 1 more item:
+E         {'order_id': 'ORDER456'}
+E         Use -v to get more diff
+
+tests_external/test_broker_adapter_kite.py:50: AssertionError
+______________ test_network_exception_gives_up_after_max_attempts ______________
+
+    def test_network_exception_gives_up_after_max_attempts():
+        adapter, client = _adapter()
+        client.place_order.side_effect = NetworkException("timeout")
+>       with pytest.raises(NetworkException):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE NetworkException
+
+tests_external/test_broker_adapter_kite.py:57: Failed
+=========================== short test summary info ============================
+FAILED tests_external/test_broker_adapter_kite.py::test_valid_market_order_is_translated_and_submitted
+FAILED tests_external/test_broker_adapter_kite.py::test_network_exception_is_retried_and_eventually_succeeds
+FAILED tests_external/test_broker_adapter_kite.py::test_network_exception_gives_up_after_max_attempts
+3 failed, 946 passed, 7 skipped, 146 subtests passed in 469.18s (0:07:49)
+exit status: 1

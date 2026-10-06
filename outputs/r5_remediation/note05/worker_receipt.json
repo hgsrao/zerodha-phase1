@@ -1,0 +1,36 @@
+{
+  "classification": "DERIVED_REAL_TITAN_SINGLE_SESSION_WORKER_EXECUTION",
+  "symbol_count": 1,
+  "trade_count": 1,
+  "ledger_parity": true,
+  "ledger_sha256": "a63a3c0f8b16b291d56627f23861ba035b7f0145dcbdee5db265724582fb42ce",
+  "runtime": {
+    "environment": "paper",
+    "classification": "PROTOTYPE_COMBINED_CYCLE",
+    "live_admissions": false,
+    "handoff": {
+      "enabled": true,
+      "minimum_r": 0.75,
+      "start": "15:10",
+      "deadline": "15:14"
+    },
+    "engine_b": {
+      "enabled": true,
+      "max_sessions": 3,
+      "structural_window": 20,
+      "reversal_confirmation_bars": 3,
+      "trail_mode": "R",
+      "trail_distance_r": 2.0,
+      "atr_multiple": 3.0,
+      "trail_activation_r": 1.0
+    },
+    "runtime": {
+      "end_of_run_disposition": "CLOSE",
+      "strict_session_boundary": true
+    }
+  },
+  "baseline_fingerprint": "9c0350b398662b03527585ac2666f45281a8ef846445675420c0326ed6493676",
+  "wired_fingerprint": "8eb9bfbe4a4d6aa9310eb2eef5fd05de5709244b71b6a58160d7197e6db31f42",
+  "full_48_symbol_block1": "NOT RUN",
+  "live_admissions": false
+}

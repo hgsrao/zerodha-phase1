@@ -1,0 +1,62 @@
+--- before/revision5/handoff_manager.py
++++ after/revision5/handoff_manager.py
+@@ -54,6 +54,9 @@
+ 
+     def request(self, position_id, quantity, timestamp, *, current_r, mfe_r, trend_aligned, completed_bar=True):
+         snapshot = self.store.load(position_id)
++        if (isinstance(quantity, bool) or not isinstance(quantity, int)
++                or quantity != self.store.trade_quantity(snapshot.trade)):
++            raise ValueError('conversion must match authoritative trade quantity')
+         existing = self.store.connection.execute('SELECT payload FROM conversions WHERE position_id=?',(position_id,)).fetchone()
+         if existing:
+             return ConversionRequest(**{k:v for k,v in json.loads(existing[0],object_hook=_hook).items() if k in ConversionRequest.__dataclass_fields__})
+--- before/revision5/combined_cycle_store.py
++++ after/revision5/combined_cycle_store.py
+@@ -3,6 +3,7 @@
+ import json
+ from datetime import datetime, date
+ import sqlite3
++from math import isfinite
+ import pandas as pd
+ from revision5.position_lifecycle import PositionLifecycleRecord, CLOSED, LEGAL_TRANSITIONS
+ 
+@@ -73,7 +74,8 @@
+         if expected_revision is not None and actual != expected_revision:
+             raise ValueError('stale snapshot revision')
+         if row:
+-            old = self.load(record.position_id).record
++            previous = self.load(record.position_id)
++            old = previous.record
+             for field in ('symbol','direction','anchor_price','initial_risk_r','created_bar_timestamp'):
+                 if getattr(old, field) != getattr(record, field):
+                     raise ValueError('position identity/risk cannot change')
+@@ -83,8 +85,29 @@
+                     else record.current_stop_price > old.current_stop_price):
+                 raise ValueError('durable stop cannot loosen')
+         payload = json.dumps(dict(record=asdict(record), trade=trade, protection=protection), default=_default, allow_nan=False)
++        quantity = self.trade_quantity(trade)
++        if row and quantity != self.trade_quantity(previous.trade):
++            raise ValueError('authoritative trade quantity cannot change')
++        for key, expected in (('trade_id', record.position_id), ('symbol', record.symbol),
++                              ('side', record.direction), ('entry_price', record.anchor_price)):
++            if key in trade and trade[key] != expected:
++                raise ValueError('trade identity differs from lifecycle')
++        if protection.get('stop') != record.current_stop_price:
++            raise ValueError('durable protective stop differs from lifecycle')
++        if 'target_price' in trade and (not isfinite(trade['target_price']) or trade['target_price'] <= 0):
++            raise ValueError('invalid durable target price')
+         self.connection.execute('INSERT OR REPLACE INTO positions VALUES (?,?,?)', (record.position_id,payload,actual+1))
+         return actual+1
+ 
++    @staticmethod
++    def trade_quantity(trade):
++        # Older component snapshots used qty; live engine snapshots use quantity.
++        quantity = trade.get('quantity', trade.get('qty'))
++        if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
++            raise ValueError('positive integer authoritative trade quantity required')
++        if 'quantity' in trade and 'qty' in trade and trade['qty'] != quantity:
++            raise ValueError('conflicting authoritative trade quantity fields')
++        return quantity
++
+     def requests(self):
+         return [json.loads(row[0], object_hook=_hook) for row in self.connection.execute('SELECT payload FROM conversions')]

@@ -1,0 +1,366 @@
+{
+ "arm": "00",
+ "hold_fix": false,
+ "pa_symmetry": false,
+ "symbols": [
+  "TITAN"
+ ],
+ "block": 1,
+ "zero_state_at_start": {
+  "GTG1_HEAVY_INDUSTRY.integral_error": 0.0,
+  "GTG1_HEAVY_INDUSTRY.last_error": 0.0,
+  "GTG1_HEAVY_INDUSTRY.last_control_u": 0.0,
+  "GTG1_HEAVY_INDUSTRY.inner_states": 0,
+  "GTG1_HEAVY_INDUSTRY.consecutive_stops": 0,
+  "GTG2_TECH_TELECOM.integral_error": 0.0,
+  "GTG2_TECH_TELECOM.last_error": 0.0,
+  "GTG2_TECH_TELECOM.last_control_u": 0.0,
+  "GTG2_TECH_TELECOM.inner_states": 0,
+  "GTG2_TECH_TELECOM.consecutive_stops": 0,
+  "CSTG1_BFSI.integral_error": 0.0,
+  "CSTG1_BFSI.last_error": 0.0,
+  "CSTG1_BFSI.last_control_u": 0.0,
+  "CSTG1_BFSI.inner_states": 0,
+  "CSTG1_BFSI.consecutive_stops": 0,
+  "CSTG2_CONSUMER_AUTO.integral_error": 0.0,
+  "CSTG2_CONSUMER_AUTO.last_error": 0.0,
+  "CSTG2_CONSUMER_AUTO.last_control_u": 0.0,
+  "CSTG2_CONSUMER_AUTO.inner_states": 0,
+  "CSTG2_CONSUMER_AUTO.consecutive_stops": 0,
+  "BPSTG_HEALTHCARE.integral_error": 0.0,
+  "BPSTG_HEALTHCARE.last_error": 0.0,
+  "BPSTG_HEALTHCARE.last_control_u": 0.0,
+  "BPSTG_HEALTHCARE.inner_states": 0,
+  "BPSTG_HEALTHCARE.consecutive_stops": 0,
+  "orch.open_trades": 0,
+  "orch.equity_curve_deviation_from_seed": 0.0,
+  "orch.mtm_max_drawdown_fraction": 0.0,
+  "orch.symbol_consecutive_losses": 0,
+  "orch.mtm_peak_minus_start_equity": 0.0
+ },
+ "slippage_fraction": 0.0005,
+ "runtime_seconds": 21.5,
+ "trade_ledger_sha256": "051143f6bd1d5988a0bf97a5b53d23b4a165177e0b84834d5cc728a583a334c1",
+ "controller_trace_sha256": "716a3997e313be3ff595789230fe78aa6d9976510b265a32e29701c8ae1b5788",
+ "position_decisions": [
+  {
+   "position_id": "trade-1",
+   "elapsed_bars": 0,
+   "min_hold_bars": 2,
+   "measured_r": -0.12945486968898937,
+   "reference_r": 0.0,
+   "conviction": 1.0,
+   "action": "HOLD",
+   "reason": "GOVERNOR_TRACKING",
+   "deferred": false,
+   "inner_action": "HOLD",
+   "error": 0.12945486968898937,
+   "integral": 0.12945486968898937,
+   "derivative": 0.12945486968898937,
+   "control_u": 0.17088042798946596,
+   "protected_r_floor": -0.95,
+   "controlling_limiter": "FSRT",
+   "fsr_selected": 0.9998350805817224,
+   "limiters": {
+    "FSRN": 1.0,
+    "FSRT": 0.9998350805817224,
+    "FSRA": 1.0,
+    "FSRS": 1.0,
+    "FSRM": 1.0
+   }
+  },
+  {
+   "position_id": "trade-1",
+   "elapsed_bars": 1,
+   "min_hold_bars": 2,
+   "measured_r": -0.2699111961307005,
+   "reference_r": 0.10367925009379882,
+   "conviction": 0.9,
+   "action": "HOLD",
+   "reason": "GOVERNOR_TRACKING",
+   "deferred": false,
+   "inner_action": "HOLD",
+   "error": 0.37359044622449933,
+   "integral": 0.5030453159134887,
+   "derivative": 0.24413557653550996,
+   "control_u": 0.46983751247232103,
+   "protected_r_floor": -0.8999999999999999,
+   "controlling_limiter": "FSRN",
+   "fsr_selected": 0.9,
+   "limiters": {
+    "FSRN": 0.9,
+    "FSRT": 0.9997125805817224,
+    "FSRA": 1.0,
+    "FSRS": 1.0,
+    "FSRM": 1.0
+   }
+  },
+  {
+   "position_id": "trade-1",
+   "elapsed_bars": 2,
+   "min_hold_bars": 2,
+   "measured_r": -0.21831499458067993,
+   "reference_r": 0.20020459602865937,
+   "conviction": 0.2,
+   "action": "EXIT",
+   "reason": "FSR_BELOW_EXIT:FSRN",
+   "deferred": false,
+   "inner_action": "HOLD",
+   "error": 0.4185195906093393,
+   "integral": 0.921564906522828,
+   "derivative": 0.04492914438483997,
+   "control_u": 0.49426142016214725,
+   "protected_r_floor": -0.8499999999999999,
+   "controlling_limiter": "FSRN",
+   "fsr_selected": 0.2,
+   "limiters": {
+    "FSRN": 0.2,
+    "FSRT": 0.9997575805817225,
+    "FSRA": 1.0,
+    "FSRS": 1.0,
+    "FSRM": 1.0
+   }
+  }
+ ],
+ "exits_before_min_hold": 0,
+ "fsrn_exits_before_min_hold": 0,
+ "deferred_conviction_exits": 0,
+ "governor_authority": {
+  "mode": "full",
+  "entry_decisions": {
+   "NO_ACTION:GRID_REFERENCE_UNAVAILABLE": 5,
+   "NO_ACTION:FSR_BELOW_ENTRY_HURDLE:FSRN": 74,
+   "ENTRY:GOVERNOR_ENTRY": 24,
+   "NO_ACTION:GOVERNOR_OVERSPEED_LIMIT": 44
+  },
+  "position_decisions": {
+   "HOLD:GOVERNOR_TRACKING": 2,
+   "EXIT:FSR_BELOW_EXIT:FSRN": 1
+  }
+ },
+ "trades": [
+  {
+   "symbol": "TITAN",
+   "side": "SELL",
+   "entry_price": 3559.5838,
+   "exit_price": 3569.784,
+   "quantity": 5,
+   "entry_timestamp": "2024-02-13 09:33:00+05:30",
+   "exit_timestamp": "2024-02-13 09:36:00+05:30",
+   "reason": "governor_exit:FSR_BELOW_EXIT:FSRN",
+   "pnl": -51.00100000000111,
+   "costs": 16.373347395499998,
+   "net_pnl": -67.3743473955011,
+   "trade_id": "trade-1",
+   "candidate_id": "candidate-7",
+   "bars_held": 3,
+   "entry_atr": 30.054352319357776,
+   "planned_entry_price": 3559.5838,
+   "planned_stop_price": 3594.470089027597,
+   "planned_target_price": 3507.2543664586037,
+   "mfe_price": 3558.95,
+   "mae_price": 3580.75,
+   "mfe_r": 0.01816759585689061,
+   "mae_r": -0.6067197340266344,
+   "terminal_bar_excursion": "intrabar_order_unknown",
+   "mfe_pre_exit_bar_r": 0.01816759585689061,
+   "mae_pre_exit_bar_r": -0.6067197340266344,
+   "mfe_terminal_inclusive_r": 0.01816759585689061,
+   "mae_terminal_inclusive_r": -0.6067197340266344,
+   "terminal_inclusive_is_ohlc_bound": true
+  }
+ ],
+ "ledger": [
+  {
+   "trade_id": "trade-1",
+   "symbol": "TITAN",
+   "side": "SELL",
+   "quantity": 5,
+   "entry_timestamp": "2024-02-13 09:33:00+05:30",
+   "exit_timestamp": "2024-02-13 09:36:00+05:30",
+   "exit_reason": "governor_exit:FSR_BELOW_EXIT:FSRN",
+   "bars_held": 3,
+   "entry_price": 3559.5838,
+   "exit_price": 3569.784,
+   "initial_risk_per_share": 34.886289027597286,
+   "gross_r_fill": -0.2923842083613769,
+   "gross_r_frictionless": -0.19020417315325638,
+   "gross_pnl_fill_inr": -51.00100000000111,
+   "gross_pnl_frictionless_inr": -33.17758879439831,
+   "brokerage_inr": 10.6940517,
+   "stt_inr": 4.449479749999999,
+   "turnover_charge_inr": 1.2298159455,
+   "slippage_inr": 17.823411205602802,
+   "fees_inr": 16.373347395499998,
+   "total_friction_inr": 34.1967586011028,
+   "total_friction_bps": 19.21390843564509,
+   "fees_bps": 9.199585297303578,
+   "slippage_bps": 10.014323138341513,
+   "net_pnl_inr": -67.3743473955011,
+   "engine_net_pnl_inr": -67.3743473955011,
+   "engine_costs_inr": 16.373347395499998,
+   "fee_reconciliation_error_inr": 0.0,
+   "net_r": -0.38625115639100327,
+   "exit_class": "NOISE_CHURN",
+   "exit_kind": "CONVICTION_FSRN",
+   "bars_to_event": null,
+   "forward_bars_available": 15
+  }
+ ],
+ "ledger_summary": {
+  "trades": 1,
+  "gross_pnl_frictionless_inr": -33.17758879439831,
+  "gross_pnl_fill_inr": -51.00100000000111,
+  "brokerage_inr": 10.6940517,
+  "stt_inr": 4.449479749999999,
+  "turnover_charge_inr": 1.2298159455,
+  "slippage_inr": 17.823411205602802,
+  "total_friction_inr": 34.1967586011028,
+  "total_friction_bps_of_entry_notional": 19.21390843564509,
+  "net_pnl_inr": -67.3743473955011,
+  "mean_gross_r_frictionless": -0.19020417315325638,
+  "mean_net_r": -0.38625115639100327,
+  "mean_friction_r": 0.19604698323774689,
+  "win_rate_net": 0.0,
+  "max_fee_reconciliation_error_inr": 0.0
+ },
+ "exit_quality": [
+  {
+   "exit_class": "NOISE_CHURN",
+   "bars_to_event": null,
+   "same_bar_ambiguous": false,
+   "forward_bars_available": 15,
+   "trade_id": "trade-1",
+   "session_bars_remaining_after_exit": 353,
+   "forward_bars": [
+    {
+     "timestamp": "2024-02-13 09:37:00+05:30",
+     "open": 3568.3,
+     "high": 3569.25,
+     "low": 3562.15,
+     "close": 3564.45
+    },
+    {
+     "timestamp": "2024-02-13 09:38:00+05:30",
+     "open": 3564.45,
+     "high": 3567.1,
+     "low": 3564.2,
+     "close": 3565.8
+    },
+    {
+     "timestamp": "2024-02-13 09:39:00+05:30",
+     "open": 3565.8,
+     "high": 3571.5,
+     "low": 3565.0,
+     "close": 3570.7
+    },
+    {
+     "timestamp": "2024-02-13 09:40:00+05:30",
+     "open": 3570.7,
+     "high": 3571.8,
+     "low": 3567.25,
+     "close": 3570.4
+    },
+    {
+     "timestamp": "2024-02-13 09:41:00+05:30",
+     "open": 3568.6,
+     "high": 3568.6,
+     "low": 3565.0,
+     "close": 3566.55
+    },
+    {
+     "timestamp": "2024-02-13 09:42:00+05:30",
+     "open": 3566.75,
+     "high": 3569.9,
+     "low": 3566.6,
+     "close": 3569.25
+    },
+    {
+     "timestamp": "2024-02-13 09:43:00+05:30",
+     "open": 3569.9,
+     "high": 3569.95,
+     "low": 3563.5,
+     "close": 3566.85
+    },
+    {
+     "timestamp": "2024-02-13 09:44:00+05:30",
+     "open": 3566.6,
+     "high": 3571.95,
+     "low": 3566.6,
+     "close": 3571.6
+    },
+    {
+     "timestamp": "2024-02-13 09:45:00+05:30",
+     "open": 3571.6,
+     "high": 3571.6,
+     "low": 3567.4,
+     "close": 3570.75
+    },
+    {
+     "timestamp": "2024-02-13 09:46:00+05:30",
+     "open": 3571.3,
+     "high": 3579.05,
+     "low": 3571.1,
+     "close": 3577.15
+    },
+    {
+     "timestamp": "2024-02-13 09:47:00+05:30",
+     "open": 3578.45,
+     "high": 3578.45,
+     "low": 3573.45,
+     "close": 3576.65
+    },
+    {
+     "timestamp": "2024-02-13 09:48:00+05:30",
+     "open": 3576.0,
+     "high": 3576.9,
+     "low": 3573.5,
+     "close": 3573.5
+    },
+    {
+     "timestamp": "2024-02-13 09:49:00+05:30",
+     "open": 3574.1,
+     "high": 3575.5,
+     "low": 3572.25,
+     "close": 3573.15
+    },
+    {
+     "timestamp": "2024-02-13 09:50:00+05:30",
+     "open": 3573.15,
+     "high": 3578.8,
+     "low": 3572.4,
+     "close": 3578.45
+    },
+    {
+     "timestamp": "2024-02-13 09:51:00+05:30",
+     "open": 3578.35,
+     "high": 3578.4,
+     "low": 3571.8,
+     "close": 3573.9
+    }
+   ],
+   "exit_reason": "governor_exit:FSR_BELOW_EXIT:FSRN",
+   "exit_kind": "CONVICTION_FSRN",
+   "bars_held": 3
+  }
+ ],
+ "exit_quality_summary": {
+  "n": 1,
+  "by_class": {
+   "DEFENSIVE_SAVE": 0,
+   "PREMATURE_CHOKE": 0,
+   "NOISE_CHURN": 1,
+   "CENSORED": 0
+  },
+  "by_exit_kind": {
+   "CONVICTION_FSRN": {
+    "DEFENSIVE_SAVE": 0,
+    "PREMATURE_CHOKE": 0,
+    "NOISE_CHURN": 1,
+    "CENSORED": 0
+   }
+  }
+ },
+ "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+ "pid": 52732
+}

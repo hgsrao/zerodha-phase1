@@ -1,0 +1,3 @@
+5:  CostedPaperBrokerAdapter fill -> lifecycle registration (_register_position_lifecycle -> CombinedCycleRuntime.register_fill) ->
+85:                         "broker_product": position.get("product"), "fills_so_far": len(engine.broker.fills)})
+109:    assert trade_id in orch._position_lifecycle

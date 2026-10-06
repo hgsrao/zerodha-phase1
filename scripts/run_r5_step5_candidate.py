@@ -645,11 +645,35 @@ def metrics(report: dict) -> dict:
     }
 
 
+def build_paper_combined_cycle_runtime(state_path: Path):
+    """Explicit prototype paper wiring; never a live broker admission switch.
+
+    Each run owns a new WAL. Existing state must use the certified recovery path.
+    Sealed protocol identity and holdout checks remain enforced by main().
+    """
+    from revision5.combined_cycle_store import CombinedCycleStore
+    from revision5.combined_cycle_runtime import CombinedCycleRuntime
+    from revision5.handoff_manager import HandoffConfig, HandoffManager
+    from revision5.engine_b_management import EngineBController, EngineBPolicy
+
+    state_path = Path(state_path)
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    # Exclusive reservation prevents accidental reuse of another run's lifecycle.
+    with state_path.open('xb'):
+        pass
+    store = CombinedCycleStore(state_path)
+    return CombinedCycleRuntime(
+        store, HandoffManager(store, HandoffConfig(enabled=True)),
+        EngineBController(EngineBPolicy(enabled=True)),
+    )
+
+
 def execute_block(
     root: Path,
     protocol: dict,
     block: dict,
     params: dict,
+    *, combined_cycle_state_path: Path | None = None,
 ) -> dict:
     from canonical_parameter_registry import (
         CanonicalParameterRegistry,
@@ -702,30 +726,35 @@ def execute_block(
 
     symbols = sorted(frames)
 
-    orch = Revision2ExternalEngineOrchestrator(
-        symbols,
-        registry,
-        calibration_overrides=params,
-        starting_equity=equity,
-        grid_context_provider=provider,
-        real_plant_dcs=plant,
-        plant_control_mode="PAPER_APPLY",
-        closed_loop_mode="active_paper",
-        telemetry_mode="compact",
-        # V1 predates the key and ran with the advisory default.
-        governor_authority=protocol["engine"].get("governor_authority", "advisory"),
-    )
+    runtime = (build_paper_combined_cycle_runtime(combined_cycle_state_path)
+               if combined_cycle_state_path is not None else None)
 
-    warmup = int(
-        protocol["block_execution_contract"][
-            "stock_warmup_bars_per_symbol"
-        ]
-    )
+    try:
+        orch = Revision2ExternalEngineOrchestrator(
+            symbols,
+            registry,
+            calibration_overrides=params,
+            starting_equity=equity,
+            grid_context_provider=provider,
+            real_plant_dcs=plant,
+            plant_control_mode="PAPER_APPLY",
+            closed_loop_mode="active_paper",
+            telemetry_mode="compact",
+            # V1 predates the key and ran with the advisory default.
+            governor_authority=protocol["engine"].get("governor_authority", "advisory"),
+            combined_cycle_runtime=runtime,
+        )
 
-    report = orch.run(
-        frames,
-        warmup=warmup,
-    )
+        warmup = int(
+            protocol["block_execution_contract"][
+                "stock_warmup_bars_per_symbol"
+            ]
+        )
+
+        report = orch.run(frames, warmup=warmup)
+    finally:
+        if runtime is not None:
+            runtime.store.close()
 
     m = metrics(report)
 
@@ -746,8 +775,21 @@ def execute_block(
             audit["slice_sha256"],
     }
 
+    runtime_receipt = None
+    if runtime is not None:
+        from dataclasses import asdict
+        runtime_receipt = {
+            "environment": "paper", "classification": "PROTOTYPE_COMBINED_CYCLE",
+            "live_admissions": False,
+            "handoff": asdict(runtime.handoff.config),
+            "engine_b": asdict(runtime.engine_b.policy),
+            "runtime": asdict(runtime.config),
+        }
+        canonical["combined_cycle_runtime"] = runtime_receipt
+
     return {
         "audit": audit,
+        **({"combined_cycle_runtime": runtime_receipt} if runtime_receipt else {}),
         "metrics": m,
         "plant_control":
             report["plant_control"],
@@ -921,7 +963,14 @@ def main() -> None:
         required=True,
     )
 
+    parser.add_argument('--paper-combined-cycle-state', type=Path,
+                        help='Opt-in prototype paper lifecycle WAL (new file; Stage B Block 1 only).')
+
     args = parser.parse_args()
+
+    if args.paper_combined_cycle_state is not None and (
+            args.stage != 'B' or args.block != 1 or args.audit_only):
+        parser.error('paper combined-cycle execution requires Stage B Block 1, not audit-only')
 
     root = Path(args.root).resolve()
     protocol_path = Path(
@@ -1046,6 +1095,7 @@ def main() -> None:
                 protocol,
                 block,
                 params,
+                combined_cycle_state_path=args.paper_combined_cycle_state,
             )
             for block in blocks
         ]

@@ -1,0 +1,39 @@
+{
+ "mode": "runtime",
+ "symbols": [
+  "TITAN"
+ ],
+ "broker_class": "revision2_external.paper_execution.CostedPaperBrokerAdapter",
+ "runtime_class": "CombinedCycleRuntime",
+ "input": {
+  "loader": "scripts/run_r5_step5_candidate.prepare_block",
+  "block": 1,
+  "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+  "params_file": "/home/srinivas/projects/zerodha-phase1/outputs/r5_step5_stage_a_v2_state/params/trial_007.json",
+  "params_sha256": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+  "protocol_sha256": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7"
+ },
+ "exception": null,
+ "completed": true,
+ "trades": 1,
+ "trade_ledger_sha256": "051143f6bd1d5988a0bf97a5b53d23b4a165177e0b84834d5cc728a583a334c1",
+ "trade_sides": [
+  "SELL"
+ ],
+ "exit_reasons": [
+  "governor_exit:FSR_BELOW_EXIT:FSRN"
+ ],
+ "reconcile_calls": 4,
+ "reconcile_errors": [],
+ "broker_positions_after": {
+  "TITAN": {
+   "quantity": 0,
+   "avg_price": 3559.5837999999994,
+   "product": "MIS"
+  }
+ },
+ "open_trades_after": [],
+ "completed_trades": 1,
+ "store_open_after": [],
+ "handoff_requests": 0
+}

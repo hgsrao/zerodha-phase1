@@ -1,0 +1,11 @@
+{
+  "source": "/home/srinivas/projects/zerodha-phase1/outputs/r5_step5_stage_a_v2_state/params/trial_000.json",
+  "sha256": "7bb4a976a31ebee22b8fe8330a7520aba8d1ba4c4f564b618d6701754d59ae3d",
+  "matches_v2_search_surface": true,
+  "registry_errors": [],
+  "loaded_for_execution": false,
+  "stock_manifest_exists": true,
+  "grid_manifest_in_worktree": false,
+  "grid_manifest_other_root": "/home/srinivas/projects/zerodha-phase1/local_workspace/records/grid-manifest-local.json",
+  "data_file_identity_verified": false
+}

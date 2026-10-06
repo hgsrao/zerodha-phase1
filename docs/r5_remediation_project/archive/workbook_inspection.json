@@ -1,0 +1,29 @@
+{
+  "recordCount": 17,
+  "truncated": false,
+  "metadata": {
+    "revision": "3474kd",
+    "target": {
+      "id": "wb/q8xkht",
+      "beforeLines": 0,
+      "afterLines": 0
+    },
+    "kind": {
+      "requested": "sheet",
+      "tokens": [
+        "sheet"
+      ]
+    },
+    "include": {
+      "requested": "id,name",
+      "tokens": [
+        "id",
+        "name"
+      ]
+    },
+    "exclude": {
+      "tokens": []
+    },
+    "notices": []
+  }
+}

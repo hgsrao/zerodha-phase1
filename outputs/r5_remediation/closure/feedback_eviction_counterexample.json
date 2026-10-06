@@ -1,0 +1,13 @@
+{
+  "classification": "IN_MEMORY_COUNTEREXAMPLE_NO_SOURCE_EDIT",
+  "journal_attached": false,
+  "same_trade_duplicate_with_DONE": {
+    "merit_outcomes": 1,
+    "governor_outcomes": 1
+  },
+  "same_trade_duplicate_after_proposed_eviction": {
+    "merit_outcomes": 2,
+    "governor_outcomes": 2
+  },
+  "verdict": "Reject unconditional Patch A"
+}

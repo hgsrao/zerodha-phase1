@@ -1,0 +1,40 @@
+--- /home/srinivas/projects/zerodha-r5-governor-refactor/outputs/r5_remediation/state_recovery/paper_state_journal.before.py	2026-10-05 22:23:30.957801930 +0530
++++ /home/srinivas/projects/zerodha-r5-governor-refactor/revision5/paper_state_journal.py	2026-10-05 22:24:07.556395243 +0530
+@@ -18,6 +18,7 @@
+ import sys
+ 
+ from revision5.protection_snapshot import build_plant_protection_snapshot
++from revision5.state_recovery import StateRecoveryJournal
+ 
+ 
+ def canonical(value):
+@@ -55,6 +56,9 @@
+         'realized_pnl': engine.broker.realized_pnl,
+         'booked_costs': engine.broker.booked_costs,
+         'close_receipts': engine._close_feedback_receipts,
++        'merit_history': engine.plant_control.dispatch_controller.merit_source.trade_history_r,
++        'merit_weights': engine.plant_control.dispatch_controller.merit_source.weights,
++        'mtm_peak_equity': engine._mtm_peak,
+         'symbol_cooldowns': engine.symbol_cooldown_until_bar,
+         'symbol_trips': engine.symbol_tripped,
+         'execution_halted': engine._execution_halted,
+@@ -81,6 +85,7 @@
+         self.con = sqlite3.connect(self.path, isolation_level=None)
+         self.con.execute('PRAGMA journal_mode=WAL')
+         self.con.execute('PRAGMA synchronous=FULL')
++        self.recovery = StateRecoveryJournal(self.con)
+         self.con.execute('CREATE TABLE IF NOT EXISTS identity (id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL)')
+         self.con.execute('''CREATE TABLE IF NOT EXISTS checkpoints (
+             seq INTEGER PRIMARY KEY, timestamp TEXT NOT NULL, payload TEXT NOT NULL,
+@@ -148,6 +153,11 @@
+                 engine.real_plant_dcs.reset_unit_breaker(bay_id=command['bay_id'])
+             engine._record_controller_event('NATIVE_PLANT_COMMAND', timestamp, 'PLANT', command)
+ 
++    def commit_feedback(self, engine, event_id):
++        if not self.bound:
++            raise RuntimeError('Feedback journal has no sealed replay identity')
++        self.recovery.commit_feedback(event_id, checkpoint_state(engine))
++
+     def checkpoint(self, engine, timestamp):
+         if not self.bound:
+             raise RuntimeError('Journal has no sealed replay identity')

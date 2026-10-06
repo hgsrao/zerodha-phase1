@@ -1,0 +1,12 @@
+command: PYTHONDONTWRITEBYTECODE=1 /home/srinivas/.venvs/zerodha-phase1-r5/bin/python -m pytest -v -p no:cacheprovider -p no:warnings tests/test_r5_d01_orchestrator_run_integration.py
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0 -- /home/srinivas/.venvs/zerodha-phase1-r5/bin/python
+rootdir: /home/srinivas/projects/zerodha-r5-governor-refactor
+plugins: timeout-2.4.0, typeguard-4.6.0, socket-0.8.1
+collecting ... collected 2 items
+
+tests/test_r5_d01_orchestrator_run_integration.py::test_fixture_files_match_their_recorded_hashes PASSED [ 50%]
+tests/test_r5_d01_orchestrator_run_integration.py::test_orchestrator_run_reconciles_after_the_paper_fill_beyond_the_d01_failure_point PASSED [100%]
+
+============================== 2 passed in 5.24s ===============================
+exit status: 0

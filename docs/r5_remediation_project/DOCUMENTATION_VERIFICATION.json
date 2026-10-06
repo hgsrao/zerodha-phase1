@@ -1,0 +1,10 @@
+{
+  "verification": "Documentation integrity only; engine tests not run",
+  "activity_count": 77,
+  "primary_finding_unique_count": 68,
+  "activity_audit_count": 77,
+  "milestone_audit_count": 11,
+  "dependency_dag_valid": true,
+  "archive_hashes_match": true,
+  "errors": []
+}

@@ -1,0 +1,14 @@
+{
+  "protocol": {
+    "path": "/home/srinivas/projects/zerodha-r5-governor-refactor/revision5/step5_sealed_calibration_protocol_v2.json",
+    "expected": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+    "actual": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+    "match": true
+  },
+  "frozen_trial007": {
+    "path": "/home/srinivas/projects/zerodha-r5-governor-refactor/tests/fixtures/r5_d01/trial_007_params.json",
+    "expected": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+    "actual": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+    "match": true
+  }
+}

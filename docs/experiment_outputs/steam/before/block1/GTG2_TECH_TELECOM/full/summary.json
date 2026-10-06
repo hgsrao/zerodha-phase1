@@ -1,0 +1,351 @@
+{
+  "metrics": {
+    "fills": 8,
+    "completed_trades": 8,
+    "net_pnl": -539.6223943755947,
+    "gross_pnl": -321.2521999999856,
+    "profit_factor": 0.0,
+    "mtm_max_drawdown_fraction": 0.0005641829512400084,
+    "safety_violations": 0
+  },
+  "exit_reasons": {
+    "stop": 1,
+    "governor_exit": 7
+  },
+  "exit_reason_detail": {
+    "stop": 1,
+    "governor_exit:FSR_BELOW_EXIT:FSRN": 7
+  },
+  "sides": {
+    "SELL": 7,
+    "BUY": 1
+  },
+  "bars_held": {
+    "n": 8,
+    "min": 2,
+    "p10": 4,
+    "p50": 7,
+    "p90": 9,
+    "max": 16,
+    "mean": 6.875
+  },
+  "gain_schedule": {
+    "begin_bar_calls": 1875,
+    "begin_bar_with_environment": 0,
+    "apply_runtime_profile_calls": {
+      "GTG2_TECH_TELECOM": 0
+    },
+    "distinct_gain_tuples": {
+      "GTG2_TECH_TELECOM": 1
+    },
+    "gains": {
+      "GTG2_TECH_TELECOM": [
+        {
+          "runtime_kp": 1.5,
+          "runtime_ki": 0.08,
+          "runtime_kd": 0.6,
+          "runtime_droop_r": 0.04,
+          "runtime_base_z": -2.0,
+          "runtime_target_r": 0.3,
+          "runtime_grid_droop_gain": 0.05,
+          "runtime_grid_droop_max": 0.25,
+          "runtime_dynamic_offset_min": -0.45,
+          "runtime_dynamic_offset_max": 0.15,
+          "runtime_integral_clamp": 3.0,
+          "runtime_outcome_window": 6.0
+        }
+      ]
+    },
+    "changes": [],
+    "verdict": {
+      "GTG2_TECH_TELECOM": "FIXED"
+    }
+  },
+  "outer_loop": {
+    "updates": 8,
+    "realized_r": {
+      "n": 8,
+      "min": -0.8503630283789966,
+      "p10": -0.7102776060720399,
+      "p50": -0.13467776530302708,
+      "p90": -0.004031570073834169,
+      "max": 0.1150121392915189,
+      "mean": -0.30436021394568763
+    },
+    "error": {
+      "n": 8,
+      "min": 0.4457068461857441,
+      "p10": 0.5832551370796706,
+      "p50": 0.8348284568920823,
+      "p90": 1.0803203172255182,
+      "max": 1.1503630283789965,
+      "mean": 0.8192069145328493
+    },
+    "integral": {
+      "n": 8,
+      "min": 1.1503630283789965,
+      "p10": 2.2306833456045148,
+      "p50": 3.0,
+      "p90": 3.0,
+      "max": 3.0,
+      "mean": 2.672630796747939
+    },
+    "control_u": {
+      "n": 8,
+      "min": 0.8260312947422602,
+      "p10": 1.046374970304611,
+      "p50": 1.3860833079744737,
+      "p90": 1.7569095167945517,
+      "max": 2.5077914018662124,
+      "mean": 1.47604884900304
+    },
+    "feedback_offset": {
+      "n": 8,
+      "min": -0.4500000000000002,
+      "p10": -0.4392273791986381,
+      "p50": -0.32851842455020197,
+      "p90": -0.261593742576153,
+      "max": -0.20650782368556486,
+      "mean": -0.3468937309424409
+    },
+    "offset_saturated_min_fraction": 0.125,
+    "offset_saturated_max_fraction": 0.0,
+    "dynamic_z_zero_grid": {
+      "n": 8,
+      "min": -2.45,
+      "p10": -2.439227379198638,
+      "p50": -2.328518424550202,
+      "p90": -2.261593742576153,
+      "max": -2.206507823685565,
+      "mean": -2.346893730942441
+    }
+  },
+  "entry_comparator": {
+    "evaluations": 666,
+    "actions": {
+      "ENTRY": 454,
+      "NO_ACTION": 212
+    },
+    "sides": {
+      "SELL": 454,
+      "BUY": 212
+    },
+    "dynamic_z": {
+      "n": 666,
+      "min": -2.351387068086683,
+      "p10": -2.3465208269936184,
+      "p50": -2.328518424550202,
+      "p90": -2.212489019330725,
+      "max": -2.0,
+      "mean": -2.307130956357117
+    },
+    "overspeed_limit": {
+      "n": 666,
+      "min": 1.6486129319133171,
+      "p10": 1.6534791730063816,
+      "p50": 1.671481575449798,
+      "p90": 1.7875109806692748,
+      "max": 2.0,
+      "mean": 1.692869043642883
+    },
+    "signed_z": {
+      "n": 666,
+      "min": -1.4721304383456149,
+      "p10": 0.634257849492072,
+      "p50": 1.425891857019795,
+      "p90": 2.229098547317814,
+      "max": 3.4962050386254067,
+      "mean": 1.4199139863527646
+    },
+    "margin": {
+      "n": 666,
+      "min": -1.7027128623109715,
+      "p10": -0.5565451353073625,
+      "p50": 0.27215845113696724,
+      "p90": 1.072308587399183,
+      "max": 3.147988557810874,
+      "mean": 0.2729550572901182
+    },
+    "feedback_offset": {
+      "n": 666,
+      "min": -0.3465208269936184,
+      "p10": -0.3465208269936184,
+      "p50": -0.32851842455020197,
+      "p90": -0.20650782368556486,
+      "max": 0.0,
+      "mean": -0.30361195474520214
+    },
+    "droop_penalty": {
+      "n": 666,
+      "min": 0.0,
+      "p10": 0.0,
+      "p50": 0.001028255310775883,
+      "p90": 0.009442286512280962,
+      "max": 0.010785457270148235,
+      "mean": 0.0035190016119150676
+    },
+    "droop_active_fraction": 0.521021021021021,
+    "droop_at_cap_fraction": 0.0
+  },
+  "mark_v_entry": {
+    "decisions": {
+      "NO_ACTION:GRID_REFERENCE_UNAVAILABLE": 94,
+      "ENTRY:GOVERNOR_ENTRY": 146,
+      "NO_ACTION:FSR_BELOW_ENTRY_HURDLE:FSRN": 308,
+      "NO_ACTION:GOVERNOR_OVERSPEED_LIMIT": 212
+    },
+    "controlling_limiter": {
+      "FSRN": 556,
+      "FSRT": 76,
+      "FSRA": 34
+    },
+    "fsr_selected": {
+      "n": 666,
+      "min": 0.0,
+      "p10": 0.0,
+      "p50": 0.5,
+      "p90": 0.9972585506747096,
+      "max": 1.0,
+      "mean": 0.5274968031037122
+    },
+    "entry_hurdle": {
+      "n": 666,
+      "min": 0.6,
+      "p10": 0.6,
+      "p50": 0.6,
+      "p90": 0.6,
+      "max": 0.6594871794871818,
+      "mean": 0.600869349993636
+    }
+  },
+  "inner_loop": {
+    "evaluations": 55,
+    "positions": 8,
+    "actions": {
+      "HOLD:GOVERNOR_TRACKING": 55
+    },
+    "error": {
+      "n": 55,
+      "min": -0.2782124469440691,
+      "p10": -0.025682389784804992,
+      "p50": 0.31316067831264227,
+      "p90": 0.7751247043578705,
+      "max": 1.0206145876961927,
+      "mean": 0.3527208193329407
+    },
+    "integral": {
+      "n": 55,
+      "min": -0.3501688132865714,
+      "p10": -0.05347774032808711,
+      "p50": 0.5384711506688447,
+      "p90": 3.0,
+      "max": 3.0,
+      "mean": 1.0172858147881199
+    },
+    "derivative": {
+      "n": 55,
+      "min": -0.2782124469440691,
+      "p10": -0.08577886947559715,
+      "p50": 0.06183096740056182,
+      "p90": 0.26819743312624206,
+      "max": 0.5491176164057435,
+      "mean": 0.08736357965595759
+    },
+    "control_u": {
+      "n": 55,
+      "min": -0.6065031343380707,
+      "p10": -0.0329725891975132,
+      "p50": 0.564587895762428,
+      "p90": 1.4570535584314086,
+      "max": 1.849443024344652,
+      "mean": 0.6628822419760352
+    },
+    "exit_envelope": {
+      "n": 55,
+      "min": 0.23922058018812042,
+      "p10": 0.32958968506315084,
+      "p50": 0.7592610513026486,
+      "p90": 1.3554195873654022,
+      "max": 1.7361667012243673,
+      "mean": 0.8313633514536012
+    },
+    "path_noise_r": {
+      "n": 55,
+      "min": 0.1078958802394871,
+      "p10": 0.11689747939089727,
+      "p50": 0.21063478174708553,
+      "p90": 0.36640688433765256,
+      "max": 0.4411791869763515,
+      "mean": 0.22734928704171836
+    },
+    "error_over_envelope_fraction": 0.01818181818181818,
+    "control_u_over_exit_control_fraction": 0.6909090909090909,
+    "floor_raised_fraction": 1.0,
+    "mfe_r_at_last_step": {
+      "n": 8,
+      "min": 0.0,
+      "p10": 0.021364626043298546,
+      "p50": 0.195483313981892,
+      "p90": 0.44639921352530115,
+      "max": 0.5876095570512734,
+      "mean": 0.22566921285886524
+    },
+    "inner_exit_reasons": {}
+  },
+  "mark_v_position": {
+    "decisions": {
+      "HOLD:GOVERNOR_TRACKING": 21,
+      "HOLD:GOVERNOR_LOAD_SHED": 27,
+      "EXIT:FSR_BELOW_EXIT:FSRN": 7
+    },
+    "controlling_limiter": {
+      "FSRN": 53,
+      "FSRT": 2
+    },
+    "fsr_selected": {
+      "n": 55,
+      "min": 0.1,
+      "p10": 0.2,
+      "p50": 0.5,
+      "p90": 0.9,
+      "max": 0.9988938215520051,
+      "mean": 0.5335659982861842
+    }
+  },
+  "advisory_exits_not_actuated": 16,
+  "protection": {
+    "outcomes": 8,
+    "trips": 1,
+    "outcomes_while_tripped": 2,
+    "admission": {
+      "AVAILABLE:ALLOWED": 110,
+      "AVAILABLE:BLOCKED": 13,
+      "UNIT_TRIPPED_OFFLINE:BLOCKED": 27,
+      "BAY_COOLDOWN:BLOCKED": 4
+    }
+  },
+  "governor_authority_report": {
+    "mode": "full",
+    "entry_decisions": {
+      "NO_ACTION:GRID_REFERENCE_UNAVAILABLE": 94,
+      "ENTRY:GOVERNOR_ENTRY": 146,
+      "NO_ACTION:FSR_BELOW_ENTRY_HURDLE:FSRN": 308,
+      "NO_ACTION:GOVERNOR_OVERSPEED_LIMIT": 212
+    },
+    "position_decisions": {
+      "HOLD:GOVERNOR_TRACKING": 21,
+      "HOLD:GOVERNOR_LOAD_SHED": 27,
+      "EXIT:FSR_BELOW_EXIT:FSRN": 7
+    }
+  },
+  "micom": {
+    "trip_bar_counts": {
+      "MICOM_INPUT_UNAVAILABLE": 80,
+      "ANSI 21": 45
+    },
+    "vol_z_window": 20
+  },
+  "runtime_seconds": 137.2,
+  "trade_list_sha256": "cae30c50e0272294fbe793e9960089f87f7410b6ee58706c3cbe27c0db7f6d53",
+  "passthrough_verified": true
+}

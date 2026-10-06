@@ -31,6 +31,7 @@ import itertools
 import math
 from dataclasses import replace, asdict
 from collections import Counter, deque
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -138,7 +139,15 @@ class Revision2ExternalEngineOrchestrator:
         real_plant_dcs: Optional[Any] = None,
         paper_journal: Optional[Any] = None,
         governor_authority: str = "advisory",
+        combined_cycle_runtime: Optional[Any] = None,
+        recovery_account_id: Optional[str] = None,
+        fleet_loading_policy: Optional[Any] = None,
     ) -> None:
+        if recovery_account_id is not None and (not isinstance(recovery_account_id, str) or not recovery_account_id
+                                                or combined_cycle_runtime is None or real_plant_dcs is None):
+            raise ValueError('Recovery checkpoints require explicit account, native plant and combined-cycle runtime')
+        self.recovery_account_id = recovery_account_id
+        self.combined_cycle_runtime = combined_cycle_runtime
         # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
         # Default None -- unchanged behaviour: this replay engine does not instantiate a real plant,
         # so protection state uses the explicit SYMBOL_TRIPS_ONLY fallback (see protection_snapshot.py).
@@ -335,7 +344,8 @@ class Revision2ExternalEngineOrchestrator:
                                                         pd.DataFrame({"timestamp": [], "close": []})))
         self.plant_control = PlantControlChain(
             self.config, grid_provider,
-            DynamicBayLoadDispatcher(total_capital=float(starting_equity)), plant_control_mode)
+            DynamicBayLoadDispatcher(total_capital=float(starting_equity)), plant_control_mode,
+            fleet_loading_policy=fleet_loading_policy)
         self._paper_plant_snapshot = None
         self._paper_plant_timestamp = None
         self._paper_admission_evaluations = 0
@@ -395,6 +405,56 @@ class Revision2ExternalEngineOrchestrator:
         self._micom_opened_intertie = False
         self._micom_trip_counts: Counter[str] = Counter()
         self.startup_certificate = self._issue_startup_certificate()
+
+    def _checkpoint_morning_recovery(self, *, account_id, timestamp):
+        """Explicit shutdown checkpoint; shared lifecycle/fleet database."""
+        from revision5.morning_recovery import capture
+        return capture(self, account_id, timestamp)
+
+    def _reconcile_morning_startup(self, *, account_id, broker=None, next_timestamp=None):
+        """Opt-in recovery preparation. Admissions remain blocked after hydration."""
+        from revision5.morning_recovery import prepare
+        return prepare(self, account_id, self.broker if broker is None else broker, next_timestamp=next_timestamp)
+
+    def resume_verified_paper_replay(self, symbol_bars, *, journal_path, warmup=60, commands=(), feedback_compaction=False, feedback_account_id="OFFLINE_PAPER"):
+        """Rebuild every controller from sealed inputs; verify prefix before new ticks.
+
+        Historical orders are simulated into a NEW empty paper broker. This is
+        deliberately distinct from resuming live execution on a hydrated broker.
+        """
+        from revision5.paper_state_journal import PaperStateJournal
+        if (type(self.broker) is not CostedPaperBrokerAdapter or self.broker.environment != 'paper'
+            or self.plant_control.mode != PlantControlMode.PAPER_APPLY
+            or self.open_trades or self.completed_trades or self.broker.fills
+            or getattr(self,'_morning_recovery_prepared',False) or self.paper_journal is not None):
+            self._execution_halted = True
+            raise RuntimeError('Verified resume requires a fresh offline PAPER_APPLY engine')
+        if self.combined_cycle_runtime is not None and self.combined_cycle_runtime.store.connection.execute('SELECT COUNT(*) FROM positions').fetchone()[0]:
+            self._execution_halted = True
+            raise RuntimeError('Historical paper reconstruction requires a fresh simulation lifecycle store')
+        try:
+            journal = PaperStateJournal(journal_path, commands=commands, require_existing=True,
+                                        feedback_compaction=feedback_compaction, feedback_account_id=feedback_account_id)
+        except Exception:
+            self._execution_halted = True
+            raise
+        self.paper_journal = journal
+        try:
+            report = self.run(symbol_bars, warmup=warmup)
+            if not journal.prefix_verified:
+                raise RuntimeError('Recovery prefix was not fully verified')
+            report['paper_recovery'] = dict(prefix_checkpoints=journal.prefix_length,
+                reconciled_checkpoints=journal.reconciled_checkpoints,
+                resume_after=journal.resume_boundary,
+                appended_checkpoints=journal.cursor-journal.prefix_length,
+                admissions_resumed=not self._execution_halted, environment='paper',
+                warmup_bypassed=False)
+            return report
+        except BaseException:
+            self._execution_halted = True
+            raise
+        finally:
+            journal.close()
 
     def _build_safety_gate_config(self) -> SafetyGateConfig:
         v = self.safety_contract.values
@@ -853,37 +913,131 @@ class Revision2ExternalEngineOrchestrator:
     def _register_realized_r_close_feedback(
         self, *, symbol: str, trade: Dict[str, Any], bay_id: str, realized_r: float, reason: str = "CLOSE",
     ) -> None:
-        """Feed one authoritative realized-R close to both separately-owned feedback paths,
-        exactly once per close, within this process/replay run only (no persistent cross-restart
-        receipt is implemented -- that remains future work).
+        """Apply both paper feedback consumers atomically within this process.
 
-        State machine per receipt key: absent -> PENDING -> DONE.  A retried/duplicate call for a
-        key that is already PENDING or DONE is a silent no-op (never fed twice).  If either
-        ``register_trade`` call raises after the receipt is marked PENDING, the receipt is left at
-        PENDING (never advanced to DONE, never removed), so a retry is still blocked from feeding
-        the same close again -- and the exception still propagates unmodified; this never swallows
-        an unexpected error."""
+        A failed consumer restores both owners and permits an explicit retry.
+        Completed duplicates are no-ops. Legacy unresolved PENDING receipts fail
+        closed; they cannot safely establish which consumer was already applied.
+        Process-crash recovery still requires the offline paper replay journal.
+        """
         key = self._close_feedback_key(symbol, trade)
-        if key in self._close_feedback_receipts:
+        journal=getattr(self, 'paper_journal', None)
+        # Fresh replay has a fresh epoch: historical rows validate reconstruction,
+        # whereas a retry in this same epoch must not mutate either consumer.
+        if getattr(journal, 'feedback_compaction', False):
+            context=dict(symbol=symbol,trade_id=trade.get('trade_id'),bay_id=bay_id,
+                         realized_r=realized_r,reason=reason,
+                         trade={name:trade.get(name) for name in
+                                ('side','quantity','entry_price','entry_timestamp','initial_stop_price')})
+            try:
+                if journal.feedback_applied(self,key,context):
+                    return
+            except Exception:
+                self._execution_halted=True
+                raise
+        if self._close_feedback_receipts.get(key) == "DONE":
+            if getattr(journal, 'feedback_compaction', False):
+                self._execution_halted=True
+                raise RuntimeError('In-memory DONE lacks current-epoch durable consumption')
             return
+        if key in self._close_feedback_receipts:
+            self._execution_halted = True
+            raise RuntimeError('Unresolved close feedback receipt requires recovery')
+        merit = self.plant_control.dispatch_controller.merit_source
+        bay = self.real_plant_dcs.bays[bay_id] if self.plant_control.mode == PlantControlMode.PAPER_APPLY else None
+        governor = bay.governor if bay is not None else self._bay_governors[bay_id]
+        merit_before = deepcopy((merit.trade_history_r, merit.weights))
+        governor_before = {name: deepcopy(getattr(governor, name)) for name in
+                           ('history_r', 'integral_error', 'last_error', 'last_control_u', '_inner_states')}
+        bay_before = {name: getattr(bay, name) for name in
+                      ('consecutive_stops', 'cooldown_until_bar_exclusive', 'tripped_offline')} if bay is not None else {}
         self._close_feedback_receipts[key] = "PENDING"
-        self.plant_control.dispatch_controller.merit_source.register_trade(bay_id, realized_r)
-        if self.plant_control.mode == PlantControlMode.PAPER_APPLY:
-            self.real_plant_dcs.bays[bay_id].register_outcome(
-                realized_r=realized_r, reason=reason, bar_index=max(0, self._native_bar_index))
-        else:
-            self._bay_governors[bay_id].register_trade(realized_r)
+        try:
+            merit.register_trade(bay_id, realized_r)
+            if bay is not None:
+                bay.register_outcome(realized_r=realized_r, reason=reason,
+                                     bar_index=max(0, self._native_bar_index))
+            else:
+                governor.register_trade(realized_r)
+            self._close_feedback_receipts[key] = "DONE"
+            journal = getattr(self, 'paper_journal', None)
+            if journal is not None:
+                journal.commit_feedback(self, key)
+        except Exception:
+            merit.trade_history_r, merit.weights = merit_before
+            for name, value in governor_before.items():
+                setattr(governor, name, value)
+            for name, value in bay_before.items():
+                setattr(bay, name, value)
+            del self._close_feedback_receipts[key]
+            self._execution_halted = True
+            raise
         self._close_feedback_receipts[key] = "DONE"
+
+    def _compact_close_feedback_receipts(self, closed_trade_keys):
+        """Evict only stable DONE guards covered by current-epoch durable dedup.
+
+        Actual CLOSED persistence and a validated reconciled portfolio checkpoint
+        are required. Default/no-journal execution retains its guards indefinitely.
+        A fresh paper reconstruction epoch still applies each historical event once.
+        """
+        journal=getattr(self, 'paper_journal', None)
+        if not getattr(journal, 'feedback_compaction', False):
+            return 0
+        evicted=0
+        try:
+            for key in closed_trade_keys:
+                if (not isinstance(key,str) or not key.startswith('trade_id:')
+                    or self._close_feedback_receipts.get(key) != 'DONE'):
+                    continue
+                if journal.is_durably_closed(self,key):
+                    trade_id=key[len('trade_id:'):]
+                    record=self._position_lifecycle.get(trade_id)
+                    if (record is not None and record.is_open) or any(
+                            trade.get('trade_id')==trade_id for trade in self.open_trades.values()):
+                        raise RuntimeError('Durable CLOSED receipt conflicts with active position ownership')
+                    del self._close_feedback_receipts[key]
+                    self._position_lifecycle.pop(trade_id,None)
+                    evicted+=1
+        except Exception:
+            self._execution_halted=True
+            raise
+        return evicted
+
+    def _trip_delivery_unauthorised(self, symbol, timestamp, detail):
+        from revision2_external.protection_policy import DeliveryAuthorisationTrip, DELIVERY_UNAUTHORIZED
+        self._execution_halted = True
+        self._delivery_authorisation_trip = dict(code=DELIVERY_UNAUTHORIZED, symbol=symbol,
+                                                timestamp=str(timestamp), detail=str(detail))
+        try:
+            self._record_controller_event('PLANT_TRIP', timestamp, symbol, self._delivery_authorisation_trip)
+        except Exception:
+            pass  # A failed observer must not obscure the fatal delivery rejection.
+        raise DeliveryAuthorisationTrip(f'{DELIVERY_UNAUTHORIZED}: {symbol}: {detail}')
 
     def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
         self._assert_paper_plant_broker()
         self._verify_broker_position_reconciles(symbol, trade)
         close_side = "SELL" if trade["side"] == "BUY" else "BUY"
         self._exit_orders_submitted += 1
-        result = self.broker.place_order(
-            symbol=symbol, side=close_side, quantity=trade["quantity"], order_type="MARKET",
-            market_price=exit_price, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
-        )
+        from kiteconnect.exceptions import InputException, OrderException
+        from revision2_external.protection_policy import delivery_authorisation_failure, DELIVERY_UNAUTHORIZED
+        owner = self._position_lifecycle.get(trade.get('trade_id'))
+        product = owner.product if owner is not None else self.broker.get_position(symbol).get('product','MIS')
+        try:
+            result = self.broker.place_order(
+                symbol=symbol, side=close_side, quantity=trade["quantity"], order_type="MARKET",
+                market_price=exit_price, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+            )
+        except (InputException, OrderException) as exc:
+            self._execution_halted = True
+            if product == 'CNC' and close_side == 'SELL' and delivery_authorisation_failure(exc):
+                self._trip_delivery_unauthorised(symbol, timestamp, str(exc))
+            raise
+        if (not result.get('passed') and product == 'CNC' and close_side == 'SELL'
+            and (result.get('trip_code') == DELIVERY_UNAUTHORIZED or
+                 delivery_authorisation_failure(result.get('reason', result.get('reasons',''))))):
+            self._trip_delivery_unauthorised(symbol, timestamp, result.get('reason', result.get('reasons','')))
         if result["passed"]:
             state = self._exit_controller_states.get(symbol)
             pnl = (
@@ -981,13 +1135,45 @@ class Revision2ExternalEngineOrchestrator:
                 # Any profitable exit breaks consecutive loss streak
                 self.symbol_consecutive_losses[symbol] = 0
             self._equity_curve.append(self._equity())
-            self._close_position_lifecycle(trade)
             del self.open_trades[symbol]
             self._exit_controller_states.pop(symbol, None)
             _, governor = self._governor_for(symbol)
             if governor is not None:
                 governor.confirm_position_closed(trade.get("trade_id"))
             self._record_mtm(timestamp)
+            self._close_position_lifecycle(trade, completed=completed)
+
+            # ---- 2. Authoritative realized-R close feedback -------------------------------
+            # Plant-level dispatch feedback (BLOCKER 2) and local governor feedback: after the
+            # authoritative exit fill, after position/ledger reconciliation and after the engine
+            # ledger above already records the trade as closed.  Exactly-once receipts still apply;
+            # an exception here propagates with the ledger already consistent with the broker.
+            try:
+                if state is not None:
+                    risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
+                    if risk > 0.0:
+                        try:
+                            bay_id = _r5_bay_for_symbol(symbol)
+                        except KeyError:
+                            # Symbol outside the certified 48-symbol R5 topology (e.g. a synthetic
+                            # test-only symbol): there is no R5 bay to feed, exactly like the native
+                            # plant's own UNMAPPED_SYMBOL admission path.  Never invent a bay mapping.
+                            bay_id = None
+                        if bay_id is not None:
+                            realized_r = self.exit_controller._r_multiple(state, float(result["filled_price"]))
+                            self._register_realized_r_close_feedback(
+                                symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r, reason=reason)
+            finally:
+                if self.combined_cycle_runtime is not None:
+                    try:
+                        self.combined_cycle_runtime.close(
+                            self._position_lifecycle[trade['trade_id']], trade, broker=self.broker,
+                            completed_trade=completed, close_feedback_receipts=self._close_feedback_receipts)
+                    except Exception:
+                        self._execution_halted = True
+                        raise
+
+            # ---- 3. Research telemetry (never part of the authoritative books) -------------
             self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
                 "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
                 "exit_reason": reason, "net_pnl": completed["net_pnl"], "pnl": pnl, "costs": trade_costs,
@@ -997,28 +1183,6 @@ class Revision2ExternalEngineOrchestrator:
                 "terminal_bar_excursion": completed.get("terminal_bar_excursion"),
                 "shadow_r_trajectory": shadow,
             })
-
-            # ---- 2. Authoritative realized-R close feedback -------------------------------
-            # Plant-level dispatch feedback (BLOCKER 2) and local governor feedback: after the
-            # authoritative exit fill, after position/ledger reconciliation and after the engine
-            # ledger above already records the trade as closed.  Exactly-once receipts still apply;
-            # an exception here propagates with the ledger already consistent with the broker.
-            if state is not None:
-                risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
-                if risk > 0.0:
-                    try:
-                        bay_id = _r5_bay_for_symbol(symbol)
-                    except KeyError:
-                        # Symbol outside the certified 48-symbol R5 topology (e.g. a synthetic
-                        # test-only symbol): there is no R5 bay to feed, exactly like the native
-                        # plant's own UNMAPPED_SYMBOL admission path.  Never invent a bay mapping.
-                        bay_id = None
-                    if bay_id is not None:
-                        realized_r = self.exit_controller._r_multiple(state, float(result["filled_price"]))
-                        self._register_realized_r_close_feedback(
-                            symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r, reason=reason)
-
-            # ---- 3. Research telemetry (never part of the authoritative books) -------------
             if completed["bars_held"] is None:
                 # Without exit-controller state the holding period is unknown.  It is never
                 # fabricated: the pre-entry evidence stays pending instead of being paired
@@ -1064,11 +1228,21 @@ class Revision2ExternalEngineOrchestrator:
             position_id=trade["trade_id"], symbol=symbol, direction=trade["side"],
             initial_risk_r=abs(entry - float(trade["stop_price"])), anchor_price=entry,
             initial_stop_price=float(trade["stop_price"]), created_bar_timestamp=pd.Timestamp(timestamp))
+        if getattr(self, "combined_cycle_runtime", None) is not None:
+            self.combined_cycle_runtime.register_fill(self._position_lifecycle[trade["trade_id"]], trade, self.broker)
 
-    def _close_position_lifecycle(self, trade: Dict[str, Any]) -> None:
+    def _close_position_lifecycle(self, trade: Dict[str, Any], completed=None) -> None:
         record = self._position_lifecycle.get(trade.get("trade_id"))
         if record is not None and record.is_open:
             self._position_lifecycle[trade["trade_id"]] = lifecycle.close_position(record)
+            if getattr(self, "combined_cycle_runtime", None) is not None:
+                try:
+                    self.combined_cycle_runtime.close(
+                        self._position_lifecycle[trade["trade_id"]], trade, broker=self.broker,
+                        completed_trade=completed, close_feedback_receipts=self._close_feedback_receipts)
+                except Exception:
+                    self._execution_halted = True
+                    raise
 
     def _owner_engine(self, trade: Dict[str, Any]) -> str:
         """Owning engine of an open trade; a trade without a lifecycle record is Engine A (intraday MIS)."""
@@ -1096,6 +1270,9 @@ class Revision2ExternalEngineOrchestrator:
         if state is not None:
             state.bars_held = int(held_bars)
         trade["_terminal_bar"] = dict(bar)
+        if getattr(self, "combined_cycle_runtime", None) is not None and self.combined_cycle_runtime.handle_bar(
+                self, symbol, timestamp, bar, session_last_bar):
+            return
         studies_direction = (chart_studies_audit or {}).get("direction")
         if studies_direction is not None and studies_direction != (1 if trade["side"] == "BUY" else -1):
             chart_studies_confidence = 0.0
@@ -1103,7 +1280,7 @@ class Revision2ExternalEngineOrchestrator:
         # bypasses force_close_time and the MIS session close, but stays under every protective exit
         # below: drawdown halt, MiCOM trip, hard/governor stop, target, max hold and governor exits.
         owned_by_engine_a = self._owner_engine(trade) == lifecycle.ENGINE_A
-        if owned_by_engine_a and (pd.Timestamp(timestamp).strftime("%H:%M")
+        if owned_by_engine_a and (self._exchange_local_time(timestamp).strftime("%H:%M")
                                   >= self.entry_decision_engine.config.force_close_time):
             self._execute_exit(symbol, timestamp, trade, float(bar["open"]), "force_close_time")
             return
@@ -1406,6 +1583,8 @@ class Revision2ExternalEngineOrchestrator:
         self, symbol_bars: Dict[str, pd.DataFrame], warmup: int = 60,
         precomputed_clock: Optional[List[_ClockEvent]] = None,
     ) -> Dict[str, Any]:
+        if getattr(self, '_morning_recovery_prepared', False):
+            raise RuntimeError('Hydrated morning state cannot enter fresh-input replay; certified resume cursor required')
         self._assert_paper_plant_broker()
         if self.paper_journal is not None:
             self.paper_journal.bind(self, symbol_bars, warmup)
@@ -1503,6 +1682,7 @@ class Revision2ExternalEngineOrchestrator:
             "portfolio_optimizer_risk_free_rate",
         })
 
+        processed_bar_indices = {}
         for timestamp, tick_events in itertools.groupby(clock, key=lambda e: e.timestamp):
             tick_events = list(tick_events)
             event_ts = pd.Timestamp(timestamp)
@@ -1515,6 +1695,7 @@ class Revision2ExternalEngineOrchestrator:
                 self.symbol_tripped.clear()
 
             for event in tick_events:
+                processed_bar_indices[event.symbol] = event.bar_idx
                 self._last_close[event.symbol] = float(symbol_bars[event.symbol].iloc[event.bar_idx]["close"])
             self._record_mtm(timestamp)
             if self.paper_journal is not None:
@@ -1562,7 +1743,7 @@ class Revision2ExternalEngineOrchestrator:
                 self.consumed_parameters.update(
                     upstream.consumed_parameters
                 )
-                if not upstream.admitted:
+                if not upstream.admitted and not (getattr(self, "combined_cycle_runtime", None) is not None and symbol in self.open_trades):
                     continue
                 in_window = self._in_trading_window(str(timestamp))
 
@@ -1619,11 +1800,18 @@ class Revision2ExternalEngineOrchestrator:
                     chart_studies_confidence, composite_result,
                 )
 
-                if symbol in self.open_trades or not in_window or self._execution_halted:
+                if symbol in self.open_trades or not upstream.admitted or not in_window or self._execution_halted:
                     continue
                 if next_ts.date() != event_ts.date() or next_ts.strftime("%H:%M") >= str(self.safety_contract.values["no_entry_cutoff_time"]):
                     continue
 
+                if bar_idx + 1 >= len(bars) - 1:
+                    # The final frame row is forward context, not an execution
+                    # observation. Do not admit an entry whose fill cannot be
+                    # managed by this run's actual per-symbol clock.
+                    self._record_controller_event('TERMINAL_FORWARD_CONTEXT_NO_ENTRY',timestamp,symbol,
+                        {'fill_bar_index':bar_idx+1,'last_processed_bar_index':len(bars)-2})
+                    continue
                 decision, trace = self.id_box.evaluate(signal, self.config, latest_close=float(bars.iloc[bar_idx]["close"]))
                 self._record(trace)
                 self.bb05_bb06_supervisory_by_symbol[symbol] = (
@@ -2002,12 +2190,96 @@ class Revision2ExternalEngineOrchestrator:
                     config=self.safety_contract.as_dict(), parameter_registry=self.registry,
                 )
                 funnel["orders_submitted"] += 1
+                if fill["passed"]:
+                    try:
+                        actual_quantity = int(fill["filled_quantity"])
+                        if actual_quantity <= 0:
+                            raise RuntimeError("Paper fill has no reconcilable positive quantity")
+                        self._trade_sequence += 1
+                        self.open_trades[symbol] = {
+                            "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
+                            "target_price": plan.target_price, "quantity": actual_quantity,
+                            "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
+                            "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
+                            "entry_atr": float(atr), "planned_entry_price": float(plan.entry_price),
+                            "planned_stop_price": float(plan.stop_price), "planned_target_price": float(plan.target_price),
+                            "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
+                            "controller_exit_pending": None,
+                            "closed_loop": {},
+                        }
+                        self.open_trades[symbol].update({
+                            "governor_stop_price": float(plan.stop_price), "governor_mfe_r": 0.0,
+                            "governor_entry_conviction": governor_entry.get("entry_absolute_conviction"),
+                        })
+                        self._register_position_lifecycle(symbol, self.open_trades[symbol], next_ts)
+                        _, governor = self._governor_for(symbol)
+                        if governor is not None:
+                            governor.begin_position(hard_stop_r=-1.0, position_id=f"trade-{self._trade_sequence}")
+                        entry_bar_index[symbol] = bar_idx + 1
+                        self._exit_controller_states[symbol] = self.exit_controller.open_position(
+                            plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
+                        )
+                        post_fill = self.entry_decision_engine.evaluate_post_fill(
+                            target_price=float(pid_info["execution_market_price"]), fill_price=float(fill["filled_price"]),
+                            expected_qty=quantity, actual_qty=actual_quantity,
+                            elapsed_seconds=float(fill["ack_elapsed_seconds"]),
+                            expected_position=actual_quantity * (1 if order.side == "BUY" else -1),
+                            actual_position=self.broker.get_position(symbol)["quantity"],
+                        )
+                        self._post_fill_checks.append({
+                            "candidate_id": candidate_id, **post_fill,
+                            "decisions": [asdict(d) for d in post_fill["decisions"]],
+                        })
+                        if not post_fill["passed"]:
+                            # A fill already happened: retain it in the ledger and halt NEW entries.
+                            # Existing protective exits remain enabled.
+                            self._execution_halted = True
+                        quantity = actual_quantity
+                        self.entry_candidate_observations.dispose(candidate_id, "FILLED", "paper_fill")
+                        funnel["fills"] += 1
+                        risk = abs(float(plan.entry_price) - float(plan.stop_price))
+                        target_r = abs(float(plan.target_price) - float(plan.entry_price)) / risk if risk > 0.0 else 0.0
+                        entry_evidence = self.entry_expectancy_ledger.observe_fill({
+                            "candidate_id": candidate_id,
+                            "symbol": symbol,
+                            "side": plan.side,
+                            "timestamp": str(timestamp),
+                            "fill_timestamp": str(next_ts),
+                            "pa_confidence": float(signal.confidence),
+                            "id_confidence": float(decision.confidence),
+                            "studies_confidence": chart_studies_confidence,
+                            "studies_direction": int(composite_result["direction"]),
+                            "atr_fraction": float(atr) / max(abs(float(plan.entry_price)), 1e-12),
+                            "target_r": target_r,
+                            "maximum_hold_bars": int(plan.maximum_hold_bars),
+                            "session_minute": int(next_ts.hour * 60 + next_ts.minute),
+                        })
+                        self._record_controller_event("ENTRY_EXPECTANCY_CANDIDATE", timestamp, symbol, entry_evidence)
+                        # Causal plant/dynamics estimate: this slice ends at
+                        # the decision bar. It cannot see the fill bar or any
+                        # subsequent held-position price action.
+                        closed_loop_snapshot = self.closed_loop.entry_snapshot(
+                            symbol=symbol, side=plan.side, entry_price=float(fill["filled_price"]),
+                            stop_price=float(plan.stop_price), target_price=float(plan.target_price),
+                            max_hold_bars=int(plan.maximum_hold_bars), regime="unknown", dynamics=symbol_dynamics,
+                        )
+                        self.open_trades[symbol]["closed_loop"] = closed_loop_snapshot
+                        self._record_controller_event("CLOSED_LOOP_ENTRY_SNAPSHOT", next_ts, symbol, {
+                            "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
+                            **closed_loop_snapshot,
+                        })
+                    except Exception:
+                        self._execution_halted = True
+                        raise
+                else:
+                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "paper_fill_rejected")
+
                 # BB09/BB10 supervisory hand-off: a read-only record of what
                 # P01D constructed and what UnifiedExecution did with it.
                 # The order already exists, so this observer has NO veto, NO
                 # rollback and NO authority: only the bridge's own data-validation
                 # error is contained (recorded); any other exception is a real
-                # defect and still propagates.  Bookkeeping below always runs.
+                # defect and still propagates. Filled-position bookkeeping is already complete.
                 try:
                     self.bb09_bb10_supervisory_by_symbol[symbol] = (
                         self.supervisory_bridge.snapshot_bb09_bb10(
@@ -2022,95 +2294,37 @@ class Revision2ExternalEngineOrchestrator:
                         "fill_passed": bool(fill.get("passed")),
                         "error_type": type(exc).__name__, "error": str(exc),
                     })
-                if fill["passed"]:
-                    actual_quantity = int(fill["filled_quantity"])
-                    post_fill = self.entry_decision_engine.evaluate_post_fill(
-                        target_price=float(pid_info["execution_market_price"]), fill_price=float(fill["filled_price"]),
-                        expected_qty=quantity, actual_qty=actual_quantity,
-                        elapsed_seconds=float(fill["ack_elapsed_seconds"]),
-                        expected_position=actual_quantity * (1 if order.side == "BUY" else -1),
-                        actual_position=self.broker.get_position(symbol)["quantity"],
-                    )
-                    self._post_fill_checks.append({
-                        "candidate_id": candidate_id, **post_fill,
-                        "decisions": [asdict(d) for d in post_fill["decisions"]],
-                    })
-                    if not post_fill["passed"]:
-                        # A fill already happened: retain it in the ledger and halt NEW entries.
-                        # Existing protective exits remain enabled.
-                        self._execution_halted = True
-                    if actual_quantity <= 0:
-                        raise RuntimeError("Paper fill has no reconcilable positive quantity")
-                    quantity = actual_quantity
-                    self.entry_candidate_observations.dispose(candidate_id, "FILLED", "paper_fill")
-                    funnel["fills"] += 1
-                    self._trade_sequence += 1
-                    risk = abs(float(plan.entry_price) - float(plan.stop_price))
-                    target_r = abs(float(plan.target_price) - float(plan.entry_price)) / risk if risk > 0.0 else 0.0
-                    entry_evidence = self.entry_expectancy_ledger.observe_fill({
-                        "candidate_id": candidate_id,
-                        "symbol": symbol,
-                        "side": plan.side,
-                        "timestamp": str(timestamp),
-                        "fill_timestamp": str(next_ts),
-                        "pa_confidence": float(signal.confidence),
-                        "id_confidence": float(decision.confidence),
-                        "studies_confidence": chart_studies_confidence,
-                        "studies_direction": int(composite_result["direction"]),
-                        "atr_fraction": float(atr) / max(abs(float(plan.entry_price)), 1e-12),
-                        "target_r": target_r,
-                        "maximum_hold_bars": int(plan.maximum_hold_bars),
-                        "session_minute": int(next_ts.hour * 60 + next_ts.minute),
-                    })
-                    self._record_controller_event("ENTRY_EXPECTANCY_CANDIDATE", timestamp, symbol, entry_evidence)
-                    # Causal plant/dynamics estimate: this slice ends at
-                    # the decision bar. It cannot see the fill bar or any
-                    # subsequent held-position price action.
-                    closed_loop_snapshot = self.closed_loop.entry_snapshot(
-                        symbol=symbol, side=plan.side, entry_price=float(fill["filled_price"]),
-                        stop_price=float(plan.stop_price), target_price=float(plan.target_price),
-                        max_hold_bars=int(plan.maximum_hold_bars), regime="unknown", dynamics=symbol_dynamics,
-                    )
-                    self._record_controller_event("CLOSED_LOOP_ENTRY_SNAPSHOT", next_ts, symbol, {
-                        "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
-                        **closed_loop_snapshot,
-                    })
-                    self.open_trades[symbol] = {
-                        "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
-                        "target_price": plan.target_price, "quantity": quantity,
-                        "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
-                        "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
-                        "entry_atr": float(atr), "planned_entry_price": float(plan.entry_price),
-                        "planned_stop_price": float(plan.stop_price), "planned_target_price": float(plan.target_price),
-                        "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
-                        "controller_exit_pending": None,
-                        "closed_loop": closed_loop_snapshot,
-                    }
-                    self.open_trades[symbol].update({
-                        "governor_stop_price": float(plan.stop_price), "governor_mfe_r": 0.0,
-                        "governor_entry_conviction": governor_entry.get("entry_absolute_conviction"),
-                    })
-                    self._register_position_lifecycle(symbol, self.open_trades[symbol], next_ts)
-                    _, governor = self._governor_for(symbol)
-                    if governor is not None:
-                        governor.begin_position(hard_stop_r=-1.0, position_id=f"trade-{self._trade_sequence}")
-                    entry_bar_index[symbol] = bar_idx + 1
-                    self._exit_controller_states[symbol] = self.exit_controller.open_position(
-                        plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
-                    )
-                else:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "paper_fill_rejected")
+                except Exception:
+                    self._execution_halted = True
+                    raise
 
             if self.paper_journal is not None:
                 self.paper_journal.checkpoint(self, timestamp)
+            if self.recovery_account_id is not None:
+                try:
+                    self._checkpoint_morning_recovery(account_id=self.recovery_account_id, timestamp=timestamp)
+                except Exception:
+                    self._execution_halted = True
+                    raise
 
         for symbol in list(self.open_trades.keys()):
+            if getattr(self, "combined_cycle_runtime", None) is not None and self.combined_cycle_runtime.persist_end_of_run(self, symbol):
+                continue
             bars = symbol_bars[symbol]
-            final_close = float(bars.iloc[len(bars) - 1]["close"])
-            self._execute_exit(symbol, bars.iloc[len(bars) - 1].get("timestamp", ""), self.open_trades[symbol], final_close, "end_of_run_reconciliation")
+            if symbol not in processed_bar_indices:
+                self._execution_halted=True
+                raise RuntimeError('No processed bar is available for terminal reconciliation')
+            final_bar=bars.iloc[processed_bar_indices[symbol]]
+            if pd.Timestamp(self.open_trades[symbol]['entry_timestamp']) > pd.Timestamp(final_bar['timestamp']):
+                self._execution_halted=True
+                raise RuntimeError('Terminal reconciliation cannot precede authoritative entry fill')
+            final_close = float(final_bar['close'])
+            self._execute_exit(symbol, final_bar['timestamp'], self.open_trades[symbol], final_close, "end_of_run_reconciliation")
 
         if self.paper_journal is not None:
             self.paper_journal.checkpoint(self, "FINAL")
+        if self.recovery_account_id is not None:
+            self._checkpoint_morning_recovery(account_id=self.recovery_account_id, timestamp='FINAL')
         self.entry_candidate_observations.finalize_pending()
         gross_pnl = self.broker.realized_pnl
         assert abs(gross_pnl - sum(t["pnl"] for t in self.completed_trades)) < 1e-6
@@ -2144,6 +2358,8 @@ class Revision2ExternalEngineOrchestrator:
                 "paper_admission_evaluations": self._paper_admission_evaluations,
                 "paper_admission_rejections": self._paper_admission_rejections,
                 "paper_admission_caps": self._paper_admission_caps,
+                **({"fleet_loading": self.plant_control.export_fleet_loading_state()}
+                   if self.plant_control.fleet_loading is not None else {}),
                 "grid_state_counts": dict(self.plant_control_state_counts),
                 "transitions": len(self.plant_control_snapshots),
                 "observer_failures": len(self.plant_control_observer_failures),

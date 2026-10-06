@@ -1,0 +1,22 @@
+--- before/revision2_external/paper_execution.py
++++ after/revision2_external/paper_execution.py
+@@ -14,12 +14,16 @@
+                     config=None, parameter_registry=None):
+         if order_type != "MARKET":
+             return {"passed": False, "reasons": ["Replay supports MARKET orders only"]}
++        was_flat = self.get_position(symbol)["quantity"] == 0
+         result = super().place_order(symbol, side, quantity, order_type, market_price,
+                                      config, parameter_registry)
+         if result["passed"]:
+-            # A fill carries an explicit product on the position.  Conversion, protection and snapshot below
+-            # already read an absent product as MIS; a converted position keeps its explicit product.
+-            self.positions[symbol].setdefault("product", "MIS")
++            # A new intraday position must not inherit a flattened position's CNC
++            # product. Fills against an existing converted position retain CNC.
++            if was_flat:
++                self.positions[symbol]["product"] = "MIS"
++            else:
++                self.positions[symbol].setdefault("product", "MIS")
+             cost = leg_cost(result["filled_price"], result["filled_quantity"], side)
+             self.booked_costs += cost
+             self.cost_ledger.append({"order_id": result["order_id"], "cost": cost})

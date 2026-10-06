@@ -1,5 +1,7 @@
 import pytest
 
+pytest.importorskip("ray", reason="Optional Ray calibration dependency absent; coverage not executed")
+
 import revision4.ray_optuna_v3_calibration as ray_calibration
 from revision4.ray_optuna_v3_calibration import (
     INELIGIBLE_SCORE,

@@ -59,6 +59,12 @@ def fixture_run(path, crash='none'):
         'tick': 1, 'action': 'trip', 'bay_id': bay_for_symbol('INFY'), 'reason': 'CRASH_FIXTURE_86',
     }], after_commit=after_commit)
     o.paper_journal = journal
+    if crash == 'feedback':
+        commit_feedback = journal.commit_feedback
+        def crash_after_feedback(*args, **kwargs):
+            commit_feedback(*args, **kwargs)
+            os._exit(75)
+        journal.commit_feedback = crash_after_feedback
     if crash == 'fill':
         original = o.broker.place_order
         def crash_after_fill(*args, **kwargs):
@@ -74,7 +80,7 @@ def fixture_run(path, crash='none'):
     journal.close()
 
 
-@pytest.mark.parametrize('crash,code', [('checkpoint', 73), ('fill', 74)])
+@pytest.mark.parametrize('crash,code', [('checkpoint', 73), ('fill', 74), ('feedback', 75)])
 def test_process_restart_matches_uninterrupted(tmp_path, crash, code):
     def run(path, mode):
         return subprocess.run([sys.executable, '-m', 'tests.test_r5_native_durability', str(path), mode],

@@ -1,0 +1,118 @@
+## product representation in the existing architecture (grep, non-test, non-output)
+revision5/handoff_manager.py:76:    def resolve(self, request_id, status, product=None, quantity=None, timestamp=None):
+revision5/handoff_manager.py:100:                if timestamp is None or product != 'CNC' or quantity != receipt['quantity']:
+revision5/handoff_manager.py:101:                    raise ValueError('acknowledgement requires exact product, quantity and timestamp')
+revision5/combined_cycle_runtime.py:35:        protective_id=broker.ensure_protection(record.symbol,record.current_stop_price,int(trade['quantity']),record.product)
+revision5/combined_cycle_runtime.py:50:        if abs(float(position.get('quantity',0))-expected)>1e-6 or position.get('product')!=snapshot.record.product:
+revision5/combined_cycle_runtime.py:51:            raise CombinedCycleReconciliationError('broker quantity/product differs from durable owner')
+revision5/combined_cycle_runtime.py:58:        if protective.get('product')!=snapshot.record.product or abs(float(protective.get('pending_quantity',protective.get('quantity',0)))-abs(expected))>1e-6:
+revision5/combined_cycle_runtime.py:59:            raise CombinedCycleReconciliationError('paper contingent protection quantity/product differs')
+revision5/combined_cycle_runtime.py:91:        return self.handoff.resolve(request.request_id,receipt['status'],receipt.get('product'),receipt.get('quantity'),receipt.get('timestamp',timestamp))
+revision5/combined_cycle_runtime.py:105:                protection['protective_order_id']=engine.broker.ensure_protection(symbol,effective_stop,int(trade['quantity']),record.product)
+revision5/combined_cycle_runtime.py:158:                engine.broker.request_product_conversion(request.request_id,symbol,request.quantity,from_product='MIS',to_product='CNC',timestamp=ts)
+revision5/combined_cycle_runtime.py:164:                protection['protective_order_id']=engine.broker.ensure_protection(symbol,record.current_stop_price,int(trade['quantity']),record.product)
+revision5/combined_cycle_runtime.py:187:        protection['protective_order_id']=engine.broker.ensure_protection(symbol,record.current_stop_price,int(trade['quantity']),record.product)
+revision2_external/paper_execution.py:28:    def request_product_conversion(self, request_id, symbol, quantity,
+revision2_external/paper_execution.py:29:                                   from_product="MIS", to_product="CNC", timestamp=None):
+revision2_external/paper_execution.py:32:        request = (symbol, int(quantity), from_product, to_product)
+revision2_external/paper_execution.py:39:        passed = (from_product == "MIS" and to_product == "CNC"
+revision2_external/paper_execution.py:41:                  and position.get("product", "MIS") == from_product)
+revision2_external/paper_execution.py:43:            position["product"] = to_product
+revision2_external/paper_execution.py:46:                   "product": position.get("product", "MIS"),
+revision2_external/paper_execution.py:57:    def ensure_protection(self, symbol, stop_price, quantity, product="MIS"):
+revision2_external/paper_execution.py:66:        if abs(position["quantity"]) != int(quantity) or position.get("product", "MIS") != product:
+revision2_external/paper_execution.py:71:            "product": product, "quantity": int(quantity), "pending_quantity": int(quantity),
+revision2_external/paper_execution.py:88:                           "product": self.get_position(order.symbol).get("product", "MIS"),
+revision2_external/paper_execution.py:96:                                  "product": position.get("product", "MIS")}
+revision2_external/broker_reconciliation.py:28:            return (p.get('exchange', 'NSE'), p.get('tradingsymbol', p.get('symbol')), p.get('product'))
+revision5/position_lifecycle.py:14:* ``A_OPEN`` and ``TRANSFER_REQUESTED``: owner ``ENGINE_A``, product ``MIS``.  Engine A keeps
+revision5/position_lifecycle.py:16:* ``B_OPEN``: owner ``ENGINE_B``, product ``CNC``.  Reachable only by acknowledging a pending
+revision5/position_lifecycle.py:35:PRODUCT_MIS = "MIS"
+revision5/position_lifecycle.py:36:PRODUCT_CNC = "CNC"
+revision5/position_lifecycle.py:45:PRODUCTS = (PRODUCT_MIS, PRODUCT_CNC)
+revision5/position_lifecycle.py:48:# (owner, product) each state requires.  CLOSED keeps whatever the position last had.
+revision5/position_lifecycle.py:50:    A_OPEN: (ENGINE_A, PRODUCT_MIS),
+revision5/position_lifecycle.py:51:    TRANSFER_REQUESTED: (ENGINE_A, PRODUCT_MIS),
+revision5/position_lifecycle.py:52:    B_OPEN: (ENGINE_B, PRODUCT_CNC),
+revision5/position_lifecycle.py:73:    product: str
+revision5/position_lifecycle.py:89:        if self.product not in PRODUCTS:
+revision5/position_lifecycle.py:90:            raise PositionLifecycleError(f"product must be one of {PRODUCTS}, got {self.product!r}")
+revision5/position_lifecycle.py:104:        if expected is not None and (self.owner_engine, self.product) != expected:
+revision5/position_lifecycle.py:106:                f"state {self.lifecycle_state} requires owner/product {expected}, "
+revision5/position_lifecycle.py:107:                f"got {(self.owner_engine, self.product)}")
+revision5/position_lifecycle.py:127:        position_id=position_id, symbol=symbol, direction=direction, owner_engine=ENGINE_A, product=PRODUCT_MIS,
+revision5/position_lifecycle.py:133:    """Return the record in ``new_state`` with owner and product set to what that state requires.
+revision5/position_lifecycle.py:142:    owner, product = _STATE_OWNERSHIP.get(new_state, (record.owner_engine, record.product))
+revision5/position_lifecycle.py:143:    return replace(record, lifecycle_state=new_state, owner_engine=owner, product=product)
+
+## Kite adapter order default product (live abstraction)
+62:        limit_price: Optional[float] = None, exchange: str = "NSE", product: str = "MIS",
+76:            product=product,
+
+## PaperBrokerAdapter positions shape / place_order signature
+def _utcnow_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+class PaperBrokerAdapter(BrokerAdapter):
+    """A real (non-live) paper broker: order state machine, fill simulation
+    against a supplied market price, and position/PnL tracking.
+
+    This does not touch Zerodha/Kite or any network resource. `place_order`
+    is the entry point a paper-mode trading loop should call once it has a
+    market price for the current bar/tick; it runs the same ExecutionGate
+    safety contract a live broker would run before it will simulate a fill.
+    """
+
+    environment = "paper"
+
+    def __init__(self, account_id: Optional[str] = None, slippage_fraction: float = 0.0005):
+        super().__init__(account_id=account_id)
+        self.slippage_fraction = slippage_fraction
+        self.orders: Dict[str, PaperOrder] = {}
+        self.positions: Dict[str, Dict[str, float]] = {}
+        self.realized_pnl: float = 0.0
+        self.fills: List[Dict[str, Any]] = []
+
+    def get_position(self, symbol: str) -> Dict[str, float]:
+        return self.positions.get(symbol, {"quantity": 0, "avg_price": 0.0})
+
+    def unrealized_pnl(self, symbol: str, mark_price: float) -> float:
+        position = self.get_position(symbol)
+        if not position["quantity"]:
+            return 0.0
+        return (mark_price - position["avg_price"]) * position["quantity"]
+
+    def _apply_fill_to_position(self, symbol: str, side: str, quantity: int, price: float) -> None:
+        position = self.positions.setdefault(symbol, {"quantity": 0, "avg_price": 0.0})
+        signed_qty = quantity if side == "BUY" else -quantity
+        existing_qty = position["quantity"]
+        new_qty = existing_qty + signed_qty
+
+        same_direction_or_flat = existing_qty == 0 or (existing_qty > 0) == (signed_qty > 0)
+        if same_direction_or_flat:
+            if new_qty != 0:
+                position["avg_price"] = (
+                    position["avg_price"] * existing_qty + price * signed_qty
+                ) / new_qty
+        else:
+            closing_qty = min(abs(signed_qty), abs(existing_qty))
+            direction = 1 if existing_qty > 0 else -1
+            realized = (price - position["avg_price"]) * closing_qty * direction
+            self.realized_pnl += realized
+            if abs(signed_qty) > abs(existing_qty):
+                position["avg_price"] = price
+
+        position["quantity"] = new_qty
+
+    def place_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: int,
+        order_type: str,
+        market_price: Optional[float],
+        config: Optional[Dict[str, Any]] = None,
+        parameter_registry: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        order_id = str(uuid.uuid4())

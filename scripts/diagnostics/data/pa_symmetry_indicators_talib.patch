@@ -1,0 +1,110 @@
+diff --git a/revision2_external/indicators_talib.py b/revision2_external/indicators_talib.py
+index 76e885d..557f5a0 100644
+--- a/revision2_external/indicators_talib.py
++++ b/revision2_external/indicators_talib.py
+@@ -50,12 +50,28 @@ def _valid_period(period: int, size: int) -> int:
+ 
+ 
+ class TALibPredictiveAnalyticsBox:
+-    def __init__(self) -> None:
++    def __init__(self, *, symmetric_direction: bool = False) -> None:
++        self.symmetric_direction = symmetric_direction
+         self._history: Dict[str, deque] = {}
+         self._scale: Dict[str, Dict[str, float]] = {}
+         self._warmup: Dict[str, pd.DataFrame] = {}
+         self._atr_period: Dict[str, int] = {}
+ 
++    def reset_session(self) -> None:
++        self._history.clear()  # Keep causal calibration scales, not overnight smoothing error.
++
++    @staticmethod
++    def directional_score(momentum, vwap, volatility_score, volume_confirmation, weights):
++        wm, wv, wr, wq = weights
++        directional_weight = wm + wv
++        if directional_weight <= 0:
++            return 0.0
++        directional = (_np_clip(momentum, -1, 1) * wm + _np_clip(vwap, -1, 1) * wv) / directional_weight
++        total = sum(weights)
++        quality = 1.0 + (_np_clip(volatility_score, -1, 1) * wr +
++                         _np_clip(volume_confirmation, -1, 1) * wq) / total
++        return directional * quality
++
+     def calibrate(self, symbol: str, warmup_bars: pd.DataFrame,
+                   config: EffectiveConfig | None = None) -> None:
+         # Existing two-argument callers use the canonical default, never legacy 14.
+@@ -70,7 +86,7 @@ class TALibPredictiveAnalyticsBox:
+         low = warmup_bars["low"].to_numpy(dtype=float)
+         volume = warmup_bars["volume"].to_numpy(dtype=float)
+ 
+-        returns = pd.Series(close).pct_change().dropna()
++        returns = pd.Series(np.log(close)).diff().dropna() if self.symmetric_direction else pd.Series(close).pct_change().dropna()
+         dp_scale = float(returns.std())
+         dp_scale = dp_scale if math.isfinite(dp_scale) and dp_scale > 0 else _NUMERICAL_EPSILON
+         vol_pct_change = pd.Series(volume).pct_change().replace([np.inf, -np.inf], np.nan).dropna()
+@@ -78,9 +94,9 @@ class TALibPredictiveAnalyticsBox:
+         dv_scale = dv_scale if math.isfinite(dv_scale) and dv_scale > 0 else _NUMERICAL_EPSILON
+ 
+         atr_period = _valid_period(atr_period, len(close))
+-        atr_series = talib.ATR(high, low, close, timeperiod=atr_period)
++        atr_series = talib.ATR(np.log(high), np.log(low), np.log(close), timeperiod=atr_period) if self.symmetric_direction else talib.ATR(high, low, close, timeperiod=atr_period)
+         baseline_atr = float(np.nanmean(atr_series)) if np.isfinite(atr_series).any() else _NUMERICAL_EPSILON
+-        baseline_vol = baseline_atr / close[-1] if close[-1] else _NUMERICAL_EPSILON
++        baseline_vol = baseline_atr if self.symmetric_direction else (baseline_atr / close[-1] if close[-1] else _NUMERICAL_EPSILON)
+ 
+         self._scale[symbol] = {"dp_scale": dp_scale, "dv_scale": dv_scale, "baseline_vol": max(baseline_vol, _NUMERICAL_EPSILON)}
+ 
+@@ -153,7 +169,8 @@ class TALibPredictiveAnalyticsBox:
+         roc_period = min(momentum_period, n - 1) if n > 1 else 1
+         roc_period = max(roc_period, 1)
+         roc_series = talib.ROC(close, timeperiod=roc_period)
+-        raw_momentum = float(roc_series[-1]) / 100.0 if np.isfinite(roc_series[-1]) else 0.0
++        raw_momentum = ((float(np.log(close[-1] / close[-1 - roc_period])) if n > roc_period else 0.0) if self.symmetric_direction else
++                        (float(roc_series[-1]) / 100.0 if np.isfinite(roc_series[-1]) else 0.0))
+         momentum_z = raw_momentum / (scale["dp_scale"] * math.sqrt(max(momentum_period, 1)))
+         momentum = _np_clip(momentum_z / momentum_normalization_divisor, -1, 1) * dp_mult
+ 
+@@ -161,19 +178,29 @@ class TALibPredictiveAnalyticsBox:
+         vwap_window_close = close[max(0, n - vwap_period):]
+         vwap_window_vol = volume[max(0, n - vwap_period):]
+         vwap = float(np.average(vwap_window_close, weights=vwap_window_vol)) if vwap_window_vol.sum() > 0 else float(vwap_window_close.mean())
+-        raw_vwap_dev = (close[-1] - vwap) / vwap if vwap else 0.0
++        raw_vwap_dev = (float(np.log(close[-1]) - (np.average(np.log(vwap_window_close), weights=vwap_window_vol)
++            if vwap_window_vol.sum() > 0 else np.log(vwap_window_close).mean())) if self.symmetric_direction else
++            ((close[-1] - vwap) / vwap if vwap else 0.0))
+         vwap_deviation = _np_clip((raw_vwap_dev / scale["dp_scale"]) / pa_vwap_normalization_divisor, -1, 1)
+ 
+         # Volatility via talib.ATR (Wilder-smoothed), a real, documented
+         # difference from the original's simple-mean True Range.
+         atr_talib_period = min(atr_period, n - 1) if n > 1 else 1
+         atr_talib_period = max(atr_talib_period, 1)
+-        atr_series = talib.ATR(high, low, close, timeperiod=atr_talib_period)
++        atr_series = (talib.ATR(np.log(high), np.log(low), np.log(close), timeperiod=atr_talib_period)
++                      if self.symmetric_direction else talib.ATR(high, low, close, timeperiod=atr_talib_period))
+         atr = float(atr_series[-1]) if np.isfinite(atr_series[-1]) else 0.0
+         # BUGFIX: Ensure ATR has minimum value to prevent zero volatility
+-        if atr < pa_atr_absolute_floor and close[-1] > 0:
+-            atr = max(pa_atr_absolute_floor, close[-1] * pa_atr_fallback_price_fraction)
+-        volatility = atr / close[-1] if close[-1] else 0.0
++        if self.symmetric_direction:
++            # Missing/zero ATR needs a fallback; valid log ATR must not be
++            # inflated to the price-relative fallback (a different unit contract).
++            if atr <= _NUMERICAL_EPSILON:
++                atr = pa_atr_fallback_price_fraction
++            volatility = atr
++        else:
++            if atr < pa_atr_absolute_floor and close[-1] > 0:
++                atr = max(pa_atr_absolute_floor, close[-1] * pa_atr_fallback_price_fraction)
++            volatility = atr / close[-1] if close[-1] else 0.0
+         volatility_score = _np_clip((scale["baseline_vol"] - volatility) / scale["baseline_vol"], -1, 1)
+ 
+         avg_vol = volume[:-1].mean() if len(volume) > 1 else (volume[-1] if len(volume) else 1.0)
+@@ -196,6 +223,9 @@ class TALibPredictiveAnalyticsBox:
+             + volatility_score * volatility_weight
+             + _np_clip(volume_confirmation, -1, 1) * confirmation_weight
+         ) / total_weight
++        if self.symmetric_direction:
++            raw_signal = self.directional_score(momentum, vwap_deviation, volatility_score,
++                volume_confirmation, (momentum_weight, vwap_weight, volatility_weight, confirmation_weight))
+         raw_signal *= regime_mult * vol_regime_mult
+ 
+         # 20 is a storage reserve, above all configured smoothing/persistence maxima.

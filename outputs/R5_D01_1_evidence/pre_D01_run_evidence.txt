@@ -1,0 +1,20 @@
+# evidence script against the pre-D01 temp tree
+command: PYTHONDONTWRITEBYTECODE=1 /home/srinivas/.venvs/zerodha-phase1-r5/bin/python outputs/R5_D01_1_evidence/fixture_run_evidence.py /tmp/claude-1000/d01_1_before_tree
+Traceback (most recent call last):
+  File "/tmp/claude-1000/d01_1_before_tree/revision2_external/orchestrator.py", line 1105, in _maybe_exit
+    if getattr(self, "combined_cycle_runtime", None) is not None and self.combined_cycle_runtime.handle_bar(
+                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/d01_1_before_tree/revision5/combined_cycle_runtime.py", line 115, in handle_bar
+    self.reconcile(engine,snapshot)
+  File "/tmp/claude-1000/d01_1_before_tree/tests/test_r5_d01_orchestrator_run_integration.py", line 86, in observe_reconcile
+    return real_reconcile(engine, snapshot)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/d01_1_before_tree/revision5/combined_cycle_runtime.py", line 51, in reconcile
+    raise CombinedCycleReconciliationError('broker quantity/product differs from durable owner')
+revision5.combined_cycle_runtime.CombinedCycleReconciliationError: broker quantity/product differs from durable owner
+paper_execution module: /tmp/claude-1000/d01_1_before_tree/revision2_external/paper_execution.py sha256 2f301d0fb261675fc9f0cac6e5af4171d9d8ff22107f2a03735a2a717d1eaa15
+input classification: DERIVED_REAL_REPLAY_FIXTURE | symbol: TITAN | fixture rows: {'titan_1min_block1_session1.csv': 436, 'nifty_50_15min_prefix.csv': 3104, 'india_vix_15min_prefix.csv': 3104}
+broker class (before run): revision2_external.paper_execution.CostedPaperBrokerAdapter | environment: paper
+RUN RAISED: CombinedCycleReconciliationError : broker quantity/product differs from durable owner
+reconcile calls observed before the exception: [{'trade_id': 'trade-1', 'state': 'A_OPEN', 'record_product': 'MIS', 'broker_quantity': -5, 'broker_product': None, 'fills_so_far': 1}]
+exit status: 1

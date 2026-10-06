@@ -21,7 +21,8 @@ def test_valid_market_order_is_translated_and_submitted():
     adapter, client = _adapter()
     client.place_order.return_value = "ORDER123"
     result = adapter.place_order("INFY", "BUY", 10, "MARKET")
-    assert result == {"passed": True, "order_id": "ORDER123"}
+    assert result == {"passed": True, "accepted": True, "filled": False,
+                      "order_id": "ORDER123", "status": "ACCEPTED"}
     kwargs = client.place_order.call_args.kwargs
     assert kwargs["tradingsymbol"] == "INFY"
     assert kwargs["transaction_type"] == "BUY"
@@ -43,20 +44,24 @@ def test_limit_order_requires_a_positive_price():
     client.place_order.assert_not_called()
 
 
-def test_network_exception_is_retried_and_eventually_succeeds():
+def test_network_timeout_is_ambiguous_and_never_blindly_retried():
     adapter, client = _adapter()
-    client.place_order.side_effect = [NetworkException("timeout"), NetworkException("timeout"), "ORDER456"]
+    client.place_order.side_effect = [NetworkException("timeout"), "DUPLICATE"]
     result = adapter.place_order("INFY", "BUY", 5, "MARKET")
-    assert result == {"passed": True, "order_id": "ORDER456"}
-    assert client.place_order.call_count == 3
+    assert result["passed"] is False
+    assert result["ambiguous"] is True
+    assert result["retry_allowed"] is False
+    assert client.place_order.call_count == 1
 
 
-def test_network_exception_gives_up_after_max_attempts():
+def test_network_exception_returns_receipt_without_claiming_a_fill():
     adapter, client = _adapter()
     client.place_order.side_effect = NetworkException("timeout")
-    with pytest.raises(NetworkException):
-        adapter.place_order("INFY", "BUY", 5, "MARKET")
-    assert client.place_order.call_count == 4  # stop_after_attempt(4)
+    result = adapter.place_order("INFY", "BUY", 5, "MARKET")
+    assert result["passed"] is False
+    assert result["ambiguous"] is True
+    assert "order_id" not in result
+    assert client.place_order.call_count == 1
 
 
 def test_broker_rejection_is_not_retried():

@@ -1,0 +1,15 @@
+
+    def reconcile(self, engine, snapshot):
+        position=engine.broker.get_position(snapshot.record.symbol)
+        expected=float(snapshot.trade['quantity'])*(1 if snapshot.record.direction=='BUY' else -1)
+        if abs(float(position.get('quantity',0))-expected)>1e-6 or position.get('product')!=snapshot.record.product:
+>           raise CombinedCycleReconciliationError('broker quantity/product differs from durable owner')
+E           revision5.combined_cycle_runtime.CombinedCycleReconciliationError: broker quantity/product differs from durable owner
+
+revision5/combined_cycle_runtime.py:51: CombinedCycleReconciliationError
+=========================== short test summary info ============================
+FAILED tests/test_r5_d01_product_reconciliation.py::test_real_fill_carries_explicit_mis_product[BUY]
+FAILED tests/test_r5_d01_product_reconciliation.py::test_real_fill_carries_explicit_mis_product[SELL]
+FAILED tests/test_r5_d01_product_reconciliation.py::test_reconcile_accepts_the_genuine_state_a_real_fill_creates[BUY]
+FAILED tests/test_r5_d01_product_reconciliation.py::test_reconcile_accepts_the_genuine_state_a_real_fill_creates[SELL]
+========================= 4 failed, 6 passed in 0.85s ==========================

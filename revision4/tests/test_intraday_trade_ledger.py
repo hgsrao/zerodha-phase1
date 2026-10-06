@@ -48,7 +48,7 @@ def test_calibration_config_allows_economic_override_but_rejects_gate16_override
     config = _build_calibration_config(registry, {"profit_target_atr_mult": 2.0})
     assert config.profit_target_atr_mult == 2.0
 
-    with pytest.raises(ValueError, match="immutable parameter slippage_tolerance_percent"):
+    with pytest.raises(ValueError, match="immutable.*parameter slippage_tolerance_percent"):
         _build_calibration_config(registry, {"slippage_tolerance_percent": 0.2})
 
 

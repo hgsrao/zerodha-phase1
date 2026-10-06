@@ -1,0 +1,612 @@
+{
+  "source_audit_head": "411712afaecaeb44a6899a12db94ac547fef0186",
+  "current_working_tree_baseline": true,
+  "only_engine_source_difference": [
+    "revision2_external/composite_study_signal.py"
+  ],
+  "sources": {
+    "calibration_config.py": {
+      "baseline": "6c01708e1a91a5a5d1e66907dcb01aeff1d1151894aa1eff6fd1696ba4f4ad34",
+      "neutral": "6c01708e1a91a5a5d1e66907dcb01aeff1d1151894aa1eff6fd1696ba4f4ad34"
+    },
+    "canonical_parameter_registry.py": {
+      "baseline": "50382612d9c61a714d4278ed97095bc9c54a3b7e52b3ff0fef2095616863edb0",
+      "neutral": "50382612d9c61a714d4278ed97095bc9c54a3b7e52b3ff0fef2095616863edb0"
+    },
+    "gates_framework.py": {
+      "baseline": "662c48acb73c64a1d81ac05114044ce92ae267587ba81f30b4f0e26009a93159",
+      "neutral": "662c48acb73c64a1d81ac05114044ce92ae267587ba81f30b4f0e26009a93159"
+    },
+    "market_data_loader.py": {
+      "baseline": "8e0433f9c3adcdd8699d7daa702452281190db2aa27d6145219630cd30bcc195",
+      "neutral": "8e0433f9c3adcdd8699d7daa702452281190db2aa27d6145219630cd30bcc195"
+    },
+    "revision2/__init__.py": {
+      "baseline": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "neutral": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "revision2/boxes.py": {
+      "baseline": "c0933ba4c238ab9fe27e4b5fb9b76d2489b436642a9871491aa90cd3d8b1431f",
+      "neutral": "c0933ba4c238ab9fe27e4b5fb9b76d2489b436642a9871491aa90cd3d8b1431f"
+    },
+    "revision2/calibration_supervisor.py": {
+      "baseline": "622128292c5ed292c6c968ce7b09bf0419df49626740e751a6970e7baf93a567",
+      "neutral": "622128292c5ed292c6c968ce7b09bf0419df49626740e751a6970e7baf93a567"
+    },
+    "revision2/contracts.py": {
+      "baseline": "30e7c39d441c9311e75c2674250114e76efa015d6ab1911af6a044c0f578f362",
+      "neutral": "30e7c39d441c9311e75c2674250114e76efa015d6ab1911af6a044c0f578f362"
+    },
+    "revision2/dataset_manifest.py": {
+      "baseline": "f2d672953d224fec5b86978803920430f39e43515ba08042dc58f8fc8905d892",
+      "neutral": "f2d672953d224fec5b86978803920430f39e43515ba08042dc58f8fc8905d892"
+    },
+    "revision2/exogenous_context_manifest.py": {
+      "baseline": "512c403a9511a46f50cb515193c3d9b8be140d3f829c156e4087c05770d3114d",
+      "neutral": "512c403a9511a46f50cb515193c3d9b8be140d3f829c156e4087c05770d3114d"
+    },
+    "revision2/grid_synchronization.py": {
+      "baseline": "3361956661e3d6ee5f65cb89decda611b35afd5a6a1d085f8b48b3e606607821",
+      "neutral": "3361956661e3d6ee5f65cb89decda611b35afd5a6a1d085f8b48b3e606607821"
+    },
+    "revision2/optimizer.py": {
+      "baseline": "2eac4698296780647446bc7dabf2890c64db8587a979285240e6357fa5f459f2",
+      "neutral": "2eac4698296780647446bc7dabf2890c64db8587a979285240e6357fa5f459f2"
+    },
+    "revision2/orchestrator.py": {
+      "baseline": "54905da6d73f5138c4edee1a005091fb84e1b56eac7e774df704a1be152d3b9f",
+      "neutral": "54905da6d73f5138c4edee1a005091fb84e1b56eac7e774df704a1be152d3b9f"
+    },
+    "revision2/portfolio_orchestrator.py": {
+      "baseline": "d790b64513124b98810272709d2d02abacabb462f486fed17165ef4e4674100f",
+      "neutral": "d790b64513124b98810272709d2d02abacabb462f486fed17165ef4e4674100f"
+    },
+    "revision2/regime_hmm.py": {
+      "baseline": "f9c16c39849034b06044dc91a75d26d892bfe60b2304baaea371344c35ff6777",
+      "neutral": "f9c16c39849034b06044dc91a75d26d892bfe60b2304baaea371344c35ff6777"
+    },
+    "revision2/regime_id_box.py": {
+      "baseline": "2c1f2b8a17c30657edd2003f217335e886e05afc6b35f8b56f205bc653ffbdb4",
+      "neutral": "2c1f2b8a17c30657edd2003f217335e886e05afc6b35f8b56f205bc653ffbdb4"
+    },
+    "revision2/transaction_costs.py": {
+      "baseline": "2043c8c17bcffccdef107173360214ecd7c7fa406308a35bf2e05f830f8e723c",
+      "neutral": "2043c8c17bcffccdef107173360214ecd7c7fa406308a35bf2e05f830f8e723c"
+    },
+    "revision2_external/__init__.py": {
+      "baseline": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "neutral": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "revision2_external/bb05_bb06_parameters.py": {
+      "baseline": "9294c192bdeb1a7d4a70dd187c45d3019d5e34572d0773257cd9bd3e011cb870",
+      "neutral": "9294c192bdeb1a7d4a70dd187c45d3019d5e34572d0773257cd9bd3e011cb870"
+    },
+    "revision2_external/breakout_continuation_shadow.py": {
+      "baseline": "daef9d9330ead071093b9199274eb0f30a935c581e7252792689d456784d9e6a",
+      "neutral": "daef9d9330ead071093b9199274eb0f30a935c581e7252792689d456784d9e6a"
+    },
+    "revision2_external/breakout_retest_shadow.py": {
+      "baseline": "49783b97ac74b1af53a1072e2f22ff0a356e48034781d1e7aa8ee028b305c16e",
+      "neutral": "49783b97ac74b1af53a1072e2f22ff0a356e48034781d1e7aa8ee028b305c16e"
+    },
+    "revision2_external/broker_adapter_kite.py": {
+      "baseline": "2a45ddc3d33a59065d130b33514d39f5536c1133b654170cc8ed75ff9b6f6705",
+      "neutral": "2a45ddc3d33a59065d130b33514d39f5536c1133b654170cc8ed75ff9b6f6705"
+    },
+    "revision2_external/broker_reconciliation.py": {
+      "baseline": "e29348cad9b352a415226793171853aec37fa2ae817cc5fe76b6d7e4f5b53b55",
+      "neutral": "e29348cad9b352a415226793171853aec37fa2ae817cc5fe76b6d7e4f5b53b55"
+    },
+    "revision2_external/causal_fibonacci_shadow.py": {
+      "baseline": "e23fe595d4d20b8085602f8e60570ddc17a82b3a62accac34115ec467ee21b7d",
+      "neutral": "e23fe595d4d20b8085602f8e60570ddc17a82b3a62accac34115ec467ee21b7d"
+    },
+    "revision2_external/causal_mtf_aligner.py": {
+      "baseline": "2d3babb725b21c9c69b382b1ae416b1d532efce71e4a17b34d3a7037bc5f4a6d",
+      "neutral": "2d3babb725b21c9c69b382b1ae416b1d532efce71e4a17b34d3a7037bc5f4a6d"
+    },
+    "revision2_external/chart_studies_confirmation.py": {
+      "baseline": "6f3804f44cdc217bba3252de46bcbd26a735030dfc10816d6e27a4b3ba4d4853",
+      "neutral": "6f3804f44cdc217bba3252de46bcbd26a735030dfc10816d6e27a4b3ba4d4853"
+    },
+    "revision2_external/closed_loop_control.py": {
+      "baseline": "8880f5681defc0244a31ee28a7d7a28d1a6bb321880df68988ba7e69b42ca88d",
+      "neutral": "8880f5681defc0244a31ee28a7d7a28d1a6bb321880df68988ba7e69b42ca88d"
+    },
+    "revision2_external/closed_loop_dry_run.py": {
+      "baseline": "4ded8dee954af02a789a24e584c4aad2771abb2b2452b54f2aaf31c0970e0c82",
+      "neutral": "4ded8dee954af02a789a24e584c4aad2771abb2b2452b54f2aaf31c0970e0c82"
+    },
+    "revision2_external/closed_loop_v2.py": {
+      "baseline": "368965737e27e481e972bf0578ba96f9003aa0734e25bf8c0cd924da46dee3df",
+      "neutral": "368965737e27e481e972bf0578ba96f9003aa0734e25bf8c0cd924da46dee3df"
+    },
+    "revision2_external/closed_loop_v3.py": {
+      "baseline": "559ec0356ea1a01583b1fc4b199a9c36259ac2750bd9d77dd0deea7d8409417d",
+      "neutral": "559ec0356ea1a01583b1fc4b199a9c36259ac2750bd9d77dd0deea7d8409417d"
+    },
+    "revision2_external/composite_study_signal.py": {
+      "baseline": "a3b41d9d2e4283f350ebe66be543156707fd6e73f29e7c4cb4ee9dfb11f0e7a9",
+      "neutral": "1a8d39efb3bf195d116477522a258b24787d346e0509a52aa73b26c1c6b73633"
+    },
+    "revision2_external/continuous_exit_controller.py": {
+      "baseline": "d4301518c83ab97938d3cba3bdbc7ea1d927a7d9fa8c59fac0878b38a70b8109",
+      "neutral": "d4301518c83ab97938d3cba3bdbc7ea1d927a7d9fa8c59fac0878b38a70b8109"
+    },
+    "revision2_external/continuous_exit_controller_with_grid.py": {
+      "baseline": "076343444a6a0e500dd1333d40b18f74758882ff280a2d649df7ae2b3aa6cfd6",
+      "neutral": "076343444a6a0e500dd1333d40b18f74758882ff280a2d649df7ae2b3aa6cfd6"
+    },
+    "revision2_external/cross_sectional_relative_strength.py": {
+      "baseline": "5e1ad2618f53207c46a0ac948cdb1554cf8c64e3bd5ab8d97bf6164fcda40f39",
+      "neutral": "5e1ad2618f53207c46a0ac948cdb1554cf8c64e3bd5ab8d97bf6164fcda40f39"
+    },
+    "revision2_external/curve_entry_pid_shadow.py": {
+      "baseline": "bc6da30502a94f4a24f2a9520b64f2317f04b6a9ec7311e8dc6f1d04268638b3",
+      "neutral": "bc6da30502a94f4a24f2a9520b64f2317f04b6a9ec7311e8dc6f1d04268638b3"
+    },
+    "revision2_external/curve_synchronizer_shadow.py": {
+      "baseline": "f7a69e7f127671279f556975830c2fffb312fbbb8890c1bcf42cee8f5ed545db",
+      "neutral": "f7a69e7f127671279f556975830c2fffb312fbbb8890c1bcf42cee8f5ed545db"
+    },
+    "revision2_external/data_certification_pandera.py": {
+      "baseline": "fce70ae3ef714dcd26223a36d3c0851fd5960bbd732694492517a4acac8ecfca",
+      "neutral": "fce70ae3ef714dcd26223a36d3c0851fd5960bbd732694492517a4acac8ecfca"
+    },
+    "revision2_external/data_loader_arctic.py": {
+      "baseline": "a4ffad0d97f77e6df010208bd7fc0d743c600c9f0cdd98b80b6bce0ba4f8c98d",
+      "neutral": "a4ffad0d97f77e6df010208bd7fc0d743c600c9f0cdd98b80b6bce0ba4f8c98d"
+    },
+    "revision2_external/dynamic_parameter_controller.py": {
+      "baseline": "424f5d0846df4cac3c43b71ecb397fb6e808499c7f5860f633d4dbdd6c3ff5c8",
+      "neutral": "424f5d0846df4cac3c43b71ecb397fb6e808499c7f5860f633d4dbdd6c3ff5c8"
+    },
+    "revision2_external/dynamic_target_setpoint.py": {
+      "baseline": "e735f657fceb11b551ef8847613f6c77c7c57e8ac53151c1db48de79e5cdd08b",
+      "neutral": "e735f657fceb11b551ef8847613f6c77c7c57e8ac53151c1db48de79e5cdd08b"
+    },
+    "revision2_external/entry_candidate_observations.py": {
+      "baseline": "a8f0e25397e593c22e86bf22b098620fef302dbcab0e1b857486bd03ddec69ee",
+      "neutral": "a8f0e25397e593c22e86bf22b098620fef302dbcab0e1b857486bd03ddec69ee"
+    },
+    "revision2_external/entry_expectancy_evidence.py": {
+      "baseline": "157ce0ede7ebf652e8a2c88331c6522dbb18a17ffb337713f10f4ea57227f082",
+      "neutral": "157ce0ede7ebf652e8a2c88331c6522dbb18a17ffb337713f10f4ea57227f082"
+    },
+    "revision2_external/entry_path_diagnostic.py": {
+      "baseline": "4be20bf7f3b197eaa4403d9618445ee315c9a27b0f641f5d881f6e1eb6673f4c",
+      "neutral": "4be20bf7f3b197eaa4403d9618445ee315c9a27b0f641f5d881f6e1eb6673f4c"
+    },
+    "revision2_external/feature_separability_diagnostic.py": {
+      "baseline": "0c8ac43b38c2b052c5d82fb47120eed67edc73871b1dae608cebf2d5bed8d13a",
+      "neutral": "0c8ac43b38c2b052c5d82fb47120eed67edc73871b1dae608cebf2d5bed8d13a"
+    },
+    "revision2_external/final_execution_controller.py": {
+      "baseline": "05633ca906f20470bf8865c6e1ec9272aca62eac96fefbc705d8d0d3a340627c",
+      "neutral": "05633ca906f20470bf8865c6e1ec9272aca62eac96fefbc705d8d0d3a340627c"
+    },
+    "revision2_external/final_exit_authority_audit.py": {
+      "baseline": "177ac9c0fa680b929d07e2b84dc0113282832faa398359929c1c48c8428c9826",
+      "neutral": "177ac9c0fa680b929d07e2b84dc0113282832faa398359929c1c48c8428c9826"
+    },
+    "revision2_external/frozen_decile_analysis.py": {
+      "baseline": "a3e6c2c0dfa6a31423213120f038e2ad7fff6352d6a854d29e412a7c1c3e7840",
+      "neutral": "a3e6c2c0dfa6a31423213120f038e2ad7fff6352d6a854d29e412a7c1c3e7840"
+    },
+    "revision2_external/frozen_joint_probability.py": {
+      "baseline": "d565ead9b556cb4e9a7dce0cab10da26e8c7b610a65b1a8d36ecf655b15407c3",
+      "neutral": "d565ead9b556cb4e9a7dce0cab10da26e8c7b610a65b1a8d36ecf655b15407c3"
+    },
+    "revision2_external/geometry_audit_shadow.py": {
+      "baseline": "7d3120b31a4adcaac44237e5e346b6e7fca41dda5620a49b0dea1951af5b028c",
+      "neutral": "7d3120b31a4adcaac44237e5e346b6e7fca41dda5620a49b0dea1951af5b028c"
+    },
+    "revision2_external/grid_context.py": {
+      "baseline": "3f97032bf2bf8f5b4b3edf62a6e33600d0c7d6ca798f5cfaf55fb1172b8301a6",
+      "neutral": "3f97032bf2bf8f5b4b3edf62a6e33600d0c7d6ca798f5cfaf55fb1172b8301a6"
+    },
+    "revision2_external/indicators_talib.py": {
+      "baseline": "70ff1999ddf06a15ef9e650cb7db3539ee8e5379440c8bd183f544433440c549",
+      "neutral": "70ff1999ddf06a15ef9e650cb7db3539ee8e5379440c8bd183f544433440c549"
+    },
+    "revision2_external/interaction_holdout.py": {
+      "baseline": "806228524303fc476e0b104f40a9019159b2c717b58de44d5fa33f59d18db4c5",
+      "neutral": "806228524303fc476e0b104f40a9019159b2c717b58de44d5fa33f59d18db4c5"
+    },
+    "revision2_external/intraday_pnl_setpoint_shadow.py": {
+      "baseline": "795b652fdd814b91dc47d1b1a5f31851ffe64ef962de3c6f37539545d2f5809a",
+      "neutral": "795b652fdd814b91dc47d1b1a5f31851ffe64ef962de3c6f37539545d2f5809a"
+    },
+    "revision2_external/newton_phase_setpoint.py": {
+      "baseline": "32500661b474c56a528c89f8dedbb1caaf2cb7390dd359f188a7cb67be2198d9",
+      "neutral": "32500661b474c56a528c89f8dedbb1caaf2cb7390dd359f188a7cb67be2198d9"
+    },
+    "revision2_external/orchestrator.py": {
+      "baseline": "c32672308254fc73169f4924216b90b5e587cfbc3a0f6d879207592ab7810a87",
+      "neutral": "c32672308254fc73169f4924216b90b5e587cfbc3a0f6d879207592ab7810a87"
+    },
+    "revision2_external/paper_execution.py": {
+      "baseline": "2f301d0fb261675fc9f0cac6e5af4171d9d8ff22107f2a03735a2a717d1eaa15",
+      "neutral": "2f301d0fb261675fc9f0cac6e5af4171d9d8ff22107f2a03735a2a717d1eaa15"
+    },
+    "revision2_external/pid_controller.py": {
+      "baseline": "b41c855f1ec673f5c9bab31b2e21207c62a94378be13e93100ad5a63f59e8d37",
+      "neutral": "b41c855f1ec673f5c9bab31b2e21207c62a94378be13e93100ad5a63f59e8d37"
+    },
+    "revision2_external/position_sizing_pyportfolioopt.py": {
+      "baseline": "33198f96b9847bab52be41e631dbd3de34d37d8005b2d30d8298f21f50cec3bf",
+      "neutral": "33198f96b9847bab52be41e631dbd3de34d37d8005b2d30d8298f21f50cec3bf"
+    },
+    "revision2_external/price_volume_study_reversal_shadow.py": {
+      "baseline": "d15eb3c1d9d0bf3db1247a323925dc7aa633f2825fcec12eb231b92d849f211c",
+      "neutral": "d15eb3c1d9d0bf3db1247a323925dc7aa633f2825fcec12eb231b92d849f211c"
+    },
+    "revision2_external/regime_hmm.py": {
+      "baseline": "05e6a3f865cd2f9175645ab3ef25fdc4f35b7736fdc6c5313aafe16f61e8a1f3",
+      "neutral": "05e6a3f865cd2f9175645ab3ef25fdc4f35b7736fdc6c5313aafe16f61e8a1f3"
+    },
+    "revision2_external/regime_id_box.py": {
+      "baseline": "3bd8cc42b224a86f23b7c06c83e0e7bde15aacf9baf55009bf738d9c5bbd00d7",
+      "neutral": "3bd8cc42b224a86f23b7c06c83e0e7bde15aacf9baf55009bf738d9c5bbd00d7"
+    },
+    "revision2_external/reversal_cohort_shadow.py": {
+      "baseline": "9806c48eb98366e4f5876463596a07e2504d4e9e212358a495752d54cd8f9c39",
+      "neutral": "9806c48eb98366e4f5876463596a07e2504d4e9e212358a495752d54cd8f9c39"
+    },
+    "revision2_external/sealed_research_evaluator.py": {
+      "baseline": "9f27da59ffde1efc8c9de660a1207c72bd443d49f87cbccca4ee5996630fde79",
+      "neutral": "9f27da59ffde1efc8c9de660a1207c72bd443d49f87cbccca4ee5996630fde79"
+    },
+    "revision2_external/startup_validation.py": {
+      "baseline": "37c711619f03da8ec12a5008335370b7c4cec2755488df62bab72e9047c1c3bd",
+      "neutral": "37c711619f03da8ec12a5008335370b7c4cec2755488df62bab72e9047c1c3bd"
+    },
+    "revision2_external/study_entry_shadow.py": {
+      "baseline": "ceb42877ca81ec0f8a3eb1fd5b442f0992e145762ed7a84ebdf4d3322bfe5f0a",
+      "neutral": "ceb42877ca81ec0f8a3eb1fd5b442f0992e145762ed7a84ebdf4d3322bfe5f0a"
+    },
+    "revision2_external/triple_barrier_discovery.py": {
+      "baseline": "e88230293bb1d6fb12e4e5e5c458b2e66bac504662f46032ca54e027a8d1553c",
+      "neutral": "e88230293bb1d6fb12e4e5e5c458b2e66bac504662f46032ca54e027a8d1553c"
+    },
+    "revision3/__init__.py": {
+      "baseline": "0287e24ba45b7f75e0c92c6f23fe678d8f1c90e8f3a7940ee6e586f4c7f84e3c",
+      "neutral": "0287e24ba45b7f75e0c92c6f23fe678d8f1c90e8f3a7940ee6e586f4c7f84e3c"
+    },
+    "revision3/integration_supervisor.py": {
+      "baseline": "0aa1865cfa047cfcd07fc8ae10fa592b92b16cfb377b7e5b7796fd739d7dbf6a",
+      "neutral": "0aa1865cfa047cfcd07fc8ae10fa592b92b16cfb377b7e5b7796fd739d7dbf6a"
+    },
+    "revision3/macro_grid_synchronizer.py": {
+      "baseline": "05fadf9aab5a00ea39e8b9f28a02b705c148c209c7ebe8e8e6dfe4ab53cf273c",
+      "neutral": "05fadf9aab5a00ea39e8b9f28a02b705c148c209c7ebe8e8e6dfe4ab53cf273c"
+    },
+    "revision3/master_control_system.py": {
+      "baseline": "49f8b8d630fd0b2a88f8d701988de04bd5a52d7a5c1ce6246529875ee60b475a",
+      "neutral": "49f8b8d630fd0b2a88f8d701988de04bd5a52d7a5c1ce6246529875ee60b475a"
+    },
+    "revision3/portfolio_orchestrator.py": {
+      "baseline": "e7562cfd7eca6bbee893d493f8339eef5f29dabfd04a93f3eb554b4d22196040",
+      "neutral": "e7562cfd7eca6bbee893d493f8339eef5f29dabfd04a93f3eb554b4d22196040"
+    },
+    "revision3/safety_panel.py": {
+      "baseline": "8dfdbca70794a4af8aae6dd1bb1b8cc0bef74d936042b5157fd039000120459f",
+      "neutral": "8dfdbca70794a4af8aae6dd1bb1b8cc0bef74d936042b5157fd039000120459f"
+    },
+    "revision4/__init__.py": {
+      "baseline": "cfa7f871a90b601954f21f3740ef2bf4a7d955c8b79368619add2407734d94a0",
+      "neutral": "cfa7f871a90b601954f21f3740ef2bf4a7d955c8b79368619add2407734d94a0"
+    },
+    "revision4/analyze_closed_loop_logs.py": {
+      "baseline": "d04f2306d092ef621ffbeffc2e9e8f7c68e9d87626581045e9c112ea79bc29a3",
+      "neutral": "d04f2306d092ef621ffbeffc2e9e8f7c68e9d87626581045e9c112ea79bc29a3"
+    },
+    "revision4/box_adapters.py": {
+      "baseline": "94df19f05049b3c99760066a3337464cd13711bd1991ea6df1978a0711d0628a",
+      "neutral": "94df19f05049b3c99760066a3337464cd13711bd1991ea6df1978a0711d0628a"
+    },
+    "revision4/canonical_config.py": {
+      "baseline": "b61bcdf36d6df72bdbaec8cf41bd27da1c827b803ae8700b5fe9aa2e3cee3a4e",
+      "neutral": "b61bcdf36d6df72bdbaec8cf41bd27da1c827b803ae8700b5fe9aa2e3cee3a4e"
+    },
+    "revision4/config_access.py": {
+      "baseline": "8620c4e521d1a586abd274395f2005e59f179bd46c370692b29e24abef203262",
+      "neutral": "8620c4e521d1a586abd274395f2005e59f179bd46c370692b29e24abef203262"
+    },
+    "revision4/contracts.py": {
+      "baseline": "973c7094d354dd0e191fb6def8571107f6c2fdd2222a16f976edf33707e8f866",
+      "neutral": "973c7094d354dd0e191fb6def8571107f6c2fdd2222a16f976edf33707e8f866"
+    },
+    "revision4/dataset_loader.py": {
+      "baseline": "93628095579df88d8bb5d0f0a8b8313a80f77ab2b440bd1e521d3173d1d5ebfa",
+      "neutral": "93628095579df88d8bb5d0f0a8b8313a80f77ab2b440bd1e521d3173d1d5ebfa"
+    },
+    "revision4/dataset_seal.py": {
+      "baseline": "490c11cd9c515d32a8947222cf9f924b1e93fe8fc65ce6680d71d7c27bfd0f05",
+      "neutral": "490c11cd9c515d32a8947222cf9f924b1e93fe8fc65ce6680d71d7c27bfd0f05"
+    },
+    "revision4/diagnostic_48symbol.py": {
+      "baseline": "40ddbbcd7e7f40d5f8e25b7cf3146b20935f4788d0ae6978a7b6965557d71695",
+      "neutral": "40ddbbcd7e7f40d5f8e25b7cf3146b20935f4788d0ae6978a7b6965557d71695"
+    },
+    "revision4/dump_params.py": {
+      "baseline": "3ae8adb4d4c83c46e242b44dfb6cd50b9347e9b2855450a324b006546e16ea49",
+      "neutral": "3ae8adb4d4c83c46e242b44dfb6cd50b9347e9b2855450a324b006546e16ea49"
+    },
+    "revision4/entry_probability_validator.py": {
+      "baseline": "680647a1ccb3ba640df9444b7f70cee4cb36c17417728a64a8bc721db72901a9",
+      "neutral": "680647a1ccb3ba640df9444b7f70cee4cb36c17417728a64a8bc721db72901a9"
+    },
+    "revision4/export_one_week_trades.py": {
+      "baseline": "0f9445f23967bbb4871c92ad7ed6c45fb3c2131eaa6a0c6431a3211eda561d01",
+      "neutral": "0f9445f23967bbb4871c92ad7ed6c45fb3c2131eaa6a0c6431a3211eda561d01"
+    },
+    "revision4/export_trade_logs.py": {
+      "baseline": "75abda390d2540bf4521ad8672630a5c0d9c117c4dad184ebac3afeffce71c11",
+      "neutral": "75abda390d2540bf4521ad8672630a5c0d9c117c4dad184ebac3afeffce71c11"
+    },
+    "revision4/export_validation_finalist_attribution.py": {
+      "baseline": "1b2074d9421333704cf1633d6cfbd3dbd7a7eabd6eb8f35eb97d48d4ff023f8d",
+      "neutral": "1b2074d9421333704cf1633d6cfbd3dbd7a7eabd6eb8f35eb97d48d4ff023f8d"
+    },
+    "revision4/five_layer_entry_orchestrator.py": {
+      "baseline": "fc9670cd1dfa96672d68623704dfafa145e9de36d29198aca432c782046b2867",
+      "neutral": "fc9670cd1dfa96672d68623704dfafa145e9de36d29198aca432c782046b2867"
+    },
+    "revision4/gate16_remediation.py": {
+      "baseline": "574822d1a997777c2703a6244370f2e5b93a0c6562c68c87101087d6fc8fc6a8",
+      "neutral": "574822d1a997777c2703a6244370f2e5b93a0c6562c68c87101087d6fc8fc6a8"
+    },
+    "revision4/gates_proper.py": {
+      "baseline": "2e08790fa2c8c1569fe6efa95a8899d47daa6017598cb68b44351978fa60a64f",
+      "neutral": "2e08790fa2c8c1569fe6efa95a8899d47daa6017598cb68b44351978fa60a64f"
+    },
+    "revision4/grid_search.py": {
+      "baseline": "c38282c575f1cd1d0b3f346d8af3a7ceeeb4feb5b852fddcb6258a50add63287",
+      "neutral": "c38282c575f1cd1d0b3f346d8af3a7ceeeb4feb5b852fddcb6258a50add63287"
+    },
+    "revision4/orchestrator.py": {
+      "baseline": "26a332eda240adb628f5af25537c4da44a2a6a8438deb2cfcbc6c96b053ce672",
+      "neutral": "26a332eda240adb628f5af25537c4da44a2a6a8438deb2cfcbc6c96b053ce672"
+    },
+    "revision4/paper_broker.py": {
+      "baseline": "e5ecbff79a5b34c402f22d462333cf07c7846948721a2e586f6461b51afa9075",
+      "neutral": "e5ecbff79a5b34c402f22d462333cf07c7846948721a2e586f6461b51afa9075"
+    },
+    "revision4/pipeline.py": {
+      "baseline": "b2ad9db794db5872af49df528b75aad13b586dee9a659fdc6afd2899057d18df",
+      "neutral": "b2ad9db794db5872af49df528b75aad13b586dee9a659fdc6afd2899057d18df"
+    },
+    "revision4/portfolio.py": {
+      "baseline": "e942c2c179864376ca7f4c00cf18c240030b0fa5dc1b7e296e67ae606a09807f",
+      "neutral": "e942c2c179864376ca7f4c00cf18c240030b0fa5dc1b7e296e67ae606a09807f"
+    },
+    "revision4/pre_entry_proxy_diagnostic.py": {
+      "baseline": "c2cd52c1b406121e7237805a86dd1e68d29a6127a0b6d55803bd057a268ce2f1",
+      "neutral": "c2cd52c1b406121e7237805a86dd1e68d29a6127a0b6d55803bd057a268ce2f1"
+    },
+    "revision4/print_log_summary.py": {
+      "baseline": "76f03ffdb6c82267160dc1586ac835ac8163c5c9c6c45ca2e735321212e6db9b",
+      "neutral": "76f03ffdb6c82267160dc1586ac835ac8163c5c9c6c45ca2e735321212e6db9b"
+    },
+    "revision4/range_atr_shadow.py": {
+      "baseline": "e08342756c8d76370fdb67e4ac18b4de842c70b627d06494ff537cfb5e66bebd",
+      "neutral": "e08342756c8d76370fdb67e4ac18b4de842c70b627d06494ff537cfb5e66bebd"
+    },
+    "revision4/ray_optuna_v3_calibration.py": {
+      "baseline": "b05e575f175bfe631957acbe03c2fbcc38bb68f34368707a09178538bd45eab1",
+      "neutral": "b05e575f175bfe631957acbe03c2fbcc38bb68f34368707a09178538bd45eab1"
+    },
+    "revision4/replay_engine.py": {
+      "baseline": "446bc25ef489fefc313eb31b174cdf53ad1a7760199f4f34a743a3bedf063ead",
+      "neutral": "446bc25ef489fefc313eb31b174cdf53ad1a7760199f4f34a743a3bedf063ead"
+    },
+    "revision4/research_target.py": {
+      "baseline": "e389fdf52ed1bcf3fc1b0849efbf8284442a556f9c344f07b22801423b6b527d",
+      "neutral": "e389fdf52ed1bcf3fc1b0849efbf8284442a556f9c344f07b22801423b6b527d"
+    },
+    "revision4/run_intraday_day_ledger.py": {
+      "baseline": "0fbeddec610facd3f41456234310fa56f6dc8219de2282550f91d7a27cdc7a2a",
+      "neutral": "0fbeddec610facd3f41456234310fa56f6dc8219de2282550f91d7a27cdc7a2a"
+    },
+    "revision4/run_multi_year.py": {
+      "baseline": "03912cc09b9a52a4ad95b143fb548fdead17c82a864fd5758ef831b6f584b9d1",
+      "neutral": "03912cc09b9a52a4ad95b143fb548fdead17c82a864fd5758ef831b6f584b9d1"
+    },
+    "revision4/run_one_day.py": {
+      "baseline": "786f5135994ef63fc1c9de227f4e9c10acdf4eb32a005f9c64bf4759b1462a4c",
+      "neutral": "786f5135994ef63fc1c9de227f4e9c10acdf4eb32a005f9c64bf4759b1462a4c"
+    },
+    "revision4/run_one_week.py": {
+      "baseline": "b2ba480ca7c3c1d08e0790f291e5e47be278d5cdeebd4dbe7c694175371be0ce",
+      "neutral": "b2ba480ca7c3c1d08e0790f291e5e47be278d5cdeebd4dbe7c694175371be0ce"
+    },
+    "revision4/run_ray_optuna_v3_calibration.py": {
+      "baseline": "832c06e433cc279881f406c439ae9fe4c42819d29b4ee5db795a21ab9c64c871",
+      "neutral": "832c06e433cc279881f406c439ae9fe4c42819d29b4ee5db795a21ab9c64c871"
+    },
+    "revision4/run_v3_intraday_calibration.py": {
+      "baseline": "1673b71320d0f2af5a7d54d5b0d827c1b0e2bf876e8478f7ded01b91a8bd433c",
+      "neutral": "1673b71320d0f2af5a7d54d5b0d827c1b0e2bf876e8478f7ded01b91a8bd433c"
+    },
+    "revision4/slippage_diagnostic.py": {
+      "baseline": "0047b50b61f4459b9ae4f7d26b95145fcdf9609688669a644b00a18127b905ec",
+      "neutral": "0047b50b61f4459b9ae4f7d26b95145fcdf9609688669a644b00a18127b905ec"
+    },
+    "revision4/ten_box_integration.py": {
+      "baseline": "332df6c1b2dd08ea1615ead5f1b7f3fccbf08b533abb1635a40b169ef82aeb9a",
+      "neutral": "332df6c1b2dd08ea1615ead5f1b7f3fccbf08b533abb1635a40b169ef82aeb9a"
+    },
+    "revision4/ten_box_orchestrator_clean.py": {
+      "baseline": "ea49513488e3768fb82ba5eb6b98377308ff44d0e8777f489b5f0297b1c6dd31",
+      "neutral": "ea49513488e3768fb82ba5eb6b98377308ff44d0e8777f489b5f0297b1c6dd31"
+    },
+    "revision4/timestamp_orchestrator.py": {
+      "baseline": "7a661ac5a670e37fcb1d0652d9bce0b5c4818f2d7a537aad1c790d6c664d1a3b",
+      "neutral": "7a661ac5a670e37fcb1d0652d9bce0b5c4818f2d7a537aad1c790d6c664d1a3b"
+    },
+    "revision4/trade_cost_attribution.py": {
+      "baseline": "b13a783960c66d27cd604f9da981abac59ad68df658fdb938f30e560c4a34546",
+      "neutral": "b13a783960c66d27cd604f9da981abac59ad68df658fdb938f30e560c4a34546"
+    },
+    "revision4/v3_intraday_calibration.py": {
+      "baseline": "875536c963ed8c6aa567142b14bf788912940b05e40d7e41ca25d6163112f452",
+      "neutral": "875536c963ed8c6aa567142b14bf788912940b05e40d7e41ca25d6163112f452"
+    },
+    "revision4/validate_48symbol_sealed.py": {
+      "baseline": "91d204f21c4a0b4c7ed8e0624ca49d7b704d11fd289f5a37d2adaf27df59057a",
+      "neutral": "91d204f21c4a0b4c7ed8e0624ca49d7b704d11fd289f5a37d2adaf27df59057a"
+    },
+    "revision4/validate_orchestrator.py": {
+      "baseline": "fa15c6ed7c2f63c6e96d0670fec4533343fbaa15c78f28cd70aea9553fec617b",
+      "neutral": "fa15c6ed7c2f63c6e96d0670fec4533343fbaa15c78f28cd70aea9553fec617b"
+    },
+    "revision4/validate_sunpharma_sealed.py": {
+      "baseline": "7a511b3bdb0649464401d7b820ab6a6b9e7a519835c70d0880f98e06c91601ad",
+      "neutral": "7a511b3bdb0649464401d7b820ab6a6b9e7a519835c70d0880f98e06c91601ad"
+    },
+    "revision4/validation_replay.py": {
+      "baseline": "ed1e58abac833d313582cb621f427e16901252c50935503213e390086c977aa3",
+      "neutral": "ed1e58abac833d313582cb621f427e16901252c50935503213e390086c977aa3"
+    },
+    "revision4/warmup_admission.py": {
+      "baseline": "f0e70f86c4a92900ecc361eb3198c00d3875a9b6fb9b342b12bc6cb6f0e4200a",
+      "neutral": "f0e70f86c4a92900ecc361eb3198c00d3875a9b6fb9b342b12bc6cb6f0e4200a"
+    },
+    "revision5/__init__.py": {
+      "baseline": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "neutral": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "revision5/bay_feasibility.py": {
+      "baseline": "b8f150e459f9eff6bdaa9da45ef1e1d31ba2e341c8634fd9e48853e0dadbb9ce",
+      "neutral": "b8f150e459f9eff6bdaa9da45ef1e1d31ba2e341c8634fd9e48853e0dadbb9ce"
+    },
+    "revision5/ccpp_protection_cubicles.py": {
+      "baseline": "2fe290c312c969bdb63526326b2b33ba6851ae44465b44e86e2b9a7c43f63e9e",
+      "neutral": "2fe290c312c969bdb63526326b2b33ba6851ae44465b44e86e2b9a7c43f63e9e"
+    },
+    "revision5/ccpp_unified_plant.py": {
+      "baseline": "1253ef202ed90da048b36093419537cbc6b92111f3aec97593d77d42c574bf92",
+      "neutral": "1253ef202ed90da048b36093419537cbc6b92111f3aec97593d77d42c574bf92"
+    },
+    "revision5/combined_cycle_runtime.py": {
+      "baseline": "8432563f9f0bd16a9bd4a2156dcb6cf27ccd7561d906616b73629d60173d1ec9",
+      "neutral": "8432563f9f0bd16a9bd4a2156dcb6cf27ccd7561d906616b73629d60173d1ec9"
+    },
+    "revision5/combined_cycle_store.py": {
+      "baseline": "44a1f15de7db53a1ae0fd1ea989960bf82ec49d09fe38d984ed6f757945d6cc3",
+      "neutral": "44a1f15de7db53a1ae0fd1ea989960bf82ec49d09fe38d984ed6f757945d6cc3"
+    },
+    "revision5/dynamic_parameters.py": {
+      "baseline": "27a3e87641b1bcc9c7516c27752bdf74f5546521dc36d4e393cfa7e836fc309d",
+      "neutral": "27a3e87641b1bcc9c7516c27752bdf74f5546521dc36d4e393cfa7e836fc309d"
+    },
+    "revision5/electrical_network.py": {
+      "baseline": "c0290d572fa8d9ed37abca843e0b37cee83ede81d67d27c41dcc7343646ca939",
+      "neutral": "c0290d572fa8d9ed37abca843e0b37cee83ede81d67d27c41dcc7343646ca939"
+    },
+    "revision5/engine_b_management.py": {
+      "baseline": "10489260037910cf153312c11ce048b1b8c56c5a28c31c9f7d1e771fc37d9a1b",
+      "neutral": "10489260037910cf153312c11ce048b1b8c56c5a28c31c9f7d1e771fc37d9a1b"
+    },
+    "revision5/engine_state.py": {
+      "baseline": "451fd60c12b8eb98b957a50b052a53626abedc0d679426062442d4b27f8e98d0",
+      "neutral": "451fd60c12b8eb98b957a50b052a53626abedc0d679426062442d4b27f8e98d0"
+    },
+    "revision5/governor.py": {
+      "baseline": "08058f8ab59ddbc67cf29b04349445e4809631bd25f39a3a6154ca3332a62d5c",
+      "neutral": "08058f8ab59ddbc67cf29b04349445e4809631bd25f39a3a6154ca3332a62d5c"
+    },
+    "revision5/governor_authority.py": {
+      "baseline": "2946c5c2e86ed45b2070d112fab679a0bd39bc8f20fd7c2dd65a0fa0fe40138c",
+      "neutral": "2946c5c2e86ed45b2070d112fab679a0bd39bc8f20fd7c2dd65a0fa0fe40138c"
+    },
+    "revision5/governor_position_policy.py": {
+      "baseline": "d0eb6e1a6b0b564e054458b4638418a7fd9a7824f3bebac797759c5f12e6c223",
+      "neutral": "d0eb6e1a6b0b564e054458b4638418a7fd9a7824f3bebac797759c5f12e6c223"
+    },
+    "revision5/handoff_manager.py": {
+      "baseline": "91139eeae0cf8294064e13c5e6b54bfb3d82b42c623482701f185b4e23acdce9",
+      "neutral": "91139eeae0cf8294064e13c5e6b54bfb3d82b42c623482701f185b4e23acdce9"
+    },
+    "revision5/hrsg.py": {
+      "baseline": "9ccdb6edd5dec82721e036ea333b8ea3c24cd5e30680dd9a28200a74111c901b",
+      "neutral": "9ccdb6edd5dec82721e036ea333b8ea3c24cd5e30680dd9a28200a74111c901b"
+    },
+    "revision5/machine_archetypes.py": {
+      "baseline": "0028c23617a3ec0a11e1bdc10baab3276e866e00a0e2f8312577bbafa168b7c4",
+      "neutral": "0028c23617a3ec0a11e1bdc10baab3276e866e00a0e2f8312577bbafa168b7c4"
+    },
+    "revision5/machine_dynamics.py": {
+      "baseline": "d69637fad496fce41a53b883534754e930776273dbe5fb66910c2de036f7abb8",
+      "neutral": "d69637fad496fce41a53b883534754e930776273dbe5fb66910c2de036f7abb8"
+    },
+    "revision5/paper_state_journal.py": {
+      "baseline": "3c834e5436653c9b0ceb4d5180bbedd94bba9fefdae4738a74630a3d7b289360",
+      "neutral": "3c834e5436653c9b0ceb4d5180bbedd94bba9fefdae4738a74630a3d7b289360"
+    },
+    "revision5/plant_control.py": {
+      "baseline": "ff2cc3b7ff2b3acc70a8d11f164793c2c7c86762d5f381591f6ff23bc06160c2",
+      "neutral": "ff2cc3b7ff2b3acc70a8d11f164793c2c7c86762d5f381591f6ff23bc06160c2"
+    },
+    "revision5/position_lifecycle.py": {
+      "baseline": "9bedf66d754ac44ed520ffa5127d3d9c8ec34f0b80cdef33e78ca98eb4c4e666",
+      "neutral": "9bedf66d754ac44ed520ffa5127d3d9c8ec34f0b80cdef33e78ca98eb4c4e666"
+    },
+    "revision5/protection_snapshot.py": {
+      "baseline": "9ffbe36e45a2c1f1d79bf94804f45db910fefc6806493a352623e525b225bcc0",
+      "neutral": "9ffbe36e45a2c1f1d79bf94804f45db910fefc6806493a352623e525b225bcc0"
+    },
+    "revision5/relay_coordination.py": {
+      "baseline": "3b6f8a86159940913b20d2ece8cbad0d9b64dc3f56cb118bf6554e7bcc03a4ca",
+      "neutral": "3b6f8a86159940913b20d2ece8cbad0d9b64dc3f56cb118bf6554e7bcc03a4ca"
+    },
+    "revision5/startup_synchronization.py": {
+      "baseline": "a1fc8b64615da4bc725dafdf5fbaaa5bad4149b4da347421ebda2f50670cdd2b",
+      "neutral": "a1fc8b64615da4bc725dafdf5fbaaa5bad4149b4da347421ebda2f50670cdd2b"
+    },
+    "revision5/supervisory_bridge.py": {
+      "baseline": "a0f250e46abe19e91536578015f2cabf21b47f07df165bd0fdb2ce2db836a6c6",
+      "neutral": "a0f250e46abe19e91536578015f2cabf21b47f07df165bd0fdb2ce2db836a6c6"
+    },
+    "revision5/topology.py": {
+      "baseline": "40f099fb297202cc7f18e1bb73dcf95de792e780b033e8588bb95672b1250dac",
+      "neutral": "40f099fb297202cc7f18e1bb73dcf95de792e780b033e8588bb95672b1250dac"
+    },
+    "runtime/__init__.py": {
+      "baseline": "32de8b1d2171cf70af8375610b4856792a94d377ddee2f1e150b21ef816401d7",
+      "neutral": "32de8b1d2171cf70af8375610b4856792a94d377ddee2f1e150b21ef816401d7"
+    },
+    "runtime/contract_validator.py": {
+      "baseline": "8a29e3e708fcbe170c9c2ac97cfaf7fd0b8fea93dd0b2e9ce838c3523bbdad8f",
+      "neutral": "8a29e3e708fcbe170c9c2ac97cfaf7fd0b8fea93dd0b2e9ce838c3523bbdad8f"
+    },
+    "runtime/operating_mode.py": {
+      "baseline": "7826d005ccf9364cee3bf448f5fc96c5e4e37917a49f7549696e0321c0b541d0",
+      "neutral": "7826d005ccf9364cee3bf448f5fc96c5e4e37917a49f7549696e0321c0b541d0"
+    },
+    "scripts/run_r5_step5_candidate.py": {
+      "baseline": "8caa51c8c140525866376eb982a810d48bd8540d0eb649469db0eb6d0853854d",
+      "neutral": "8caa51c8c140525866376eb982a810d48bd8540d0eb649469db0eb6d0853854d"
+    },
+    "alternate/nautilus_revision2_strategy.py": {
+      "baseline": "19f7eecdd4846473ecd5d23b221ef74548626523c1e040d9613350d3e26c319a",
+      "neutral": "19f7eecdd4846473ecd5d23b221ef74548626523c1e040d9613350d3e26c319a"
+    },
+    "alternate/nautilus_bridge_node.py": {
+      "baseline": "0f54e087e5180b8d8eebeff5754520695f2f9111e037ba4e32f8c43673310432",
+      "neutral": "0f54e087e5180b8d8eebeff5754520695f2f9111e037ba4e32f8c43673310432"
+    },
+    "alternate/fleet_loading_controller.py": {
+      "baseline": "31481c925904adeed0d8f35f5b041ed6718d23a2f03df368c5da725043e8666f",
+      "neutral": "31481c925904adeed0d8f35f5b041ed6718d23a2f03df368c5da725043e8666f"
+    }
+  },
+  "params_sha256": "d563872531a950e721e86058493e489511585fc016a5c1209c486912885a6359",
+  "protocol_sha256": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+  "baseline_count_not_assumed": true,
+  "fixed_universe": 48,
+  "block": 1,
+  "stage": "B",
+  "sealed_cli_identity_mismatch_expected": "Current branch contains intentional PR7/lifecycle changes relative to sealed parentc0b4672. Diagnostic derivative records actual source hashes and reuses canonical execute_block; does not change sealed contract or claim canonical CLI certification."
+}
