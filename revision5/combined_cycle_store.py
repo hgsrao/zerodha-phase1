@@ -54,6 +54,10 @@ class CombinedCycleStore:
         data = json.loads(row[0], object_hook=_hook)
         return RuntimeSnapshot(PositionLifecycleRecord(**data['record']), data['trade'], data['protection'], row[1])
 
+    def list_all(self):
+        """Every durable position row (open and CLOSED), ordered by id."""
+        return [self.load(row[0]) for row in self.connection.execute('SELECT id FROM positions ORDER BY id').fetchall()]
+
     def list_open(self):
         return [self.load(row[0]) for row in self.connection.execute('SELECT id FROM positions')
                 if self.load(row[0]).record.lifecycle_state != CLOSED]

@@ -12,12 +12,14 @@ class CostedPaperBrokerAdapter(PaperBrokerAdapter):
         self._simulated_gtts = {}
 
     def place_order(self, symbol, side, quantity, order_type, market_price,
-                    config=None, parameter_registry=None):
+                    config=None, parameter_registry=None, client_order_id=None):
         if order_type != "MARKET":
             return {"passed": False, "reasons": ["Replay supports MARKET orders only"]}
         was_flat = self.get_position(symbol)["quantity"] == 0
         result = super().place_order(symbol, side, quantity, order_type, market_price,
-                                     config, parameter_registry)
+                                     config, parameter_registry, client_order_id=client_order_id)
+        if result.get("duplicate_submission"):
+            return result          # same identity: no second fill, no second cost
         if result["passed"]:
             # A new intraday position must not inherit a flattened position's CNC
             # product. Fills against an existing converted position retain CNC.
@@ -31,6 +33,8 @@ class CostedPaperBrokerAdapter(PaperBrokerAdapter):
             result["cost"] = cost
             # This adapter acknowledges synchronously in simulated event time.
             result["ack_elapsed_seconds"] = 0.0
+            if client_order_id is not None:
+                self.client_orders[client_order_id]["result"] = dict(result)   # duplicates replay the costed result
         return result
 
     def request_product_conversion(self, request_id, symbol, quantity,
@@ -111,6 +115,7 @@ class CostedPaperBrokerAdapter(PaperBrokerAdapter):
                                    "conversions": self._conversion_receipts,
                                    "protection": self._contingent_protection,
                                    "gtts": self._simulated_gtts,
+                                   "client_orders": self.client_orders,
                                    "slippage_fraction": self.slippage_fraction}}
         return json.loads(json.dumps(payload))
 
@@ -142,6 +147,7 @@ class CostedPaperBrokerAdapter(PaperBrokerAdapter):
         self._conversion_receipts = state["conversions"]
         self._contingent_protection = state["protection"]
         self._simulated_gtts = state.get('gtts', {})
+        self.client_orders = state.get('client_orders', {})
 
     def ensure_cnc_gtt(self, position_id, symbol, stop_price, quantity):
         """Simulated GTT boot request; no exchange-hosted guarantee."""

@@ -75,6 +75,14 @@ class PaperBrokerAdapter(BrokerAdapter):
         self.positions: Dict[str, Dict[str, float]] = {}
         self.realized_pnl: float = 0.0
         self.fills: List[Dict[str, Any]] = []
+        # Optional caller-supplied idempotency identities: client_order_id -> successful order record.
+        self.client_orders: Dict[str, Dict[str, Any]] = {}
+
+    def find_client_order(self, client_order_id: str) -> Optional[Dict[str, Any]]:
+        """Return the recorded successful order for a client identity, or None (never creates anything)."""
+        import copy
+        entry = self.client_orders.get(client_order_id)
+        return copy.deepcopy(entry) if entry is not None else None
 
     def get_position(self, symbol: str) -> Dict[str, float]:
         return self.positions.get(symbol, {"quantity": 0, "avg_price": 0.0})
@@ -116,7 +124,22 @@ class PaperBrokerAdapter(BrokerAdapter):
         market_price: Optional[float],
         config: Optional[Dict[str, Any]] = None,
         parameter_registry: Optional[Any] = None,
+        client_order_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        # Optional idempotency identity.  Absent (the default) => behaviour is exactly as before.  Present => the
+        # SAME identity can never produce a second fill: a repeat returns the recorded result with
+        # ``duplicate_submission=True`` and changes no order, fill, position or P&L state.
+        fingerprint = None
+        if client_order_id is not None:
+            import copy
+            if not isinstance(client_order_id, str) or not client_order_id:
+                raise ValueError("client_order_id must be a non-empty string")
+            fingerprint = [symbol, side, quantity, order_type]
+            prior = self.client_orders.get(client_order_id)
+            if prior is not None:
+                if list(prior["fingerprint"]) != fingerprint:
+                    raise ValueError("client_order_id identity collision")
+                return dict(copy.deepcopy(prior["result"]), duplicate_submission=True)
         order_id = str(uuid.uuid4())
         order = PaperOrder(
             order_id=order_id,
@@ -164,7 +187,7 @@ class PaperBrokerAdapter(BrokerAdapter):
             "filled_at": order.filled_at,
         })
 
-        return {
+        result = {
             "passed": True,
             "order_id": order_id,
             "state": order.state.value,
@@ -173,6 +196,11 @@ class PaperBrokerAdapter(BrokerAdapter):
             "market_price": market_price,
             "realized_pnl": self.realized_pnl,
         }
+        if client_order_id is not None:
+            import copy
+            self.client_orders[client_order_id] = {"fingerprint": fingerprint, "order_id": order_id,
+                                                   "result": copy.deepcopy(result)}
+        return result
 
 
 class KiteBrokerAdapter(BrokerAdapter):

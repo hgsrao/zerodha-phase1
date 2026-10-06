@@ -11,6 +11,20 @@ class CombinedCycleReconciliationError(RuntimeError):
     pass
 
 
+# Durable exit intent (stored in the position row's ``protection['exit_intent']``; no new table).
+#   RESERVED  : persisted BEFORE the broker closing order; the order may or may not have executed.
+#   FILLED    : persisted AFTER the broker close succeeded; restart must NOT resubmit, only finalize.
+#   FINALIZED : every finalization step (durable CLOSED, feedback, feedback receipt) completed.
+EXIT_RESERVED = 'RESERVED'
+EXIT_FILLED = 'FILLED'
+EXIT_FINALIZED = 'FINALIZED'
+
+
+def exit_event_id(position_id):
+    """Deterministic identity of THE close of one position (a position closes once)."""
+    return f'exit:{position_id}'
+
+
 @dataclass(frozen=True)
 class CombinedCycleRuntimeConfig:
     end_of_run_disposition: str = 'CLOSE'
@@ -36,7 +50,67 @@ class CombinedCycleRuntime:
         self.store.save(record, dict(trade), {'protective_order_id':protective_id,'broker_snapshot':broker.snapshot(),'stop':record.current_stop_price,'target':float(trade['target_price']),
                                               'sessions':[], 'engine_b_state':self.engine_b.export_state()},expected_revision=0)
 
-    def close(self, record, trade, *, broker=None, completed_trade=None, close_feedback_receipts=None):
+    # ------------------------------------------------------------------ durable exit intent
+    def exit_intent(self, position_id):
+        try:
+            return self.store.load(position_id).protection.get('exit_intent')
+        except KeyError:
+            return None
+
+    def pending_exit_intents(self):
+        """Durable rows whose exit has been reserved or filled but not FINALIZED (open or already CLOSED)."""
+        return [snapshot for snapshot in self.store.list_all()
+                if snapshot.protection.get('exit_intent', {}).get('status') in (EXIT_RESERVED, EXIT_FILLED)]
+
+    def durable_lifecycle_state(self, position_id):
+        """Durable lifecycle state of a position, or None when no durable row exists."""
+        try:
+            return self.store.load(position_id).record.lifecycle_state
+        except KeyError:
+            return None
+
+    def is_durably_closed(self, position_id):
+        return self.durable_lifecycle_state(position_id) == CLOSED
+
+    def reserve_exit_intent(self, position_id, *, side, quantity, reason, market_price, requested_at):
+        """Persist the exit intent (lifecycle unchanged) BEFORE any broker order.  Idempotent for the same event."""
+        snapshot = self.store.load(position_id)
+        if snapshot.record.lifecycle_state == CLOSED:
+            raise ValueError('cannot reserve an exit for a durably CLOSED position')
+        event_id = exit_event_id(position_id)
+        existing = snapshot.protection.get('exit_intent')
+        if existing is not None:
+            if existing.get('event_id') != event_id or existing.get('side') != side or existing.get('quantity') != int(quantity):
+                raise ValueError('conflicting durable exit intent for this position')
+            return dict(existing)
+        intent = dict(event_id=event_id, trade_id=position_id, symbol=snapshot.record.symbol, side=side,
+                      quantity=int(quantity), reason=reason, market_price=float(market_price),
+                      requested_at=str(requested_at), status=EXIT_RESERVED)
+        protection = dict(snapshot.protection)
+        protection['exit_intent'] = intent
+        self.store.save(snapshot.record, dict(snapshot.trade), protection, snapshot.revision)
+        return dict(intent)
+
+    def record_exit_fill(self, position_id, *, order_id, fill_price, fill_quantity, completed_trade, feedback):
+        """Persist the broker close facts and the deterministic finalization inputs (status FILLED)."""
+        snapshot = self.store.load(position_id)
+        intent = snapshot.protection.get('exit_intent')
+        if intent is None or intent.get('status') not in (EXIT_RESERVED, EXIT_FILLED):
+            raise ValueError('a fill can only be recorded against a reserved exit intent')
+        if intent['status'] == EXIT_FILLED:
+            if intent.get('order_id') != order_id:
+                raise ValueError('conflicting fill for an already FILLED exit intent')
+            return dict(intent)
+        filled = dict(intent, status=EXIT_FILLED, order_id=order_id, fill_price=float(fill_price),
+                      fill_quantity=int(fill_quantity), completed_trade=dict(completed_trade), feedback=feedback)
+        protection = dict(snapshot.protection)
+        protection['exit_intent'] = filled
+        self.store.save(snapshot.record, dict(snapshot.trade), protection, snapshot.revision)
+        return dict(filled)
+
+    def close(self, record, trade, *, broker=None, completed_trade=None, close_feedback_receipts=None, exit_status=None,
+              recovery_checkpoint=None):
+        """Durable terminal write. With ``recovery_checkpoint`` the row and the boot pin commit in ONE transaction."""
         if record.lifecycle_state != CLOSED:
             raise ValueError('terminal eviction requires CLOSED lifecycle')
         snapshot=self.store.load(record.position_id)
@@ -54,8 +128,21 @@ class CombinedCycleRuntime:
             protection['completed_trade']=dict(completed_trade)
         if close_feedback_receipts is not None:
             protection['close_feedback_receipts']=dict(close_feedback_receipts)
-        self.store.save(record,dict(trade),protection,snapshot.revision)
-        # Never discard active management state until durable CLOSED succeeds.
+        if exit_status is not None and 'exit_intent' in protection:
+            protection['exit_intent']=dict(protection['exit_intent'],status=exit_status)
+        if recovery_checkpoint is None:
+            self.store.save(record,dict(trade),protection,snapshot.revision)
+        else:
+            con=self.store.connection
+            con.execute('BEGIN IMMEDIATE')
+            try:
+                self.store._save(record,dict(trade),protection,snapshot.revision)
+                recovery_checkpoint()
+                con.execute('COMMIT')
+            except BaseException:
+                con.execute('ROLLBACK')
+                raise
+        # Never discard active management state until durable CLOSED (and any boot pin) has committed.
         self.engine_b.evict(record.position_id)
         self._history.pop(record.position_id, None)
 
@@ -79,7 +166,10 @@ class CombinedCycleRuntime:
 
     def restore(self, engine):
         """Broker snapshot/reconciliation must happen before calling this method."""
-        snapshots=self.store.list_open()
+        # Rows with an unfinished exit intent are resolved by engine.recover_exit_intents(); broker-flat alone is never
+        # accepted as proof that OUR close executed, so such rows are neither reconciled nor re-adopted here.
+        snapshots=[s for s in self.store.list_open()
+                   if s.protection.get('exit_intent',{}).get('status') not in (EXIT_RESERVED, EXIT_FILLED)]
         live_ids={snapshot.record.position_id for snapshot in snapshots}
         for snapshot in snapshots:
             self.reconcile(engine,snapshot)
@@ -109,6 +199,11 @@ class CombinedCycleRuntime:
             position_id=snapshot.record.position_id
             if position_id.startswith('trade-') and position_id[6:].isdigit():
                 engine._trade_sequence=max(getattr(engine,'_trade_sequence',0),int(position_id[6:]))
+        # Unfinished exits (RESERVED / FILLED intents) are resolved here, fail-closed: an ambiguous broker outcome halts
+        # and raises instead of leaving a still-held position unmanaged or guessing that a flat broker means we closed.
+        recover=getattr(engine,'recover_exit_intents',None)
+        if recover is not None:
+            recover()
 
     def _receipt(self, engine, request, timestamp):
         receipt=engine.broker.conversion_receipt(request.request_id)

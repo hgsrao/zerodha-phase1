@@ -6,13 +6,28 @@ does not restore live broker positions or submit protective orders.
 """
 import hashlib
 import json
+import sqlite3
 from revision5.combined_cycle_store import _default, _hook
+
+
+def _statements(script):
+    """Split a DDL script into complete statements (trigger bodies contain inner ';')."""
+    pending = ''
+    for line in script.splitlines():
+        pending += line + '\n'
+        if sqlite3.complete_statement(pending):
+            yield pending.strip()
+            pending = ''
+    if pending.strip():
+        raise ValueError('Incomplete SQL statement in schema script')
 
 
 class StateRecoveryJournal:
     def __init__(self, connection):
         self.connection = connection
-        connection.executescript('''
+        # executescript() implicitly COMMITs a caller-owned transaction, so run each DDL statement
+        # individually; execute() never ends an active transaction.
+        for statement in _statements('''
             CREATE TABLE IF NOT EXISTS boot_checkpoints (
                 seq INTEGER PRIMARY KEY, payload TEXT NOT NULL, checksum TEXT NOT NULL);
             CREATE TRIGGER IF NOT EXISTS boot_no_update BEFORE UPDATE ON boot_checkpoints
@@ -52,7 +67,8 @@ class StateRecoveryJournal:
                 BEGIN SELECT RAISE(ABORT,'append-only receipts'); END;
             CREATE TRIGGER IF NOT EXISTS receipt_no_delete BEFORE DELETE ON receipts
                 BEGIN SELECT RAISE(ABORT,'append-only receipts'); END;
-        ''')
+        '''):
+            connection.execute(statement)
         for table in ('fleet_state', 'boot_checkpoints'):
             columns = {row[1] for row in connection.execute(f'PRAGMA table_info({table})')}
             if 'ecs_demand_pu' not in columns:
@@ -61,7 +77,12 @@ class StateRecoveryJournal:
     def checkpoint_boot(self, state, *, store=None, position_updates=()):
         """Pin fleet state to lifecycle rows in this SAME database transaction."""
         con = self.connection
-        con.execute('BEGIN IMMEDIATE')
+        # Inside a caller-owned transaction the checkpoint is a SAVEPOINT: the caller commits or rolls back.
+        nested = con.in_transaction
+        if nested:
+            con.execute('SAVEPOINT boot_checkpoint')
+        else:
+            con.execute('BEGIN IMMEDIATE')
         try:
             if position_updates:
                 if store is None or store.connection is not con:
@@ -76,9 +97,13 @@ class StateRecoveryJournal:
             checksum = hashlib.sha256(payload.encode()).hexdigest()
             con.execute('INSERT INTO boot_checkpoints(payload,checksum,ecs_demand_pu) VALUES (?,?,?)',
                         (payload, checksum, state.get('ecs_demand_pu')))
-            con.execute('COMMIT')
+            con.execute('RELEASE SAVEPOINT boot_checkpoint' if nested else 'COMMIT')
         except BaseException:
-            con.execute('ROLLBACK')
+            if nested:
+                con.execute('ROLLBACK TO SAVEPOINT boot_checkpoint')
+                con.execute('RELEASE SAVEPOINT boot_checkpoint')
+            else:
+                con.execute('ROLLBACK')
             raise
 
     def load_boot(self):

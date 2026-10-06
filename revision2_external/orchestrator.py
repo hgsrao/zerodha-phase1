@@ -65,6 +65,8 @@ from revision5.ccpp_protection_cubicles import nifty_intertie_measurements
 from revision5.governor import BAY_GOVERNOR_SPECS, BayTurbineClosedLoopGovernor
 from revision5.governor_position_policy import absolute_conviction, update_conviction
 from revision5 import position_lifecycle as lifecycle
+from revision5.combined_cycle_runtime import (
+    CombinedCycleReconciliationError, EXIT_FILLED, EXIT_FINALIZED)
 from revision5.governor_authority import (
     PARAMETER_NAMES as GOVERNOR_AUTHORITY_PARAMETERS, BarTelemetry, GovernorAuthorityConfig,
     GovernorInputError, bar_telemetry, causal_percentile_rank, entry_decision as governor_entry_decision,
@@ -375,6 +377,8 @@ class Revision2ExternalEngineOrchestrator:
         # Exactly-once (this process/replay run only) close-feedback receipts, keyed per trade.
         # See _register_realized_r_close_feedback for the state-machine contract.
         self._close_feedback_receipts: Dict[str, str] = {}
+        # Local _finalize_exit steps completed so far for a trade whose finalization is still in flight (volatile).
+        self._exit_finalize_steps: Dict[str, set] = {}
 
         if self.plant_control.mode == PlantControlMode.PAPER_APPLY:
             # One owner for outcome feedback: dispatch and caps consume the native objects.
@@ -1015,7 +1019,8 @@ class Revision2ExternalEngineOrchestrator:
             pass  # A failed observer must not obscure the fatal delivery rejection.
         raise DeliveryAuthorisationTrip(f'{DELIVERY_UNAUTHORIZED}: {symbol}: {detail}')
 
-    def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
+    def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str,
+                      durable_record=None) -> None:
         self._assert_paper_plant_broker()
         self._verify_broker_position_reconciles(symbol, trade)
         close_side = "SELL" if trade["side"] == "BUY" else "BUY"
@@ -1024,10 +1029,27 @@ class Revision2ExternalEngineOrchestrator:
         from revision2_external.protection_policy import delivery_authorisation_failure, DELIVERY_UNAUTHORIZED
         owner = self._position_lifecycle.get(trade.get('trade_id'))
         product = owner.product if owner is not None else self.broker.get_position(symbol).get('product','MIS')
+        runtime = self.combined_cycle_runtime
+        trade_id = trade.get('trade_id')
+        durable_exit = (runtime is not None and trade_id in self._position_lifecycle
+                        and runtime.durable_lifecycle_state(trade_id) is not None)
+        order_kwargs = {}
+        if durable_exit:
+            # D02.2: the exit intent is made durable BEFORE the broker order (lifecycle stays open).  If it cannot be
+            # persisted, no order is sent.  The deterministic event id doubles as the broker client order identity, so
+            # a repeated submission of this close can never create a second fill.
+            try:
+                intent = runtime.reserve_exit_intent(trade_id, side=close_side, quantity=trade["quantity"],
+                                                     reason=reason, market_price=exit_price, requested_at=timestamp)
+            except Exception:
+                self._execution_halted = True
+                raise
+            order_kwargs["client_order_id"] = intent["event_id"]
         try:
             result = self.broker.place_order(
                 symbol=symbol, side=close_side, quantity=trade["quantity"], order_type="MARKET",
                 market_price=exit_price, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+                **order_kwargs,
             )
         except (InputException, OrderException) as exc:
             self._execution_halted = True
@@ -1040,138 +1062,22 @@ class Revision2ExternalEngineOrchestrator:
             self._trip_delivery_unauthorised(symbol, timestamp, result.get('reason', result.get('reasons','')))
         if result["passed"]:
             state = self._exit_controller_states.get(symbol)
-            pnl = (
-                (result["filled_price"] - trade["entry_price"]) * trade["quantity"]
-                if trade["side"] == "BUY" else (trade["entry_price"] - result["filled_price"]) * trade["quantity"]
-            )
-            trade_costs = self._leg_cost(trade["entry_price"], trade["quantity"], trade["side"]) + self._leg_cost(
-                result["filled_price"], trade["quantity"], close_side
-            )
-            completed = {
-                "symbol": symbol, "side": trade["side"], "entry_price": trade["entry_price"],
-                "exit_price": result["filled_price"], "quantity": trade["quantity"],
-                "entry_timestamp": trade["entry_timestamp"], "exit_timestamp": str(timestamp),
-                "reason": reason, "pnl": pnl, "costs": trade_costs, "net_pnl": pnl - trade_costs,
-                "trade_id": trade.get("trade_id"), "candidate_id": trade.get("candidate_id"),
-                "bars_held": int(state.bars_held) if state is not None else None,
-                "entry_atr": trade.get("entry_atr"),
-                "planned_entry_price": trade.get("planned_entry_price"),
-                "planned_stop_price": trade.get("planned_stop_price"),
-                "planned_target_price": trade.get("planned_target_price"),
-            }
-            if state is not None:
-                risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
-                if risk > 0:
-                    favorable = state.mfe_price - trade["entry_price"] if trade["side"] == "BUY" else trade["entry_price"] - state.mfe_price
-                    adverse = state.mae_price - trade["entry_price"] if trade["side"] == "BUY" else trade["entry_price"] - state.mae_price
-                    completed.update({"mfe_price": state.mfe_price, "mae_price": state.mae_price,
-                                      "mfe_r": favorable / risk, "mae_r": adverse / risk,
-                                      "terminal_bar_excursion": "intrabar_order_unknown"})
-                    terminal = trade.get("_terminal_bar")
-                    inclusive_mfe, inclusive_mae = state.mfe_price, state.mae_price
-                    if terminal is not None:
-                        if trade["side"] == "BUY":
-                            inclusive_mfe = max(inclusive_mfe, float(terminal["high"]))
-                            inclusive_mae = min(inclusive_mae, float(terminal["low"]))
-                        else:
-                            inclusive_mfe = min(inclusive_mfe, float(terminal["low"]))
-                            inclusive_mae = max(inclusive_mae, float(terminal["high"]))
-                    sign = 1 if trade["side"] == "BUY" else -1
-                    completed.update({
-                        "mfe_pre_exit_bar_r": favorable / risk,
-                        "mae_pre_exit_bar_r": adverse / risk,
-                        "mfe_terminal_inclusive_r": sign * (inclusive_mfe - trade["entry_price"]) / risk,
-                        "mae_terminal_inclusive_r": sign * (inclusive_mae - trade["entry_price"]) / risk,
-                        "terminal_inclusive_is_ohlc_bound": True,
-                    })
-            shadow = None
-            if state is not None and state.shadow_exit_price is not None:
-                shadow_close_side = "SELL" if trade["side"] == "BUY" else "BUY"
-                # Compare like with like: the shadow stop identifies the
-                # counterfactual *market* trigger from causal OHLC, then it
-                # receives the same deterministic paper-broker adverse fill
-                # adjustment as the live exit.  Comparing its raw stop with
-                # the live broker fill would fabricate a P&L difference even
-                # when both trigger on the same bar.
-                shadow_market_exit_price = float(state.shadow_exit_price)
-                shadow_filled_price = self._paper_fill_price(
-                    shadow_market_exit_price, shadow_close_side, self.broker.slippage_fraction
-                )
-                shadow_pnl = (
-                    (shadow_filled_price - trade["entry_price"]) * trade["quantity"]
-                    if trade["side"] == "BUY" else (trade["entry_price"] - shadow_filled_price) * trade["quantity"]
-                )
-                shadow_costs = self._leg_cost(trade["entry_price"], trade["quantity"], trade["side"]) + self._leg_cost(
-                    shadow_filled_price, trade["quantity"], shadow_close_side
-                )
-                shadow = {
-                    "shadow_exit_timestamp": state.shadow_exit_timestamp,
-                    "shadow_market_exit_price": shadow_market_exit_price,
-                    "shadow_exit_price": shadow_filled_price,
-                    "shadow_exit_reason": state.shadow_exit_reason,
-                    "shadow_exit_bars_held": state.shadow_exit_bars_held,
-                    "shadow_pnl": shadow_pnl,
-                    "shadow_costs": shadow_costs,
-                    "shadow_net_pnl": shadow_pnl - shadow_costs,
-                }
-                completed["shadow_r_trajectory"] = shadow
-
-            # ---- 1. Authoritative close bookkeeping --------------------------------------
-            # The broker position is already flat.  Everything that keeps this engine's ledger,
-            # P&L and protection state consistent with the broker happens first, before any
-            # research telemetry can raise.  A later defect still propagates, but can no longer
-            # leave a flat broker position recorded as open.
-            self.completed_trades.append(completed)
-            _pnl = float(completed.get("net_pnl", 0.0))
-            if _pnl < 0:
-                _c_losses = self.symbol_consecutive_losses.get(symbol, 0) + 1
-                self.symbol_consecutive_losses[symbol] = _c_losses
-                self.symbol_cooldown_until_bar[symbol] = (
-                    getattr(self, "_current_bar_idx", 0) + BAY_LOSS_COOLDOWN_BARS
-                )
-                if _c_losses >= 2:
-                    self.symbol_tripped[symbol] = True
-            elif _pnl > 0:
-                # Any profitable exit breaks consecutive loss streak
-                self.symbol_consecutive_losses[symbol] = 0
-            self._equity_curve.append(self._equity())
-            del self.open_trades[symbol]
-            self._exit_controller_states.pop(symbol, None)
-            _, governor = self._governor_for(symbol)
-            if governor is not None:
-                governor.confirm_position_closed(trade.get("trade_id"))
-            self._record_mtm(timestamp)
-            self._close_position_lifecycle(trade, completed=completed)
-
-            # ---- 2. Authoritative realized-R close feedback -------------------------------
-            # Plant-level dispatch feedback (BLOCKER 2) and local governor feedback: after the
-            # authoritative exit fill, after position/ledger reconciliation and after the engine
-            # ledger above already records the trade as closed.  Exactly-once receipts still apply;
-            # an exception here propagates with the ledger already consistent with the broker.
-            try:
-                if state is not None:
-                    risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
-                    if risk > 0.0:
-                        try:
-                            bay_id = _r5_bay_for_symbol(symbol)
-                        except KeyError:
-                            # Symbol outside the certified 48-symbol R5 topology (e.g. a synthetic
-                            # test-only symbol): there is no R5 bay to feed, exactly like the native
-                            # plant's own UNMAPPED_SYMBOL admission path.  Never invent a bay mapping.
-                            bay_id = None
-                        if bay_id is not None:
-                            realized_r = self.exit_controller._r_multiple(state, float(result["filled_price"]))
-                            self._register_realized_r_close_feedback(
-                                symbol=symbol, trade=trade, bay_id=bay_id, realized_r=realized_r, reason=reason)
-            finally:
-                if self.combined_cycle_runtime is not None:
-                    try:
-                        self.combined_cycle_runtime.close(
-                            self._position_lifecycle[trade['trade_id']], trade, broker=self.broker,
-                            completed_trade=completed, close_feedback_receipts=self._close_feedback_receipts)
-                    except Exception:
-                        self._execution_halted = True
-                        raise
+            completed, pnl, trade_costs, shadow = self._build_completed_trade(
+                symbol, trade, result["filled_price"], close_side, reason, timestamp, state)
+            feedback = self._exit_feedback_plan(symbol, trade, state, result["filled_price"], reason,
+                                                durable_record=durable_record)
+            if durable_exit:
+                # The broker close has succeeded.  Persist the executed facts and the finalization inputs BEFORE any
+                # local bookkeeping so a restart knows the close happened and must not be resubmitted.  If this write
+                # fails the RESERVED intent plus the stable client order id let recovery resolve the outcome.
+                try:
+                    runtime.record_exit_fill(trade_id, order_id=result.get("order_id"), fill_price=result["filled_price"],
+                                             fill_quantity=result.get("filled_quantity", trade["quantity"]),
+                                             completed_trade=completed, feedback=feedback)
+                except Exception:
+                    self._execution_halted = True
+                    raise
+            self._finalize_exit(symbol, timestamp, trade, completed, feedback)
 
             # ---- 3. Research telemetry (never part of the authoritative books) -------------
             self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
@@ -1210,6 +1116,274 @@ class Revision2ExternalEngineOrchestrator:
                 "net_pnl": completed["net_pnl"], "entry_quality_profile": closed_loop_profile,
             })
 
+    def _build_completed_trade(self, symbol, trade, filled_price, close_side, reason, timestamp, state):
+        """Completed-trade record for one executed close (moved unchanged from _execute_exit)."""
+        pnl = (
+            (filled_price - trade["entry_price"]) * trade["quantity"]
+            if trade["side"] == "BUY" else (trade["entry_price"] - filled_price) * trade["quantity"]
+        )
+        trade_costs = self._leg_cost(trade["entry_price"], trade["quantity"], trade["side"]) + self._leg_cost(
+            filled_price, trade["quantity"], close_side
+        )
+        completed = {
+            "symbol": symbol, "side": trade["side"], "entry_price": trade["entry_price"],
+            "exit_price": filled_price, "quantity": trade["quantity"],
+            "entry_timestamp": trade["entry_timestamp"], "exit_timestamp": str(timestamp),
+            "reason": reason, "pnl": pnl, "costs": trade_costs, "net_pnl": pnl - trade_costs,
+            "trade_id": trade.get("trade_id"), "candidate_id": trade.get("candidate_id"),
+            "bars_held": int(state.bars_held) if state is not None else None,
+            "entry_atr": trade.get("entry_atr"),
+            "planned_entry_price": trade.get("planned_entry_price"),
+            "planned_stop_price": trade.get("planned_stop_price"),
+            "planned_target_price": trade.get("planned_target_price"),
+        }
+        if state is not None:
+            risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
+            if risk > 0:
+                favorable = state.mfe_price - trade["entry_price"] if trade["side"] == "BUY" else trade["entry_price"] - state.mfe_price
+                adverse = state.mae_price - trade["entry_price"] if trade["side"] == "BUY" else trade["entry_price"] - state.mae_price
+                completed.update({"mfe_price": state.mfe_price, "mae_price": state.mae_price,
+                                  "mfe_r": favorable / risk, "mae_r": adverse / risk,
+                                  "terminal_bar_excursion": "intrabar_order_unknown"})
+                terminal = trade.get("_terminal_bar")
+                inclusive_mfe, inclusive_mae = state.mfe_price, state.mae_price
+                if terminal is not None:
+                    if trade["side"] == "BUY":
+                        inclusive_mfe = max(inclusive_mfe, float(terminal["high"]))
+                        inclusive_mae = min(inclusive_mae, float(terminal["low"]))
+                    else:
+                        inclusive_mfe = min(inclusive_mfe, float(terminal["low"]))
+                        inclusive_mae = max(inclusive_mae, float(terminal["high"]))
+                sign = 1 if trade["side"] == "BUY" else -1
+                completed.update({
+                    "mfe_pre_exit_bar_r": favorable / risk,
+                    "mae_pre_exit_bar_r": adverse / risk,
+                    "mfe_terminal_inclusive_r": sign * (inclusive_mfe - trade["entry_price"]) / risk,
+                    "mae_terminal_inclusive_r": sign * (inclusive_mae - trade["entry_price"]) / risk,
+                    "terminal_inclusive_is_ohlc_bound": True,
+                })
+        shadow = None
+        if state is not None and state.shadow_exit_price is not None:
+            shadow_close_side = "SELL" if trade["side"] == "BUY" else "BUY"
+            # Compare like with like: the shadow stop identifies the
+            # counterfactual *market* trigger from causal OHLC, then it
+            # receives the same deterministic paper-broker adverse fill
+            # adjustment as the live exit.  Comparing its raw stop with
+            # the live broker fill would fabricate a P&L difference even
+            # when both trigger on the same bar.
+            shadow_market_exit_price = float(state.shadow_exit_price)
+            shadow_filled_price = self._paper_fill_price(
+                shadow_market_exit_price, shadow_close_side, self.broker.slippage_fraction
+            )
+            shadow_pnl = (
+                (shadow_filled_price - trade["entry_price"]) * trade["quantity"]
+                if trade["side"] == "BUY" else (trade["entry_price"] - shadow_filled_price) * trade["quantity"]
+            )
+            shadow_costs = self._leg_cost(trade["entry_price"], trade["quantity"], trade["side"]) + self._leg_cost(
+                shadow_filled_price, trade["quantity"], shadow_close_side
+            )
+            shadow = {
+                "shadow_exit_timestamp": state.shadow_exit_timestamp,
+                "shadow_market_exit_price": shadow_market_exit_price,
+                "shadow_exit_price": shadow_filled_price,
+                "shadow_exit_reason": state.shadow_exit_reason,
+                "shadow_exit_bars_held": state.shadow_exit_bars_held,
+                "shadow_pnl": shadow_pnl,
+                "shadow_costs": shadow_costs,
+                "shadow_net_pnl": shadow_pnl - shadow_costs,
+            }
+            completed["shadow_r_trajectory"] = shadow
+        return completed, pnl, trade_costs, shadow
+
+    def _exit_feedback_plan(self, symbol, trade, state, filled_price, reason, durable_record=None):
+        """Deterministic realized-R feedback inputs for one close, or None when no feedback applies (as before).
+
+        Without exit-controller state the result is None (unchanged), except in restart recovery where the exit
+        controller state no longer exists: ``durable_record`` (entry price, initial risk, direction) then yields the
+        same R multiple, which is a pure function of those three durable values and the fill price."""
+        if state is None:
+            if durable_record is None:
+                return None
+            risk = float(durable_record.initial_risk_r)
+            if risk <= 0.0:
+                return None
+            entry = float(durable_record.anchor_price)
+            move = float(filled_price) - entry if durable_record.direction == "BUY" else entry - float(filled_price)
+            realized_r = move / risk
+        else:
+            risk = abs(float(trade["entry_price"]) - float(state.initial_stop_price))
+            if risk <= 0.0:
+                return None
+            realized_r = float(self.exit_controller._r_multiple(state, float(filled_price)))
+        try:
+            bay_id = _r5_bay_for_symbol(symbol)
+        except KeyError:
+            # Symbol outside the certified 48-symbol R5 topology: there is no R5 bay to feed.
+            return None
+        return dict(bay_id=bay_id, realized_r=float(realized_r), reason=reason)
+
+    def _finalize_exit(self, symbol, timestamp, trade, completed, feedback) -> None:
+        """Idempotent finalization of one executed close, keyed by trade identity.
+
+        Safe to call repeatedly (in-process retry or restart recovery): it never submits a broker order, appends the
+        completed trade once, closes the lifecycle once, and applies realized-R feedback at most once.  The two
+        durability barriers are preserved: BARRIER 1 = durable CLOSED + completed trade, then feedback, then
+        BARRIER 2 = durable feedback receipt (and exit intent FINALIZED)."""
+        trade_id = trade.get("trade_id")
+        already_booked = trade_id is not None and any(t.get("trade_id") == trade_id for t in self.completed_trades)
+        # Presence in completed_trades does not mean every local step finished.  The remaining steps are tracked per
+        # trade in process-local state, which is deliberately volatile: it guards only equally volatile books
+        # (completed_trades, loss counters, equity curve, governor, MTM).  After a fresh restart those books are empty,
+        # the trade is not booked, and every step runs once; durable exactly-once is carried by the runtime barriers.
+        # Booked with no record (e.g. books restored from a checkpoint) keeps the prior behaviour: nothing is redone.
+        steps = self._exit_finalize_steps.get(trade_id) if trade_id is not None else None
+        if steps is None and already_booked:
+            steps = {"booked", "equity", "governor", "mtm"}
+        # ---- 1. Authoritative close bookkeeping --------------------------------------
+        if not already_booked:
+            steps = set()
+            if trade_id is not None:
+                self._exit_finalize_steps[trade_id] = steps
+            self.completed_trades.append(completed)
+            _pnl = float(completed.get("net_pnl", 0.0))
+            if _pnl < 0:
+                _c_losses = self.symbol_consecutive_losses.get(symbol, 0) + 1
+                self.symbol_consecutive_losses[symbol] = _c_losses
+                self.symbol_cooldown_until_bar[symbol] = (
+                    getattr(self, "_current_bar_idx", 0) + BAY_LOSS_COOLDOWN_BARS
+                )
+                if _c_losses >= 2:
+                    self.symbol_tripped[symbol] = True
+            elif _pnl > 0:
+                # Any profitable exit breaks consecutive loss streak
+                self.symbol_consecutive_losses[symbol] = 0
+            steps.add("booked")
+        if "equity" not in steps:
+            self._equity_curve.append(self._equity())
+            steps.add("equity")
+        self.open_trades.pop(symbol, None)
+        self._exit_controller_states.pop(symbol, None)
+        if "governor" not in steps:
+            _, governor = self._governor_for(symbol)
+            if governor is not None:
+                governor.confirm_position_closed(trade_id)
+            steps.add("governor")
+        if "mtm" not in steps:
+            self._record_mtm(timestamp)
+            steps.add("mtm")
+        self._exit_finalize_steps.pop(trade_id, None)
+        self._close_position_lifecycle(trade, completed=completed)       # BARRIER 1 (skipped when already durable)
+
+        # ---- 2. Authoritative realized-R close feedback -------------------------------
+        feedback_ok = False
+        try:
+            if feedback is not None:
+                self._register_realized_r_close_feedback(
+                    symbol=symbol, trade=trade, bay_id=feedback["bay_id"], realized_r=feedback["realized_r"],
+                    reason=feedback["reason"])
+            feedback_ok = True
+        finally:
+            runtime = self.combined_cycle_runtime
+            if (runtime is not None and trade_id in self._position_lifecycle
+                    and runtime.durable_lifecycle_state(trade_id) is not None):
+                # Explicit recovery account only: the boot checkpoint pins every lifecycle row, so the effect+DONE guard is
+                # made durable against the CURRENT rows (CLOSED/FILLED) before BARRIER 2 and re-pinned after it succeeds.
+                account_id = self.recovery_account_id if feedback_ok else None
+                if account_id is not None:
+                    self._checkpoint_exit_recovery(account_id, timestamp)
+                # BARRIER 2: the FINALIZED row and the latest boot pin commit in ONE transaction (no gap between them).
+                pin = ((lambda: self._checkpoint_morning_recovery(account_id=account_id, timestamp=timestamp))
+                       if account_id is not None else None)
+                try:
+                    runtime.close(
+                        self._position_lifecycle[trade_id], trade, broker=self.broker, completed_trade=completed,
+                        close_feedback_receipts=self._close_feedback_receipts,
+                        exit_status=EXIT_FINALIZED if feedback_ok else None, recovery_checkpoint=pin)
+                except Exception:
+                    self._execution_halted = True
+                    raise
+
+    def _checkpoint_exit_recovery(self, account_id, timestamp) -> None:
+        try:
+            self._checkpoint_morning_recovery(account_id=account_id, timestamp=timestamp)
+        except Exception:
+            self._execution_halted = True
+            raise
+
+    def recover_exit_intents(self):
+        """Resolve every durable exit intent that is not FINALIZED (in-process retry or restart).
+
+        RESERVED: the broker order may or may not have executed.  The stable client order id is looked up at the
+        broker: found -> record the fill and finalize (never resubmit); not found and the broker still holds the
+        expected position -> the order never executed, resubmit the SAME event once; anything else is ambiguous and
+        halts for reconciliation.  FILLED: finalize, never resubmit.  Broker-flat alone is never accepted as proof."""
+        runtime = self.combined_cycle_runtime
+        if runtime is None:
+            return []
+        outcomes = []
+        for snapshot in runtime.pending_exit_intents():
+            intent = snapshot.protection["exit_intent"]
+            if intent["status"] == EXIT_FILLED:
+                outcomes.append(self._recover_filled_exit(snapshot, intent))
+            else:
+                outcomes.append(self._recover_reserved_exit(snapshot, intent))
+        return outcomes
+
+    def _recover_halt(self, message):
+        self._execution_halted = True
+        raise CombinedCycleReconciliationError(message)
+
+    def _recover_filled_exit(self, snapshot, intent):
+        trade_id, symbol = snapshot.record.position_id, snapshot.record.symbol
+        trade, completed = deepcopy(snapshot.trade), deepcopy(intent["completed_trade"])
+        lookup = getattr(self.broker, "find_client_order", None)
+        if lookup is not None:
+            found = lookup(intent["event_id"])
+            if found is not None and found["order_id"] != intent["order_id"]:
+                self._recover_halt("Durable exit fill disagrees with the broker order for the same identity")
+        self._position_lifecycle.setdefault(trade_id, snapshot.record)
+        self._finalize_exit(symbol, completed["exit_timestamp"], trade, completed, intent.get("feedback"))
+        return dict(trade_id=trade_id, action="FINALIZED_FROM_FILLED", resubmitted=False)
+
+    def _recover_reserved_exit(self, snapshot, intent):
+        trade_id, symbol = snapshot.record.position_id, snapshot.record.symbol
+        trade = deepcopy(snapshot.trade)
+        lookup = getattr(self.broker, "find_client_order", None)
+        if lookup is None:
+            self._recover_halt("Broker cannot resolve the client order identity; exit outcome unknown")
+        found = lookup(intent["event_id"])
+        self._position_lifecycle.setdefault(trade_id, snapshot.record)
+        if found is not None:
+            if list(found["fingerprint"]) != [symbol, intent["side"], intent["quantity"], "MARKET"]:
+                self._recover_halt("Broker order for the exit identity does not match the durable intent")
+            result = found["result"]
+            state = self._exit_controller_states.get(symbol)
+            completed, _, _, _ = self._build_completed_trade(
+                symbol, trade, result["filled_price"], intent["side"], intent["reason"], intent["requested_at"], state)
+            feedback = self._exit_feedback_plan(symbol, trade, state, result["filled_price"], intent["reason"],
+                                                durable_record=snapshot.record)
+            self.combined_cycle_runtime.record_exit_fill(
+                trade_id, order_id=found["order_id"], fill_price=result["filled_price"],
+                fill_quantity=result.get("filled_quantity", intent["quantity"]), completed_trade=completed,
+                feedback=feedback)
+            self._finalize_exit(symbol, intent["requested_at"], trade, completed, feedback)
+            return dict(trade_id=trade_id, action="FILLED_RECORDED_FROM_BROKER_IDENTITY", resubmitted=False)
+        expected = trade["quantity"] * (1 if trade["side"] == "BUY" else -1)
+        if self.broker.get_position(symbol).get("quantity") == expected:
+            # Quantity alone is not continuity: the broker product, quantity and protection must still match the durable
+            # owner before the same event is resubmitted (a product change means the position is not the one we reserved).
+            try:
+                self.combined_cycle_runtime.reconcile(self, snapshot)
+            except CombinedCycleReconciliationError as exc:
+                self._recover_halt(f"Exit intent never executed but the broker position no longer matches the durable "
+                                   f"owner; refusing to resubmit: {exc}")
+            self.open_trades[symbol] = trade                     # the close never executed: resubmit the SAME event once
+            self._execute_exit(symbol, intent["requested_at"], trade, intent["market_price"], intent["reason"],
+                               durable_record=snapshot.record)
+            return dict(trade_id=trade_id, action="RESUBMITTED_SAME_EVENT", resubmitted=True)
+        self._recover_halt("Exit intent outcome is ambiguous (no broker order for the identity and the expected "
+                           "position is not held); reconciliation required")
+
     def _record_controller_event(self, event_type: str, timestamp: object, symbol: str, payload: Dict[str, Any]) -> None:
         """Record controller state and any bounded paper-only actuation."""
         event = {"event_type": event_type, "timestamp": str(timestamp), "symbol": symbol, **payload}
@@ -1232,17 +1406,25 @@ class Revision2ExternalEngineOrchestrator:
             self.combined_cycle_runtime.register_fill(self._position_lifecycle[trade["trade_id"]], trade, self.broker)
 
     def _close_position_lifecycle(self, trade: Dict[str, Any], completed=None) -> None:
-        record = self._position_lifecycle.get(trade.get("trade_id"))
+        """Close the in-memory lifecycle record and make the CLOSED state durable (BARRIER 1).
+
+        Idempotent: an already-CLOSED in-memory record no longer short-circuits the durable write, so a retry after a
+        failed durable close completes it; a durably CLOSED row is not written again."""
+        trade_id = trade.get("trade_id")
+        record = self._position_lifecycle.get(trade_id)
         if record is not None and record.is_open:
-            self._position_lifecycle[trade["trade_id"]] = lifecycle.close_position(record)
-            if getattr(self, "combined_cycle_runtime", None) is not None:
-                try:
-                    self.combined_cycle_runtime.close(
-                        self._position_lifecycle[trade["trade_id"]], trade, broker=self.broker,
-                        completed_trade=completed, close_feedback_receipts=self._close_feedback_receipts)
-                except Exception:
-                    self._execution_halted = True
-                    raise
+            self._position_lifecycle[trade_id] = lifecycle.close_position(record)
+        record = self._position_lifecycle.get(trade_id)
+        runtime = getattr(self, "combined_cycle_runtime", None)
+        if (record is not None and not record.is_open and runtime is not None
+                and runtime.durable_lifecycle_state(trade_id) not in (None, lifecycle.CLOSED)):
+            try:
+                runtime.close(
+                    record, trade, broker=self.broker,
+                    completed_trade=completed, close_feedback_receipts=self._close_feedback_receipts)
+            except Exception:
+                self._execution_halted = True
+                raise
 
     def _owner_engine(self, trade: Dict[str, Any]) -> str:
         """Owning engine of an open trade; a trade without a lifecycle record is Engine A (intraday MIS)."""

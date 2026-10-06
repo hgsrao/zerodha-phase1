@@ -1,8 +1,9 @@
-"""R5-D02.0 DEFECT-REPRODUCTION / CHARACTERISATION tests for exit-side atomicity.
+"""R5-D02 exit-side atomicity: D02.0 reproduction harness, now asserting the D02.2 DESIRED behaviour.
 
-*** These tests document OBSERVED CURRENT BEHAVIOUR of the exit path when the durable close fails AFTER the broker close has
-*** succeeded.  They are NOT a desired-behaviour regression and do NOT bless the observed state as correct.  A later repair
-*** activity is expected to change several assertions in the "DEFECT_*" tests (they must then be replaced, not loosened).
+History: D02.0 reproduced a real defect (broker exit succeeds, durable close fails -> durable A_OPEN, lost feedback, no retry or
+restart path).  D02.2 added a durable exit intent plus an idempotent finalizer, so the former ``DEFECT_REPRODUCTION`` tests below were
+converted (not loosened) to assert convergence.  The control test and the matrix tests are unchanged.  The broader D02.2 matrix lives
+in tests/test_r5_d02_exit_finalization.py.
 
 Real objects: Revision2ExternalEngineOrchestrator.run() on the D01.1 derived-real TITAN replay, the real CostedPaperBrokerAdapter,
 the real CombinedCycleRuntime and CombinedCycleStore (SQLite).  Failure injection is TEST-LOCAL: an instance-level wrapper around
@@ -41,6 +42,7 @@ def snapshot(label, orch, runtime, store, trade_id):
         in_memory_lifecycle=record.lifecycle_state if record is not None else "ABSENT",
         durable_lifecycle=durable,
         durable_open_ids=[s.record.position_id for s in store.list_open()],
+        exit_intent_status=(runtime.exit_intent(trade_id) or {}).get("status") if trade_id in [x.record.position_id for x in store.list_all()] else None,
         engine_b_tracks_position=trade_id in runtime.engine_b.export_state()["positions"],
         broker_fills=len(fills), broker_sell_fills=sum(1 for f in fills if f["side"] == "SELL"),
         broker_buy_fills=sum(1 for f in fills if f["side"] == "BUY"),
@@ -111,75 +113,80 @@ def test_control_normal_exit_converges_to_one_coherent_state(tmp_path):
     print("D02_CONTROL " + json.dumps(trace["snapshots"], sort_keys=True, default=str))
 
 
-def test_DEFECT_REPRODUCTION_broker_exit_succeeds_then_durable_close_fails(tmp_path):
+def test_WINDOW_A_broker_exit_succeeds_then_durable_close_fails_then_recovery_converges(tmp_path):
     orch, runtime, store, trace, error = run_replay(tmp_path, inject_first_close=True)
     assert isinstance(error, InjectedDurableCloseFailure)
     s0, s1, s2 = trace["snapshots"]["S0"], trace["snapshots"]["S1"], trace["snapshots"]["END"]
     qty = trace["trade"]["quantity"]
     assert s0["broker_quantity"] == -qty and s0["durable_lifecycle"] == "A_OPEN"
-    # S1: the external side effect has already happened, durable state has not
+    # S1: the external side effect has happened; the durable FILLED fact already exists (written before local bookkeeping)
     assert s1["broker_quantity"] == 0 and s1["broker_buy_fills"] == 1 and s1["durable_lifecycle"] == "A_OPEN"
-    # S2 (OBSERVED, NOT DESIRED): contradictory ownership state after the failure propagates
-    assert s2["broker_quantity"] == 0                                   # broker FLAT
-    assert s2["completed_trades"] == 1                                  # completed trade recorded
-    assert s2["open_trades_has_symbol"] is False                        # open_trades already cleared (earlier hypothesis refuted)
-    assert s2["in_memory_lifecycle"] == "CLOSED"                        # in-memory lifecycle CLOSED
-    assert s2["durable_lifecycle"] == "A_OPEN" and s2["durable_open_ids"] == [trace["trade_id"]]   # durable still OPEN
-    assert s2["execution_halted"] is True
-    # OBSERVED, NOT DESIRED: realized-R close feedback never ran (raise happens before the feedback block)
-    assert s2["feedback_receipts"] == {} and s2["merit_history_total"] == 0
-    assert trace["close_calls"] == 1
-    print("D02_DEFECT " + json.dumps(trace["snapshots"], sort_keys=True, default=str))
+    assert s1["exit_intent_status"] == "FILLED"
+    # S2: the durable lifecycle is still open, but the durable intent proves the close executed (not resubmittable)
+    assert s2["broker_quantity"] == 0 and s2["completed_trades"] == 1 and s2["open_trades_has_symbol"] is False
+    assert s2["in_memory_lifecycle"] == "CLOSED" and s2["durable_lifecycle"] == "A_OPEN" and s2["exit_intent_status"] == "FILLED"
+    assert s2["execution_halted"] is True and s2["feedback_receipts"] == {} and s2["merit_history_total"] == 0
+    # recovery: finalize from the durable fact; no second broker close, one completed trade, feedback exactly once
+    runtime.close = trace["real_close"]
+    outcome = orch.recover_exit_intents()
+    assert outcome == [dict(trade_id=trace["trade_id"], action="FINALIZED_FROM_FILLED", resubmitted=False)]
+    s3 = snapshot("S3 after recovery", orch, runtime, store, trace["trade_id"])
+    assert s3["broker_buy_fills"] == 1 and s3["broker_sell_fills"] == 1 and s3["completed_trades"] == 1
+    assert s3["in_memory_lifecycle"] == s3["durable_lifecycle"] == "CLOSED" and s3["durable_open_ids"] == []
+    assert s3["exit_intent_status"] == "FINALIZED" and s3["merit_history_total"] == 1
+    assert list(s3["feedback_receipts"].values()) == ["DONE"]
+    print("D02_WINDOW_A " + json.dumps(dict(S0=s0, S1=s1, S2=s2, S3=s3), sort_keys=True, default=str))
 
 
-def test_DEFECT_REPRODUCTION_retry_paths_after_the_failure(tmp_path):
+def test_WINDOW_A_retry_paths_are_safe_and_idempotent(tmp_path):
     orch, runtime, store, trace, error = run_replay(tmp_path, inject_first_close=True)
     assert isinstance(error, InjectedDurableCloseFailure)
     tid, trade = trace["trade_id"], trace["trade"]
     before = snapshot("S2", orch, runtime, store, tid)
     runtime.close = trace["real_close"]                                  # injection removed; no state cleaned by hand
 
-    # (i) the production exit function is retried with the saved trade: refused because the broker is already flat
+    # (i) retrying the production exit function is still refused (the broker is already flat): never a second close
     with pytest.raises(Exception) as refused:
         trace["real_exit"](SYMBOL, trace["ts"], copy.deepcopy(trade), trace["exit_price"], "retry_after_failure")
-    s3a = snapshot("S3a after retry of _execute_exit", orch, runtime, store, tid)
-    assert s3a["broker_sell_fills"] == before["broker_sell_fills"] and s3a["broker_buy_fills"] == before["broker_buy_fills"]  # no duplicate broker close
-    assert s3a["completed_trades"] == 1                                                                                   # no duplicate completed trade
-    assert s3a["durable_lifecycle"] == "A_OPEN"                                                                           # durable unchanged
-    print("D02_RETRY_EXECUTE_EXIT_REFUSED " + type(refused.value).__name__ + ": " + str(refused.value)[:160])
+    assert "PositionReconciliationError" in type(refused.value).__name__
+    s3a = snapshot("S3a", orch, runtime, store, tid)
+    assert s3a["broker_buy_fills"] == before["broker_buy_fills"] and s3a["completed_trades"] == 1
+    assert s3a["durable_lifecycle"] == "A_OPEN"
 
-    # (ii) no production caller re-invokes the durable close; the already-CLOSED in-memory record makes
-    #      _close_position_lifecycle a no-op, so the durable row stays A_OPEN
+    # (ii) the lifecycle retry is no longer a no-op: it now completes the durable close (BARRIER 1)
     orch._close_position_lifecycle(trade, completed=orch.completed_trades[0])
-    s3b = snapshot("S3b after _close_position_lifecycle retry", orch, runtime, store, tid)
-    assert s3b["durable_lifecycle"] == "A_OPEN" and s3b["completed_trades"] == 1
+    s3b = snapshot("S3b", orch, runtime, store, tid)
+    assert s3b["durable_lifecycle"] == "CLOSED" and s3b["completed_trades"] == 1 and s3b["exit_intent_status"] == "FILLED"
+    assert s3b["merit_history_total"] == 0                               # feedback is still pending (BARRIER 2 not reached)
 
-    # (iii) the public close() API invoked directly (NOT a production retry path; capability evidence only)
-    runtime.close(orch._position_lifecycle[tid], trade, broker=orch.broker, completed_trade=orch.completed_trades[0],
-                  close_feedback_receipts=orch._close_feedback_receipts)
-    s3c = snapshot("S3c after direct runtime.close()", orch, runtime, store, tid)
-    assert s3c["durable_lifecycle"] == "CLOSED" and s3c["durable_open_ids"] == []
-    assert s3c["feedback_receipts"] == {} and s3c["merit_history_total"] == 0        # durable fixed, feedback permanently missing
+    # (iii) the finalizer completes feedback + BARRIER 2 exactly once; repeating it changes nothing
+    for _ in range(2):
+        orch.recover_exit_intents()
+    s3c = snapshot("S3c", orch, runtime, store, tid)
+    assert s3c["durable_lifecycle"] == "CLOSED" and s3c["exit_intent_status"] == "FINALIZED"
+    assert s3c["merit_history_total"] == 1 and list(s3c["feedback_receipts"].values()) == ["DONE"]
     assert s3c["broker_buy_fills"] == before["broker_buy_fills"] and s3c["completed_trades"] == 1
     print("D02_RETRY " + json.dumps(dict(S2=before, S3a=s3a, S3b=s3b, S3c=s3c), sort_keys=True, default=str))
 
 
-def test_DEFECT_REPRODUCTION_restart_recovery_cannot_consume_the_state(tmp_path):
+def test_WINDOW_A_restart_recovery_converges_through_the_existing_restore_path(tmp_path):
     orch, runtime, store, trace, error = run_replay(tmp_path, inject_first_close=True)
     assert isinstance(error, InjectedDurableCloseFailure)
     tid = trace["trade_id"]
     runtime.close = trace["real_close"]
-    # a restarted process sees the durable file with the position still open ...
+    # a restarted process sees the durable file with the position still open and an exit intent proving the close executed ...
     reopened = CombinedCycleStore(tmp_path / "cycle.db")
     try:
         assert [s.record.position_id for s in reopened.list_open()] == [tid]
-        assert reopened.load(tid).record.lifecycle_state == "A_OPEN"
+        assert reopened.load(tid).protection["exit_intent"]["status"] == "FILLED"
     finally:
         reopened.close()
-    # ... and the existing recovery function refuses to reconcile it against the flat broker
-    with pytest.raises(CombinedCycleReconciliationError):
-        runtime.restore(orch)
-    assert SYMBOL not in orch.open_trades                                # nothing is silently re-adopted
+    # ... and the existing recovery entry point (restore) now converges it instead of refusing
+    runtime.restore(orch)
+    end = snapshot("S3 after restore", orch, runtime, store, tid)
+    assert end["durable_lifecycle"] == "CLOSED" and end["durable_open_ids"] == [] and end["exit_intent_status"] == "FINALIZED"
+    assert end["broker_buy_fills"] == 1 and end["completed_trades"] == 1 and end["merit_history_total"] == 1
+    assert SYMBOL not in orch.open_trades
 
 
 def test_matrix_case1_failure_before_broker_exit_leaves_everything_open(tmp_path):
