@@ -216,7 +216,8 @@ def test_regime_stressed_exit_fires_once_minimum_hold_is_met():
     # position this ledger record believes is open (see _verify_broker_position_reconciles).
     orch.broker.positions["INFY"] = {"quantity": 100, "avg_price": 1000.0}
     orch._exit_controller_states["INFY"] = orch.exit_controller.open_position("BUY", 1000.0, 900.0, 1200.0, 60)
-    orch.id_box._current_regime = lambda symbol, latest_close: "stressed"
+    # The completed-bar observation is upstream of the exit decision now.
+    orch.id_box.latest_regime = lambda symbol: "stressed"
 
     # Real, already-working ATR droop (verified earlier this session)
     # ratchets the stop up close to the current price on the very first
