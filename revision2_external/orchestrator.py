@@ -29,6 +29,7 @@ from revision2_external.dynamic_parameter_controller import DynamicParameterCont
 
 import itertools
 import math
+from copy import deepcopy
 from dataclasses import replace, asdict
 from collections import Counter, deque
 from dataclasses import dataclass
@@ -689,16 +690,26 @@ class Revision2ExternalEngineOrchestrator:
 
     def _gate(self, stage, symbol, timestamp, bar_idx, side) -> None:
         if self.gate_observer is not None:
-            self.gate_observer.on_gate(stage, symbol, str(timestamp), int(bar_idx), side)
+            try:
+                self.gate_observer.on_gate(stage, symbol, str(timestamp), int(bar_idx), side)
+            except Exception as exc:
+                self._record_controller_event("DIAGNOSTIC_OBSERVER_FAULT", timestamp, symbol,
+                                              {"stage": stage, "error_type": type(exc).__name__})
 
     def _decide(self, point, symbol, timestamp, bar_idx, side, passed, reason, features) -> None:
         """Research-only: one admit/reject decision at an entry choke point, with its reason.
         ``features`` is a zero-argument callable, evaluated only when an observer is attached."""
         if self.gate_observer is not None and hasattr(self.gate_observer, "on_decision"):
-            book = Counter(str(t.get("side")) for t in self.open_trades.values())
-            self.gate_observer.on_decision(
-                point, symbol, str(timestamp), int(bar_idx), side, bool(passed), str(reason),
-                {"book_buy": book.get("BUY", 0), "book_sell": book.get("SELL", 0), **features()})
+            try:
+                book = Counter(str(t.get("side")) for t in self.open_trades.values())
+                # Observers own their copy, including nested diagnostic measurements.
+                payload = deepcopy({"book_buy": book.get("BUY", 0), "book_sell": book.get("SELL", 0),
+                                    **features()})
+                self.gate_observer.on_decision(
+                    point, symbol, str(timestamp), int(bar_idx), side, bool(passed), str(reason), payload)
+            except Exception as exc:
+                self._record_controller_event("DIAGNOSTIC_OBSERVER_FAULT", timestamp, symbol,
+                                              {"stage": point, "error_type": type(exc).__name__})
 
     def _pa_components(self, symbol, signal) -> Dict[str, Any]:
         """Research-only: PA's four weighted inputs for this bar.  Momentum and VWAP deviation are
@@ -794,7 +805,8 @@ class Revision2ExternalEngineOrchestrator:
             "authority": self.governor_authority, "bay_id": bay_id,
             **{key: result.get(key) for key in (
                 "action", "reason", "load_shed", "measured_r", "max_favorable_r", "protected_r_floor",
-                "fsr_selected", "fsr_effective", "controlling_limiter", "limiters", "bay_exhaust_spread")},
+                "fsr_selected", "fsr_effective", "controlling_limiter", "limiters", "bay_exhaust_spread",
+                "conviction_exit_deferred")},
         })
         if not self._governor_full:
             return result
@@ -1322,23 +1334,9 @@ class Revision2ExternalEngineOrchestrator:
                 else:
                     self._execute_exit(symbol, timestamp, trade, float(bar["close"]), saturation_reason)
                     return
-        # Box 5's real feedback path: while a position is open, ID's
-        # regime check was never called at all -- `if symbol in
-        # self.open_trades: continue` skips straight past it before entry
-        # evaluation, and there was no separate call anywhere in exit
-        # logic either. A real regime shift to "stressed" DURING a held
-        # position had no path back into the exit decision, even though
-        # the exact same shift would have vetoed a fresh entry moments
-        # earlier. _current_regime() is real and safe to call here -- it's
-        # the same method the entry path already uses, refits periodically
-        # (not every bar), and this call also fixes a second, smaller real
-        # gap: the regime model's bar history previously went blind for
-        # every bar a position was held (only fed while flat), which
-        # biased its own trailing window. Gated by minimum_hold_bars, same
-        # as saturation_exit, so a position isn't force-exited on a
-        # regime read taken moments after entry.
-        self.id_box.configure(self.config)
-        regime = self.id_box._current_regime(symbol, float(bar["close"]))
+        # Observation advances before eligibility checks in run(). Exit and
+        # entry read the same completed-bar posterior without re-appending it.
+        regime = self.id_box.latest_regime(symbol)
         if regime == "stressed" and held_bars >= trade["minimum_hold_bars"]:
             if self._governor_full:
                 self._record_controller_event("ADVISORY_EXIT_NOT_ACTUATED", timestamp, symbol, {
@@ -1440,15 +1438,16 @@ class Revision2ExternalEngineOrchestrator:
             # Replay warmup through sensor histories and eligible planner PIDs,
             # with no order construction, portfolio allocation, or submission.
             for idx in range(min(warmup, len(bars))):
+                self.id_box.observe_bar(symbol, float(bars.iloc[idx]["close"]),
+                                        timestamp=str(bars.iloc[idx]["timestamp"]))
                 snapshot = MarketSnapshot(symbol, str(bars.iloc[idx]["timestamp"]), bars.iloc[:idx + 1])
                 warm_signal, _ = self.pa.evaluate(snapshot, self.config)
                 self.chart_studies.configure(self.config)
                 self._observe_conviction(symbol, warm_signal, self.chart_studies.evaluate(symbol, snapshot.bars))
                 if warm_signal.direction == 0:
-                    self.id_box._current_regime(symbol, float(bars.iloc[idx]["close"]))
                     continue
                 warm_decision, _ = self.id_box.evaluate(
-                    warm_signal, self.config, latest_close=float(bars.iloc[idx]["close"]))
+                    warm_signal, self.config, latest_close=None)
                 if warm_decision.approved:
                     close = float(bars.iloc[idx]["close"])
                     self.mpc.build_plan(warm_signal, warm_decision, close,
@@ -1547,6 +1546,9 @@ class Revision2ExternalEngineOrchestrator:
                 symbol, bar_idx = event.symbol, event.bar_idx
                 self._current_bar_idx = bar_idx
                 bars = symbol_bars[symbol]
+                self.id_box.configure(self.config)
+                self.id_box.observe_bar(symbol, float(bars.iloc[bar_idx]["close"]),
+                                        timestamp=str(timestamp))
                 next_ts = pd.Timestamp(bars.iloc[bar_idx + 1]["timestamp"])
                 end_time = str(self.config.require("trading_hours_end"))
                 session_last_bar = next_ts.date() != event_ts.date() or event_ts.strftime("%H:%M") >= end_time
@@ -1630,7 +1632,7 @@ class Revision2ExternalEngineOrchestrator:
                 if self.gate_observer is not None and signal.direction != 0:
                     self._gate("eligible", symbol, timestamp, bar_idx, self._signal_side(signal))
 
-                decision, trace = self.id_box.evaluate(signal, self.config, latest_close=float(bars.iloc[bar_idx]["close"]))
+                decision, trace = self.id_box.evaluate(signal, self.config, latest_close=None)
                 self._record(trace)
                 self.bb05_bb06_supervisory_by_symbol[symbol] = (
                     self.supervisory_bridge.snapshot_bb05_bb06(symbol=symbol, decision=decision)
@@ -2263,6 +2265,7 @@ class Revision2ExternalEngineOrchestrator:
                 "dynamic_size_actuations": self._controller_event_counts["DYNAMIC_SIZE_ACTUATION"],
                 "trade_path_stop_actuations": self._controller_event_counts["TRADE_PATH_STOP_ACTUATION"],
                 "hmm_regime_risk_shadow_observations": self._controller_event_counts["HMM_REGIME_RISK_SHADOW"],
+                "diagnostic_observer_faults": self._controller_event_counts["DIAGNOSTIC_OBSERVER_FAULT"],
             },
             "position_sizing_events": self._position_sizing_events,
             "entry_expectancy_evidence": {

@@ -173,6 +173,8 @@ def replay_block(worker, protocol, block, params, instrument=None):
     if instrument is not None:                           # passive extra observation (e.g. symbol trace)
         instrument(orch)
     report = orch.run(frames, warmup=int(protocol["block_execution_contract"]["stock_warmup_bars_per_symbol"]))
+    if report["controller_telemetry_summary"].get("diagnostic_observer_faults", 0):
+        raise RuntimeError("DIAGNOSTIC_OBSERVER_FAULT: incomplete funnel evidence must not be reported")
     return frames, report, recorder
 
 
