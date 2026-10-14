@@ -15,6 +15,7 @@ fixed heuristic threshold.
 from __future__ import annotations
 
 import zlib
+from copy import deepcopy
 from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -49,6 +50,8 @@ class HMMIntelligentDiscriminationBox:
         self._bars_since_refit: Dict[str, int] = {}
         self._cached_posterior: Dict[str, np.ndarray] = {}
         self._last_regime_observation: Dict[str, Dict[str, Any]] = {}
+        self._latest_regime: Dict[str, str] = {}
+        self._last_observed_bar: Dict[str, pd.Timestamp] = {}
 
     def configure(self, config: EffectiveConfig) -> None:
         # All BB05 controls must be present, even when called outside startup.
@@ -64,6 +67,8 @@ class HMMIntelligentDiscriminationBox:
             self._cached_posterior.clear()
             self._cached_stressed_state.clear()
             self._last_regime_observation.clear()
+            self._latest_regime.clear()
+            self._last_observed_bar.clear()
         for symbol, history in self._bar_history.items():
             window = require(config, "id_feature_window")
             if history.maxlen != window:
@@ -71,6 +76,9 @@ class HMMIntelligentDiscriminationBox:
 
     def calibrate(self, symbol: str, warmup_bars: pd.DataFrame, config: Optional[EffectiveConfig] = None) -> None:
         self.configure(config if config is not None else self.config)
+        for cache in (self._cached_model, self._cached_stressed_state, self._cached_posterior,
+                      self._last_regime_observation, self._latest_regime, self._last_observed_bar):
+            cache.pop(symbol, None)
         closes = warmup_bars["close"].to_numpy(dtype=float)
         self._bar_history[symbol] = deque(list(closes[-require(self.config, "id_feature_window"):]), maxlen=require(self.config, "id_feature_window"))
         self._bars_since_refit[symbol] = require(self.config, "id_refit_every_bars")  # force a refit on the first real evaluation
@@ -133,11 +141,40 @@ class HMMIntelligentDiscriminationBox:
             stressed if variances[calm] > 0 and variances[stressed] / variances[calm] >= require(self.config, "id_variance_ratio") else None
         )
 
+    def observe_bar(self, symbol: str, latest_close: float, *, timestamp: str) -> str:
+        """Advance once per completed bar, independently of entry/exit eligibility.
+
+        Decisions read ``latest_regime``; they never append the same close again.
+        The event timestamp distinguishes consecutive bars with equal closes.
+        """
+        event_time = pd.Timestamp(timestamp)
+        if pd.isna(event_time):
+            raise ValueError("HMM observation requires a valid timestamp")
+        last = self._last_observed_bar.get(symbol)
+        if last is not None and event_time < last:
+            raise ValueError("HMM observations must arrive in causal order")
+        if last == event_time:
+            return self.latest_regime(symbol)
+        close = float(latest_close)
+        if not np.isfinite(close) or close <= 0.0:
+            raise ValueError("HMM observation requires a finite positive close")
+        regime = self._current_regime(symbol, close)
+        self._latest_regime[symbol] = regime
+        self._last_observed_bar[symbol] = event_time
+        return regime
+
+    def latest_regime(self, symbol: str) -> str:
+        """Read the latest completed-bar classification without advancing history."""
+        return self._latest_regime.get(symbol, "unknown")
+
     def _current_regime(self, symbol: str, latest_close: float) -> str:
         history = self._bar_history.setdefault(symbol, deque(maxlen=require(self.config, "id_feature_window")))
         history.append(latest_close)
         closes = np.array(history)
         if len(closes) < require(self.config, "id_min_history_bars"):
+            self._last_regime_observation[symbol] = {
+                "available": False, "reason": "INSUFFICIENT_HISTORY", "stress_probability": None,
+            }
             return "unknown"
         returns = pd.Series(closes).pct_change().dropna().to_numpy() * 100
         rolling_vol = pd.Series(returns).rolling(require(self.config, "id_volatility_window"), min_periods=require(self.config, "id_volatility_min_samples")).std().bfill().to_numpy()
@@ -191,11 +228,13 @@ class HMMIntelligentDiscriminationBox:
 
     def latest_regime_observation(self, symbol: str) -> Dict[str, Any]:
         """Most recent causal HMM posterior; read-only and telemetry-safe."""
-        return dict(self._last_regime_observation.get(symbol, {
+        return deepcopy(self._last_regime_observation.get(symbol, {
             "available": False, "reason": "NOT_EVALUATED", "stress_probability": None,
         }))
 
-    def evaluate(self, signal: PASignal, config: EffectiveConfig, latest_close: float) -> Tuple[IDDecision, List[ParameterUse]]:
+    def evaluate(self, signal: PASignal, config: EffectiveConfig,
+                 latest_close: Optional[float] = None) -> Tuple[IDDecision, List[ParameterUse]]:
+        """Read observed regime in replay; explicit close retains the standalone API."""
         self.configure(config)
         trace: List[ParameterUse] = [ParameterUse(name, 'ID', require(config, name), 'BB05 effective regime/admission control', 'approved')
                                      for name in config.values if name.startswith('id_')]
@@ -215,7 +254,8 @@ class HMMIntelligentDiscriminationBox:
         if signal.direction == 0:
             return IDDecision(False, "no directional signal", signal.confidence, 0.0, exit_threshold), trace
 
-        regime = self._current_regime(signal.symbol, latest_close)
+        regime = (self.latest_regime(signal.symbol) if latest_close is None
+                  else self._current_regime(signal.symbol, latest_close))
         if regime == "stressed":
             return IDDecision(False, "HMM regime: stressed", signal.confidence, 0.0, exit_threshold), trace
         if signal.quality_band == "red":
