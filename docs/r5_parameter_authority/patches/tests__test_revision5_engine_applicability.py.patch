@@ -1,0 +1,18 @@
+diff --git a/tests/test_revision5_engine_applicability.py b/tests/test_revision5_engine_applicability.py
+index d3c260c..f5e83e8 100644
+--- a/tests/test_revision5_engine_applicability.py
++++ b/tests/test_revision5_engine_applicability.py
+@@ -129,9 +129,10 @@ def test_calibration_payload_is_engine_scoped():
+ 
+ def test_registry_accounting_is_reported_per_surface():
+     assert REG.surface_counts() == {
+-        "total_targets": 170, "fixed_targets": 48, "safety_params": 22,
+-        "in_house_eligible": 46, "external_eligible": 122, "shared_eligible": 46,
+-        "external_only_eligible": 76, "in_house_only_eligible": 0,
++        # + R5 controller authority: 244 rows (163 tunable EXTERNAL-only eligible, 82 fixed)
++        "total_targets": 170 + 245, "fixed_targets": 48 + 82, "safety_params": 22,
++        "in_house_eligible": 46, "external_eligible": 122 + 163, "shared_eligible": 46,
++        "external_only_eligible": 76 + 163, "in_house_only_eligible": 0,
+     }
+     REG.verify_frozen_identity()
+ 

@@ -1,0 +1,56 @@
+{
+  "commit": "13101806892e6151db79d24f78fb3b3dbf072023",
+  "environment": "operator desktop, ~/.venvs/zerodha-phase1-r5 (Python 3.12.14)",
+  "suites": {
+    "tests_main": {
+      "tests": 1345,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 7,
+      "passed": 1338,
+      "failed_tests": [],
+      "parameter_sweep": {
+        "tests": 243,
+        "failed": 0
+      }
+    },
+    "engine_b": {
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 18,
+      "failed_tests": [],
+      "parameter_sweep": {
+        "tests": 0,
+        "failed": 0
+      }
+    },
+    "engine_c": {
+      "tests": 48,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "passed": 47,
+      "failed_tests": [],
+      "parameter_sweep": {
+        "tests": 0,
+        "failed": 0
+      }
+    }
+  },
+  "golden_master": {
+    "local_byte_level_vs_cb10fac": "LOCAL BYTE-LEVEL GOLDEN MASTER (local_workspace/golden_local/cb10fac): PASS",
+    "local_identity_fields_changed": "identity-only fields changed (expected with a registry change): ['config_hash', 'parameter_coverage']",
+    "decision_level_vs_stored_500abab": "DECISION-LEVEL GOLDEN MASTER (stored 500abab baseline): PASS",
+    "stored_byte_level_500abab": "GOLDEN MASTER: FAIL (17/17)",
+    "stored_byte_level_note": "fails identically at untouched cb10fac on this machine (HMM last-digit float drift); decisions identical"
+  },
+  "commands": {
+    "tests_main": "PYTHONPATH=$PWD python -m pytest tests tests_external --ignore=tests/legacy_quarantine",
+    "engine_b": "PYTHONPATH=$PWD python -m pytest tests_engine_b",
+    "engine_c": "ENGINE_C_SKIP_GOLDEN_MASTER=1 PYTHONPATH=$PWD python -m pytest tests_engine_c",
+    "local_gate": "PYTHONPATH=$PWD python scripts/r5_golden_master_local.py --check-local local_workspace/golden_local/cb10fac",
+    "decision_gate": "PYTHONPATH=$PWD python scripts/r5_golden_master_local.py --check-decisions"
+  }
+}

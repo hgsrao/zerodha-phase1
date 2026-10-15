@@ -1,0 +1,31 @@
+diff --git a/scripts/run_engine_a_reference.py b/scripts/run_engine_a_reference.py
+index c347c81..7128bb8 100644
+--- a/scripts/run_engine_a_reference.py
++++ b/scripts/run_engine_a_reference.py
+@@ -39,6 +39,9 @@ def main() -> int:
+     parser.add_argument("--grid-manifest", type=Path, default=ROOT / "local_workspace/records/grid-manifest-local.json")
+     parser.add_argument("--governor-authority", choices=["full", "advisory"], default="full")
+     parser.add_argument("--report", type=Path, default=ROOT / "local_workspace/validation/engine_a/engine_a_report.json")
++    sys.path.insert(0, str(ROOT / "scripts"))
++    from r5_authority_cli import add_authority_arguments, authority_kwargs
++    add_authority_arguments(parser)
+     args = parser.parse_args()
+     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
+ 
+@@ -61,7 +64,7 @@ def main() -> int:
+     engine = Revision2ExternalEngineOrchestrator(
+         sorted(data), grid_context_provider=SealedGridContextProvider(nifty, vix), real_plant_dcs=plant,
+         plant_control_mode="PAPER_APPLY", closed_loop_mode="active_paper", telemetry_mode="full",
+-        governor_authority=args.governor_authority, starting_equity=1_000_000.0)
++        governor_authority=args.governor_authority, starting_equity=1_000_000.0, **authority_kwargs(args))
+     r5 = engine.run({s: data[s] for s in sorted(data)}, warmup=args.warmup)
+     trades = r5["trades"]
+     report = {
+@@ -84,6 +87,7 @@ def main() -> int:
+         "reconciliation": {"breaks": [], "note": "Engine A has no independent broker; _finalize_run asserts paper "
+                                                  "broker gross == trade-ledger gross"},
+         "trades": trades,
++        "r5_authority": engine.authority_report_section(r5),
+         "source": inputs["source"],
+         "data_audit": inputs["audit"],
+     }

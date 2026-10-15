@@ -1,0 +1,15 @@
+diff --git a/tests/test_revision5_bb04_dynamic_parameterization.py b/tests/test_revision5_bb04_dynamic_parameterization.py
+index 66a5be3..ba37fa9 100644
+--- a/tests/test_revision5_bb04_dynamic_parameterization.py
++++ b/tests/test_revision5_bb04_dynamic_parameterization.py
+@@ -159,8 +159,8 @@ def test_registry_identity_metadata_and_bounds():
+     new = [spec for spec in registry.params.values()
+            if "ENGINEERING_INITIAL_VALUE" in spec.notes and "BB04" in spec.notes]
+     assert len(new) == 16
+-    assert len(registry.params) == 170  # 141 + 11 plant-control + 18 governor-authority
+-    assert len(registry.calibratable_names()) == 122
++    assert len(registry.params) == 170 + 245  # 141 + 11 plant-control + 18 governor-authority + 245 R5 controller authority
++    assert len(registry.calibratable_names()) == 122 + 163
+     assert len(registry.calibratable_names("IN_HOUSE")) == 46
+     for spec in new:
+         assert spec.black_box == "PA"
