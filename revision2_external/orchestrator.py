@@ -1522,7 +1522,10 @@ class Revision2ExternalEngineOrchestrator:
             if self.final_exit_authority and final_exit.get("action") in {"EXIT", "EXIT_NEXT_BAR"}:
                 # The decision is based on a completed bar and becomes effective at the
                 # next bar's open. Hard stop/target gaps retain precedence in the pending
-                # exit handler; HOLD/PROTECT never loosen a one-way stop.
+                # exit handler; HOLD/PROTECT never loosen a one-way stop.  Processing of THIS
+                # bar continues below (no early return): its intrabar stop/target, the session
+                # close, the maximum hold, plant protection trips (which re-arm the pending exit
+                # with their own reason) and the governor all keep their precedence.
                 trade["controller_exit_pending"] = {
                     "armed_timestamp": str(timestamp),
                     "reason": final_exit.get("reason", "FINAL_EXECUTION_EXIT"),
