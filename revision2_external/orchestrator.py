@@ -32,6 +32,7 @@ import math
 from dataclasses import replace, asdict
 from collections import Counter, deque
 from dataclasses import dataclass
+from types import SimpleNamespace
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -1082,7 +1083,7 @@ class Revision2ExternalEngineOrchestrator:
         order would open or flip a position instead of closing one -- never silently execute that.
         This is a precondition for the realized-R close feedback below, never weakened to make a
         badly-seeded caller pass."""
-        position = self.broker.get_position(symbol)
+        position = self._broker_position(symbol)
         held = float(position.get("quantity", 0.0))
         expected_sign = 1.0 if trade["side"] == "BUY" else -1.0
         required = float(trade["quantity"])
@@ -1130,6 +1131,25 @@ class Revision2ExternalEngineOrchestrator:
             self._bay_governors[bay_id].register_trade(realized_r)
         self._close_feedback_receipts[key] = "DONE"
 
+    # ---- Execution-port extension points ------------------------------------------------------
+    # Engine A (this class) keeps the synchronous offline paper broker and the next-bar replay
+    # price exactly as before.  A derived event-driven engine overrides only these seams; every
+    # strategy, safety, plant and governor decision stays in the shared code.
+    def _next_bar_timestamp(self, bars: pd.DataFrame, bar_idx: int) -> pd.Timestamp:
+        return pd.Timestamp(bars.iloc[bar_idx + 1]["timestamp"])
+
+    def _entry_reference_price(self, bars: pd.DataFrame, bar_idx: int) -> float:
+        return float(bars.iloc[bar_idx + 1]["open"])
+
+    def _entries_suspended(self, symbol: str) -> bool:
+        return False
+
+    def _broker_position(self, symbol: str) -> Dict[str, Any]:
+        return self.broker.get_position(symbol)
+
+    def _broker_realized_pnl(self) -> float:
+        return self.broker.realized_pnl
+
     def _execute_exit(self, symbol: str, timestamp, trade: Dict[str, Any], exit_price: float, reason: str) -> None:
         self._assert_paper_plant_broker()
         self._verify_broker_position_reconciles(symbol, trade)
@@ -1139,6 +1159,12 @@ class Revision2ExternalEngineOrchestrator:
             symbol=symbol, side=close_side, quantity=trade["quantity"], order_type="MARKET",
             market_price=exit_price, config=self.safety_contract.as_dict(), parameter_registry=self.registry,
         )
+        self._on_exit_order_result(symbol, timestamp, trade, result, reason)
+
+    def _on_exit_order_result(self, symbol: str, timestamp, trade: Dict[str, Any], result: Dict[str, Any],
+                              reason: str) -> None:
+        """Authoritative close bookkeeping for one exit order result (fill or rejection)."""
+        close_side = "SELL" if trade["side"] == "BUY" else "BUY"
         if result["passed"]:
             state = self._exit_controller_states.get(symbol)
             pnl = (
@@ -1624,6 +1650,27 @@ class Revision2ExternalEngineOrchestrator:
         self, symbol_bars: Dict[str, pd.DataFrame], warmup: int = 60,
         precomputed_clock: Optional[List[_ClockEvent]] = None,
     ) -> Dict[str, Any]:
+        symbol_bars = self._prepare_run(symbol_bars, warmup, precomputed_clock)
+        # Calibration driving many candidates against the SAME symbol_bars
+        # can build this once and pass it via precomputed_clock= -- mirrors
+        # revision2/portfolio_orchestrator.py's identical optimization, so
+        # the two engines' calibration supervisors can share one code path.
+        clock = precomputed_clock if precomputed_clock is not None else self.build_clock(symbol_bars, warmup)
+        for timestamp, tick_events in itertools.groupby(clock, key=lambda e: e.timestamp):
+            self._process_tick(timestamp, list(tick_events))
+
+        for symbol in list(self.open_trades.keys()):
+            bars = symbol_bars[symbol]
+            final_close = float(bars.iloc[len(bars) - 1]["close"])
+            self._execute_exit(symbol, bars.iloc[len(bars) - 1].get("timestamp", ""), self.open_trades[symbol], final_close, "end_of_run_reconciliation")
+
+        return self._finalize_run()
+
+    def _prepare_run(
+        self, symbol_bars: Dict[str, pd.DataFrame], warmup: int,
+        precomputed_clock: Optional[List[_ClockEvent]] = None,
+    ) -> Dict[str, pd.DataFrame]:
+        """Certification, warm-up calibration and run-scoped state, before the first decision tick."""
         self._assert_paper_plant_broker()
         if self.paper_journal is not None:
             self.paper_journal.bind(self, symbol_bars, warmup)
@@ -1701,11 +1748,6 @@ class Revision2ExternalEngineOrchestrator:
         sector_cap_fraction = float(self.config.require("max_sector_exposure_fraction"))
         self.consumed_parameters.add("max_sector_exposure_fraction")
 
-        # Calibration driving many candidates against the SAME symbol_bars
-        # can build this once and pass it via precomputed_clock= -- mirrors
-        # revision2/portfolio_orchestrator.py's identical optimization, so
-        # the two engines' calibration supervisors can share one code path.
-        clock = precomputed_clock if precomputed_clock is not None else self.build_clock(symbol_bars, warmup)
         entry_bar_index: Dict[str, int] = {}
         ticks_since_reweight = 0
 
@@ -1723,635 +1765,681 @@ class Revision2ExternalEngineOrchestrator:
             "portfolio_optimizer_risk_free_rate",
         })
 
-        for timestamp, tick_events in itertools.groupby(clock, key=lambda e: e.timestamp):
-            tick_events = list(tick_events)
-            event_ts = pd.Timestamp(timestamp)
-            if self._active_trading_date != event_ts.date():
-                self._active_trading_date = event_ts.date()
-                self._day_start_equity = self._equity()
-                # Session-scoped machine bay lockout reset
-                self.symbol_cooldown_until_bar.clear()
-                self.symbol_consecutive_losses.clear()
-                self.symbol_tripped.clear()
+        self._run = SimpleNamespace(
+            symbol_bars=symbol_bars, certification_audit=certification_audit, funnel=funnel,
+            max_concurrent=max_concurrent, max_gross_fraction=max_gross_fraction,
+            sector_cap_fraction=sector_cap_fraction, entry_bar_index=entry_bar_index,
+            ticks_since_reweight=ticks_since_reweight, portfolio_refit_bars=portfolio_refit_bars,
+            portfolio_lookback_bars=portfolio_lookback_bars,
+            portfolio_min_observations=portfolio_min_observations,
+            portfolio_risk_free_rate=portfolio_risk_free_rate,
+        )
+        return symbol_bars
 
-            for event in tick_events:
-                self._last_close[event.symbol] = float(symbol_bars[event.symbol].iloc[event.bar_idx]["close"])
-            self._record_mtm(timestamp)
-            if self.paper_journal is not None:
-                self.paper_journal.before_tick(self, timestamp)
-            self._plant_control_shadow_step(timestamp, max_gross_fraction)
-            self._governor_tick_telemetry(tick_events, symbol_bars)
-            self._plant_bar_step(timestamp, tick_events, symbol_bars)
+    def _process_tick(self, timestamp, tick_events: List[_ClockEvent]) -> None:
+        """One clock timestamp: plant/governor steps, exits, then the S4 entry candidate batch."""
+        run = self._run
+        symbol_bars, funnel, certification_audit = run.symbol_bars, run.funnel, run.certification_audit
+        max_gross_fraction, entry_bar_index = run.max_gross_fraction, run.entry_bar_index
+        ticks_since_reweight = run.ticks_since_reweight
+        portfolio_refit_bars, portfolio_lookback_bars = run.portfolio_refit_bars, run.portfolio_lookback_bars
+        portfolio_min_observations = run.portfolio_min_observations
+        portfolio_risk_free_rate = run.portfolio_risk_free_rate
+        event_ts = pd.Timestamp(timestamp)
+        if self._active_trading_date != event_ts.date():
+            self._active_trading_date = event_ts.date()
+            self._day_start_equity = self._equity()
+            # Session-scoped machine bay lockout reset
+            self.symbol_cooldown_until_bar.clear()
+            self.symbol_consecutive_losses.clear()
+            self.symbol_tripped.clear()
 
-            # Box 8: refit PyPortfolioOpt weights periodically from real
-            # trailing prices across the universe -- not every tick (that
-            # would dominate runtime for no real benefit at 1-minute
-            # granularity).
-            ticks_since_reweight += 1
-            if ticks_since_reweight >= portfolio_refit_bars:
-                ticks_since_reweight = 0
-                price_history = {}
-                for symbol in self.symbols:
-                    bars = symbol_bars[symbol]
-                    idx = min(event_ts, bars["timestamp"].max())
-                    window = bars[bars["timestamp"] <= idx].tail(portfolio_lookback_bars)
-                    if len(window) >= portfolio_lookback_bars:
-                        price_history[symbol] = window.set_index("timestamp")["close"]
-                if len(price_history) >= 2:
-                    self._portfolio_weights = compute_portfolio_weights(
-                        price_history,
-                        min_observations=portfolio_min_observations,
-                        risk_free_rate=portfolio_risk_free_rate,
-                    )
+        for event in tick_events:
+            self._last_close[event.symbol] = float(symbol_bars[event.symbol].iloc[event.bar_idx]["close"])
+        self._record_mtm(timestamp)
+        if self.paper_journal is not None:
+            self.paper_journal.before_tick(self, timestamp)
+        self._plant_control_shadow_step(timestamp, max_gross_fraction)
+        self._governor_tick_telemetry(tick_events, symbol_bars)
+        self._plant_bar_step(timestamp, tick_events, symbol_bars)
 
-            pending_entry_candidates = []
-
-            for event in tick_events:
-                funnel["bars_processed"] += 1
-                symbol, bar_idx = event.symbol, event.bar_idx
-                self._current_bar_idx = bar_idx
+        # Box 8: refit PyPortfolioOpt weights periodically from real
+        # trailing prices across the universe -- not every tick (that
+        # would dominate runtime for no real benefit at 1-minute
+        # granularity).
+        ticks_since_reweight += 1
+        if ticks_since_reweight >= portfolio_refit_bars:
+            ticks_since_reweight = 0
+            price_history = {}
+            for symbol in self.symbols:
                 bars = symbol_bars[symbol]
-                self.id_box.configure(self.config)
-                self.id_box.observe_bar(symbol, float(bars.iloc[bar_idx]["close"]),
-                                        timestamp=str(timestamp))
-                next_ts = pd.Timestamp(bars.iloc[bar_idx + 1]["timestamp"])
-                end_time = str(self.config.require("trading_hours_end"))
-                session_last_bar = next_ts.date() != event_ts.date() or event_ts.strftime("%H:%M") >= end_time
-
-                upstream = self.supervisory_bridge.evaluate_upstream_admission(
-                    symbol=symbol,
-                    runtime_parameters=self.config.as_dict(),
-                    safety_parameters=self.safety_contract.as_dict(),
-                )
-                self.consumed_parameters.update(
-                    upstream.consumed_parameters
-                )
-                if not upstream.admitted:
-                    continue
-                in_window = self._in_trading_window(str(timestamp))
-
-                snapshot = MarketSnapshot(
-                    symbol=symbol, timestamp=str(timestamp),
-                    bars=bars.iloc[max(0, bar_idx - SNAPSHOT_LOOKBACK_BARS + 1):bar_idx + 1],
-                )
-                signal, trace = self.pa.evaluate(snapshot, self.config)
-                self._record(trace)
-                self.bb03_bb04_supervisory_by_symbol[symbol] = (
-                    self.supervisory_bridge.snapshot_bb03_bb04(
-                        certification_audit=(
-                            certification_audit[symbol]
-                        ),
-                        analytics_signal=signal,
-                    )
-                )
-                funnel["pa_signals"] += 1  # deprecated compatibility alias for pa_evaluations
-                funnel["pa_evaluations"] += 1
-                funnel["directional_signals"] += int(signal.direction != 0)
-                funnel["confidence_qualified"] += int(signal.confidence >= float(self.config.require("entry_confidence_threshold")))
-                funnel["pa_" + signal.quality_band] += 1
-
-                # Box 4b, the Chart-Studies Confirmation Layer -- a SECOND,
-                # fully independent confidence reading (Ichimoku/Bollinger/
-                # Stochastic/session VWAP, PID-weighted -- see
-                # composite_study_signal.py), deliberately kept SEPARATE
-                # from PA's own confidence rather than blended into it.
-                # An earlier version of this wiring blended the two
-                # ("agree -> average, disagree -> floor to the lower",
-                # chart_studies_confirmation.py) directly into `signal`
-                # before ID/MPC ever saw it -- a real INFY 6-month backtest
-                # showed this let a weak PA signal get boosted past ID's
-                # threshold purely by an unrelated composite agreeing with
-                # it (id_approvals 455->2,949, win rate 9.3%->5.9%, net
-                # P&L -37,907.57->-81,964.77), which is structurally
-                # unsound: two independent opinions averaged together can
-                # manufacture confidence neither one earned alone. Per
-                # explicit user direction, this signal instead goes
-                # straight into the exit controller (Box 6's feedback
-                # path, below) as its own separate PID track -- never
-                # merged with PA's confidence, never touching entry
-                # (ID/MPC) at all. See continuous_exit_controller.py's
-                # module docstring for the two-track design.
-                self.chart_studies.configure(self.config)
-                self.closed_loop.configure(self.config)
-                composite_result = self.chart_studies.evaluate(symbol, snapshot.bars)
-                chart_studies_confidence = float(composite_result["confidence"])
-                self._observe_conviction(symbol, signal, composite_result)
-
-                held = bar_idx - entry_bar_index.get(symbol, bar_idx)
-                self._maybe_exit(
-                    symbol, timestamp, bars.iloc[bar_idx], signal, held, session_last_bar,
-                    chart_studies_confidence, composite_result,
+                idx = min(event_ts, bars["timestamp"].max())
+                window = bars[bars["timestamp"] <= idx].tail(portfolio_lookback_bars)
+                if len(window) >= portfolio_lookback_bars:
+                    price_history[symbol] = window.set_index("timestamp")["close"]
+            if len(price_history) >= 2:
+                self._portfolio_weights = compute_portfolio_weights(
+                    price_history,
+                    min_observations=portfolio_min_observations,
+                    risk_free_rate=portfolio_risk_free_rate,
                 )
 
-                if symbol in self.open_trades or not in_window or self._execution_halted:
-                    continue
-                if next_ts.date() != event_ts.date() or next_ts.strftime("%H:%M") >= str(self.safety_contract.values["no_entry_cutoff_time"]):
-                    continue
+        pending_entry_candidates = []
 
-                decision, trace = self.id_box.evaluate(signal, self.config, latest_close=None)
-                self._record(trace)
-                self.bb05_bb06_supervisory_by_symbol[symbol] = (
-                    self.supervisory_bridge.snapshot_bb05_bb06(symbol=symbol, decision=decision)
+        for event in tick_events:
+            funnel["bars_processed"] += 1
+            symbol, bar_idx = event.symbol, event.bar_idx
+            self._current_bar_idx = bar_idx
+            bars = symbol_bars[symbol]
+            self.id_box.configure(self.config)
+            self.id_box.observe_bar(symbol, float(bars.iloc[bar_idx]["close"]),
+                                    timestamp=str(timestamp))
+            next_ts = self._next_bar_timestamp(bars, bar_idx)
+            end_time = str(self.config.require("trading_hours_end"))
+            session_last_bar = next_ts.date() != event_ts.date() or event_ts.strftime("%H:%M") >= end_time
+
+            upstream = self.supervisory_bridge.evaluate_upstream_admission(
+                symbol=symbol,
+                runtime_parameters=self.config.as_dict(),
+                safety_parameters=self.safety_contract.as_dict(),
+            )
+            self.consumed_parameters.update(
+                upstream.consumed_parameters
+            )
+            if not upstream.admitted:
+                continue
+            in_window = self._in_trading_window(str(timestamp))
+
+            snapshot = MarketSnapshot(
+                symbol=symbol, timestamp=str(timestamp),
+                bars=bars.iloc[max(0, bar_idx - SNAPSHOT_LOOKBACK_BARS + 1):bar_idx + 1],
+            )
+            signal, trace = self.pa.evaluate(snapshot, self.config)
+            self._record(trace)
+            self.bb03_bb04_supervisory_by_symbol[symbol] = (
+                self.supervisory_bridge.snapshot_bb03_bb04(
+                    certification_audit=(
+                        certification_audit[symbol]
+                    ),
+                    analytics_signal=signal,
                 )
-                # HMM posterior -> portfolio-risk input is deliberately
-                # shadow-only.  The posterior is causal (filtering, not a
-                # future-smoothed state estimate) and the adapter can only
-                # recommend a derate.  It cannot change this candidate's
-                # order, size, safety state, or existing HMM ID veto until
-                # its own sealed out-of-sample study earns that authority.
-                regime_observation = self.id_box.latest_regime_observation(symbol)
-                hysteresis = self._hmm_risk_hysteresis.setdefault(symbol, HMMRiskHysteresis())
-                hysteresis.configure(self.config)  # controls refresh; latch/filter state preserved
-                self._record_controller_event("HMM_REGIME_RISK_SHADOW", timestamp, symbol, {
-                    "candidate_id": f"candidate-preview-{self._controller_sequence + 1}",
-                    "id_approved": decision.approved, "id_reason": decision.reason,
-                    "hmm_observation": regime_observation,
-                    **regime_risk_derate(regime_observation),
-                    "hysteresis": hysteresis.update(regime_observation),
-                })
-                if not decision.approved:
-                    funnel["id_rejections"] += 1
-                    continue
-                funnel["id_approvals"] += 1
+            )
+            funnel["pa_signals"] += 1  # deprecated compatibility alias for pa_evaluations
+            funnel["pa_evaluations"] += 1
+            funnel["directional_signals"] += int(signal.direction != 0)
+            funnel["confidence_qualified"] += int(signal.confidence >= float(self.config.require("entry_confidence_threshold")))
+            funnel["pa_" + signal.quality_band] += 1
 
-                if self.grid_context_provider is not None:
-                    observation = self.grid_context_provider.observe(
-                        symbol,
-                        bars.iloc[:bar_idx + 1],
-                        timestamp,
-                        signal.direction,
-                    )
-                    self.grid_shadow_observations.append(observation.to_dict())
+            # Box 4b, the Chart-Studies Confirmation Layer -- a SECOND,
+            # fully independent confidence reading (Ichimoku/Bollinger/
+            # Stochastic/session VWAP, PID-weighted -- see
+            # composite_study_signal.py), deliberately kept SEPARATE
+            # from PA's own confidence rather than blended into it.
+            # An earlier version of this wiring blended the two
+            # ("agree -> average, disagree -> floor to the lower",
+            # chart_studies_confirmation.py) directly into `signal`
+            # before ID/MPC ever saw it -- a real INFY 6-month backtest
+            # showed this let a weak PA signal get boosted past ID's
+            # threshold purely by an unrelated composite agreeing with
+            # it (id_approvals 455->2,949, win rate 9.3%->5.9%, net
+            # P&L -37,907.57->-81,964.77), which is structurally
+            # unsound: two independent opinions averaged together can
+            # manufacture confidence neither one earned alone. Per
+            # explicit user direction, this signal instead goes
+            # straight into the exit controller (Box 6's feedback
+            # path, below) as its own separate PID track -- never
+            # merged with PA's confidence, never touching entry
+            # (ID/MPC) at all. See continuous_exit_controller.py's
+            # module docstring for the two-track design.
+            self.chart_studies.configure(self.config)
+            self.closed_loop.configure(self.config)
+            composite_result = self.chart_studies.evaluate(symbol, snapshot.bars)
+            chart_studies_confidence = float(composite_result["confidence"])
+            self._observe_conviction(symbol, signal, composite_result)
 
-                _close_price = float(bars.iloc[bar_idx]["close"])
-                env_state = MarketEnvironmentState.from_bars(symbol, bars, bar_idx, regime=decision.regime if hasattr(decision, "regime") else "trend", config=self.config)
-                t1_params = DynamicParameterController.get_tier1_vol_parameters(env_state, config=self.config)
-                self.consumed_parameters.update({
-                    'mpc_environment_lookback', 'mpc_range_atr_period',
-                    'mpc_range_fallback_fraction', 'mpc_atr_floor_gain', 'mpc_slippage_vol_gain',
-                })
-                _min_atr_floor = t1_params["min_atr_floor"]
-                atr = max(float(signal.volatility * _close_price), _min_atr_floor)
-                next_open = float(bars.iloc[bar_idx + 1]["open"])
-                self.mpc.gain_scale = self._gain_scale_for(symbol)
-                plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
-                self._record(trace)
-                self.bb05_bb06_supervisory_by_symbol[symbol] = (
-                    self.supervisory_bridge.snapshot_bb05_bb06(symbol=symbol, decision=decision, plan=plan)
+            held = bar_idx - entry_bar_index.get(symbol, bar_idx)
+            self._maybe_exit(
+                symbol, timestamp, bars.iloc[bar_idx], signal, held, session_last_bar,
+                chart_studies_confidence, composite_result,
+            )
+
+            if symbol in self.open_trades or not in_window or self._execution_halted or self._entries_suspended(symbol):
+                continue
+            if next_ts.date() != event_ts.date() or next_ts.strftime("%H:%M") >= str(self.safety_contract.values["no_entry_cutoff_time"]):
+                continue
+
+            decision, trace = self.id_box.evaluate(signal, self.config, latest_close=None)
+            self._record(trace)
+            self.bb05_bb06_supervisory_by_symbol[symbol] = (
+                self.supervisory_bridge.snapshot_bb05_bb06(symbol=symbol, decision=decision)
+            )
+            # HMM posterior -> portfolio-risk input is deliberately
+            # shadow-only.  The posterior is causal (filtering, not a
+            # future-smoothed state estimate) and the adapter can only
+            # recommend a derate.  It cannot change this candidate's
+            # order, size, safety state, or existing HMM ID veto until
+            # its own sealed out-of-sample study earns that authority.
+            regime_observation = self.id_box.latest_regime_observation(symbol)
+            hysteresis = self._hmm_risk_hysteresis.setdefault(symbol, HMMRiskHysteresis())
+            hysteresis.configure(self.config)  # controls refresh; latch/filter state preserved
+            self._record_controller_event("HMM_REGIME_RISK_SHADOW", timestamp, symbol, {
+                "candidate_id": f"candidate-preview-{self._controller_sequence + 1}",
+                "id_approved": decision.approved, "id_reason": decision.reason,
+                "hmm_observation": regime_observation,
+                **regime_risk_derate(regime_observation),
+                "hysteresis": hysteresis.update(regime_observation),
+            })
+            if not decision.approved:
+                funnel["id_rejections"] += 1
+                continue
+            funnel["id_approvals"] += 1
+
+            if self.grid_context_provider is not None:
+                observation = self.grid_context_provider.observe(
+                    symbol,
+                    bars.iloc[:bar_idx + 1],
+                    timestamp,
+                    signal.direction,
                 )
-                if plan is None:
-                    continue
-                # Inter-box Closed Loop Lockout Checks
-                if self.symbol_tripped.get(symbol, False):
-                    self._controller_sequence += 1
-                    candidate_id = f"candidate-{self._controller_sequence}"
-                    self.entry_candidate_observations.observe({
-                        "candidate_id": candidate_id, "symbol": symbol, "side": plan.side,
-                        "timestamp": str(timestamp), "planned_fill_timestamp": str(next_ts),
-                        "pa_confidence": float(signal.confidence), "id_confidence": float(decision.confidence),
-                    })
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "bay_ansi_flameout_tripped")
-                    funnel["bay_trip_rejections"] += 1
-                    continue
+                self.grid_shadow_observations.append(observation.to_dict())
 
-                if bar_idx < self.symbol_cooldown_until_bar.get(symbol, -1):
-                    self._controller_sequence += 1
-                    candidate_id = f"candidate-{self._controller_sequence}"
-                    self.entry_candidate_observations.observe({
-                        "candidate_id": candidate_id, "symbol": symbol, "side": plan.side,
-                        "timestamp": str(timestamp), "planned_fill_timestamp": str(next_ts),
-                        "pa_confidence": float(signal.confidence), "id_confidence": float(decision.confidence),
-                    })
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "bay_cooldown_active")
-                    funnel["bay_cooldown_rejections"] += 1
-                    continue
-
-                funnel["mpc_plans"] += 1
+            _close_price = float(bars.iloc[bar_idx]["close"])
+            env_state = MarketEnvironmentState.from_bars(symbol, bars, bar_idx, regime=decision.regime if hasattr(decision, "regime") else "trend", config=self.config)
+            t1_params = DynamicParameterController.get_tier1_vol_parameters(env_state, config=self.config)
+            self.consumed_parameters.update({
+                'mpc_environment_lookback', 'mpc_range_atr_period',
+                'mpc_range_fallback_fraction', 'mpc_atr_floor_gain', 'mpc_slippage_vol_gain',
+            })
+            _min_atr_floor = t1_params["min_atr_floor"]
+            atr = max(float(signal.volatility * _close_price), _min_atr_floor)
+            next_open = self._entry_reference_price(bars, bar_idx)
+            self.mpc.gain_scale = self._gain_scale_for(symbol)
+            plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
+            self._record(trace)
+            self.bb05_bb06_supervisory_by_symbol[symbol] = (
+                self.supervisory_bridge.snapshot_bb05_bb06(symbol=symbol, decision=decision, plan=plan)
+            )
+            if plan is None:
+                continue
+            # Inter-box Closed Loop Lockout Checks
+            if self.symbol_tripped.get(symbol, False):
                 self._controller_sequence += 1
                 candidate_id = f"candidate-{self._controller_sequence}"
                 self.entry_candidate_observations.observe({
                     "candidate_id": candidate_id, "symbol": symbol, "side": plan.side,
                     "timestamp": str(timestamp), "planned_fill_timestamp": str(next_ts),
                     "pa_confidence": float(signal.confidence), "id_confidence": float(decision.confidence),
-                    "studies_confidence": float(chart_studies_confidence),
-                    "planned_entry_price": float(plan.entry_price), "planned_stop_price": float(plan.stop_price),
-                    "planned_target_price": float(plan.target_price), "planned_maximum_hold_bars": int(plan.maximum_hold_bars),
                 })
-                entry_quality = self.closed_loop.outcomes.profile(symbol, plan.side)
-                self._record_controller_event("ENTRY_QUALITY_COMPARATOR", timestamp, symbol, {
-                    "candidate_id": candidate_id, "id_confidence": float(decision.confidence),
-                    **entry_quality,
-                })
-                self._record_controller_event("ENTRY_CONFIDENCE_THROTTLE", timestamp, symbol, {
-                    "candidate_id": candidate_id,
-                    # Passive input/geometry telemetry. These values were
-                    # fixed by PA, ID and MPC above; recording them cannot
-                    # alter admission, sizing, stops, targets or execution.
-                    "pa_confidence": float(signal.confidence),
-                    "id_confidence": float(decision.confidence),
-                    "id_timing_quality": float(decision.timing_quality),
-                    "id_risk_reward_ratio": float(decision.risk_reward_ratio),
-                    "entry_atr": float(atr),
-                    "planned_entry_price": float(plan.entry_price),
-                    "planned_stop_price": float(plan.stop_price),
-                    "planned_target_price": float(plan.target_price),
-                    "planned_stop_distance": abs(float(plan.entry_price) - float(plan.stop_price)),
-                    "planned_target_distance": abs(float(plan.target_price) - float(plan.entry_price)),
-                    "planned_minimum_hold_bars": int(plan.minimum_hold_bars),
-                    "planned_maximum_hold_bars": int(plan.maximum_hold_bars),
-                    **pid_info,
-                })
-                if self.dynamic_target_setpoint_provider is not None:
-                    proposal = self.dynamic_target_setpoint_provider.propose(
-                        entry_price=float(plan.entry_price), stop_price=float(plan.stop_price),
-                        target_price=float(plan.target_price), maximum_hold_bars=int(plan.maximum_hold_bars),
-                    )
-                    self._record_controller_event("DYNAMIC_TARGET_SETPOINT_SHADOW", timestamp, symbol, {
-                        "candidate_id": candidate_id, **proposal,
-                    })
-                    if self.dynamic_target_setpoint_mode == "paper_apply" and proposal["available"]:
-                        risk = abs(float(plan.entry_price) - float(plan.stop_price))
-                        signed_target = risk * float(proposal["proposed_target_r"])
-                        target_price = (
-                            float(plan.entry_price) + signed_target if plan.side == "BUY"
-                            else float(plan.entry_price) - signed_target
-                        )
-                        plan = replace(
-                            plan, target_price=target_price,
-                            maximum_hold_bars=int(proposal["proposed_maximum_hold_bars"]),
-                        )
-                        self._record_controller_event("DYNAMIC_TARGET_SETPOINT_PAPER_APPLIED", timestamp, symbol, {
-                            "candidate_id": candidate_id, "target_price": target_price,
-                            "maximum_hold_bars": plan.maximum_hold_bars, **proposal,
-                        })
-
-                # S4: candidate construction is complete.  No portfolio
-                # capacity, sizing, gate submission, or broker mutation is
-                # allowed until every symbol at this timestamp has reached
-                # this same boundary.
-                pending_entry_candidates.append({
-                    "symbol": symbol,
-                    "bar_idx": bar_idx,
-                    "bars": bars,
-                    "next_ts": next_ts,
-                    "signal": signal,
-                    "decision": decision,
-                    "plan": plan,
-                    "pid_info": pid_info,
-                    "candidate_id": candidate_id,
-                    "entry_quality": entry_quality,
-                    "composite_result": composite_result,
-                    "chart_studies_confidence": chart_studies_confidence,
-                    "atr": atr,
-                })
+                self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "bay_ansi_flameout_tripped")
+                funnel["bay_trip_rejections"] += 1
                 continue
 
-            # S4_PHASE_B_SIMULTANEOUS_ARBITRATION
-            # Every eligible candidate for this exact timestamp now exists.
-            # Rank the immutable candidate batch first; only then allow any
-            # candidate to consume portfolio capacity or create a fill.
-            for pending in self.rank_simultaneous_entry_candidates(
-                pending_entry_candidates
-            ):
-                symbol = pending["symbol"]
-                bar_idx = pending["bar_idx"]
-                bars = pending["bars"]
-                next_ts = pending["next_ts"]
-                signal = pending["signal"]
-                decision = pending["decision"]
-                plan = pending["plan"]
-                pid_info = pending["pid_info"]
-                candidate_id = pending["candidate_id"]
-                entry_quality = pending["entry_quality"]
-                composite_result = pending["composite_result"]
-                chart_studies_confidence = pending["chart_studies_confidence"]
-                atr = pending["atr"]
-
-                # Some lifecycle/audit code uses this authoritative bar index.
-                self._current_bar_idx = bar_idx
-
-                approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(
-                    self._equity_curve, self.config, current_lambda=self._system_state().current_lambda,
-                )
-                self._record(trace)
-                if not approved:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "pre_sizing_safety")
-                    funnel["safety_rejections"] += 1
-                    continue
-                governor_entry = self._governor_entry(
-                    symbol, timestamp, bar_idx, plan.side, signal, decision, composite_result,
-                    chart_studies_confidence)
-                self._governor_entry_counts[f"{governor_entry['action']}:{governor_entry['reason']}"] += 1
-                self._record_controller_event("GOVERNOR_ENTRY_DECISION", timestamp, symbol, {
-                    "candidate_id": candidate_id, "authority": self.governor_authority,
-                    **{key: governor_entry.get(key) for key in (
-                        "bay_id", "action", "reason", "size_multiplier", "conviction", "grid_return_fraction",
-                        "fsr_selected", "controlling_limiter", "limiters", "entry_hurdle", "vibration",
-                        "velocity", "z_score", "bay_exhaust_spread", "comparator")},
+            if bar_idx < self.symbol_cooldown_until_bar.get(symbol, -1):
+                self._controller_sequence += 1
+                candidate_id = f"candidate-{self._controller_sequence}"
+                self.entry_candidate_observations.observe({
+                    "candidate_id": candidate_id, "symbol": symbol, "side": plan.side,
+                    "timestamp": str(timestamp), "planned_fill_timestamp": str(next_ts),
+                    "pa_confidence": float(signal.confidence), "id_confidence": float(decision.confidence),
                 })
-                if self._governor_full and governor_entry["action"] != "ENTRY":
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "governor_no_action")
-                    continue
-                symbol_dynamics = self.closed_loop.dynamics_profiler.estimate(bars.iloc[:bar_idx + 1])
-                final_entry = self.final_execution_controller.entry_decision(
-                    side=plan.side, pa_confidence=float(signal.confidence), id_approved=bool(decision.approved),
-                    studies_direction=int(composite_result["direction"]), studies_confidence=chart_studies_confidence,
-                    entry_price=float(plan.entry_price), stop_price=float(plan.stop_price), target_price=float(plan.target_price),
-                    maximum_hold_bars=int(plan.maximum_hold_bars), entry_quality=entry_quality,
-                    dynamics=symbol_dynamics,
+                self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "bay_cooldown_active")
+                funnel["bay_cooldown_rejections"] += 1
+                continue
+
+            funnel["mpc_plans"] += 1
+            self._controller_sequence += 1
+            candidate_id = f"candidate-{self._controller_sequence}"
+            self.entry_candidate_observations.observe({
+                "candidate_id": candidate_id, "symbol": symbol, "side": plan.side,
+                "timestamp": str(timestamp), "planned_fill_timestamp": str(next_ts),
+                "pa_confidence": float(signal.confidence), "id_confidence": float(decision.confidence),
+                "studies_confidence": float(chart_studies_confidence),
+                "planned_entry_price": float(plan.entry_price), "planned_stop_price": float(plan.stop_price),
+                "planned_target_price": float(plan.target_price), "planned_maximum_hold_bars": int(plan.maximum_hold_bars),
+            })
+            entry_quality = self.closed_loop.outcomes.profile(symbol, plan.side)
+            self._record_controller_event("ENTRY_QUALITY_COMPARATOR", timestamp, symbol, {
+                "candidate_id": candidate_id, "id_confidence": float(decision.confidence),
+                **entry_quality,
+            })
+            self._record_controller_event("ENTRY_CONFIDENCE_THROTTLE", timestamp, symbol, {
+                "candidate_id": candidate_id,
+                # Passive input/geometry telemetry. These values were
+                # fixed by PA, ID and MPC above; recording them cannot
+                # alter admission, sizing, stops, targets or execution.
+                "pa_confidence": float(signal.confidence),
+                "id_confidence": float(decision.confidence),
+                "id_timing_quality": float(decision.timing_quality),
+                "id_risk_reward_ratio": float(decision.risk_reward_ratio),
+                "entry_atr": float(atr),
+                "planned_entry_price": float(plan.entry_price),
+                "planned_stop_price": float(plan.stop_price),
+                "planned_target_price": float(plan.target_price),
+                "planned_stop_distance": abs(float(plan.entry_price) - float(plan.stop_price)),
+                "planned_target_distance": abs(float(plan.target_price) - float(plan.entry_price)),
+                "planned_minimum_hold_bars": int(plan.minimum_hold_bars),
+                "planned_maximum_hold_bars": int(plan.maximum_hold_bars),
+                **pid_info,
+            })
+            if self.dynamic_target_setpoint_provider is not None:
+                proposal = self.dynamic_target_setpoint_provider.propose(
+                    entry_price=float(plan.entry_price), stop_price=float(plan.stop_price),
+                    target_price=float(plan.target_price), maximum_hold_bars=int(plan.maximum_hold_bars),
                 )
-                self._record_controller_event("FINAL_EXECUTION_ENTRY_DECISION", timestamp, symbol, {
-                    "candidate_id": candidate_id, **final_entry,
+                self._record_controller_event("DYNAMIC_TARGET_SETPOINT_SHADOW", timestamp, symbol, {
+                    "candidate_id": candidate_id, **proposal,
                 })
-                # The unified decision is an actual paper-only entry veto in
-                # active mode. Shadow mode records the identical decision
-                # but leaves the existing baseline execution untouched.
-                if self.closed_loop_mode == "active_paper" and not self._governor_full and final_entry["action"] != "ADMIT":
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "final_execution_entry_veto")
-                    self._record_controller_event("FINAL_EXECUTION_ENTRY_VETO", timestamp, symbol, {
-                        "candidate_id": candidate_id, **final_entry,
-                    })
-                    continue
-                size_mult *= pid_info["entry_timing_multiplier"]
-                if self._governor_full:
-                    # The governor's selected FSR (<= 1) can only derate the approved size.
-                    size_mult *= float(governor_entry["size_multiplier"])
-                if (
-                    self.closed_loop_mode == "active_paper" and not self._governor_full
-                    and entry_quality["symbol_regime_samples"] >= self.closed_loop.outcomes.minimum_history
-                    and float(decision.confidence) < float(self.config.require("entry_confidence_threshold"))
-                    + float(entry_quality["suggested_confidence_offset"])
-                ):
-                    self.entry_candidate_observations.dispose(candidate_id, "DEFERRED", "entry_quality_hold")
-                    self._record_controller_event("ENTRY_QUALITY_HOLD", timestamp, symbol, {
-                        "candidate_id": candidate_id,
-                        "effective_confidence_floor": float(self.config.require("entry_confidence_threshold"))
-                        + float(entry_quality["suggested_confidence_offset"]),
-                        "id_confidence": float(decision.confidence),
-                    })
-                    continue
-
-                if len(self.open_trades) >= max_concurrent:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "max_concurrent_positions")
-                    funnel["portfolio_cap_rejections"] += 1
-                    continue
-                equity_now = self._equity()
-                portfolio_observation = self.closed_loop.observe_portfolio_risk(
-                    self._gross_exposure_notional(), equity_now, max_gross_fraction,
-                    soft_budget_fraction=self.closed_loop.soft_budget_fraction,
-                )
-                self._record_controller_event("PORTFOLIO_RISK_COMPARATOR", timestamp, symbol, {
-                    "candidate_id": candidate_id, **portfolio_observation,
-                })
-                if self.closed_loop_mode == "active_paper":
-                    size_mult *= float(entry_quality["suggested_entry_derate"])
-                    size_mult *= float(portfolio_observation["suggested_new_risk_derate"])
-                    self._record_controller_event("DYNAMIC_SIZE_ACTUATION", timestamp, symbol, {
-                        "candidate_id": candidate_id,
-                        "entry_quality_derate": entry_quality["suggested_entry_derate"],
-                        "portfolio_risk_derate": portfolio_observation["suggested_new_risk_derate"],
-                        "resulting_size_multiplier": size_mult,
-                    })
-                sector = self.sector_map.get(symbol, "Unclassified")
-
-                quantity, trace = self.position_manager.size(
-                    plan, equity_now, size_mult, self.config, symbol=symbol,
-                    portfolio_weights=self._portfolio_weights,
-                    max_exposure_per_symbol_fraction=float(self.safety_contract.values["max_exposure_per_symbol_fraction"]),
-                    open_positions_count=len(self.open_trades),
-                    symbol_positions_count=1 if symbol in self.open_trades else 0,
-                )
-                self._record(trace)
-                self._record_controller_event("POSITION_SIZING", timestamp, symbol, {
-                    "candidate_id": candidate_id,
-                    **self.position_manager.last_sizing_telemetry,
-                })
-                if quantity <= 0:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "position_sizing_zero")
-                    continue
-
-                if self.plant_control.mode is PlantControlMode.PAPER_APPLY:
-                    # Use the greater of planned price and the actual costed replay fill price.
-                    cap_price = max(float(plan.entry_price), paper_fill_price(
-                        float(pid_info["execution_market_price"]), plan.side, self.broker.slippage_fraction))
-                    quantity = self._paper_plant_entry_limit(symbol, quantity, cap_price, timestamp)
-                    if quantity <= 0:
-                        self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "plant_control_paper_cap")
-                        funnel["portfolio_cap_rejections"] += 1
-                        continue
-                plant_quantity = None
-                if self._plant_wired:
-                    # Native five-bay plant: final entry authority and bay-headroom x FSR sizing.
-                    plant_quantity = self._plant_entry_gate(
-                        symbol, timestamp, plan.side, quantity, cap_price, bars.iloc[bar_idx],
-                        candidate_id, governor_entry)
-                    quantity = min(quantity, plant_quantity)
-                    if quantity <= 0:
-                        self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "plant_dcs_entry_rejected")
-                        funnel["plant_entry_rejections"] += 1
-                        continue
-
-                real_notional = plan.entry_price * quantity
-                if self._gross_exposure_notional() + real_notional > equity_now * max_gross_fraction:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "gross_exposure_cap")
-                    funnel["portfolio_cap_rejections"] += 1
-                    continue
-                sector_notional = sum(
-                    t["quantity"] * self._last_close.get(s, t["entry_price"]) for s, t in self.open_trades.items()
-                    if self.sector_map.get(s, "Unclassified") == sector
-                )
-                if sector_notional + real_notional > equity_now * sector_cap_fraction:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "sector_exposure_cap")
-                    funnel["portfolio_cap_rejections"] += 1
-                    continue
-
-                post_ok, _, trace = self.safety_gates_target.evaluate_post_sizing(
-                    self._equity_curve, plan, quantity, self.config,
-                    daily_loss=self._system_state().daily_realized_loss + self._system_state().daily_unrealized_loss,
-                )
-                self._record(trace)
-                if not post_ok:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "post_sizing_safety")
-                    funnel["safety_rejections"] += 1
-                    continue
-                funnel["safety_approvals"] += 1
-
-                order, trace = self.p01d.create_order(symbol, plan, quantity, self.config)
-                self._record(trace)
-                if order is None:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "order_construction")
-                    continue
-
-                state = self._system_state()
-                entry_signal = EntrySignal(
-                    symbol=symbol, entry_price=plan.entry_price, stop_loss_price=plan.stop_price,
-                    profit_target_price=plan.target_price, confidence=decision.confidence,
-                    suggested_quantity=quantity, position_notional=real_notional,
-                    risk_reward_ratio=abs(plan.target_price - plan.entry_price) / max(abs(plan.entry_price - plan.stop_price), 1e-12),
-                )
-                # Replay event time only.  A wall-clock fallback would make every time-of-day
-                # and de-duplication gate depend on when the replay happens to run.
-                current_time = self._replay_event_time(next_ts)
-                gate_result = self.entry_decision_engine.evaluate_pre_submit(
-                    state, signal=entry_signal, current_time=current_time, proposed_quantity=quantity,
-                    target_price=plan.entry_price, fill_price=plan.entry_price, expected_qty=quantity,
-                    actual_qty=quantity, symbol=symbol,
-                    seen_recent=self._intent_ledger.seen_recent(symbol, order.side, current_time),
-                    proposed_notional=real_notional,
-                )
-                funnel["gates_evaluated"] += 1
-                if not gate_result["passed"]:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_gate",
-                        details={**gate_result, "decisions": [asdict(d) for d in gate_result["decisions"]]})
-                    funnel["gates_rejected"] += 1
-                    continue
-                funnel["gates_passed"] += 1
-                quantity = min(quantity, max(0, int(gate_result["adjusted_quantity"])))
-                if quantity <= 0:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_quantity_zero")
-                    continue
-
-                gate2 = ExecutionGate().validate_pre_submit(
-                    self.safety_contract.as_dict(),
-                    {"symbol": symbol, "side": order.side, "quantity": quantity, "order_type": order.order_type},
-                    parameter_registry=self.registry,
-                )
-                if not gate2["passed"]:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "execution_gate")
-                    funnel["safety_rejections"] += 1
-                    continue
-
-                if self.plant_control.mode is PlantControlMode.PAPER_APPLY:
-                    # Recheck protection immediately before submission; safety gates may only reduce.
-                    quantity = self._paper_plant_entry_limit(symbol, quantity, cap_price, timestamp)
-                if plant_quantity is not None:
-                    quantity = min(quantity, plant_quantity)
-
-                # Derating/clamping can only round DOWN to a valid symbol lot.
-                lot_size = max(1, int(self.config.require("lot_size_by_symbol").get(symbol, 1)))
-                quantity = (quantity // lot_size) * lot_size
-                if quantity <= 0:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "lot_rounding_zero")
-                    continue
-                self._intent_ledger.record(symbol, order.side, current_time)
-                fill = self.broker.place_order(
-                    symbol=symbol, side=order.side, quantity=quantity, order_type=order.order_type,
-                    market_price=float(pid_info["execution_market_price"]),
-                    config=self.safety_contract.as_dict(), parameter_registry=self.registry,
-                )
-                funnel["orders_submitted"] += 1
-                # BB09/BB10 supervisory hand-off: a read-only record of what
-                # P01D constructed and what UnifiedExecution did with it.
-                # The order already exists, so this observer has NO veto, NO
-                # rollback and NO authority: only the bridge's own data-validation
-                # error is contained (recorded); any other exception is a real
-                # defect and still propagates.  Bookkeeping below always runs.
-                try:
-                    self.bb09_bb10_supervisory_by_symbol[symbol] = (
-                        self.supervisory_bridge.snapshot_bb09_bb10(
-                            proposed_order=replace(order, quantity=quantity),
-                            fill_result=fill,
-                        )
-                    )
-                except SupervisorySnapshotError as exc:
-                    self.bb09_bb10_observer_failures.append({
-                        "symbol": symbol, "timestamp": str(timestamp),
-                        "side": order.side, "quantity": int(quantity),
-                        "fill_passed": bool(fill.get("passed")),
-                        "error_type": type(exc).__name__, "error": str(exc),
-                    })
-                if fill["passed"]:
-                    actual_quantity = int(fill["filled_quantity"])
-                    post_fill = self.entry_decision_engine.evaluate_post_fill(
-                        target_price=float(pid_info["execution_market_price"]), fill_price=float(fill["filled_price"]),
-                        expected_qty=quantity, actual_qty=actual_quantity,
-                        elapsed_seconds=float(fill["ack_elapsed_seconds"]),
-                        expected_position=actual_quantity * (1 if order.side == "BUY" else -1),
-                        actual_position=self.broker.get_position(symbol)["quantity"],
-                    )
-                    self._post_fill_checks.append({
-                        "candidate_id": candidate_id, **post_fill,
-                        "decisions": [asdict(d) for d in post_fill["decisions"]],
-                    })
-                    if not post_fill["passed"]:
-                        # A fill already happened: retain it in the ledger and halt NEW entries.
-                        # Existing protective exits remain enabled.
-                        self._execution_halted = True
-                    if actual_quantity <= 0:
-                        raise RuntimeError("Paper fill has no reconcilable positive quantity")
-                    quantity = actual_quantity
-                    self.entry_candidate_observations.dispose(candidate_id, "FILLED", "paper_fill")
-                    funnel["fills"] += 1
-                    self._trade_sequence += 1
+                if self.dynamic_target_setpoint_mode == "paper_apply" and proposal["available"]:
                     risk = abs(float(plan.entry_price) - float(plan.stop_price))
-                    target_r = abs(float(plan.target_price) - float(plan.entry_price)) / risk if risk > 0.0 else 0.0
-                    entry_evidence = self.entry_expectancy_ledger.observe_fill({
-                        "candidate_id": candidate_id,
-                        "symbol": symbol,
-                        "side": plan.side,
-                        "timestamp": str(timestamp),
-                        "fill_timestamp": str(next_ts),
-                        "pa_confidence": float(signal.confidence),
-                        "id_confidence": float(decision.confidence),
-                        "studies_confidence": chart_studies_confidence,
-                        "studies_direction": int(composite_result["direction"]),
-                        "atr_fraction": float(atr) / max(abs(float(plan.entry_price)), 1e-12),
-                        "target_r": target_r,
-                        "maximum_hold_bars": int(plan.maximum_hold_bars),
-                        "session_minute": int(next_ts.hour * 60 + next_ts.minute),
-                    })
-                    self._record_controller_event("ENTRY_EXPECTANCY_CANDIDATE", timestamp, symbol, entry_evidence)
-                    # Causal plant/dynamics estimate: this slice ends at
-                    # the decision bar. It cannot see the fill bar or any
-                    # subsequent held-position price action.
-                    closed_loop_snapshot = self.closed_loop.entry_snapshot(
-                        symbol=symbol, side=plan.side, entry_price=float(fill["filled_price"]),
-                        stop_price=float(plan.stop_price), target_price=float(plan.target_price),
-                        max_hold_bars=int(plan.maximum_hold_bars), regime="unknown", dynamics=symbol_dynamics,
+                    signed_target = risk * float(proposal["proposed_target_r"])
+                    target_price = (
+                        float(plan.entry_price) + signed_target if plan.side == "BUY"
+                        else float(plan.entry_price) - signed_target
                     )
-                    self._record_controller_event("CLOSED_LOOP_ENTRY_SNAPSHOT", next_ts, symbol, {
-                        "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
-                        **closed_loop_snapshot,
-                    })
-                    self.open_trades[symbol] = {
-                        "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
-                        "target_price": plan.target_price, "quantity": quantity,
-                        "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
-                        "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
-                        "entry_atr": float(atr), "planned_entry_price": float(plan.entry_price),
-                        "planned_stop_price": float(plan.stop_price), "planned_target_price": float(plan.target_price),
-                        "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
-                        "controller_exit_pending": None,
-                        "closed_loop": closed_loop_snapshot,
-                    }
-                    self.open_trades[symbol].update({
-                        "governor_stop_price": float(plan.stop_price), "governor_mfe_r": 0.0,
-                        "governor_entry_conviction": governor_entry.get("entry_absolute_conviction"),
-                    })
-                    _, governor = self._governor_for(symbol)
-                    if governor is not None:
-                        governor.begin_position(hard_stop_r=-1.0, position_id=f"trade-{self._trade_sequence}")
-                    entry_bar_index[symbol] = bar_idx + 1
-                    self._exit_controller_states[symbol] = self.exit_controller.open_position(
-                        plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
+                    plan = replace(
+                        plan, target_price=target_price,
+                        maximum_hold_bars=int(proposal["proposed_maximum_hold_bars"]),
                     )
-                    if self._plant_wired:
-                        self._plant_register_fill(symbol, next_ts, self.open_trades[symbol])
-                else:
-                    self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "paper_fill_rejected")
+                    self._record_controller_event("DYNAMIC_TARGET_SETPOINT_PAPER_APPLIED", timestamp, symbol, {
+                        "candidate_id": candidate_id, "target_price": target_price,
+                        "maximum_hold_bars": plan.maximum_hold_bars, **proposal,
+                    })
 
-            if self.paper_journal is not None:
-                self.paper_journal.checkpoint(self, timestamp)
+            # S4: candidate construction is complete.  No portfolio
+            # capacity, sizing, gate submission, or broker mutation is
+            # allowed until every symbol at this timestamp has reached
+            # this same boundary.
+            pending_entry_candidates.append({
+                "symbol": symbol,
+                "bar_idx": bar_idx,
+                "bars": bars,
+                "next_ts": next_ts,
+                "signal": signal,
+                "decision": decision,
+                "plan": plan,
+                "pid_info": pid_info,
+                "candidate_id": candidate_id,
+                "entry_quality": entry_quality,
+                "composite_result": composite_result,
+                "chart_studies_confidence": chart_studies_confidence,
+                "atr": atr,
+            })
+            continue
 
-        for symbol in list(self.open_trades.keys()):
-            bars = symbol_bars[symbol]
-            final_close = float(bars.iloc[len(bars) - 1]["close"])
-            self._execute_exit(symbol, bars.iloc[len(bars) - 1].get("timestamp", ""), self.open_trades[symbol], final_close, "end_of_run_reconciliation")
+        # S4_PHASE_B_SIMULTANEOUS_ARBITRATION
+        # Every eligible candidate for this exact timestamp now exists.
+        # Rank the immutable candidate batch first; only then allow any
+        # candidate to consume portfolio capacity or create a fill.
+        run.ticks_since_reweight = ticks_since_reweight
+        for pending in self.rank_simultaneous_entry_candidates(
+            pending_entry_candidates
+        ):
+            self._admit_entry_candidate(pending, timestamp)
 
+        if self.paper_journal is not None:
+            self.paper_journal.checkpoint(self, timestamp)
+
+    def _admit_entry_candidate(self, pending: Dict[str, Any], timestamp) -> None:
+        """Phase B for one ranked candidate: safety, governor, sizing, plant and gates, then submit."""
+        run = self._run
+        funnel, max_concurrent = run.funnel, run.max_concurrent
+        max_gross_fraction, sector_cap_fraction = run.max_gross_fraction, run.sector_cap_fraction
+        symbol = pending["symbol"]
+        bar_idx = pending["bar_idx"]
+        bars = pending["bars"]
+        next_ts = pending["next_ts"]
+        signal = pending["signal"]
+        decision = pending["decision"]
+        plan = pending["plan"]
+        pid_info = pending["pid_info"]
+        candidate_id = pending["candidate_id"]
+        entry_quality = pending["entry_quality"]
+        composite_result = pending["composite_result"]
+        chart_studies_confidence = pending["chart_studies_confidence"]
+        atr = pending["atr"]
+
+        # Some lifecycle/audit code uses this authoritative bar index.
+        self._current_bar_idx = bar_idx
+
+        approved, _, size_mult, trace = self.safety_gates_target.evaluate_pre_sizing(
+            self._equity_curve, self.config, current_lambda=self._system_state().current_lambda,
+        )
+        self._record(trace)
+        if not approved:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "pre_sizing_safety")
+            funnel["safety_rejections"] += 1
+            return
+        governor_entry = self._governor_entry(
+            symbol, timestamp, bar_idx, plan.side, signal, decision, composite_result,
+            chart_studies_confidence)
+        self._governor_entry_counts[f"{governor_entry['action']}:{governor_entry['reason']}"] += 1
+        self._record_controller_event("GOVERNOR_ENTRY_DECISION", timestamp, symbol, {
+            "candidate_id": candidate_id, "authority": self.governor_authority,
+            **{key: governor_entry.get(key) for key in (
+                "bay_id", "action", "reason", "size_multiplier", "conviction", "grid_return_fraction",
+                "fsr_selected", "controlling_limiter", "limiters", "entry_hurdle", "vibration",
+                "velocity", "z_score", "bay_exhaust_spread", "comparator")},
+        })
+        if self._governor_full and governor_entry["action"] != "ENTRY":
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "governor_no_action")
+            return
+        symbol_dynamics = self.closed_loop.dynamics_profiler.estimate(bars.iloc[:bar_idx + 1])
+        final_entry = self.final_execution_controller.entry_decision(
+            side=plan.side, pa_confidence=float(signal.confidence), id_approved=bool(decision.approved),
+            studies_direction=int(composite_result["direction"]), studies_confidence=chart_studies_confidence,
+            entry_price=float(plan.entry_price), stop_price=float(plan.stop_price), target_price=float(plan.target_price),
+            maximum_hold_bars=int(plan.maximum_hold_bars), entry_quality=entry_quality,
+            dynamics=symbol_dynamics,
+        )
+        self._record_controller_event("FINAL_EXECUTION_ENTRY_DECISION", timestamp, symbol, {
+            "candidate_id": candidate_id, **final_entry,
+        })
+        # The unified decision is an actual paper-only entry veto in
+        # active mode. Shadow mode records the identical decision
+        # but leaves the existing baseline execution untouched.
+        if self.closed_loop_mode == "active_paper" and not self._governor_full and final_entry["action"] != "ADMIT":
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "final_execution_entry_veto")
+            self._record_controller_event("FINAL_EXECUTION_ENTRY_VETO", timestamp, symbol, {
+                "candidate_id": candidate_id, **final_entry,
+            })
+            return
+        size_mult *= pid_info["entry_timing_multiplier"]
+        if self._governor_full:
+            # The governor's selected FSR (<= 1) can only derate the approved size.
+            size_mult *= float(governor_entry["size_multiplier"])
+        if (
+            self.closed_loop_mode == "active_paper" and not self._governor_full
+            and entry_quality["symbol_regime_samples"] >= self.closed_loop.outcomes.minimum_history
+            and float(decision.confidence) < float(self.config.require("entry_confidence_threshold"))
+            + float(entry_quality["suggested_confidence_offset"])
+        ):
+            self.entry_candidate_observations.dispose(candidate_id, "DEFERRED", "entry_quality_hold")
+            self._record_controller_event("ENTRY_QUALITY_HOLD", timestamp, symbol, {
+                "candidate_id": candidate_id,
+                "effective_confidence_floor": float(self.config.require("entry_confidence_threshold"))
+                + float(entry_quality["suggested_confidence_offset"]),
+                "id_confidence": float(decision.confidence),
+            })
+            return
+
+        if len(self.open_trades) >= max_concurrent:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "max_concurrent_positions")
+            funnel["portfolio_cap_rejections"] += 1
+            return
+        equity_now = self._equity()
+        portfolio_observation = self.closed_loop.observe_portfolio_risk(
+            self._gross_exposure_notional(), equity_now, max_gross_fraction,
+            soft_budget_fraction=self.closed_loop.soft_budget_fraction,
+        )
+        self._record_controller_event("PORTFOLIO_RISK_COMPARATOR", timestamp, symbol, {
+            "candidate_id": candidate_id, **portfolio_observation,
+        })
+        if self.closed_loop_mode == "active_paper":
+            size_mult *= float(entry_quality["suggested_entry_derate"])
+            size_mult *= float(portfolio_observation["suggested_new_risk_derate"])
+            self._record_controller_event("DYNAMIC_SIZE_ACTUATION", timestamp, symbol, {
+                "candidate_id": candidate_id,
+                "entry_quality_derate": entry_quality["suggested_entry_derate"],
+                "portfolio_risk_derate": portfolio_observation["suggested_new_risk_derate"],
+                "resulting_size_multiplier": size_mult,
+            })
+        sector = self.sector_map.get(symbol, "Unclassified")
+
+        quantity, trace = self.position_manager.size(
+            plan, equity_now, size_mult, self.config, symbol=symbol,
+            portfolio_weights=self._portfolio_weights,
+            max_exposure_per_symbol_fraction=float(self.safety_contract.values["max_exposure_per_symbol_fraction"]),
+            open_positions_count=len(self.open_trades),
+            symbol_positions_count=1 if symbol in self.open_trades else 0,
+        )
+        self._record(trace)
+        self._record_controller_event("POSITION_SIZING", timestamp, symbol, {
+            "candidate_id": candidate_id,
+            **self.position_manager.last_sizing_telemetry,
+        })
+        if quantity <= 0:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "position_sizing_zero")
+            return
+
+        if self.plant_control.mode is PlantControlMode.PAPER_APPLY:
+            # Use the greater of planned price and the actual costed replay fill price.
+            cap_price = max(float(plan.entry_price), paper_fill_price(
+                float(pid_info["execution_market_price"]), plan.side, self.broker.slippage_fraction))
+            quantity = self._paper_plant_entry_limit(symbol, quantity, cap_price, timestamp)
+            if quantity <= 0:
+                self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "plant_control_paper_cap")
+                funnel["portfolio_cap_rejections"] += 1
+                return
+        plant_quantity = None
+        if self._plant_wired:
+            # Native five-bay plant: final entry authority and bay-headroom x FSR sizing.
+            plant_quantity = self._plant_entry_gate(
+                symbol, timestamp, plan.side, quantity, cap_price, bars.iloc[bar_idx],
+                candidate_id, governor_entry)
+            quantity = min(quantity, plant_quantity)
+            if quantity <= 0:
+                self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "plant_dcs_entry_rejected")
+                funnel["plant_entry_rejections"] += 1
+                return
+
+        real_notional = plan.entry_price * quantity
+        if self._gross_exposure_notional() + real_notional > equity_now * max_gross_fraction:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "gross_exposure_cap")
+            funnel["portfolio_cap_rejections"] += 1
+            return
+        sector_notional = sum(
+            t["quantity"] * self._last_close.get(s, t["entry_price"]) for s, t in self.open_trades.items()
+            if self.sector_map.get(s, "Unclassified") == sector
+        )
+        if sector_notional + real_notional > equity_now * sector_cap_fraction:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "sector_exposure_cap")
+            funnel["portfolio_cap_rejections"] += 1
+            return
+
+        post_ok, _, trace = self.safety_gates_target.evaluate_post_sizing(
+            self._equity_curve, plan, quantity, self.config,
+            daily_loss=self._system_state().daily_realized_loss + self._system_state().daily_unrealized_loss,
+        )
+        self._record(trace)
+        if not post_ok:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "post_sizing_safety")
+            funnel["safety_rejections"] += 1
+            return
+        funnel["safety_approvals"] += 1
+
+        order, trace = self.p01d.create_order(symbol, plan, quantity, self.config)
+        self._record(trace)
+        if order is None:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "order_construction")
+            return
+
+        state = self._system_state()
+        entry_signal = EntrySignal(
+            symbol=symbol, entry_price=plan.entry_price, stop_loss_price=plan.stop_price,
+            profit_target_price=plan.target_price, confidence=decision.confidence,
+            suggested_quantity=quantity, position_notional=real_notional,
+            risk_reward_ratio=abs(plan.target_price - plan.entry_price) / max(abs(plan.entry_price - plan.stop_price), 1e-12),
+        )
+        # Replay event time only.  A wall-clock fallback would make every time-of-day
+        # and de-duplication gate depend on when the replay happens to run.
+        current_time = self._replay_event_time(next_ts)
+        gate_result = self.entry_decision_engine.evaluate_pre_submit(
+            state, signal=entry_signal, current_time=current_time, proposed_quantity=quantity,
+            target_price=plan.entry_price, fill_price=plan.entry_price, expected_qty=quantity,
+            actual_qty=quantity, symbol=symbol,
+            seen_recent=self._intent_ledger.seen_recent(symbol, order.side, current_time),
+            proposed_notional=real_notional,
+        )
+        funnel["gates_evaluated"] += 1
+        if not gate_result["passed"]:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_gate",
+                details={**gate_result, "decisions": [asdict(d) for d in gate_result["decisions"]]})
+            funnel["gates_rejected"] += 1
+            return
+        funnel["gates_passed"] += 1
+        quantity = min(quantity, max(0, int(gate_result["adjusted_quantity"])))
+        if quantity <= 0:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_quantity_zero")
+            return
+
+        gate2 = ExecutionGate().validate_pre_submit(
+            self.safety_contract.as_dict(),
+            {"symbol": symbol, "side": order.side, "quantity": quantity, "order_type": order.order_type},
+            parameter_registry=self.registry,
+        )
+        if not gate2["passed"]:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "execution_gate")
+            funnel["safety_rejections"] += 1
+            return
+
+        if self.plant_control.mode is PlantControlMode.PAPER_APPLY:
+            # Recheck protection immediately before submission; safety gates may only reduce.
+            quantity = self._paper_plant_entry_limit(symbol, quantity, cap_price, timestamp)
+        if plant_quantity is not None:
+            quantity = min(quantity, plant_quantity)
+
+        # Derating/clamping can only round DOWN to a valid symbol lot.
+        lot_size = max(1, int(self.config.require("lot_size_by_symbol").get(symbol, 1)))
+        quantity = (quantity // lot_size) * lot_size
+        if quantity <= 0:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "lot_rounding_zero")
+            return
+        self._intent_ledger.record(symbol, order.side, current_time)
+        self._submit_entry_order({
+            "symbol": symbol, "order": order, "quantity": quantity, "timestamp": timestamp,
+            "next_ts": next_ts, "bar_idx": bar_idx, "pid_info": pid_info, "candidate_id": candidate_id,
+            "plan": plan, "signal": signal, "decision": decision, "atr": atr,
+            "composite_result": composite_result, "chart_studies_confidence": chart_studies_confidence,
+            "symbol_dynamics": symbol_dynamics, "governor_entry": governor_entry,
+        })
+
+    def _submit_entry_order(self, intent: Dict[str, Any]) -> None:
+        """Engine A execution port: synchronous offline paper broker at the next-bar replay price."""
+        fill = self.broker.place_order(
+            symbol=intent["symbol"], side=intent["order"].side, quantity=intent["quantity"],
+            order_type=intent["order"].order_type,
+            market_price=float(intent["pid_info"]["execution_market_price"]),
+            config=self.safety_contract.as_dict(), parameter_registry=self.registry,
+        )
+        self._run.funnel["orders_submitted"] += 1
+        self._on_entry_order_result(intent, fill)
+
+    def _on_entry_order_result(self, intent: Dict[str, Any], fill: Dict[str, Any]) -> None:
+        """Authoritative entry fill (or rejection) bookkeeping for one submitted entry order."""
+        funnel, entry_bar_index = self._run.funnel, self._run.entry_bar_index
+        symbol, order, quantity, timestamp = intent["symbol"], intent["order"], intent["quantity"], intent["timestamp"]
+        next_ts, bar_idx, pid_info = intent["next_ts"], intent["bar_idx"], intent["pid_info"]
+        candidate_id, plan, signal, decision = intent["candidate_id"], intent["plan"], intent["signal"], intent["decision"]
+        atr, composite_result = intent["atr"], intent["composite_result"]
+        chart_studies_confidence = intent["chart_studies_confidence"]
+        symbol_dynamics, governor_entry = intent["symbol_dynamics"], intent["governor_entry"]
+        # BB09/BB10 supervisory hand-off: a read-only record of what
+        # P01D constructed and what UnifiedExecution did with it.
+        # The order already exists, so this observer has NO veto, NO
+        # rollback and NO authority: only the bridge's own data-validation
+        # error is contained (recorded); any other exception is a real
+        # defect and still propagates.  Bookkeeping below always runs.
+        try:
+            self.bb09_bb10_supervisory_by_symbol[symbol] = (
+                self.supervisory_bridge.snapshot_bb09_bb10(
+                    proposed_order=replace(order, quantity=quantity),
+                    fill_result=fill,
+                )
+            )
+        except SupervisorySnapshotError as exc:
+            self.bb09_bb10_observer_failures.append({
+                "symbol": symbol, "timestamp": str(timestamp),
+                "side": order.side, "quantity": int(quantity),
+                "fill_passed": bool(fill.get("passed")),
+                "error_type": type(exc).__name__, "error": str(exc),
+            })
+        if fill["passed"]:
+            actual_quantity = int(fill["filled_quantity"])
+            post_fill = self.entry_decision_engine.evaluate_post_fill(
+                target_price=float(pid_info["execution_market_price"]), fill_price=float(fill["filled_price"]),
+                expected_qty=quantity, actual_qty=actual_quantity,
+                elapsed_seconds=float(fill["ack_elapsed_seconds"]),
+                expected_position=actual_quantity * (1 if order.side == "BUY" else -1),
+                actual_position=self._broker_position(symbol)["quantity"],
+            )
+            self._post_fill_checks.append({
+                "candidate_id": candidate_id, **post_fill,
+                "decisions": [asdict(d) for d in post_fill["decisions"]],
+            })
+            if not post_fill["passed"]:
+                # A fill already happened: retain it in the ledger and halt NEW entries.
+                # Existing protective exits remain enabled.
+                self._execution_halted = True
+            if actual_quantity <= 0:
+                raise RuntimeError("Paper fill has no reconcilable positive quantity")
+            quantity = actual_quantity
+            self.entry_candidate_observations.dispose(candidate_id, "FILLED", "paper_fill")
+            funnel["fills"] += 1
+            self._trade_sequence += 1
+            risk = abs(float(plan.entry_price) - float(plan.stop_price))
+            target_r = abs(float(plan.target_price) - float(plan.entry_price)) / risk if risk > 0.0 else 0.0
+            entry_evidence = self.entry_expectancy_ledger.observe_fill({
+                "candidate_id": candidate_id,
+                "symbol": symbol,
+                "side": plan.side,
+                "timestamp": str(timestamp),
+                "fill_timestamp": str(next_ts),
+                "pa_confidence": float(signal.confidence),
+                "id_confidence": float(decision.confidence),
+                "studies_confidence": chart_studies_confidence,
+                "studies_direction": int(composite_result["direction"]),
+                "atr_fraction": float(atr) / max(abs(float(plan.entry_price)), 1e-12),
+                "target_r": target_r,
+                "maximum_hold_bars": int(plan.maximum_hold_bars),
+                "session_minute": int(next_ts.hour * 60 + next_ts.minute),
+            })
+            self._record_controller_event("ENTRY_EXPECTANCY_CANDIDATE", timestamp, symbol, entry_evidence)
+            # Causal plant/dynamics estimate: this slice ends at
+            # the decision bar. It cannot see the fill bar or any
+            # subsequent held-position price action.
+            closed_loop_snapshot = self.closed_loop.entry_snapshot(
+                symbol=symbol, side=plan.side, entry_price=float(fill["filled_price"]),
+                stop_price=float(plan.stop_price), target_price=float(plan.target_price),
+                max_hold_bars=int(plan.maximum_hold_bars), regime="unknown", dynamics=symbol_dynamics,
+            )
+            self._record_controller_event("CLOSED_LOOP_ENTRY_SNAPSHOT", next_ts, symbol, {
+                "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
+                **closed_loop_snapshot,
+            })
+            self.open_trades[symbol] = {
+                "side": plan.side, "entry_price": fill["filled_price"], "stop_price": plan.stop_price,
+                "target_price": plan.target_price, "quantity": quantity,
+                "minimum_hold_bars": plan.minimum_hold_bars, "maximum_hold_bars": plan.maximum_hold_bars,
+                "exit_confidence_threshold": decision.timing_quality, "entry_timestamp": str(next_ts),
+                "entry_atr": float(atr), "planned_entry_price": float(plan.entry_price),
+                "planned_stop_price": float(plan.stop_price), "planned_target_price": float(plan.target_price),
+                "candidate_id": candidate_id, "trade_id": f"trade-{self._trade_sequence}",
+                "controller_exit_pending": None,
+                "closed_loop": closed_loop_snapshot,
+            }
+            self.open_trades[symbol].update({
+                "governor_stop_price": float(plan.stop_price), "governor_mfe_r": 0.0,
+                "governor_entry_conviction": governor_entry.get("entry_absolute_conviction"),
+            })
+            _, governor = self._governor_for(symbol)
+            if governor is not None:
+                governor.begin_position(hard_stop_r=-1.0, position_id=f"trade-{self._trade_sequence}")
+            entry_bar_index[symbol] = bar_idx + 1
+            self._exit_controller_states[symbol] = self.exit_controller.open_position(
+                plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
+            )
+            if self._plant_wired:
+                self._plant_register_fill(symbol, next_ts, self.open_trades[symbol])
+        else:
+            self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "paper_fill_rejected")
+
+    def _finalize_run(self) -> Dict[str, Any]:
+        run = self._run
+        symbol_bars, funnel, certification_audit = run.symbol_bars, run.funnel, run.certification_audit
         if self.paper_journal is not None:
             self.paper_journal.checkpoint(self, "FINAL")
         self.entry_candidate_observations.finalize_pending()
-        gross_pnl = self.broker.realized_pnl
+        gross_pnl = self._broker_realized_pnl()
         assert abs(gross_pnl - sum(t["pnl"] for t in self.completed_trades)) < 1e-6
 
         target_names = set(self.registry.applicable_names("EXTERNAL"))
@@ -2455,7 +2543,6 @@ class Revision2ExternalEngineOrchestrator:
                 "synchronized": sum(1 for row in self.grid_shadow_observations if row["synchronized"] is True),
             },
         }
-
     def _in_trading_window(self, timestamp: str) -> bool:
         start = str(self.config.require("trading_hours_start"))
         end = str(self.config.require("trading_hours_end"))
