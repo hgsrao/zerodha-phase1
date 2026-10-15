@@ -21,7 +21,8 @@ sys.path.insert(0, str(ROOT))
 
 from engine_c.bt_market import NSEEquityIntradayCommission  # noqa: E402
 from engine_c.config import EngineCConfig  # noqa: E402
-from engine_c.data_contract import DataContractError, audit_bars, load_synthetic, require_clean  # noqa: E402
+from engine_c.data_contract import (SPECIAL_SESSIONS, DataContractError, audit_and_select, audit_bars,  # noqa: E402
+                                   load_synthetic, require_clean)
 from engine_c.orchestrator import EngineCExecutionError, EngineCOrchestrator  # noqa: E402
 from engine_c.runner import run_engine_c  # noqa: E402
 from revision2.transaction_costs import leg_cost  # noqa: E402
@@ -172,6 +173,96 @@ def test_data_contract_detects_missing_duplicate_and_out_of_order_bars(feed):
     with pytest.raises(DataContractError):
         require_clean({"INFY": dup})
 
+
+
+def _raw(stamps, price=100.0):
+    """Raw CSV-shaped rows exactly as the frozen dataset stores them (string timestamps, +05:30)."""
+    n = len(stamps)
+    return pd.DataFrame({"timestamp": list(stamps), "open": [price] * n, "high": [price + 1] * n,
+                         "low": [price - 1] * n, "close": [price + 0.5] * n, "volume": [10.0] * n})
+
+
+def _minutes(start, count):
+    return [t.strftime("%Y-%m-%dT%H:%M:%S+05:30") for t in pd.date_range(start, periods=count, freq="min")]
+
+
+MUHURAT_2023 = _minutes("2023-11-12 18:15", 60)     # NSE/CMTR/59124: normal market 18:15-19:15
+MUHURAT_2024 = _minutes("2024-11-01 18:00", 60)     # normal market 18:00-19:00
+
+
+def test_special_session_calendar_is_explicit_and_sourced():
+    assert sorted(map(str, SPECIAL_SESSIONS)) == ["2023-11-12", "2024-11-01"]
+    for day, session in SPECIAL_SESSIONS.items():
+        assert session.kind == "DIWALI_MUHURAT" and session.bars == 60 and not session.regular_session
+        assert session.source
+    assert (SPECIAL_SESSIONS[pd.Timestamp("2023-11-12").date()].first_bar,
+            SPECIAL_SESSIONS[pd.Timestamp("2023-11-12").date()].last_bar) == ("18:15", "19:14")
+    assert (SPECIAL_SESSIONS[pd.Timestamp("2024-11-01").date()].first_bar,
+            SPECIAL_SESSIONS[pd.Timestamp("2024-11-01").date()].last_bar) == ("18:00", "18:59")
+
+
+def test_muhurat_session_rows_are_legitimate():
+    regular = _minutes("2023-11-10 09:15", 375)
+    audit = audit_bars("INFY", _raw(regular + MUHURAT_2023 + _minutes("2023-11-13 09:15", 375) + MUHURAT_2024))
+    assert audit["fatal"] == [] and audit["outside_session"] == 0
+    assert audit["special_session_rows"] == 120 and audit["missing_minutes"] == 0     # 60 expected, not 375
+    assert audit["special_sessions"] == {
+        "2023-11-12": {"kind": "DIWALI_MUHURAT", "rows": 60, "expected": 60, "window": "18:15-19:14"},
+        "2024-11-01": {"kind": "DIWALI_MUHURAT", "rows": 60, "expected": 60, "window": "18:00-18:59"}}
+    assert audit["sessions_ending_before_force_close"] == []
+    partial = audit_bars("INFY", _raw(MUHURAT_2023[:-5]))
+    assert partial["fatal"] == [] and partial["missing_minutes"] == 5                   # reported, not filled
+
+
+@pytest.mark.parametrize("stamp", [
+    "2023-11-13T18:15:00+05:30",     # same evening minute, ordinary trading day
+    "2024-11-04T18:00:00+05:30",     # same evening minute, ordinary trading day
+    "2023-11-12T18:14:00+05:30",     # one minute before the 2023 normal market
+    "2023-11-12T19:15:00+05:30",     # 19:15 is the end of the 2023 session, not a bar
+    "2023-11-12T19:25:00+05:30",     # 2023 closing session, not the normal market
+    "2023-11-12T18:05:00+05:30",     # 2023 pre-open
+    "2024-11-01T17:59:00+05:30",     # 2024 pre-open
+    "2024-11-01T19:00:00+05:30",     # 19:00 is the end of the 2024 session, not a bar
+    "2023-11-12T18:00:00+05:30",     # 2023 pre-open start
+    "2024-11-01T10:00:00+05:30",     # regular-hours row on a date whose regular session was a holiday
+    "2023-11-12T09:15:00+05:30",     # Sunday regular hours
+])
+def test_evening_rows_outside_the_calendar_are_fatal(stamp):
+    audit = audit_bars("INFY", _raw(sorted(MUHURAT_2023 + MUHURAT_2024 + [stamp])))
+    assert audit["outside_session"] == 1 and "outside_session" in audit["fatal"]
+    with pytest.raises(DataContractError, match="outside_session"):
+        require_clean({"INFY": audit})
+
+
+@pytest.mark.parametrize("bad", ["garbage", "", None, "2023-11-12T25:00:00+05:30", "2023-02-30T18:16:00+05:30",
+                                 "2023-11-12T12:47:00+00:00"])
+def test_malformed_timestamps_are_fatal(bad):
+    audit = audit_bars("INFY", _raw(MUHURAT_2023[:10] + [bad] + MUHURAT_2023[10:]))
+    assert {"unparseable_timestamps", "mixed_utc_offsets"} & set(audit["fatal"])
+    with pytest.raises(DataContractError):
+        require_clean({"INFY": audit})
+
+
+def test_replay_window_is_invariant_to_muhurat_rows_and_audits_the_whole_file(feed):
+    frame = feed[0]["INFY"]                                    # 2024-03-04 .. 2024-03-05, +05:30 labels
+    body = _raw(frame["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%S+05:30"))
+    for column in ("open", "high", "low", "close", "volume"):
+        body[column] = frame[column].to_numpy()
+    end = frame["timestamp"].iloc[-1].date()
+    plain, plain_audit = audit_and_select({"INFY": body.copy()}, end, 300, WARMUP)
+    with_muhurat = pd.concat([_raw(MUHURAT_2023), body, _raw(MUHURAT_2024)], ignore_index=True)   # before and after
+    chosen, audit = audit_and_select({"INFY": with_muhurat}, end, 300, WARMUP)
+    pd.testing.assert_frame_equal(plain["INFY"], chosen["INFY"])
+    assert audit["INFY"]["special_session_rows"] == 120 and audit["INFY"]["window"]["special_session_rows"] == 0
+    assert audit["INFY"]["window"] == plain_audit["INFY"]["window"]
+    # the whole raw file is audited before the window is chosen: a bad row far outside the window refuses the run
+    poisoned = pd.concat([_raw(["2023-11-13T18:15:00+05:30"]), body], ignore_index=True)
+    with pytest.raises(DataContractError, match="outside_session"):
+        audit_and_select({"INFY": poisoned}, end, 300, WARMUP)
+    # a window that reaches back into a special session keeps those bars as-is (no fill, no drop)
+    reach, reach_audit = audit_and_select({"INFY": pd.concat([_raw(MUHURAT_2023), body], ignore_index=True)},
+                                          end, len(body) + 10, WARMUP)
+    assert len(reach["INFY"]) == len(body) + 10 and reach_audit["INFY"]["window"]["special_session_rows"] == 10
 
 # 4. multi-symbol isolation and deterministic ordering -------------------------------------------
 def test_multi_symbol_isolation_and_ordering(pair):
