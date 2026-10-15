@@ -80,7 +80,7 @@ class CanonicalParameterRegistry:
     # Protocol V3).  Defaults equal the former literals.  The identity payload also carries each
     # controller parameter's safety class, owner and consumer.  Supersedes 12b700d6...; every
     # protocol sealed against the previous identity must be re-sealed.
-    FROZEN_IDENTITY_SHA256 = "dc8acc009e9e3c639c4652a0da3be5f15db16d37c5039f60879b96077597b47d"
+    FROZEN_IDENTITY_SHA256 = "fc04a43394e4d744a44991f28058a244790524e54320ca30546f91d0559ab88e"
     SAFETY_ALIASES = {
         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",

@@ -129,10 +129,10 @@ def test_calibration_payload_is_engine_scoped():
 
 def test_registry_accounting_is_reported_per_surface():
     assert REG.surface_counts() == {
-        # + R5 controller authority: 244 rows (163 tunable EXTERNAL-only eligible, 94 fixed)
-        "total_targets": 170 + 257, "fixed_targets": 48 + 94, "safety_params": 22,
-        "in_house_eligible": 46, "external_eligible": 122 + 163, "shared_eligible": 46,
-        "external_only_eligible": 76 + 163, "in_house_only_eligible": 0,
+        # + R5 controller authority: 244 rows (178 tunable EXTERNAL-only eligible, 113 fixed)
+        "total_targets": 170 + 291, "fixed_targets": 48 + 113, "safety_params": 22,
+        "in_house_eligible": 46, "external_eligible": 122 + 178, "shared_eligible": 46,
+        "external_only_eligible": 76 + 178, "in_house_only_eligible": 0,
     }
     REG.verify_frozen_identity()
 

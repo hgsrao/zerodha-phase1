@@ -350,7 +350,9 @@ class SectorDispatchController:
 
     def dispatch(self, ecs: ECSPlantOutput) -> DispatchResult:
         weights = {bay: float(self.merit_source.weights[bay]) for bay in BAY_IDS}
-        ceiling = float(self.merit_source.max_ceiling)
+        # The merit source owns the ceiling; its runtime dispatch_ceiling (when it has one) can only
+        # tighten max_ceiling (orchestrator dynamic_profile_mode='consume').
+        ceiling = float(getattr(self.merit_source, "dispatch_ceiling", self.merit_source.max_ceiling))
         if not isfinite(ceiling) or not 0.0 < ceiling <= 1.0:
             raise PlantControlError("bay ceiling must be in (0, 1]")
         if any((not isfinite(w)) or w < 0.0 for w in weights.values()):

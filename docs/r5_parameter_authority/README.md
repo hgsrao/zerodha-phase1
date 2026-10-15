@@ -24,7 +24,7 @@ Final commit, registry identity and protocol hash: see [Results](#results).
 ## Design
 
 * **One owner.** `revision5/controller_parameters.py` holds the table of every native R5 controller value
-  (257 rows: name, type, default, bounds, safety class, calibration status, owner, consumer). The canonical
+  (291 rows: name, type, default, bounds, safety class, calibration status, owner, consumer). The canonical
   registry registers every row as an EXTERNAL-only target parameter and puts the full metadata in its identity
   payload (`controller_authority`), so the registry identity changes whenever any value, bound or classification
   changes. Defaults are the former literals, value for value.
@@ -171,9 +171,29 @@ limiting is the existing `ecs_demand_restore_step_pu`; dynamic stress limits are
 4. **Legacy dispatcher can exceed its ceiling**; fixed by the opt-in bounded mode.
 5. **SEL-300G `check_in_flight_protection` (ANSI 87G / 32R) had no runtime caller** (now live with the opt-in
    `unit_protection_mode="pre_sync_and_in_flight"`); **the AVR MVAR limiter cannot engage** (measured MVAR is always 0); **`BayGovernorSpec.z_exit` has no consumer**; the dynamic snapshot's
-   strategy / execution / safety / dispatcher-bound outputs have no consumer.
+   strategy / safety / dispatcher-ceiling outputs are consumed only with `dynamic_profile_mode="consume"` (see
+   [Dynamization](#dynamization)); the dispatcher-floor output has no actuator, and the order-timeout schedule can tighten only through its max clip.
 6. **The stored golden master is not byte-reproducible on this machine** (HMM last-digit float drift at untouched
    cb10fac); decisions are identical.
+
+## Dynamization
+
+Every value declared dynamic is recomputed every native-plant bar (`plant.step_bar` → `Revision5DynamicParameterController.evaluate`)
+from the causal `R5EnvironmentState` of completed bars, and its runtime consumer reads the value of that bar.
+Proofs (independently re-implemented formulas, registry default coefficients): `tests/test_r5_dynamization.py`.
+
+| Dynamic value | Formula source | Cadence | Consumer | Proof |
+|---|---|---|---|---|
+| Governor target_r, window, integral clamp, droop gain/max, Kp/Ki/Kd, base_z, droop_r, offset min/max (per bay) | `dynamic_parameters.py` governor schedule, `gsch_*` | every bar | `dynamic_z`, outer PID, Box 6 gain scale | `test_governor_runtime_values_*`, `test_governor_consumer_*`, `test_r5_gain_scale_reaches_the_box6_pid_tunings_every_bar` |
+| AVR loading/OEL/vol-scalar/z-strength, PID gains, clamp, 27/59 trips, excitation limits | AVR profile, `avr_*` | every bar | `calculate_lot_size`, measured AVR loop | `test_avr_runtime_values_and_lot_sizing_*` |
+| SEL-300G stale/spread/surge/slippage/adverse; MiCOM drawdown/crash/vol-z | SEL / MiCOM profiles, `sel_*`, `micom_*` | every bar | pre-sync / in-flight / grid relays | `test_protection_and_cooldown_limits_*` |
+| Loss / target cooldown bars | plant profile, `plant_*_cooldown_*` | every bar | `register_outcome` | same |
+| Entry confidence, min R:R, min/max hold | strategy profile, `psch_*` | every bar | Box 4, Box 5, Box 6 plan (consume mode) | `test_runtime_profiles_reach_their_consumers_each_bar` |
+| Drawdown halt, daily-loss multiplier, concurrent positions, gross / symbol exposure, slippage, data age | safety / execution profiles, `psch_*` | every bar | entry gates (tighten-only), sizing, drawdown exit (consume mode) | same + gate actuation |
+| Dispatcher max ceiling | plant profile, `psch_dispatch_ceiling_min`, `disp_allocation_ceiling` | every bar | `SectorDispatchController.dispatch` via `dispatch_ceiling` (consume mode) | same |
+
+Missing / invalid environment fails closed (ValueError); warm-up is the neutral prior; earlier snapshots cannot
+change with later data; schedule refresh keeps controller state; checkpoint / resume is identical in consume mode.
 
 ## Incomplete items
 

@@ -12,7 +12,6 @@ listed value) in the native controller modules fails that test until it is regis
 | `revision5/governor.py` | `1e-12` | Tolerance of the capital-weight sum check on the registry default view (numerical guard). |
 | | `2.0` | `trend_overspeed` limit = threshold − 2 × base_z: mirrors the BUY threshold about zero (structural symmetry, not a tuning choice). |
 | `revision5/dynamic_parameters.py` | `3.0` ×5 (3 × prior 1/3) | `R5EnvironmentState` uninformative prior over the three regimes. |
-| | 0.0005 … 120.0 (the strategy / execution / safety profiles and `plant.dispatcher_min_floor` / `dispatcher_max_ceiling`, and `risk_derate_factor`'s exposure) | Snapshot outputs with **no runtime consumer** in Engines A, B or C (audited: no reader in the orchestrator, plant, gates or sizing). Registering them would claim an authority they do not have. If a consumer is ever wired, the coefficients must be registered first (the literal test will force it). |
 | `revision5/ccpp_protection_cubicles.py` | `100.0` | AVR lot volatility scalar 1 / (ATR as a percentage of price) (unit conversion) and % formatting of trip messages. |
 | | `2` ×3 | MiCOM ANSI 21 needs ≥ 2 returns and window + 2 closes for a z-score (structural). |
 | | `1e-9` | Spread division guard (numerical). |
@@ -43,7 +42,12 @@ Their remaining literals are fixed envelopes that the code already labels as suc
 
 * **ADVISORY (12):** `gov_<bay>_atr_barrier`, `gov_<bay>_target_m`, `plant_stop_floor_price_fraction`,
   `plant_target_min_reward_risk` — the plant admission's stop/take-profit suggestion; Engines A/B/C use the MPC plan's.
-* **INACTIVE (15):** `gov_<bay>_z_exit` (no consumer); `avr_mvar_limit_*` (no runtime path supplies a measured
+* **Profile schedule (`psch_*`, 34):** registry-owned; consumed with `dynamic_profile_mode="consume"`. INACTIVE with
+  an `[NO ACTUATOR]` reason: `psch_order_timeout_stress_gain` / `_min_seconds` (the schedule base·(1+g·stress) is
+  always ≥ the contract timeout, so the tighten-only consumer never moves) and the 4 `psch_dispatch_floor_*` rows (no
+  dispatcher-floor consumer contract is specified). `psch_order_timeout_max_seconds` and `psch_slippage_max_fraction`
+  are inert at their defaults (above the contract base) but tighten the gate when set below it, so they are FIXED_SAFETY.
+* **INACTIVE (15 + 6 profile rows):** `gov_<bay>_z_exit` (no consumer); `avr_mvar_limit_*` (no runtime path supplies a measured
   MVAR); `gsch_integral_max_scale`, `gsch_kp_scale_min`, `gsch_kd_scale_min`, `gsch_offset_min_upper_scale`,
   `gsch_droop_max_min_scale`, `tier3_kp_scale_min`, `tier3_kd_scale_min` (structurally unreachable clips, with the
   proof in each row's description). The SEL-300G 87G / 32R rows are live with `unit_protection_mode="pre_sync_and_in_flight"`.

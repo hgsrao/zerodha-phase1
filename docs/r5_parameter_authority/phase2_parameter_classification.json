@@ -2,9 +2,9 @@
   "definition": "Phase 2 audit: is each controller parameter a renamed constant or a genuinely dynamic runtime value?\n\nA parameter is DYNAMIC only when its RUNTIME value is recomputed during execution from signals,\nregime, time, plant state or an explicit schedule.  Being stored in the registry does not make it\ndynamic.",
   "counts": {
     "DYNAMIC_SAFETY_ENVELOPE": 14,
-    "STATIC_SCHEDULE_COEFFICIENT": 106,
+    "STATIC_SCHEDULE_COEFFICIENT": 134,
     "CALIBRATABLE_DYNAMIC": 69,
-    "STATIC_REGISTRATION_ONLY": 27,
+    "STATIC_REGISTRATION_ONLY": 33,
     "STATIC_CONTROLLER_CONSTANT": 40,
     "STATIC_SAFETY_LIMIT": 16,
     "DYNAMIC": 6
@@ -46,6 +46,12 @@
       "gsch_offset_min_upper_scale",
       "plant_stop_floor_price_fraction",
       "plant_target_min_reward_risk",
+      "psch_dispatch_floor_ceiling_ratio",
+      "psch_dispatch_floor_max",
+      "psch_dispatch_floor_min",
+      "psch_dispatch_floor_stress_gain",
+      "psch_order_timeout_min_seconds",
+      "psch_order_timeout_stress_gain",
       "tier3_kd_scale_min",
       "tier3_kp_scale_min"
     ],
@@ -59,6 +65,7 @@
     ],
     "mode_gated_dynamic_paths": [
       "avr_voltage_mode='measured'",
+      "dynamic_profile_mode='consume'",
       "governor_position_mode='v3'",
       "unit_protection_mode='pre_sync_and_in_flight'"
     ]
@@ -5891,6 +5898,866 @@
       "changes_real_decision": false,
       "decision_effect": "none (ADVISORY)",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
+    },
+    {
+      "parameter": "psch_concurrent_positions_min",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 1.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "concurrent positions = round(clip(base*risk_derate, min, base))",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        50.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_daily_loss_multiplier_min",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.4,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "daily loss limit multiplier = clip(risk_derate, min, 1)",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_data_age_min_seconds",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 10.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "max market-data age lower clip",
+      "runtime_inputs": "-",
+      "bounds": [
+        1.0,
+        600.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_data_age_stress_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.75,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "max market-data age = clip(base/(1 + gain*stress), min, base)",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        5.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_dispatch_ceiling_min",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.15,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "dispatch ceiling = clip(base*risk_derate, min, base); consumed as the sector-dispatch per-bay cap",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_dispatch_floor_ceiling_ratio",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.5,
+      "classification": "STATIC_REGISTRATION_ONLY",
+      "registry_safety_class": "INACTIVE",
+      "update_frequency": "never (no actuating consumer)",
+      "formula_or_schedule": "if floor >= ceiling: floor = min(floor, ratio*ceiling) [NO ACTUATOR: dispatcher floor has no consumer contract]",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "n/a",
+      "consumed_by_engines": [],
+      "changes_real_decision": false,
+      "decision_effect": "none (INACTIVE)",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_dispatch_floor_max",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.1,
+      "classification": "STATIC_REGISTRATION_ONLY",
+      "registry_safety_class": "INACTIVE",
+      "update_frequency": "never (no actuating consumer)",
+      "formula_or_schedule": "dispatcher floor upper clip [NO ACTUATOR: dispatcher floor has no consumer contract]",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        0.2
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "n/a",
+      "consumed_by_engines": [],
+      "changes_real_decision": false,
+      "decision_effect": "none (INACTIVE)",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_dispatch_floor_min",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.05,
+      "classification": "STATIC_REGISTRATION_ONLY",
+      "registry_safety_class": "INACTIVE",
+      "update_frequency": "never (no actuating consumer)",
+      "formula_or_schedule": "dispatcher floor lower clip [NO ACTUATOR: dispatcher floor has no consumer contract]",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        0.2
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "n/a",
+      "consumed_by_engines": [],
+      "changes_real_decision": false,
+      "decision_effect": "none (INACTIVE)",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_dispatch_floor_stress_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.2,
+      "classification": "STATIC_REGISTRATION_ONLY",
+      "registry_safety_class": "INACTIVE",
+      "update_frequency": "never (no actuating consumer)",
+      "formula_or_schedule": "dispatcher floor = clip(base*(1 - gain*stress), min, max); NO CONSUMER CONTRACT (gap) [NO ACTUATOR: dispatcher floor has no consumer contract (raising or lowering a merit floor is neither tightening nor specified)]",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        0.95
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "n/a",
+      "consumed_by_engines": [],
+      "changes_real_decision": false,
+      "decision_effect": "none (INACTIVE)",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_drawdown_halt_min",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.1,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "drawdown halt lower clip",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_drawdown_halt_stress_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.3,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "drawdown halt = clip(base*(1 - gain*stress), min, base)",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        0.95
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_entry_conf_chop_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.025,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "entry confidence chop gain",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        0.2
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_entry_conf_max",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.35,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "entry confidence upper clip",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_entry_conf_min",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.02,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "entry confidence lower clip",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        0.5
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_entry_conf_stress_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.1,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "entry confidence = clip(base + gain*stress + chop_gain*chop, min, max)",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        0.5
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_gross_exposure_min",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.2,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "gross exposure = clip(base*risk_derate, min, base)",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_max_hold_max",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 120.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "max hold upper clip (bars)",
+      "runtime_inputs": "-",
+      "bounds": [
+        1.0,
+        480.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_max_hold_min",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 20.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "max hold lower clip (bars)",
+      "runtime_inputs": "-",
+      "bounds": [
+        1.0,
+        240.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_max_hold_stress_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 20.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "max hold = round(clip(base - stress_gain*stress + trend_gain*trend, min, max))",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        120.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_max_hold_trend_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 10.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "max hold trend gain",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        120.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_min_hold_chop_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 2.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "min hold = round(clip(base + chop_gain*chop + turb_gain*turbulent, min, max))",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        20.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_min_hold_max",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 8.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "min hold upper clip (bars); the registry bounds of min_hold_bars also apply",
+      "runtime_inputs": "-",
+      "bounds": [
+        1.0,
+        120.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_min_hold_min",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 1.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "min hold lower clip (bars)",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        60.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_min_hold_turbulent_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 3.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "min hold turbulent gain",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        20.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_min_rr_max",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 3.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "min reward:risk upper clip",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.5,
+        10.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_min_rr_min",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 1.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "min reward:risk lower clip",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.5,
+        5.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_min_rr_stress_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.6,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "min reward:risk = clip(base + gain*stress, min, max)",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        3.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_order_timeout_max_seconds",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 60.0,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "order timeout upper clip; at its default it lies above the contract base (inert), set below the base it is the only way the scheduled timeout tightens the gate",
+      "runtime_inputs": "-",
+      "bounds": [
+        1.0,
+        600.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_order_timeout_min_seconds",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 15.0,
+      "classification": "STATIC_REGISTRATION_ONLY",
+      "registry_safety_class": "INACTIVE",
+      "update_frequency": "never (no actuating consumer)",
+      "formula_or_schedule": "order timeout lower clip [NO ACTUATOR: below the (always >= base) timeout schedule; cannot bind]",
+      "runtime_inputs": "-",
+      "bounds": [
+        1.0,
+        600.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "n/a",
+      "consumed_by_engines": [],
+      "changes_real_decision": false,
+      "decision_effect": "none (INACTIVE)",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_order_timeout_stress_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.5,
+      "classification": "STATIC_REGISTRATION_ONLY",
+      "registry_safety_class": "INACTIVE",
+      "update_frequency": "never (no actuating consumer)",
+      "formula_or_schedule": "order timeout = clip(base*(1 + gain*stress), min, max), applied tighten-only [NO ACTUATOR: order timeout = base*(1 + gain*stress) >= base for stress >= 0, so the tighten-only consumer always keeps the contract value]",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        5.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "n/a",
+      "consumed_by_engines": [],
+      "changes_real_decision": false,
+      "decision_effect": "none (INACTIVE)",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_slippage_max_fraction",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.002,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "slippage tolerance upper clip; at its default it lies above the contract base (inert), set below the base it tightens the gate",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        0.05
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_slippage_min_fraction",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.0005,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "slippage tolerance lower clip",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        0.05
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_slippage_vol_gain",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.75,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "slippage tolerance = clip(base*(1 + gain*(vol - 1)), min, max), applied tighten-only",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        5.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+    },
+    {
+      "parameter": "psch_symbol_exposure_min",
+      "controller": "Revision5DynamicParameterController (runtime profiles)",
+      "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.05,
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "symbol exposure = clip(base*risk_derate, min, base)",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
       "parameter": "sel_adverse_min_bars",

@@ -90,7 +90,7 @@ def test_registry_owns_the_new_parameters():
     assert not set(OLD_LITERALS) & set(trading_search_space(REG, engine="IN_HOUSE").names)
     assert set(OLD_LITERALS) <= set(trading_search_space(REG, engine="EXTERNAL").names)
     assert (len(REG.params), len(REG.fixed_target_names()), len(REG.safety_params),
-            len(REG.calibratable_names())) == (170 + 257, 48 + 94, 22, 122 + 163)  # + R5 controller authority (257 rows: 163 tunable, 67 fixed safety, 12 advisory, 15 inactive)
+            len(REG.calibratable_names())) == (170 + 291, 48 + 113, 22, 122 + 178)  # + R5 controller authority (291 rows: 178 tunable, 80 fixed safety, 12 advisory, 21 inactive)
     REG.verify_frozen_identity()
 
 

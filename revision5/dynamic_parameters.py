@@ -398,37 +398,33 @@ class Revision5DynamicParameterController:
         )
 
         #
-        # Strategy operating profile
+        # Strategy operating profile -- each value is a schedule of the run's own base
+        # (registry parameter); consumed only with dynamic_profile_mode="consume".
         #
-        # NO RUNTIME CONSUMER (audit 2026-10-15): snapshot.strategy, snapshot.execution,
-        # snapshot.safety, plant.dispatcher_min_floor / dispatcher_max_ceiling and
-        # risk_derate_factor are computed and reported but read by no controller, gate or
-        # sizing path in Engines A, B or C.  Their coefficients are therefore NOT registry
-        # parameters (registering an unconsumed value would claim an authority it does not
-        # have).  See docs/r5_parameter_authority/REMAINING_HARDCODED_VALUES.md.
+        ps, base = P.profile, P.profile_bases
 
         entry_confidence = _clamp(
-            0.15
-            + 0.10 * stress
-            + 0.025 * chop,
-            0.02,
-            0.35,
+            base["entry_confidence_threshold"]
+            + ps.entry_conf_stress_gain * stress
+            + ps.entry_conf_chop_gain * chop,
+            ps.entry_conf_min,
+            ps.entry_conf_max,
         )
 
         min_rr = _clamp(
-            1.50 + 0.60 * stress,
-            1.00,
-            3.00,
+            base["min_risk_reward_ratio"] + ps.min_rr_stress_gain * stress,
+            ps.min_rr_min,
+            ps.min_rr_max,
         )
 
         min_hold = int(
             round(
                 _clamp(
-                    2.0
-                    + 2.0 * chop
-                    + 3.0 * turbulent,
-                    1.0,
-                    8.0,
+                    base["min_hold_bars"]
+                    + ps.min_hold_chop_gain * chop
+                    + ps.min_hold_turbulent_gain * turbulent,
+                    ps.min_hold_min,
+                    ps.min_hold_max,
                 )
             )
         )
@@ -436,11 +432,11 @@ class Revision5DynamicParameterController:
         max_hold = int(
             round(
                 _clamp(
-                    60.0
-                    - 20.0 * stress
-                    + 10.0 * trend,
-                    20.0,
-                    120.0,
+                    base["max_hold_bars"]
+                    - ps.max_hold_stress_gain * stress
+                    + ps.max_hold_trend_gain * trend,
+                    ps.max_hold_min,
+                    ps.max_hold_max,
                 )
             )
         )
@@ -483,18 +479,18 @@ class Revision5DynamicParameterController:
         )
 
         dispatcher_min_floor = _clamp(
-            0.08 * (
+            P.dispatcher.allocation_floor * (
                 1.0
-                - 0.20 * stress
+                - ps.dispatch_floor_stress_gain * stress
             ),
-            0.05,
-            0.10,
+            ps.dispatch_floor_min,
+            ps.dispatch_floor_max,
         )
 
         dispatcher_max_ceiling = _clamp(
-            0.35 * risk_derate,
-            0.15,
-            0.35,
+            P.dispatcher.allocation_ceiling * risk_derate,
+            ps.dispatch_ceiling_min,
+            P.dispatcher.allocation_ceiling,
         )
 
         if (
@@ -503,7 +499,7 @@ class Revision5DynamicParameterController:
         ):
             dispatcher_min_floor = min(
                 dispatcher_min_floor,
-                dispatcher_max_ceiling * 0.50,
+                dispatcher_max_ceiling * ps.dispatch_floor_ceiling_ratio,
             )
 
         plant = PlantRuntimeProfile(
@@ -514,28 +510,28 @@ class Revision5DynamicParameterController:
         )
 
         #
-        # Execution operating profile
+        # Execution operating profile (applied tighten-only against the safety contract)
         #
 
         slippage = _clamp(
-            0.001
+            base["max_slippage_fraction"]
             * (
                 1.0
-                + 0.75 * (vol - 1.0)
+                + ps.slippage_vol_gain * (vol - 1.0)
             ),
-            0.0005,
-            0.0020,
+            ps.slippage_min_fraction,
+            ps.slippage_max_fraction,
         )
 
         max_market_age = int(
             round(
                 _clamp(
-                    30.0 / (
+                    base["max_market_data_age_seconds"] / (
                         1.0
-                        + 0.75 * stress
+                        + ps.data_age_stress_gain * stress
                     ),
-                    10.0,
-                    30.0,
+                    ps.data_age_min_seconds,
+                    base["max_market_data_age_seconds"],
                 )
             )
         )
@@ -543,12 +539,12 @@ class Revision5DynamicParameterController:
         order_timeout = int(
             round(
                 _clamp(
-                    30.0 * (
+                    base["order_timeout_seconds_execution"] * (
                         1.0
-                        + 0.50 * stress
+                        + ps.order_timeout_stress_gain * stress
                     ),
-                    15.0,
-                    60.0,
+                    ps.order_timeout_min_seconds,
+                    ps.order_timeout_max_seconds,
                 )
             )
         )
@@ -568,35 +564,35 @@ class Revision5DynamicParameterController:
 
         safety = SafetyRuntimeProfile(
             drawdown_halt_threshold=_clamp(
-                0.25 * (
+                base["safety_drawdown_halt_threshold"] * (
                     1.0
-                    - 0.30 * stress
+                    - ps.drawdown_halt_stress_gain * stress
                 ),
-                0.10,
-                0.25,
+                ps.drawdown_halt_min,
+                base["safety_drawdown_halt_threshold"],
             ),
             max_gross_exposure_fraction=_clamp(
-                0.50 * risk_derate,
-                0.20,
-                0.50,
+                base["max_gross_exposure_fraction"] * risk_derate,
+                ps.gross_exposure_min,
+                base["max_gross_exposure_fraction"],
             ),
             max_symbol_exposure_fraction=_clamp(
-                0.15 * risk_derate,
-                0.05,
-                0.15,
+                base["max_exposure_per_symbol_fraction"] * risk_derate,
+                ps.symbol_exposure_min,
+                base["max_exposure_per_symbol_fraction"],
             ),
             max_concurrent_positions=int(
                 round(
                     _clamp(
-                        5.0 * risk_derate,
-                        1.0,
-                        5.0,
+                        base["max_concurrent_positions"] * risk_derate,
+                        ps.concurrent_positions_min,
+                        base["max_concurrent_positions"],
                     )
                 )
             ),
             daily_loss_limit_multiplier=_clamp(
                 risk_derate,
-                0.40,
+                ps.daily_loss_multiplier_min,
                 1.0,
             ),
         )

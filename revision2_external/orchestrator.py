@@ -100,6 +100,7 @@ BAY_LOSS_COOLDOWN_BARS = int(CONTROLLER_PARAMETERS["symbol_loss_cooldown_bars"].
 GOVERNOR_POSITION_MODES = ("legacy", "v3")
 ENTRY_FILL_ANCHOR_MODES = ("reanchor_distances", "box6_levels")
 UNIT_PROTECTION_MODES = ("pre_synchronization", "pre_sync_and_in_flight")
+DYNAMIC_PROFILE_MODES = ("off", "consume")
 
 # Native plant EXIT reasons that are protection trips (actuated at the next open as
 # ``plant_trip:<reason>``).  A plant-governor EXIT is advisory: the orchestrator's own
@@ -166,6 +167,7 @@ class Revision2ExternalEngineOrchestrator:
         authority_telemetry: bool = False,
         entry_fill_anchor_mode: str = "reanchor_distances",
         unit_protection_mode: str = "pre_synchronization",
+        dynamic_profile_mode: str = "off",
     ) -> None:
         # Opt-in controller modes (defaults keep the baseline decision-identical):
         #   governor_position_mode   "legacy" V2 inner loop | "v3" Protocol V3 inner loop (full
@@ -183,6 +185,10 @@ class Revision2ExternalEngineOrchestrator:
         #                            LEVELS, so the entry PID reaches the position (anchor_plan_at_fill)
         #   unit_protection_mode     "pre_sync_and_in_flight" also runs SEL-300G ANSI 87G (fill vs Box 6
         #                            reference) and ANSI 32R (adverse drift) on every held bar (PAPER_APPLY)
+        #   dynamic_profile_mode     "consume": the native plant's per-bar strategy / execution / safety /
+        #                            dispatch profiles reach their consumers (strategy values replace the
+        #                            run's bases for PA / ID / Box 6; safety and execution values and the
+        #                            dispatch ceiling TIGHTEN only).  "off": computed, not consumed.
         # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
         # Default None -- unchanged behaviour: this replay engine does not instantiate a real plant,
         # so protection state uses the explicit SYMBOL_TRIPS_ONLY fallback (see protection_snapshot.py).
@@ -227,6 +233,10 @@ class Revision2ExternalEngineOrchestrator:
             raise ValueError(f"unit_protection_mode must be one of {UNIT_PROTECTION_MODES}")
         if unit_protection_mode != "pre_synchronization" and plant_control_mode != PlantControlMode.PAPER_APPLY:
             raise ValueError("unit_protection_mode='pre_sync_and_in_flight' requires the PAPER_APPLY native plant")
+        if dynamic_profile_mode not in DYNAMIC_PROFILE_MODES:
+            raise ValueError(f"dynamic_profile_mode must be one of {DYNAMIC_PROFILE_MODES}")
+        if dynamic_profile_mode != "off" and plant_control_mode != PlantControlMode.PAPER_APPLY:
+            raise ValueError("dynamic_profile_mode='consume' requires the PAPER_APPLY native plant")
         if telemetry_mode not in {"full", "compact"}:
             raise ValueError("telemetry_mode must be 'full' or 'compact'")
         if pid_mode not in {"enabled", "disabled"}:
@@ -273,7 +283,9 @@ class Revision2ExternalEngineOrchestrator:
         # R5 controller parameter authority: one validated image of every native R5 controller
         # value, read through EffectiveConfig.require (no fallback), passed explicitly to the
         # governors, dispatcher and the attached native plant below.
-        self.controller_parameters = R5ControllerParameters.from_config(self.config)
+        self.safety_contract = SafetyContract.from_registry(self.registry)
+        self.controller_parameters = R5ControllerParameters.from_config(
+            self.config, safety_bases=dict(self.safety_contract.values))
         self.governor_position_mode = governor_position_mode
         self.avr_voltage_mode = avr_voltage_mode
         self.dispatcher_allocation_mode = dispatcher_allocation_mode
@@ -282,7 +294,10 @@ class Revision2ExternalEngineOrchestrator:
         self.entry_fill_anchor_mode = entry_fill_anchor_mode
         self.unit_protection_mode = unit_protection_mode
         self._position_control_v3 = self.controller_parameters.position_control_v3()
-        self.safety_contract = SafetyContract.from_registry(self.registry)
+        self.dynamic_profile_mode = dynamic_profile_mode
+        self._decision_config: Optional[EffectiveConfig] = None     # per-bar strategy overlay (consume)
+        self._decision_config_key = None
+        self._runtime_profile: Optional[Dict[str, Any]] = None
         # BB01/BB02 remain upstream.  The bridge provides their single
         # tracked hand-off to R5; it does not call a plant or alter strategy.
         self.supervisory_bridge = (
@@ -334,7 +349,8 @@ class Revision2ExternalEngineOrchestrator:
             account_id="PAPER-EXTERNAL-ENGINE",
             slippage_fraction=float(self.config.require("slippage_cost_multiplier")) * float(self.config.require("mpc_base_slippage_fraction")),
         )
-        self.entry_decision_engine = EntryDecisionEngine(config=self._build_safety_gate_config())
+        self._base_gate_config = self._build_safety_gate_config()
+        self.entry_decision_engine = EntryDecisionEngine(config=self._base_gate_config)
         self._intent_ledger = ReplayIntentLedger(self.safety_contract.values["order_dedup_window_seconds"])
         self._execution_halted = False
         self._exit_orders_submitted = 0
@@ -518,6 +534,7 @@ class Revision2ExternalEngineOrchestrator:
                       "final_exit_authority": self.final_exit_authority,
                       "entry_fill_anchor_mode": self.entry_fill_anchor_mode,
                       "unit_protection_mode": self.unit_protection_mode,
+                      "dynamic_profile_mode": self.dynamic_profile_mode,
                       "closed_loop_mode": self.closed_loop_mode,
                       "plant_control_mode": self.plant_control.mode.value},
         }
@@ -538,6 +555,67 @@ class Revision2ExternalEngineOrchestrator:
             "micom": report.get("micom"),
             "applied_value_summary": self._authority_summary if self.authority_telemetry else None,
         }
+
+    def _decision_cfg(self) -> EffectiveConfig:
+        """The configuration the PA / ID / Box 6 decisions read: the run's EffectiveConfig, or (with
+        dynamic_profile_mode='consume') its overlay carrying this bar's strategy profile."""
+        return self._decision_config if self._decision_config is not None else self.config
+
+    def _consume_runtime_profiles(self, timestamp, snapshot) -> None:
+        """dynamic_profile_mode='consume': hand this bar's runtime profiles to their consumers.
+
+        Strategy (entry confidence, min reward:risk, min / max hold) replaces the run's own base for the
+        PA / ID / Box 6 decisions of this bar, additionally clipped to each parameter's registry bounds.
+        Safety and execution values are TIGHTEN-ONLY against the safety contract (min / max as the limit
+        demands): drawdown halt, daily-loss halt, concurrent positions, gross and symbol exposure,
+        slippage tolerance, market-data age, order timeout.  The dispatch ceiling tightens the sector
+        dispatch per-bay cap from the next plant-control evaluation.  The dispatch FLOOR has no consumer
+        contract and is not applied (documented gap)."""
+        strategy, safety, execution = snapshot.strategy, snapshot.safety, snapshot.execution
+        overlay = {}
+        for name, value in (("entry_confidence_threshold", float(strategy.entry_confidence_threshold)),
+                            ("min_risk_reward_ratio", float(strategy.min_risk_reward_ratio)),
+                            ("min_hold_bars", int(strategy.min_hold_bars)),
+                            ("max_hold_bars", int(strategy.max_hold_bars))):
+            spec = self.registry.params[name]
+            bounded = min(max(value, spec.minimum), spec.maximum)
+            overlay[name] = int(bounded) if spec.param_type == "int" else float(bounded)
+        key = tuple(sorted(overlay.items()))
+        if key != self._decision_config_key:
+            values = self.config.as_dict()
+            values.update(overlay)
+            self._decision_config = EffectiveConfig.build(values, registry_hash=self.registry.FROZEN_IDENTITY_SHA256)
+            self._decision_config_key = key
+        c = self.safety_contract.values
+        tightened = {
+            "drawdown_halt_threshold": min(float(c["safety_drawdown_halt_threshold"]), float(safety.drawdown_halt_threshold)),
+            "daily_loss_halt_threshold": float(c["max_daily_loss_rupees"]) * min(1.0, float(safety.daily_loss_limit_multiplier)),
+            "max_concurrent_positions": min(int(c["max_concurrent_positions"]), int(safety.max_concurrent_positions)),
+            "max_gross_exposure_fraction": min(float(c["max_gross_exposure_fraction"]), float(safety.max_gross_exposure_fraction)),
+            "max_exposure_per_symbol_fraction": min(float(c["max_exposure_per_symbol_fraction"]),
+                                                    float(safety.max_symbol_exposure_fraction)),
+            "slippage_tolerance_percent": min(float(self._base_gate_config.slippage_tolerance_percent),
+                                              float(execution.slippage_tolerance_fraction)),
+            "max_market_data_age_seconds": min(int(self._base_gate_config.max_market_data_age_seconds),
+                                               int(execution.max_market_data_age_seconds)),
+            "order_timeout_seconds": min(int(self._base_gate_config.order_timeout_seconds), int(execution.order_timeout_seconds)),
+        }
+        gate_config = replace(self._base_gate_config, **tightened)
+        if gate_config != self.entry_decision_engine.config:
+            self.entry_decision_engine = EntryDecisionEngine(config=gate_config, logger=self.entry_decision_engine.logger)
+        if getattr(self, "_run", None) is not None:
+            self._run.max_concurrent = tightened["max_concurrent_positions"]
+            self._run.max_gross_fraction = tightened["max_gross_exposure_fraction"]
+        merit = self.plant_control.dispatch_controller.merit_source
+        ceiling = min(float(merit.max_ceiling), float(snapshot.plant.dispatcher_max_ceiling))
+        merit.runtime_ceiling_cap = ceiling
+        profile = {"version": snapshot.version, "strategy": overlay, "safety_and_execution": tightened,
+                   "dispatch_ceiling": ceiling, "dispatch_floor_not_applied": float(snapshot.plant.dispatcher_min_floor)}
+        if profile != self._runtime_profile and (self._runtime_profile is None
+                                                 or {k: v for k, v in profile.items() if k != "version"}
+                                                 != {k: v for k, v in self._runtime_profile.items() if k != "version"}):
+            self._record_controller_event("RUNTIME_PROFILE_APPLIED", timestamp, "PLANT", profile)
+        self._runtime_profile = profile
 
     def anchor_plan_at_fill(self, planned, fill_price: float):
         """The one fill contract shared by the venue-executed engines (B: Nautilus, C: Backtrader).
@@ -937,6 +1015,8 @@ class Revision2ExternalEngineOrchestrator:
                     self._record_controller_event("HRSG_RETURN_SNAPSHOT", timestamp, "PLANT", {
                         "bay_returns": bay_returns,
                         "correlation_penalties": plant.hrsg.compute_economizer_penalties()})
+        if self.dynamic_profile_mode == "consume":
+            self._consume_runtime_profiles(timestamp, snapshot)
         if self.authority_telemetry:
             self._authority_bar_telemetry(timestamp)
         for bay_id, profile in snapshot.governor_by_bay.items():
@@ -1603,6 +1683,8 @@ class Revision2ExternalEngineOrchestrator:
             return
         halt_dd = min(float(self.config.require("drawdown_halt_threshold")),
                       float(self.safety_contract.values["safety_drawdown_halt_threshold"]))
+        if self._runtime_profile is not None:       # dynamic_profile_mode='consume': tighten only
+            halt_dd = min(halt_dd, float(self._runtime_profile["safety_and_execution"]["drawdown_halt_threshold"]))
         if self._current_drawdown() >= halt_dd:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "forced_close_drawdown_halt")
             return
@@ -2116,7 +2198,7 @@ class Revision2ExternalEngineOrchestrator:
                 symbol=symbol, timestamp=str(timestamp),
                 bars=bars.iloc[max(0, bar_idx - SNAPSHOT_LOOKBACK_BARS + 1):bar_idx + 1],
             )
-            signal, trace = self.pa.evaluate(snapshot, self.config)
+            signal, trace = self.pa.evaluate(snapshot, self._decision_cfg())
             self._record(trace)
             self.bb03_bb04_supervisory_by_symbol[symbol] = (
                 self.supervisory_bridge.snapshot_bb03_bb04(
@@ -2129,7 +2211,7 @@ class Revision2ExternalEngineOrchestrator:
             funnel["pa_signals"] += 1  # deprecated compatibility alias for pa_evaluations
             funnel["pa_evaluations"] += 1
             funnel["directional_signals"] += int(signal.direction != 0)
-            funnel["confidence_qualified"] += int(signal.confidence >= float(self.config.require("entry_confidence_threshold")))
+            funnel["confidence_qualified"] += int(signal.confidence >= float(self._decision_cfg().require("entry_confidence_threshold")))
             funnel["pa_" + signal.quality_band] += 1
 
             # Box 4b, the Chart-Studies Confirmation Layer -- a SECOND,
@@ -2170,7 +2252,7 @@ class Revision2ExternalEngineOrchestrator:
             if next_ts.date() != event_ts.date() or next_ts.strftime("%H:%M") >= str(self.safety_contract.values["no_entry_cutoff_time"]):
                 continue
 
-            decision, trace = self.id_box.evaluate(signal, self.config, latest_close=None)
+            decision, trace = self.id_box.evaluate(signal, self._decision_cfg(), latest_close=None)
             self._record(trace)
             self.bb05_bb06_supervisory_by_symbol[symbol] = (
                 self.supervisory_bridge.snapshot_bb05_bb06(symbol=symbol, decision=decision)
@@ -2216,7 +2298,7 @@ class Revision2ExternalEngineOrchestrator:
             atr = max(float(signal.volatility * _close_price), _min_atr_floor)
             next_open = self._entry_reference_price(bars, bar_idx)
             self.mpc.gain_scale = self._gain_scale_for(symbol)
-            plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
+            plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self._decision_cfg())
             self._record(trace)
             self.bb05_bb06_supervisory_by_symbol[symbol] = (
                 self.supervisory_bridge.snapshot_bb05_bb06(symbol=symbol, decision=decision, plan=plan)
@@ -2450,7 +2532,10 @@ class Revision2ExternalEngineOrchestrator:
         quantity, trace = self.position_manager.size(
             plan, equity_now, size_mult, self.config, symbol=symbol,
             portfolio_weights=self._portfolio_weights,
-            max_exposure_per_symbol_fraction=float(self.safety_contract.values["max_exposure_per_symbol_fraction"]),
+            max_exposure_per_symbol_fraction=(
+                float(self._runtime_profile["safety_and_execution"]["max_exposure_per_symbol_fraction"])
+                if self._runtime_profile is not None
+                else float(self.safety_contract.values["max_exposure_per_symbol_fraction"])),
             open_positions_count=len(self.open_trades),
             symbol_positions_count=1 if symbol in self.open_trades else 0,
         )

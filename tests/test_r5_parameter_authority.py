@@ -150,7 +150,10 @@ _RELATION_LIMITS = {"avr_oel_fraction_min": ("avr_oel_capital_fraction",),
 from revision5.controller_parameters import TIER_ENVELOPE_PARAMETERS  # noqa: E402
 # Parameters owned outside the native plant (proved by their own tests: the orchestrator symbol
 # latches in tests/test_r5_parameter_authority_engines.py, the Box 6 Tier envelopes below).
-_ORCHESTRATOR_ONLY = {"symbol_loss_cooldown_bars", "symbol_trip_consecutive_losses", *TIER_ENVELOPE_PARAMETERS}
+from revision5.controller_parameters import PROFILE_SCHEDULE_PARAMETERS  # noqa: E402
+# (the psch_* runtime-profile coefficients are swept at their orchestrator consumers in tests/test_r5_dynamization.py)
+_ORCHESTRATOR_ONLY = {"symbol_loss_cooldown_bars", "symbol_trip_consecutive_losses", *TIER_ENVELOPE_PARAMETERS,
+                      *PROFILE_SCHEDULE_PARAMETERS}
 
 
 def _candidates(spec):

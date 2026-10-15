@@ -192,6 +192,16 @@ class DynamicBayLoadDispatcher:
         }
         self.updates = 0
         self.last_update: Optional[Dict[str, Any]] = None
+        # Per-bar runtime cap on the sector-dispatch reference (dynamic_profile_mode='consume');
+        # None = no runtime cap.  It never changes the merit weights or max_ceiling itself.
+        self.runtime_ceiling_cap: Optional[float] = None
+
+    @property
+    def dispatch_ceiling(self) -> float:
+        """Per-bay dispatch reference ceiling: max_ceiling, tightened by the runtime cap if set."""
+        if self.runtime_ceiling_cap is None:
+            return self.max_ceiling
+        return min(self.max_ceiling, float(self.runtime_ceiling_cap))
 
     def configure(self, parameters, *, governor_specs: Optional[Mapping[str, Any]] = None,
                   allocation_mode: Optional[str] = None) -> None:

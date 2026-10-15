@@ -69,11 +69,12 @@ SAFETY_SCHEDULE_BASES = {
     "sel_max_adverse_bars", "micom_max_daily_fleet_drawdown_pct", "micom_nifty_crash_rate_pct", "micom_max_regime_vol_z",
 }
 COOLDOWN_BASES = {"plant_loss_cooldown_base_bars", "plant_target_cooldown_base_bars"}
-MODE_GATE = {"gov_v3_": "governor_position_mode='v3'", "avr_voltage_reference_pu": "avr_voltage_mode='measured'",
+MODE_GATE = {"psch_": "dynamic_profile_mode='consume'", "gov_v3_": "governor_position_mode='v3'", "avr_voltage_reference_pu": "avr_voltage_mode='measured'",
              "avr_synchronous_reactance_pu": "avr_voltage_mode='measured'", "avr_voltage_filter_alpha": "avr_voltage_mode='measured'",
              "sel_max_slippage": "unit_protection_mode='pre_sync_and_in_flight'", "sel_slippage": "unit_protection_mode='pre_sync_and_in_flight'",
              "sel_max_adverse": "unit_protection_mode='pre_sync_and_in_flight'", "sel_adverse": "unit_protection_mode='pre_sync_and_in_flight'"}
-EFFECT = [("gov_v3_", "V3 inner loop -> protected R floor -> governor stop (next bar) / ratchet exit"),
+EFFECT = [("psch_", "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling"),
+          ("gov_v3_", "V3 inner loop -> protected R floor -> governor stop (next bar) / ratchet exit"),
           ("gov_", "governor outer loop / comparator / inner loop -> entry admission, protected stop, governor exit"),
           ("gsch_", "governor operating gains, target, window, clamp, z, droop -> entry admission, stop, exit"),
           ("dyn_", "stress / risk_derate -> every schedule (governor, AVR lot size, protection, cooldown)"),
@@ -140,6 +141,9 @@ def classify(spec):
         return "STATIC_SCHEDULE_COEFFICIENT", "constant (the schedule it parameterizes runs every bar)", spec.description, "-"
     if name.startswith("tier1_") or name.startswith("tier3_"):
         return "STATIC_SCHEDULE_COEFFICIENT", "constant (bounds a per-plan schedule)", spec.description, "-"
+    if name.startswith("psch_"):
+        return ("STATIC_SCHEDULE_COEFFICIENT", "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+                spec.description, "-")
     if spec.safety_class == FIXED_SAFETY:
         return "STATIC_SAFETY_LIMIT", "constant during the run", spec.description, "-"
     return "STATIC_CONTROLLER_CONSTANT", "constant during the run (the controller output it parameterizes evolves)", spec.description, "-"
@@ -165,7 +169,9 @@ def main() -> int:
             "mode_gate": gate or "always (PAPER_APPLY native plant)" if actuates else "n/a",
             "consumed_by_engines": ["A", "B", "C"] if actuates else [],
             "changes_real_decision": actuates, "decision_effect": effect if actuates else f"none ({spec.safety_class})",
-            "sensitivity_proof": ("tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
+            "sensitivity_proof": ("tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
+                                  if spec.name.startswith("psch_") else
+                                  "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
                                   if not spec.name.startswith(("symbol_", "tier1_", "tier3_")) else
                                   "tests/test_r5_parameter_authority.py::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable"
                                   if spec.name.startswith("tier") else

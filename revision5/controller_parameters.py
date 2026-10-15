@@ -357,6 +357,54 @@ for _name, _kind, _default, (_lo, _hi), _cls, _desc in _HRSG:
     _add(_name, _kind, _default, _lo, _hi, _cls, "HeatRecoverySteamGenerator",
          "revision5/hrsg.py:HeatRecoverySteamGenerator", _desc)
 
+# ---------------------------------------------- strategy / execution / safety / dispatch profiles
+# Former literals revision5/dynamic_parameters.py:404-603.  Each profile value is a per-bar schedule
+# of the run's OWN base value (registry parameter or safety-contract value, supplied at runtime;
+# not a second copy):  strategy bases entry_confidence_threshold, min_risk_reward_ratio,
+# min_hold_bars, max_hold_bars; execution / safety bases from the safety contract; dispatch bases
+# disp_allocation_floor / disp_allocation_ceiling.  Consumed only with
+# dynamic_profile_mode="consume" (safety and execution values tighten only).
+_PROFILE = (
+    ("psch_entry_conf_stress_gain", 0.10, (0.0, 0.5), TUNABLE, "entry confidence = clip(base + gain*stress + chop_gain*chop, min, max)"),
+    ("psch_entry_conf_chop_gain", 0.025, (0.0, 0.2), TUNABLE, "entry confidence chop gain"),
+    ("psch_entry_conf_min", 0.02, (0.0, 0.5), TUNABLE, "entry confidence lower clip"),
+    ("psch_entry_conf_max", 0.35, (0.0, 1.0), TUNABLE, "entry confidence upper clip"),
+    ("psch_min_rr_stress_gain", 0.60, (0.0, 3.0), TUNABLE, "min reward:risk = clip(base + gain*stress, min, max)"),
+    ("psch_min_rr_min", 1.0, (0.5, 5.0), TUNABLE, "min reward:risk lower clip"),
+    ("psch_min_rr_max", 3.0, (0.5, 10.0), TUNABLE, "min reward:risk upper clip"),
+    ("psch_min_hold_chop_gain", 2.0, (0.0, 20.0), TUNABLE, "min hold = round(clip(base + chop_gain*chop + turb_gain*turbulent, min, max))"),
+    ("psch_min_hold_turbulent_gain", 3.0, (0.0, 20.0), TUNABLE, "min hold turbulent gain"),
+    ("psch_min_hold_min", 1.0, (0.0, 60.0), TUNABLE, "min hold lower clip (bars)"),
+    ("psch_min_hold_max", 8.0, (1.0, 120.0), TUNABLE, "min hold upper clip (bars); the registry bounds of min_hold_bars also apply"),
+    ("psch_max_hold_stress_gain", 20.0, (0.0, 120.0), TUNABLE, "max hold = round(clip(base - stress_gain*stress + trend_gain*trend, min, max))"),
+    ("psch_max_hold_trend_gain", 10.0, (0.0, 120.0), TUNABLE, "max hold trend gain"),
+    ("psch_max_hold_min", 20.0, (1.0, 240.0), TUNABLE, "max hold lower clip (bars)"),
+    ("psch_max_hold_max", 120.0, (1.0, 480.0), TUNABLE, "max hold upper clip (bars)"),
+    ("psch_slippage_vol_gain", 0.75, (0.0, 5.0), FIXED_SAFETY, "slippage tolerance = clip(base*(1 + gain*(vol - 1)), min, max), applied tighten-only"),
+    ("psch_slippage_min_fraction", 0.0005, (0.0, 0.05), FIXED_SAFETY, "slippage tolerance lower clip"),
+    ("psch_slippage_max_fraction", 0.0020, (0.0, 0.05), FIXED_SAFETY, "slippage tolerance upper clip; at its default it lies above the contract base (inert), set below the base it tightens the gate"),
+    ("psch_data_age_stress_gain", 0.75, (0.0, 5.0), FIXED_SAFETY, "max market-data age = clip(base/(1 + gain*stress), min, base)"),
+    ("psch_data_age_min_seconds", 10.0, (1.0, 600.0), FIXED_SAFETY, "max market-data age lower clip"),
+    ("psch_order_timeout_stress_gain", 0.50, (0.0, 5.0), INACTIVE, "order timeout = clip(base*(1 + gain*stress), min, max), applied tighten-only [NO ACTUATOR: order timeout = base*(1 + gain*stress) >= base for stress >= 0, so the tighten-only consumer always keeps the contract value]"),
+    ("psch_order_timeout_min_seconds", 15.0, (1.0, 600.0), INACTIVE, "order timeout lower clip [NO ACTUATOR: below the (always >= base) timeout schedule; cannot bind]"),
+    ("psch_order_timeout_max_seconds", 60.0, (1.0, 600.0), FIXED_SAFETY, "order timeout upper clip; at its default it lies above the contract base (inert), set below the base it is the only way the scheduled timeout tightens the gate"),
+    ("psch_drawdown_halt_stress_gain", 0.30, (0.0, 0.95), FIXED_SAFETY, "drawdown halt = clip(base*(1 - gain*stress), min, base)"),
+    ("psch_drawdown_halt_min", 0.10, (0.0, 1.0), FIXED_SAFETY, "drawdown halt lower clip"),
+    ("psch_gross_exposure_min", 0.20, (0.0, 1.0), FIXED_SAFETY, "gross exposure = clip(base*risk_derate, min, base)"),
+    ("psch_symbol_exposure_min", 0.05, (0.0, 1.0), FIXED_SAFETY, "symbol exposure = clip(base*risk_derate, min, base)"),
+    ("psch_concurrent_positions_min", 1.0, (0.0, 50.0), FIXED_SAFETY, "concurrent positions = round(clip(base*risk_derate, min, base))"),
+    ("psch_daily_loss_multiplier_min", 0.40, (0.0, 1.0), FIXED_SAFETY, "daily loss limit multiplier = clip(risk_derate, min, 1)"),
+    ("psch_dispatch_floor_stress_gain", 0.20, (0.0, 0.95), INACTIVE, "dispatcher floor = clip(base*(1 - gain*stress), min, max); NO CONSUMER CONTRACT (gap) [NO ACTUATOR: dispatcher floor has no consumer contract (raising or lowering a merit floor is neither tightening nor specified)]"),
+    ("psch_dispatch_floor_min", 0.05, (0.0, 0.2), INACTIVE, "dispatcher floor lower clip [NO ACTUATOR: dispatcher floor has no consumer contract]"),
+    ("psch_dispatch_floor_max", 0.10, (0.0, 0.2), INACTIVE, "dispatcher floor upper clip [NO ACTUATOR: dispatcher floor has no consumer contract]"),
+    ("psch_dispatch_ceiling_min", 0.15, (0.0, 1.0), FIXED_SAFETY, "dispatch ceiling = clip(base*risk_derate, min, base); consumed as the sector-dispatch per-bay cap"),
+    ("psch_dispatch_floor_ceiling_ratio", 0.50, (0.0, 1.0), INACTIVE, "if floor >= ceiling: floor = min(floor, ratio*ceiling) [NO ACTUATOR: dispatcher floor has no consumer contract]"),
+)
+PROFILE_SCHEDULE_PARAMETERS = tuple(name for name, *_ in _PROFILE)
+for _name, _default, (_lo, _hi), _cls, _desc in _PROFILE:
+    _add(_name, "float", _default, _lo, _hi, _cls, "Revision5DynamicParameterController (runtime profiles)",
+         "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'", _desc)
+
 # ------------------------------------------------------- Box 6 Tier-1 / Tier-3 schedule envelopes
 # Former literals revision2_external/dynamic_parameter_controller.py:13-18.  They bound the per-plan
 # Tier-3 Box 6 gain schedule and the Tier-1 ATR floor / slippage schedule (FIXED_SAFETY envelopes).
@@ -495,6 +543,57 @@ class GovernorScheduleParameters:
             _require(getattr(self, lo) <= getattr(self, hi), f"governor schedule requires {lo} <= {hi}")
         _require(self.offset_min_upper_scale <= self.offset_min_lower_scale,
                  "governor schedule requires offset_min_upper_scale <= offset_min_lower_scale")
+
+
+@dataclass(frozen=True)
+class ProfileScheduleParameters:
+    entry_conf_stress_gain: float
+    entry_conf_chop_gain: float
+    entry_conf_min: float
+    entry_conf_max: float
+    min_rr_stress_gain: float
+    min_rr_min: float
+    min_rr_max: float
+    min_hold_chop_gain: float
+    min_hold_turbulent_gain: float
+    min_hold_min: float
+    min_hold_max: float
+    max_hold_stress_gain: float
+    max_hold_trend_gain: float
+    max_hold_min: float
+    max_hold_max: float
+    slippage_vol_gain: float
+    slippage_min_fraction: float
+    slippage_max_fraction: float
+    data_age_stress_gain: float
+    data_age_min_seconds: float
+    order_timeout_stress_gain: float
+    order_timeout_min_seconds: float
+    order_timeout_max_seconds: float
+    drawdown_halt_stress_gain: float
+    drawdown_halt_min: float
+    gross_exposure_min: float
+    symbol_exposure_min: float
+    concurrent_positions_min: float
+    daily_loss_multiplier_min: float
+    dispatch_floor_stress_gain: float
+    dispatch_floor_min: float
+    dispatch_floor_max: float
+    dispatch_ceiling_min: float
+    dispatch_floor_ceiling_ratio: float
+
+    def validate(self) -> None:
+        for lo, hi in (("entry_conf_min", "entry_conf_max"), ("min_rr_min", "min_rr_max"), ("min_hold_min", "min_hold_max"),
+                       ("max_hold_min", "max_hold_max"), ("slippage_min_fraction", "slippage_max_fraction"),
+                       ("order_timeout_min_seconds", "order_timeout_max_seconds"), ("dispatch_floor_min", "dispatch_floor_max")):
+            _require(getattr(self, lo) <= getattr(self, hi), f"profile schedule requires {lo} <= {hi}")
+
+
+# Bases of the runtime profiles: the run's own registry parameters / safety-contract values.
+PROFILE_BASE_PARAMETERS = ("entry_confidence_threshold", "min_risk_reward_ratio", "min_hold_bars", "max_hold_bars")
+PROFILE_BASE_SAFETY = ("max_slippage_fraction", "max_market_data_age_seconds", "order_timeout_seconds_execution",
+                       "safety_drawdown_halt_threshold", "max_gross_exposure_fraction",
+                       "max_exposure_per_symbol_fraction", "max_concurrent_positions")
 
 
 @dataclass(frozen=True)
@@ -696,11 +795,14 @@ class R5ControllerParameters:
     hrsg: HRSGParameters
     symbol_loss_cooldown_bars: int
     symbol_trip_consecutive_losses: int
+    profile: ProfileScheduleParameters
+    profile_bases: Mapping[str, float]
     v3_values: Mapping[str, Any]
     values: Mapping[str, Any] = field(repr=False, default_factory=dict)
 
     @classmethod
-    def from_values(cls, values: Mapping[str, Any]) -> "R5ControllerParameters":
+    def from_values(cls, values: Mapping[str, Any],
+                    safety_bases: Optional[Mapping[str, Any]] = None) -> "R5ControllerParameters":
         from revision5.governor import BayGovernorSpec
         specs = {}
         for bay in BAY_IDS:
@@ -722,18 +824,22 @@ class R5ControllerParameters:
             hrsg=_group(HRSGParameters, values, "hrsg_"),
             symbol_loss_cooldown_bars=_read(values, "symbol_loss_cooldown_bars"),
             symbol_trip_consecutive_losses=_read(values, "symbol_trip_consecutive_losses"),
+            profile=_group(ProfileScheduleParameters, values, "psch_"),
+            profile_bases=_profile_bases(values, safety_bases),
             v3_values={key: _read(values, name) for key, name in POSITION_CONTROL_V3_PARAMETERS.items()},
             values={name: _read(values, name) for name in CONTROLLER_PARAMETER_NAMES},
         )
         for group in (built.governor_schedule, built.stress, built.cooldown, built.avr, built.unit_protection,
-                      built.grid_protection, built.dispatcher, built.hrsg):
+                      built.grid_protection, built.dispatcher, built.hrsg, built.profile):
             group.validate()
         return built
 
     @classmethod
-    def from_config(cls, config) -> "R5ControllerParameters":
-        """Read every controller parameter from an EffectiveConfig through ``require``."""
-        return cls.from_values({name: config.require(name) for name in CONTROLLER_PARAMETER_NAMES})
+    def from_config(cls, config, safety_bases: Optional[Mapping[str, Any]] = None) -> "R5ControllerParameters":
+        """Read every controller parameter (and the profile bases) from an EffectiveConfig through
+        ``require``; ``safety_bases`` are the run's safety-contract values."""
+        names = CONTROLLER_PARAMETER_NAMES + PROFILE_BASE_PARAMETERS
+        return cls.from_values({name: config.require(name) for name in names}, safety_bases)
 
     @classmethod
     def defaults(cls) -> "R5ControllerParameters":
@@ -752,6 +858,30 @@ class R5ControllerParameters:
         return {"parameter_count": len(payload), "values_sha256": digest,
                 "non_default": {k: v for k, v in payload.items() if v != CONTROLLER_PARAMETERS[k].default},
                 "effective_values": payload}
+
+
+def _profile_bases(values: Mapping[str, Any], safety_bases: Optional[Mapping[str, Any]]) -> Dict[str, float]:
+    """Profile bases: registry parameters from ``values`` (EffectiveConfig) and safety-contract values
+    from ``safety_bases``.  Absent inputs (direct construction of the registry-default image) are the
+    canonical registry defaults -- the documented values, not a hidden copy."""
+    from canonical_parameter_registry import CanonicalParameterRegistry
+    registry = None
+    bases: Dict[str, float] = {}
+    for name in PROFILE_BASE_PARAMETERS:
+        if name not in values:
+            registry = registry or CanonicalParameterRegistry()
+            bases[name] = float(registry.params[name].default)
+        else:
+            bases[name] = float(values[name])
+    for name in PROFILE_BASE_SAFETY:
+        if safety_bases is None or name not in safety_bases:
+            registry = registry or CanonicalParameterRegistry()
+            bases[name] = float(registry.safety_params[name].default)
+        else:
+            bases[name] = float(safety_bases[name])
+    for name, value in bases.items():
+        _require(isfinite(value) and value >= 0.0, f"profile base {name} must be finite and non-negative")
+    return bases
 
 
 _DEFAULTS_CACHE: Optional[R5ControllerParameters] = None
