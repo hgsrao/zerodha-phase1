@@ -98,6 +98,8 @@ SNAPSHOT_LOOKBACK_BARS = 300
 BAY_LOSS_COOLDOWN_BARS = int(CONTROLLER_PARAMETERS["symbol_loss_cooldown_bars"].default)
 
 GOVERNOR_POSITION_MODES = ("legacy", "v3")
+ENTRY_FILL_ANCHOR_MODES = ("reanchor_distances", "box6_levels")
+UNIT_PROTECTION_MODES = ("pre_synchronization", "pre_sync_and_in_flight")
 
 # Native plant EXIT reasons that are protection trips (actuated at the next open as
 # ``plant_trip:<reason>``).  A plant-governor EXIT is advisory: the orchestrator's own
@@ -162,6 +164,8 @@ class Revision2ExternalEngineOrchestrator:
         dispatcher_allocation_mode: str = "legacy",
         hrsg_correlation_mode: str = "off",
         authority_telemetry: bool = False,
+        entry_fill_anchor_mode: str = "reanchor_distances",
+        unit_protection_mode: str = "pre_synchronization",
     ) -> None:
         # Opt-in controller modes (defaults keep the baseline decision-identical):
         #   governor_position_mode   "legacy" V2 inner loop | "v3" Protocol V3 inner loop (full
@@ -173,6 +177,12 @@ class Revision2ExternalEngineOrchestrator:
         #                            synchronous completed-bar bay returns)
         #   authority_telemetry      record parameter / AVR / dispatcher / HRSG telemetry events
         #                            (telemetry only; no decision effect)
+        #   entry_fill_anchor_mode   venue-executed engines (B, C): "reanchor_distances" keeps the
+        #                            planned stop/target DISTANCES at the fill (Box 6 entry PID has no
+        #                            effect); "box6_levels" keeps the Box 6 PID-derived stop/target
+        #                            LEVELS, so the entry PID reaches the position (anchor_plan_at_fill)
+        #   unit_protection_mode     "pre_sync_and_in_flight" also runs SEL-300G ANSI 87G (fill vs Box 6
+        #                            reference) and ANSI 32R (adverse drift) on every held bar (PAPER_APPLY)
         # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
         # Default None -- unchanged behaviour: this replay engine does not instantiate a real plant,
         # so protection state uses the explicit SYMBOL_TRIPS_ONLY fallback (see protection_snapshot.py).
@@ -211,6 +221,12 @@ class Revision2ExternalEngineOrchestrator:
             raise ValueError("hrsg_correlation_mode must be 'off' or 'causal_bay_returns'")
         if hrsg_correlation_mode != "off" and plant_control_mode != PlantControlMode.PAPER_APPLY:
             raise ValueError("hrsg_correlation_mode requires the PAPER_APPLY native plant")
+        if entry_fill_anchor_mode not in ENTRY_FILL_ANCHOR_MODES:
+            raise ValueError(f"entry_fill_anchor_mode must be one of {ENTRY_FILL_ANCHOR_MODES}")
+        if unit_protection_mode not in UNIT_PROTECTION_MODES:
+            raise ValueError(f"unit_protection_mode must be one of {UNIT_PROTECTION_MODES}")
+        if unit_protection_mode != "pre_synchronization" and plant_control_mode != PlantControlMode.PAPER_APPLY:
+            raise ValueError("unit_protection_mode='pre_sync_and_in_flight' requires the PAPER_APPLY native plant")
         if telemetry_mode not in {"full", "compact"}:
             raise ValueError("telemetry_mode must be 'full' or 'compact'")
         if pid_mode not in {"enabled", "disabled"}:
@@ -263,6 +279,8 @@ class Revision2ExternalEngineOrchestrator:
         self.dispatcher_allocation_mode = dispatcher_allocation_mode
         self.hrsg_correlation_mode = hrsg_correlation_mode
         self.authority_telemetry = bool(authority_telemetry)
+        self.entry_fill_anchor_mode = entry_fill_anchor_mode
+        self.unit_protection_mode = unit_protection_mode
         self._position_control_v3 = self.controller_parameters.position_control_v3()
         self.safety_contract = SafetyContract.from_registry(self.registry)
         # BB01/BB02 remain upstream.  The bridge provides their single
@@ -498,6 +516,8 @@ class Revision2ExternalEngineOrchestrator:
                       "dispatcher_allocation_mode": self.dispatcher_allocation_mode,
                       "hrsg_correlation_mode": self.hrsg_correlation_mode,
                       "final_exit_authority": self.final_exit_authority,
+                      "entry_fill_anchor_mode": self.entry_fill_anchor_mode,
+                      "unit_protection_mode": self.unit_protection_mode,
                       "closed_loop_mode": self.closed_loop_mode,
                       "plant_control_mode": self.plant_control.mode.value},
         }
@@ -518,6 +538,47 @@ class Revision2ExternalEngineOrchestrator:
             "micom": report.get("micom"),
             "applied_value_summary": self._authority_summary if self.authority_telemetry else None,
         }
+
+    def anchor_plan_at_fill(self, planned, fill_price: float):
+        """The one fill contract shared by the venue-executed engines (B: Nautilus, C: Backtrader).
+
+        Sequence: signal -> Box 6 entry PID -> plan (reference, stop, target) -> order -> fill ->
+        position.  Returns (plan booked at the fill, risk per share at the booked stop).
+
+        ``reanchor_distances`` (default, baseline): the planned stop and target DISTANCES are kept and
+        re-anchored at the fill price; the entry PID's reference shift is therefore discarded.
+        ``box6_levels``: the Box 6 PID-derived stop and target LEVELS are kept (only the entry price
+        becomes the fill), so the entry PID changes the booked stop / target / risk.  A fill beyond
+        the PID-derived stop is still caught by the caller's fill-beyond-planned-stop protection."""
+        sign = 1.0 if planned.side == "BUY" else -1.0
+        price = float(fill_price)
+        if self.entry_fill_anchor_mode == "box6_levels":
+            plan = replace(planned, entry_price=price)
+            return plan, abs(price - float(plan.stop_price))
+        risk = abs(float(planned.entry_price) - float(planned.stop_price))
+        reward = abs(float(planned.target_price) - float(planned.entry_price))
+        plan = replace(planned, entry_price=price, stop_price=price - sign * risk, target_price=price + sign * reward)
+        return plan, risk
+
+    def _in_flight_protection(self, symbol, trade, bar) -> Optional[Dict[str, Any]]:
+        """SEL-300G in-flight elements (unit_protection_mode='pre_sync_and_in_flight'), causal on
+        the completed bar: ANSI 87G compares the booked fill with the Box 6 reference price the
+        order was planned on; ANSI 32R counts consecutive completed closes on the adverse side of
+        the fill (a SELL is evaluated on the price reflected about the fill).  A trip is a plant
+        protection exit armed for the next open (it outranks the governor)."""
+        bay_id = trade.get("plant_bay_id") or _R5_SYMBOL_TO_BAY.get(symbol)
+        if bay_id is None:
+            return {"action": "EXIT", "reason": "UNMAPPED_SYMBOL:in_flight"}
+        relay = self.real_plant_dcs.bays[bay_id].relay
+        entry = float(trade["entry_price"])
+        close = float(bar["close"])
+        current = close if trade["side"] == "BUY" else 2.0 * entry - close
+        intended = float(trade.get("box6_reference_price", trade.get("planned_entry_price", entry)))
+        trip = relay.check_in_flight_protection(symbol=symbol, entry_price=entry, current_price=current,
+                                                exec_fill_price=entry, intended_price=intended)
+        if not trip.tripped:
+            return None
+        return {"action": "EXIT", "reason": f"SEL300G_TRIP:{trip.ansi_code}:{trip.reason}"}
 
     def _applied_controller_values(self) -> Dict[str, float]:
         """The operating values the native plant controllers are applying right now."""
@@ -980,6 +1041,9 @@ class Revision2ExternalEngineOrchestrator:
             side=trade["side"], quantity=int(trade["quantity"]), fill_price=float(trade["entry_price"]))
         binding = self.real_plant_dcs.bound_positions[trade["trade_id"]]
         trade["plant_bay_id"] = binding["bay_id"]
+        if self.unit_protection_mode == "pre_sync_and_in_flight":
+            # ANSI 32R counts adverse closes of THIS position only.
+            self.real_plant_dcs.bays[binding["bay_id"]].relay.adverse_drift_counters[symbol] = 0
         self._record_controller_event("PLANT_FILL_BOUND", fill_timestamp, symbol, {
             "trade_id": trade["trade_id"], "bay_id": binding["bay_id"], "latch_accepted": accepted,
             "quantity": int(trade["quantity"]), "fill_price": float(trade["entry_price"])})
@@ -1029,6 +1093,12 @@ class Revision2ExternalEngineOrchestrator:
                     position_id=trade["trade_id"], **self._plant_grid_inputs())
             except ValueError as exc:
                 result = {"action": "EXIT", "reason": f"PLANT_INPUT_INVALID:{exc}"}
+            if (self.unit_protection_mode == "pre_sync_and_in_flight"
+                    and not (result.get("action") == "EXIT"
+                             and str(result.get("reason", "")).startswith(_PLANT_TRIP_PREFIXES))):
+                in_flight = self._in_flight_protection(symbol, trade, bar)
+                if in_flight is not None:
+                    result = in_flight
         reason = str(result.get("reason", ""))
         trip = result.get("action") == "EXIT" and reason.startswith(_PLANT_TRIP_PREFIXES)
         self._record_controller_event("PLANT_POSITION_CONTROL", timestamp, symbol, {

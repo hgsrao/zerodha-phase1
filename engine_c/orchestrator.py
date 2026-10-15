@@ -389,9 +389,8 @@ class EngineCOrchestrator(Revision2ExternalEngineOrchestrator):
         intent = record["intent"]
         planned = intent["plan"]
         sign = 1.0 if planned.side == "BUY" else -1.0
-        risk = abs(float(planned.entry_price) - float(planned.stop_price))
-        reward = abs(float(planned.target_price) - float(planned.entry_price))
-        plan = replace(planned, entry_price=price, stop_price=price - sign * risk, target_price=price + sign * reward)
+        # Shared fill contract (revision2_external.orchestrator.anchor_plan_at_fill).
+        plan, risk = self.anchor_plan_at_fill(planned, price)
         fill_label = record["last_fill_label"]
         decision_close = pd.Timestamp(intent["timestamp"]) + BAR_SPAN
         elapsed = max(0.0, (fill_label - decision_close).total_seconds())
@@ -401,6 +400,8 @@ class EngineCOrchestrator(Revision2ExternalEngineOrchestrator):
             "ack_elapsed_seconds": elapsed, "cost": record["commission"]})
         symbol = record["symbol"]
         trade = self.open_trades.get(symbol)
+        if trade is not None and self.unit_protection_mode != "pre_synchronization":
+            trade["box6_reference_price"] = float(planned.entry_price)   # ANSI 87G reference
         if trade is None:
             self.reconciler.record_break("entry_fill_not_booked", symbol=symbol, ref=ref)
             return

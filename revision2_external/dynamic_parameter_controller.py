@@ -9,13 +9,15 @@ import numpy as np
 import pandas as pd
 from revision2_external.bb05_bb06_parameters import default_config, require
 
-# Fixed safety envelopes, not runtime/optimizer knobs.
-_NORMALIZED_VOL_ENVELOPE = (0.5, 2.5)
-_ATR_FLOOR_ENVELOPE = (0.0025, 0.0120)
-_SLIPPAGE_SCALE_ENVELOPE = (0.6, 3.0)
-_KP_SCALE_ENVELOPE = (0.5, 2.5)
-_KI_SCALE_ENVELOPE = (1.0, 4.0)
-_KD_SCALE_ENVELOPE = (0.5, 2.0)
+# Fixed safety envelopes: registry-owned (tier1_* / tier3_*, FIXED_SAFETY, never optimizer-eligible),
+# read from the run's EffectiveConfig on every call.
+
+
+def _envelope(config, name: str):
+    low, high = float(require(config, f"{name}_min")), float(require(config, f"{name}_max"))
+    if not low <= high:
+        raise ValueError(f"{name} envelope requires min <= max")
+    return low, high
 
 @dataclass
 class MarketEnvironmentState:
@@ -45,7 +47,7 @@ class MarketEnvironmentState:
         current_atr = float(np.mean(tr[-period:])) if len(tr) >= period else close * require(config, "mpc_range_fallback_fraction")
         atr_sma = float(np.mean(tr)) if len(tr) > 0 else current_atr
         
-        nv = np.clip(current_atr / max(1e-6, atr_sma), *_NORMALIZED_VOL_ENVELOPE)
+        nv = np.clip(current_atr / max(1e-6, atr_sma), *_envelope(config, "tier1_normalized_vol"))
         
         # Regime priors
         if regime == "trend":
@@ -74,11 +76,11 @@ class DynamicParameterController:
         if not np.isfinite(env.close) or not np.isfinite(env.normalized_vol) or env.close <= 0:
             raise ValueError("BB06 environment must have a positive finite price and finite volatility")
         # Dynamic ATR floor multiplier (0.25% to 1.20%)
-        atr_floor_mult = np.clip(require(config, "mpc_atr_floor_gain") * env.normalized_vol, *_ATR_FLOOR_ENVELOPE)
+        atr_floor_mult = np.clip(require(config, "mpc_atr_floor_gain") * env.normalized_vol, *_envelope(config, "tier1_atr_floor"))
         min_atr_floor = env.close * atr_floor_mult
 
         # Dynamic slippage model (3 bps to 15 bps)
-        slippage_mult = np.clip(1.0 + require(config, "mpc_slippage_vol_gain") * (env.normalized_vol - 1.0), *_SLIPPAGE_SCALE_ENVELOPE)
+        slippage_mult = np.clip(1.0 + require(config, "mpc_slippage_vol_gain") * (env.normalized_vol - 1.0), *_envelope(config, "tier1_slippage_scale"))
         base_slippage = require(config, "mpc_base_slippage_fraction") * slippage_mult
 
         return {
@@ -122,9 +124,9 @@ class DynamicParameterController:
             raise ValueError('error_delta must be finite')
         abs_err = abs(error_delta)
         # Scale Kp up on rapid error divergence
-        kp_dyn = base_kp * np.clip(1.0 + require(config, "mpc_schedule_kp_gain") * abs_err, *_KP_SCALE_ENVELOPE)
+        kp_dyn = base_kp * np.clip(1.0 + require(config, "mpc_schedule_kp_gain") * abs_err, *_envelope(config, "tier3_kp_scale"))
         # Bleed Ki during transient spikes to eliminate integral windup
-        ki_dyn = base_ki / np.clip(1.0 + require(config, "mpc_schedule_ki_gain") * abs_err, *_KI_SCALE_ENVELOPE)
+        ki_dyn = base_ki / np.clip(1.0 + require(config, "mpc_schedule_ki_gain") * abs_err, *_envelope(config, "tier3_ki_divisor"))
         # Damping Kd scaled with vol
-        kd_dyn = base_kd * np.clip(1.0 + require(config, "mpc_schedule_kd_gain") * abs_err, *_KD_SCALE_ENVELOPE)
+        kd_dyn = base_kd * np.clip(1.0 + require(config, "mpc_schedule_kd_gain") * abs_err, *_envelope(config, "tier3_kd_scale"))
         return float(kp_dyn), float(ki_dyn), float(kd_dyn)

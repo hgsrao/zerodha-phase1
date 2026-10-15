@@ -282,8 +282,9 @@ for _name, _default, (_lo, _hi), _cls, _desc in _AVR:
          _desc)
 
 # ------------------------------------------------------------------ SEL-300G unit protection
-# check_in_flight_protection (ANSI 87G / 32R) has no runtime caller: those five rows are INACTIVE.
-_SEL_INFLIGHT = " (check_in_flight_protection has no runtime caller)"
+# ANSI 87G / 32R (check_in_flight_protection) are invoked on every held bar when the orchestrator
+# runs unit_protection_mode="pre_sync_and_in_flight" (opt-in); in the default mode they are not called.
+_SEL_INFLIGHT = " (live only with unit_protection_mode='pre_sync_and_in_flight')"
 _SEL = (
     ("sel_stale_tick_limit_seconds", 120.0, (1.0, 600.0), FIXED_SAFETY, "ANSI 60FL stale-data envelope (runtime value tightens only)"),
     ("sel_stale_tick_stress_gain", 0.50, (0.0, 0.95), FIXED_SAFETY, "stale limit = clip(base * (1 - gain * stress), min, base)"),
@@ -294,12 +295,12 @@ _SEL = (
     ("sel_vol_surge_mult", 3.5, (1.0, 10.0), FIXED_SAFETY, "ANSI 24 bar range / ATR envelope"),
     ("sel_vol_surge_stress_gain", 0.30, (0.0, 0.95), FIXED_SAFETY, "vol surge stress tightening gain"),
     ("sel_vol_surge_min_mult", 2.0, (1.0, 10.0), FIXED_SAFETY, "vol surge lower clip"),
-    ("sel_max_slippage_fraction", 0.0035, (0.0001, 0.05), INACTIVE, "ANSI 87G slippage envelope" + _SEL_INFLIGHT),
-    ("sel_slippage_stress_gain", 0.30, (0.0, 0.95), INACTIVE, "slippage stress tightening gain" + _SEL_INFLIGHT),
-    ("sel_slippage_min_fraction", 0.0020, (0.0001, 0.05), INACTIVE, "slippage limit lower clip" + _SEL_INFLIGHT),
-    ("sel_max_adverse_bars", 4, (1, 60), INACTIVE, "ANSI 32R adverse-drift bars" + _SEL_INFLIGHT),
-    ("sel_adverse_stress_gain", 0.50, (0.0, 0.95), INACTIVE, "adverse bars stress tightening gain" + _SEL_INFLIGHT),
-    ("sel_adverse_min_bars", 2, (1, 60), INACTIVE, "adverse bars lower clip" + _SEL_INFLIGHT),
+    ("sel_max_slippage_fraction", 0.0035, (0.0001, 0.05), FIXED_SAFETY, "ANSI 87G slippage envelope" + _SEL_INFLIGHT),
+    ("sel_slippage_stress_gain", 0.30, (0.0, 0.95), FIXED_SAFETY, "slippage stress tightening gain" + _SEL_INFLIGHT),
+    ("sel_slippage_min_fraction", 0.0020, (0.0001, 0.05), FIXED_SAFETY, "slippage limit lower clip" + _SEL_INFLIGHT),
+    ("sel_max_adverse_bars", 4, (1, 60), FIXED_SAFETY, "ANSI 32R adverse-drift bars" + _SEL_INFLIGHT),
+    ("sel_adverse_stress_gain", 0.50, (0.0, 0.95), FIXED_SAFETY, "adverse bars stress tightening gain" + _SEL_INFLIGHT),
+    ("sel_adverse_min_bars", 2, (1, 60), FIXED_SAFETY, "adverse bars lower clip" + _SEL_INFLIGHT),
 )
 for _name, _default, (_lo, _hi), _cls, _desc in _SEL:
     _add(_name, "int" if isinstance(_default, int) else "float", _default, _lo, _hi, _cls,
@@ -355,6 +356,31 @@ _HRSG = (
 for _name, _kind, _default, (_lo, _hi), _cls, _desc in _HRSG:
     _add(_name, _kind, _default, _lo, _hi, _cls, "HeatRecoverySteamGenerator",
          "revision5/hrsg.py:HeatRecoverySteamGenerator", _desc)
+
+# ------------------------------------------------------- Box 6 Tier-1 / Tier-3 schedule envelopes
+# Former literals revision2_external/dynamic_parameter_controller.py:13-18.  They bound the per-plan
+# Tier-3 Box 6 gain schedule and the Tier-1 ATR floor / slippage schedule (FIXED_SAFETY envelopes).
+_TIER = (
+    ("tier1_normalized_vol_min", 0.5, (0.05, 1.0), "Tier-1 normalized volatility lower clip"),
+    ("tier1_normalized_vol_max", 2.5, (1.0, 10.0), "Tier-1 normalized volatility upper clip"),
+    ("tier1_atr_floor_min", 0.0025, (0.0, 0.05), "Tier-1 ATR floor multiplier lower clip"),
+    ("tier1_atr_floor_max", 0.0120, (0.0, 0.10), "Tier-1 ATR floor multiplier upper clip"),
+    ("tier1_slippage_scale_min", 0.6, (0.0, 1.0), "Tier-1 slippage multiplier lower clip"),
+    ("tier1_slippage_scale_max", 3.0, (1.0, 10.0), "Tier-1 slippage multiplier upper clip"),
+    ("tier3_kp_scale_min", 0.5, (0.0, 1.0), "Tier-3 Box 6 Kp schedule lower clip"),
+    ("tier3_kp_scale_max", 2.5, (1.0, 10.0), "Tier-3 Box 6 Kp schedule upper clip"),
+    ("tier3_ki_divisor_min", 1.0, (1.0, 2.0), "Tier-3 Box 6 Ki divisor lower clip (>= 1: the schedule only bleeds Ki)"),
+    ("tier3_ki_divisor_max", 4.0, (1.0, 20.0), "Tier-3 Box 6 Ki divisor upper clip"),
+    ("tier3_kd_scale_min", 0.5, (0.0, 1.0), "Tier-3 Box 6 Kd schedule lower clip"),
+    ("tier3_kd_scale_max", 2.0, (1.0, 10.0), "Tier-3 Box 6 Kd schedule upper clip"),
+)
+_TIER_UNREACHABLE = {"tier3_kp_scale_min", "tier3_kd_scale_min"}   # argument 1 + g*|e| >= 1 >= any admissible min
+for _name, _default, (_lo, _hi), _desc in _TIER:
+    if _name in _TIER_UNREACHABLE:
+        _desc += " [STRUCTURALLY UNREACHABLE: the scale argument 1 + gain*|error| >= 1 >= any admissible minimum]"
+    _add(_name, "float", _default, _lo, _hi, INACTIVE if _name in _TIER_UNREACHABLE else FIXED_SAFETY, "DynamicParameterController (Box 6 Tier-1 / Tier-3)",
+         "revision2_external/dynamic_parameter_controller.py", _desc)
+TIER_ENVELOPE_PARAMETERS = tuple(name for name, *_ in _TIER)
 
 # ------------------------------------------------------------------- Governor V3 inner loop
 # Ported from a695913 (research/r5-step0-correctness); same names, defaults and classes.
