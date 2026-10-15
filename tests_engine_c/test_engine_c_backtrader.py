@@ -521,6 +521,9 @@ PROTECTED = ["engine_b", "tests_engine_b", "scripts/run_engine_b_nautilus.py", "
 PARAMETER_AUTHORITY_SURFACE = {
     "engine_b/runner.py", "engine_b/orchestrator.py", "scripts/run_engine_b_nautilus.py",
     "revision2_external/dynamic_parameter_controller.py",
+    # Phase 11 re-seal: the successor protocol and the historical note for V2 (V2 itself unchanged).
+    "revision5/step5_sealed_calibration_protocol_v4_parameter_authority.json",
+    "revision5/step5_sealed_calibration_protocol_v2.HISTORICAL.md",
     "revision2_external/orchestrator.py", "revision5/ccpp_protection_cubicles.py", "revision5/ccpp_unified_plant.py",
     "revision5/controller_parameters.py", "revision5/dynamic_parameters.py", "revision5/governor.py",
     "revision5/governor_authority.py", "revision5/hrsg.py",
