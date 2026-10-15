@@ -39,10 +39,12 @@ BASE = "cb10fac5be123f450ede9bb3e8c11ce2ec27817b"
 
 DEFAULT_MODES = {"governor_authority": "full", "governor_position_mode": "legacy", "avr_voltage_mode": "legacy",
                  "dispatcher_allocation_mode": "legacy", "hrsg_correlation_mode": "off", "final_exit_authority": False,
-                 "authority_telemetry": False}
+                 "authority_telemetry": False, "entry_fill_anchor_mode": "reanchor_distances",
+                 "unit_protection_mode": "pre_synchronization"}
 OPT_IN_MODES = {"governor_position_mode": ["v3"], "avr_voltage_mode": ["measured"],
                 "dispatcher_allocation_mode": ["bounded"], "hrsg_correlation_mode": ["causal_bay_returns"],
-                "final_exit_authority": [True]}
+                "final_exit_authority": [True], "entry_fill_anchor_mode": ["box6_levels"],
+                "unit_protection_mode": ["pre_sync_and_in_flight"]}
 
 
 def git(*args) -> str:
@@ -81,7 +83,7 @@ def main() -> int:
     protocol["engine"] = engine
     protocol["parameter_authority"] = {
         "module": "revision5/controller_parameters.py",
-        "parameters": {s.name: {"class": s.safety_class, "optimizer_eligible": s.calibratable, "default": s.default}
+        "parameters": {s.name: {"class": s.safety_class, "optimizer_eligible": registry.is_calibratable(s.name), "default": s.default}
                        for s in sorted(CONTROLLER_PARAMETER_SPECS, key=lambda s: s.name)},
         "search_space_unchanged": True,
         "calibration_status": "NOT_CALIBRATED: no calibration has run against this identity",

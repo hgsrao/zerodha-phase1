@@ -34,7 +34,7 @@ Their remaining literals are fixed envelopes that the code already labels as suc
 | `revision2_external/pid_controller.py` `_ENTRY_TIMING_FLOOR`, `_EXIT_TIGHTNESS_FLOOR` | 0.3, 0.5 | `FIXED_SAFETY_ENVELOPE` (annotated). The entry timing multiplier is telemetry only. |
 | `revision2_external/continuous_exit_controller.py` `_EXIT_TIGHTNESS_FLOOR`, initial setpoint | 0.5, 0.5 | `FIXED_SAFETY_ENVELOPE`; the setpoint is overwritten on the first call. |
 | `revision2_external/composite_study_signal.py` `MIN_WEIGHT`, `MAX_WEIGHT`, indicator periods | 0.05, 0.60; 9/26/52, 20, 5/3/3 | `FIXED_SAFETY_ENVELOPE`; indicator periods are study definitions. |
-| `revision2_external/dynamic_parameter_controller.py` `_*_ENVELOPE`, Tier-2 coefficients | (0.5, 2.5), (0.0025, 0.012), (0.6, 3.0), (0.5, 2.5), (1, 4), (0.5, 2); Tier-2 | Fixed safety envelopes (annotated). Tier-2 is called only from `supervisory_bridge` tests (dead in A/B/C). |
+| `revision2_external/dynamic_parameter_controller.py` Tier-2 coefficients, regime priors | 0.45/0.58/0.75 …; 0.7/0.2/0.1 … | Tier-2 is called only from `supervisory_bridge` tests (dead in A/B/C). The Tier-1 / Tier-3 envelopes are now registry-owned (`tier1_*`, `tier3_*`). |
 | `revision2_external/closed_loop_control.py` `_ENTRY_DERATE_BOUNDS` etc. | (0.5, 1.0), … | `FIXED_SAFETY_ENVELOPE` / `TELEMETRY_ONLY` (annotated). |
 | `revision5/governor_position_policy.py` `GovernorPositionPolicy` defaults | 0.45, 0.10, 2.0, 0.15, 0.30, 0.20, 0.10, 2 | Offline experiment, inactive by default (`governor_position_policy is None`); superseded by Protocol V3 (`gov_v3_*`, registered). |
 | `revision5/machine_archetypes.py`, `machine_dynamics.py`, `startup_synchronization.py`, `relay_coordination.py` | simulation tables | Simulation only: installed at plant construction, never stepped by the replay engines. |
@@ -43,10 +43,10 @@ Their remaining literals are fixed envelopes that the code already labels as suc
 
 * **ADVISORY (12):** `gov_<bay>_atr_barrier`, `gov_<bay>_target_m`, `plant_stop_floor_price_fraction`,
   `plant_target_min_reward_risk` — the plant admission's stop/take-profit suggestion; Engines A/B/C use the MPC plan's.
-* **INACTIVE (19):** `gov_<bay>_z_exit` (no consumer); `avr_mvar_limit_*` (measured MVAR is always 0);
-  `sel_*slippage*`, `sel_*adverse*` (`check_in_flight_protection` has no caller); `gsch_integral_max_scale`,
-  `gsch_kp_scale_min`, `gsch_kd_scale_min`, `gsch_offset_min_upper_scale`, `gsch_droop_max_min_scale`
-  (structurally unreachable clips, with the proof in each row's description).
+* **INACTIVE (15):** `gov_<bay>_z_exit` (no consumer); `avr_mvar_limit_*` (no runtime path supplies a measured
+  MVAR); `gsch_integral_max_scale`, `gsch_kp_scale_min`, `gsch_kd_scale_min`, `gsch_offset_min_upper_scale`,
+  `gsch_droop_max_min_scale`, `tier3_kp_scale_min`, `tier3_kd_scale_min` (structurally unreachable clips, with the
+  proof in each row's description). The SEL-300G 87G / 32R rows are live with `unit_protection_mode="pre_sync_and_in_flight"`.
 
 The sensitivity sweep asserts these classes: an ADVISORY change moves only the advisory output, an INACTIVE change
 moves nothing.

@@ -77,7 +77,7 @@ def main() -> int:
         rows.append({
             "name": spec.name, "type": spec.param_type, "default": spec.default, "minimum": spec.minimum,
             "maximum": spec.maximum, "applicability": spec.applicability, "safety_class": spec.safety_class,
-            "optimizer_eligible": spec.calibratable, "calibration_status": spec.calibration_status,
+            "optimizer_eligible": registry.is_calibratable(spec.name), "calibration_status": spec.calibration_status,
             "owning_controller": spec.owner, "consumer": spec.consumer, "former_literal_location_cb10fac": former_location(spec.name),
             "sensitivity_proof": proof(spec), "description": spec.description,
         })
@@ -104,7 +104,7 @@ def main() -> int:
         "controller_parameter_counts": counts,
         "registry_rows": [{"name": s.name, "black_box": registry.params[s.name].black_box,
                            "param_type": s.param_type, "default": s.default, "minimum": s.minimum, "maximum": s.maximum,
-                           "calibratable": registry.params[s.name].calibratable,
+                           "calibratable": registry.is_calibratable(s.name),
                            "applicable_engines": registry.params[s.name].applicable_engines,
                            "notes": registry.params[s.name].notes, "safety_class": s.safety_class,
                            "calibration_status": s.calibration_status, "owner": s.owner, "consumer": s.consumer}

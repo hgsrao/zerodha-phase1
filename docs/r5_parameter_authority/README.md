@@ -24,7 +24,7 @@ Final commit, registry identity and protocol hash: see [Results](#results).
 ## Design
 
 * **One owner.** `revision5/controller_parameters.py` holds the table of every native R5 controller value
-  (245 rows: name, type, default, bounds, safety class, calibration status, owner, consumer). The canonical
+  (257 rows: name, type, default, bounds, safety class, calibration status, owner, consumer). The canonical
   registry registers every row as an EXTERNAL-only target parameter and puts the full metadata in its identity
   payload (`controller_authority`), so the registry identity changes whenever any value, bound or classification
   changes. Defaults are the former literals, value for value.
@@ -42,8 +42,8 @@ Final commit, registry identity and protocol hash: see [Results](#results).
   their hash, the non-default set, registry identity, modes) is written by all three runners into
   `report["r5_authority"]`. With `authority_telemetry=True` the run records the applied values (per-value
   min / max / last every bar, the full set at every session open) and dispatcher / AVR / HRSG events.
-* **Classes.** 163 TUNABLE (optimizer-eligible in principle; NOT_CALIBRATED), 51 FIXED_SAFETY (protection envelopes,
-  never optimizer-eligible), 12 ADVISORY, 19 INACTIVE — see `REMAINING_HARDCODED_VALUES.md`.
+* **Classes.** 163 TUNABLE (optimizer-eligible in principle; NOT_CALIBRATED), 67 FIXED_SAFETY (protection envelopes,
+  never optimizer-eligible), 12 ADVISORY, 15 INACTIVE. Static vs dynamic: `phase2_parameter_classification.md` — see `REMAINING_HARDCODED_VALUES.md`.
 
 ## Phase 3 — hardcoded owners replaced
 
@@ -55,6 +55,7 @@ Final commit, registry identity and protocol hash: see [Results](#results).
 | `LOSS_COOLDOWN_BARS`, `TARGET_COOLDOWN_BARS`, cooldown schedule, `consecutive_stops >= 2` | `plant_*cooldown*`, `plant_bay_lockout_consecutive_stops` | latches kept |
 | `BayExcitationAVR.__init__` runtime literals, plant 15 000 / 0.40, `AVRRuntimeProfile` | `avr_*` (45) | `BayExcitationAVR.configure`: PID memory and excitation kept, re-clamped |
 | SEL-300G envelopes and schedule; MiCOM envelopes, schedule, 81O `1.5×` | `sel_*` (15), `micom_*` (10) | trip counters / breaker latch kept |
+| Box 6 Tier-1 / Tier-3 envelopes (`dynamic_parameter_controller.py:13-18`) | `tier1_*` (6), `tier3_*` (6) | stateless |
 | `DynamicBayLoadDispatcher` literals | `disp_*` (12) | outcome history (trimmed to the window) and weights kept |
 | `HeatRecoverySteamGenerator` defaults | `hrsg_*` (8) | drum pressure and snapshot history kept |
 | Orchestrator `BAY_LOSS_COOLDOWN_BARS = 15`, symbol trip `>= 2` | `symbol_loss_cooldown_bars`, `symbol_trip_consecutive_losses` | latches kept |
@@ -151,7 +152,7 @@ limiting is the existing `ecs_demand_restore_step_pu`; dynamic stress limits are
 
 * Engine commit and protocol: `PROTOCOL_RESEAL_MANIFEST.json` (written by `scripts/r5_reseal_protocol.py`).
 * Registry identity `a4bdda2d7df63f838be49fc7e1ad08525e768eaedfec2af537c6abd764371f46` (supersedes `12b700d6...`):
-  415 targets (170 + 245 controller rows), 285 optimizer-eligible (in-house 46, external 285), 130 fixed, 22 safety (`REGISTRY_ADDITIONS.json`).
+  427 targets (170 + 257 controller rows), 285 optimizer-eligible (in-house 46, external 285), 142 fixed, 22 safety (`REGISTRY_ADDITIONS.json`).
 * Tests: `TEST_RESULTS.json` (JUnit totals, failed tests, parameter-sweep counts, golden gates).
 * Real data: `PHASE10_THREE_ENGINE_REPORT.md` (default modes) and `PHASE10_THREE_ENGINE_REPORT_ALL_OPT_IN_MODES.md`
   (every opt-in behaviour change on). All 48 frozen symbols, last 1,200 bars, real NIFTY/VIX grid, full authority,
@@ -162,14 +163,14 @@ limiting is the existing `ecs_demand_restore_step_pu`; dynamic stress limits are
 
 1. **Engine A plans on the next bar's open** (its documented execution model): the plan levels and plant sizing of
    a decision at bar t use the open of bar t+1. Engines B and C plan on the decision bar's close.
-2. **Box 6 entry PID has no actuator in Engines B and C**: they re-anchor stop/target at the venue fill with the
-   planned distances, so the entry PID's reference shift is discarded (it acts only in Engine A). The exit PID does
-   reach B/C orders.
+2. **Box 6 entry PID has no actuator in Engines B and C by default**: they re-anchor stop/target at the venue fill
+   with the planned distances. Fixed once in the shared core (`anchor_plan_at_fill`, opt-in
+   `entry_fill_anchor_mode="box6_levels"`).
 3. **Legacy AVR PID is ineffective** (zero error) and its excitation only ratchets down; fixed by the opt-in
    measured mode.
 4. **Legacy dispatcher can exceed its ceiling**; fixed by the opt-in bounded mode.
-5. **SEL-300G `check_in_flight_protection` (ANSI 87G / 32R) has no runtime caller; the AVR MVAR limiter cannot
-   engage** (measured MVAR is always 0); **`BayGovernorSpec.z_exit` has no consumer**; the dynamic snapshot's
+5. **SEL-300G `check_in_flight_protection` (ANSI 87G / 32R) had no runtime caller** (now live with the opt-in
+   `unit_protection_mode="pre_sync_and_in_flight"`); **the AVR MVAR limiter cannot engage** (measured MVAR is always 0); **`BayGovernorSpec.z_exit` has no consumer**; the dynamic snapshot's
    strategy / execution / safety / dispatcher-bound outputs have no consumer.
 6. **The stored golden master is not byte-reproducible on this machine** (HMM last-digit float drift at untouched
    cb10fac); decisions are identical.
