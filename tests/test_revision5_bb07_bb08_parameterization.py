@@ -398,13 +398,23 @@ def test_aggressive_scale_is_inert_in_equal_mode_and_active_in_aggressive_mode()
     eq_hi, _ = _size("equal", 2.0, weights)
     assert eq_lo == eq_hi > 0
 
-    ag_lo, t_lo = _size("aggressive", 1.0, weights)
-    ag_mid, t_mid = _size("aggressive", 1.5, weights)
-    ag_hi, t_hi = _size("aggressive", 2.0, weights)
-    assert ag_lo == eq_lo                                   # scale 1.0 == equal sizing
+    # Rs 1 lakh keeps every scaled budget (Rs 1,800 .. 3,600) below max_loss_per_trade_rupees.
+    small = 100_000.0
+    ag_lo, t_lo = _size("aggressive", 1.0, weights, equity=small)
+    ag_mid, t_mid = _size("aggressive", 1.5, weights, equity=small)
+    ag_hi, t_hi = _size("aggressive", 2.0, weights, equity=small)
+    assert ag_lo == _size("equal", 1.0, weights, equity=small)[0]   # scale 1.0 == equal sizing
     assert ag_lo < ag_mid < ag_hi                           # scale changes sizing
     assert t_mid["base_risk_budget"] == pytest.approx(1.5 * t_lo["base_risk_budget"])
     assert t_hi["base_risk_budget"] == pytest.approx(2.0 * t_lo["base_risk_budget"])
+
+    # Once the scaled budget exceeds the per-trade rupee cap, the cap governs: aggressive
+    # mode can never raise the worst-case loss at the stop above it.
+    capped = [_size("aggressive", scale, weights) for scale in (1.0, 1.5, 2.0)]
+    assert len({qty for qty, _ in capped}) == 1
+    for qty, telemetry in capped:
+        assert telemetry["rupee_risk_budget"] == telemetry["max_loss_per_trade_rupees"]
+        assert telemetry["worst_case_loss_rupees"] <= telemetry["max_loss_per_trade_rupees"]
 
 
 def test_optimizer_weight_never_amplifies_risk_and_only_derates():
