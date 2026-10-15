@@ -1,8 +1,8 @@
 diff --git a/tests_engine_c/test_engine_c_backtrader.py b/tests_engine_c/test_engine_c_backtrader.py
-index e911290..2083bdb 100644
+index e911290..742f1d2 100644
 --- a/tests_engine_c/test_engine_c_backtrader.py
 +++ b/tests_engine_c/test_engine_c_backtrader.py
-@@ -513,13 +513,33 @@ PROTECTED = ["engine_b", "tests_engine_b", "scripts/run_engine_b_nautilus.py", "
+@@ -513,13 +513,37 @@ PROTECTED = ["engine_b", "tests_engine_b", "scripts/run_engine_b_nautilus.py", "
               "runtime", "market_data_loader.py", "gates_framework.py", "data", "tests", "tests_external"]
  
  
@@ -12,7 +12,11 @@ index e911290..2083bdb 100644
 +# data and the Engine A/B execution code may not change, and shared-code changes are confined to the
 +# declared parameter-authority surface.
 +PARAMETER_AUTHORITY_SURFACE = {
-+    "engine_b/runner.py", "scripts/run_engine_b_nautilus.py",
++    "engine_b/runner.py", "engine_b/orchestrator.py", "scripts/run_engine_b_nautilus.py",
++    "revision2_external/dynamic_parameter_controller.py",
++    # Phase 11 re-seal: the successor protocol and the historical note for V2 (V2 itself unchanged).
++    "revision5/step5_sealed_calibration_protocol_v4_parameter_authority.json",
++    "revision5/step5_sealed_calibration_protocol_v2.HISTORICAL.md",
 +    "revision2_external/orchestrator.py", "revision5/ccpp_protection_cubicles.py", "revision5/ccpp_unified_plant.py",
 +    "revision5/controller_parameters.py", "revision5/dynamic_parameters.py", "revision5/governor.py",
 +    "revision5/governor_authority.py", "revision5/hrsg.py",

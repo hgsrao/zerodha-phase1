@@ -1,5 +1,5 @@
 diff --git a/tests/test_canonical_parameter_registry.py b/tests/test_canonical_parameter_registry.py
-index 3c4683c..25d208f 100644
+index 3c4683c..8fc8e50 100644
 --- a/tests/test_canonical_parameter_registry.py
 +++ b/tests/test_canonical_parameter_registry.py
 @@ -10,8 +10,9 @@ def test_revision_2_manifest_surface_contract_is_exact():
@@ -10,7 +10,7 @@ index 3c4683c..25d208f 100644
 -    assert registry.total_target_surface() == 170
 +    controller = set(registry.CONTROLLER_AUTHORITY)
 +    assert set(expected_names) | controller == set(registry.params) and not set(expected_names) & controller
-+    assert registry.total_target_surface() == 170 + 245  # + R5 controller authority (245 rows: 163 tunable, 51 fixed safety, 12 advisory, 19 inactive)
++    assert registry.total_target_surface() == 170 + 257  # + R5 controller authority (257 rows: 163 tunable, 67 fixed safety, 12 advisory, 15 inactive)
      # BB04 adds 16 eligible engineering-initial controls: 47 -> 63.
      # Earlier changes, 47 rather than 45: rebalance_frequency_minutes (FIXED, non-calibratable --
      # confirmed dead in both engines, read only for coverage tracking, the
@@ -19,7 +19,7 @@ index 3c4683c..25d208f 100644
      # Engine-scoped: 122 across engines = 46 shared + 76 external-only (see surface_counts());
      # governor authority added 14 external-only eligible controls (108 -> 122).
 -    assert len(registry.calibratable_names()) == 122
-+    assert len(registry.calibratable_names()) == 122 + 163  # + R5 controller authority (245 rows: 163 tunable, 51 fixed safety, 12 advisory, 19 inactive)
++    assert len(registry.calibratable_names()) == 122 + 163  # + R5 controller authority (257 rows: 163 tunable, 67 fixed safety, 12 advisory, 15 inactive)
      assert len(registry.calibratable_names("IN_HOUSE")) == 46
 -    assert len(registry.calibratable_names("EXTERNAL")) == 122
 +    assert len(registry.calibratable_names("EXTERNAL")) == 122 + 163
@@ -32,7 +32,7 @@ index 3c4683c..25d208f 100644
      assert registry.FROZEN_IDENTITY_SHA256 == (
 -        "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d"
 +        # 2026-10-15 R5 controller parameter authority; supersedes 12b700d6caa88b76...
-+        "a4bdda2d7df63f838be49fc7e1ad08525e768eaedfec2af537c6abd764371f46"
++        "dc8acc009e9e3c639c4652a0da3be5f15db16d37c5039f60879b96077597b47d"
      )
      assert registry.identity_sha256() == registry.FROZEN_IDENTITY_SHA256
      registry.verify_frozen_identity()
@@ -42,5 +42,5 @@ index 3c4683c..25d208f 100644
      # + 5 BB08 PositionManager controls + 4 governor-authority fixed values); 122 eligible across engines.
 -    assert len(registry.fixed_target_names()) == 48
 -    assert len(set(registry.calibratable_names())) == 122
-+    assert len(registry.fixed_target_names()) == 48 + 82  # + 51 fixed safety, 12 advisory, 19 inactive controller rows
++    assert len(registry.fixed_target_names()) == 48 + 94  # + 67 fixed safety, 12 advisory, 15 inactive controller rows
 +    assert len(set(registry.calibratable_names())) == 122 + 163

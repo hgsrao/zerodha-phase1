@@ -1,5 +1,5 @@
 diff --git a/tests/test_revision5_engine_applicability.py b/tests/test_revision5_engine_applicability.py
-index d3c260c..f5e83e8 100644
+index d3c260c..d6d841a 100644
 --- a/tests/test_revision5_engine_applicability.py
 +++ b/tests/test_revision5_engine_applicability.py
 @@ -129,9 +129,10 @@ def test_calibration_payload_is_engine_scoped():
@@ -9,8 +9,8 @@ index d3c260c..f5e83e8 100644
 -        "total_targets": 170, "fixed_targets": 48, "safety_params": 22,
 -        "in_house_eligible": 46, "external_eligible": 122, "shared_eligible": 46,
 -        "external_only_eligible": 76, "in_house_only_eligible": 0,
-+        # + R5 controller authority: 244 rows (163 tunable EXTERNAL-only eligible, 82 fixed)
-+        "total_targets": 170 + 245, "fixed_targets": 48 + 82, "safety_params": 22,
++        # + R5 controller authority: 244 rows (163 tunable EXTERNAL-only eligible, 94 fixed)
++        "total_targets": 170 + 257, "fixed_targets": 48 + 94, "safety_params": 22,
 +        "in_house_eligible": 46, "external_eligible": 122 + 163, "shared_eligible": 46,
 +        "external_only_eligible": 76 + 163, "in_house_only_eligible": 0,
      }

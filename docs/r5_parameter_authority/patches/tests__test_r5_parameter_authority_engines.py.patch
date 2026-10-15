@@ -1,9 +1,9 @@
 diff --git a/tests/test_r5_parameter_authority_engines.py b/tests/test_r5_parameter_authority_engines.py
 new file mode 100644
-index 0000000..3eeb37a
+index 0000000..ad536fc
 --- /dev/null
 +++ b/tests/test_r5_parameter_authority_engines.py
-@@ -0,0 +1,178 @@
+@@ -0,0 +1,282 @@
 +"""End-to-end controller-authority proofs through the shared R5 orchestrator (Engine A) on the
 +seeded synthetic feed shared by Engines A, B and C.  A parameter is changed only through the
 +registry (as a sealed protocol would) or through a validated calibration override, and the proof
@@ -182,3 +182,107 @@ index 0000000..3eeb37a
 +    assert events_before(a) == events_before(b)
 +    assert events_before(a)
 +    assert [o for o in orders(a) if o[1] < horizon] == [o for o in orders(b) if o[1] < horizon]
++
++
++# ------------------------------------------------- SEL-300G in-flight (87G / 32R) through the engine
++
++def _bound_engine(unit_protection_mode, side="BUY", reference=None):
++    data, nifty, vix, _ = load_synthetic(["INFY"], 200, WARMUP)
++    plant = CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:")
++    engine = Revision2ExternalEngineOrchestrator(
++        ["INFY"], grid_context_provider=SealedGridContextProvider(nifty, vix), real_plant_dcs=plant,
++        plant_control_mode="PAPER_APPLY", closed_loop_mode="active_paper", governor_authority="full",
++        unit_protection_mode=unit_protection_mode, starting_equity=1_000_000.0)
++    entry = 1000.0
++    sign = 1.0 if side == "BUY" else -1.0
++    trade = dict(trade_id="T1", side=side, entry_price=entry, quantity=10, stop_price=entry - sign * 50,
++                 target_price=entry + sign * 100, minimum_hold_bars=2, maximum_hold_bars=60, entry_atr=5.0,
++                 planned_entry_price=entry, box6_reference_price=reference if reference is not None else entry)
++    engine.open_trades["INFY"] = trade
++    engine._native_bar_index = 0
++    engine._plant_register_fill("INFY", pd.Timestamp("2024-01-02 10:00", tz="Asia/Kolkata"), trade)
++    return engine, trade
++
++
++def _adverse_bars(engine, trade, closes):
++    armed = []
++    for k, close in enumerate(closes, start=1):
++        engine._native_bar_index = k
++        ts = pd.Timestamp("2024-01-02 10:00", tz="Asia/Kolkata") + pd.Timedelta(minutes=k)
++        bar = {"open": close, "high": close + 0.5, "low": close - 0.5, "close": close}
++        armed.append(engine._plant_position_control("INFY", ts, trade, bar, k, None))
++        if armed[-1]:
++            break
++    return armed
++
++
++@pytest.mark.parametrize("side, closes", [("BUY", [999.0] * 6), ("SELL", [1001.0] * 6)])
++def test_ansi_32r_trips_through_the_live_plant_position_path(side, closes):
++    engine, trade = _bound_engine("pre_sync_and_in_flight", side=side)
++    armed = _adverse_bars(engine, trade, closes)
++    assert armed[-1] is True
++    pending = trade["controller_exit_pending"]
++    assert pending["exit_reason"].startswith("plant_trip:SEL300G_TRIP:ANSI 32R")
++    assert len(armed) == engine.real_plant_dcs.bays["GTG2_TECH_TELECOM"].relay.max_adverse_bars
++
++
++def test_ansi_87g_trips_on_fill_versus_box6_reference():
++    engine, trade = _bound_engine("pre_sync_and_in_flight", reference=1010.0)   # 0.99 % slippage
++    armed = _adverse_bars(engine, trade, [1002.0])
++    assert armed == [True] and "ANSI 87G" in trade["controller_exit_pending"]["exit_reason"]
++
++
++def test_in_flight_elements_are_not_invoked_in_the_default_mode():
++    engine, trade = _bound_engine("pre_synchronization", reference=1010.0)
++    assert not any(_adverse_bars(engine, trade, [999.0] * 6))
++    assert "controller_exit_pending" not in trade
++
++
++# ------------------------------------------------- final_exit_authority (enabled / disabled, precedence)
++
++def _final_exit_engine(enabled, monkeypatch):
++    from tests_external.test_audit_remediation import open_position
++    engine = Revision2ExternalEngineOrchestrator(["INFY"], final_exit_authority=enabled)
++    trade = open_position(engine)
++    monkeypatch.setattr(engine.final_execution_controller, "exit_decision",
++                        lambda **_: {"action": "EXIT", "reason": "TEST_FINAL_EXIT"})
++    return engine, trade
++
++
++def _step(engine, ts, bar, held):
++    from tests_external.test_audit_remediation import signal
++    engine._maybe_exit("INFY", ts, bar, signal(), held, False, 0.5, {})
++
++
++QUIET = {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0}
++
++
++def test_final_exit_disabled_arms_nothing(monkeypatch):
++    engine, trade = _final_exit_engine(False, monkeypatch)
++    _step(engine, "2024-01-01 10:03", QUIET, 3)
++    assert "INFY" in engine.open_trades and "controller_exit_pending" not in trade
++
++
++def test_final_exit_enabled_exits_at_the_next_open(monkeypatch):
++    engine, trade = _final_exit_engine(True, monkeypatch)
++    _step(engine, "2024-01-01 10:03", QUIET, 3)
++    assert trade["controller_exit_pending"]["exit_reason"] == "final_controller_exit:TEST_FINAL_EXIT"
++    assert "INFY" in engine.open_trades                                   # nothing executed on the arming bar
++    _step(engine, "2024-01-01 10:04", {"open": 100.5, "high": 101.0, "low": 99.5, "close": 100.2}, 4)
++    assert engine.completed_trades[-1]["reason"] == "final_controller_exit:TEST_FINAL_EXIT"
++    assert engine.completed_trades[-1]["exit_price"] == pytest.approx(100.5, rel=0.01)
++
++
++def test_final_exit_arming_bar_keeps_hard_stop_precedence(monkeypatch):
++    engine, trade = _final_exit_engine(True, monkeypatch)
++    stop = float(trade["stop_price"])
++    _step(engine, "2024-01-01 10:03", {"open": 100.0, "high": 100.5, "low": stop - 1.0, "close": stop + 0.5}, 3)
++    assert engine.completed_trades[-1]["reason"] == "stop"                # the touched stop executes THIS bar
++
++
++def test_final_exit_pending_keeps_target_gap_precedence(monkeypatch):
++    engine, trade = _final_exit_engine(True, monkeypatch)
++    _step(engine, "2024-01-01 10:03", QUIET, 3)
++    target = float(trade["target_price"])
++    _step(engine, "2024-01-01 10:04", {"open": target + 1.0, "high": target + 2.0, "low": target, "close": target + 1}, 4)
++    assert engine.completed_trades[-1]["reason"] == "target_gap"

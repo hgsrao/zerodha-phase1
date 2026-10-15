@@ -1,5 +1,5 @@
 diff --git a/tests/test_revision5_three_controller_parameterization.py b/tests/test_revision5_three_controller_parameterization.py
-index 97cf1fc..fc6e4cc 100644
+index 97cf1fc..91b490c 100644
 --- a/tests/test_revision5_three_controller_parameterization.py
 +++ b/tests/test_revision5_three_controller_parameterization.py
 @@ -90,7 +90,7 @@ def test_registry_owns_the_new_parameters():
@@ -7,7 +7,7 @@ index 97cf1fc..fc6e4cc 100644
      assert set(OLD_LITERALS) <= set(trading_search_space(REG, engine="EXTERNAL").names)
      assert (len(REG.params), len(REG.fixed_target_names()), len(REG.safety_params),
 -            len(REG.calibratable_names())) == (170, 48, 22, 122)
-+            len(REG.calibratable_names())) == (170 + 245, 48 + 82, 22, 122 + 163)  # + R5 controller authority (245 rows: 163 tunable, 51 fixed safety, 12 advisory, 19 inactive)
++            len(REG.calibratable_names())) == (170 + 257, 48 + 94, 22, 122 + 163)  # + R5 controller authority (257 rows: 163 tunable, 67 fixed safety, 12 advisory, 15 inactive)
      REG.verify_frozen_identity()
  
  
