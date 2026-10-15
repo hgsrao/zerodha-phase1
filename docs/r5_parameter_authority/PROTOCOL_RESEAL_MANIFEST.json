@@ -1,12 +1,12 @@
 {
   "manifest": "R5_PROTOCOL_RESEAL_PARAMETER_AUTHORITY",
-  "engine_commit": "3572a501bd1f73b42ffd3c5d203904f92a9afe5e",
+  "engine_commit": "e4fe76ddee942c29aed0d9eaa853f152cc9833cc",
   "base_commit": "cb10fac5be123f450ede9bb3e8c11ce2ec27817b",
-  "registry_identity_sha256": "a4bdda2d7df63f838be49fc7e1ad08525e768eaedfec2af537c6abd764371f46",
+  "registry_identity_sha256": "dc8acc009e9e3c639c4652a0da3be5f15db16d37c5039f60879b96077597b47d",
   "superseded_registry_identity_sha256": "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d",
   "protocol": {
     "file": "revision5/step5_sealed_calibration_protocol_v4_parameter_authority.json",
-    "sha256": "11af39b51aa40a08dbd3b8406aa999ada49fe19ba5ec8cf4283d691900566501",
+    "sha256": "6c63b2bdcfebbfbcc82ccc8f76028411674fececabb24ce51a40d554b5e45b48",
     "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V4_PARAMETER_AUTHORITY"
   },
   "superseded_protocol": {
@@ -19,8 +19,8 @@
     "historical_note": "revision5/step5_sealed_calibration_protocol_v2.HISTORICAL.md"
   },
   "surface_counts": {
-    "total_targets": 415,
-    "fixed_targets": 130,
+    "total_targets": 427,
+    "fixed_targets": 142,
     "safety_params": 22,
     "in_house_eligible": 46,
     "external_eligible": 285,
@@ -42,6 +42,7 @@
     "docs/r5_parameter_authority/PHASE10_THREE_ENGINE_REPORT.md",
     "docs/r5_parameter_authority/PHASE10_THREE_ENGINE_REPORT_ALL_OPT_IN_MODES.json",
     "docs/r5_parameter_authority/PHASE10_THREE_ENGINE_REPORT_ALL_OPT_IN_MODES.md",
+    "docs/r5_parameter_authority/PROTOCOL_RESEAL_MANIFEST.json",
     "docs/r5_parameter_authority/README.md",
     "docs/r5_parameter_authority/REGISTRY_ADDITIONS.json",
     "docs/r5_parameter_authority/REMAINING_HARDCODED_VALUES.md",
@@ -52,8 +53,11 @@
     "docs/r5_parameter_authority/patches/docs__R5_AUXILIARY_PID_AUDIT.md.patch",
     "docs/r5_parameter_authority/patches/docs__R5_GOVERNOR_AUTHORITY.md.patch",
     "docs/r5_parameter_authority/patches/docs__R5_PARAMETER_INVENTORY.md.patch",
+    "docs/r5_parameter_authority/patches/engine_b__orchestrator.py.patch",
     "docs/r5_parameter_authority/patches/engine_b__runner.py.patch",
+    "docs/r5_parameter_authority/patches/engine_c__orchestrator.py.patch",
     "docs/r5_parameter_authority/patches/engine_c__runner.py.patch",
+    "docs/r5_parameter_authority/patches/revision2_external__dynamic_parameter_controller.py.patch",
     "docs/r5_parameter_authority/patches/revision2_external__orchestrator.py.patch",
     "docs/r5_parameter_authority/patches/revision5__ccpp_protection_cubicles.py.patch",
     "docs/r5_parameter_authority/patches/revision5__ccpp_unified_plant.py.patch",
@@ -62,10 +66,17 @@
     "docs/r5_parameter_authority/patches/revision5__governor.py.patch",
     "docs/r5_parameter_authority/patches/revision5__governor_authority.py.patch",
     "docs/r5_parameter_authority/patches/revision5__hrsg.py.patch",
+    "docs/r5_parameter_authority/patches/revision5__step5_sealed_calibration_protocol_v2.HISTORICAL.md.patch",
+    "docs/r5_parameter_authority/patches/revision5__step5_sealed_calibration_protocol_v4_parameter_authority.json.patch",
     "docs/r5_parameter_authority/patches/scripts__r5_authority_cli.py.patch",
+    "docs/r5_parameter_authority/patches/scripts__r5_collect_test_evidence.py.patch",
     "docs/r5_parameter_authority/patches/scripts__r5_controller_inventory.py.patch",
     "docs/r5_parameter_authority/patches/scripts__r5_golden_master_local.py.patch",
+    "docs/r5_parameter_authority/patches/scripts__r5_parameter_authority_report.py.patch",
+    "docs/r5_parameter_authority/patches/scripts__r5_phase2_classification.py.patch",
+    "docs/r5_parameter_authority/patches/scripts__r5_reseal_protocol.py.patch",
     "docs/r5_parameter_authority/patches/scripts__r5_supersede_closure_records.py.patch",
+    "docs/r5_parameter_authority/patches/scripts__r5_three_engine_report.py.patch",
     "docs/r5_parameter_authority/patches/scripts__run_engine_a_reference.py.patch",
     "docs/r5_parameter_authority/patches/scripts__run_engine_b_nautilus.py.patch",
     "docs/r5_parameter_authority/patches/scripts__run_engine_c_backtrader.py.patch",
@@ -82,11 +93,16 @@
     "docs/r5_parameter_authority/patches/tests_engine_b__test_engine_b_parameter_authority.py.patch",
     "docs/r5_parameter_authority/patches/tests_engine_c__test_engine_c_backtrader.py.patch",
     "docs/r5_parameter_authority/patches/tests_engine_c__test_engine_c_parameter_authority.py.patch",
+    "docs/r5_parameter_authority/phase2_parameter_classification.json",
+    "docs/r5_parameter_authority/phase2_parameter_classification.md",
     "docs/r5_parameter_authority/superseding/R5_FINAL_PARAMETER_CLOSURE.SUPERSEDING.csv",
     "docs/r5_parameter_authority/superseding/SUPERSEDED_ORIGINALS.json",
     "docs/r5_parameter_authority/superseding/WP-R5-001_UPDATED_PARAMETER_REGISTER.SUPERSEDING.json",
+    "engine_b/orchestrator.py",
     "engine_b/runner.py",
+    "engine_c/orchestrator.py",
     "engine_c/runner.py",
+    "revision2_external/dynamic_parameter_controller.py",
     "revision2_external/orchestrator.py",
     "revision5/ccpp_protection_cubicles.py",
     "revision5/ccpp_unified_plant.py",
@@ -95,11 +111,14 @@
     "revision5/governor.py",
     "revision5/governor_authority.py",
     "revision5/hrsg.py",
+    "revision5/step5_sealed_calibration_protocol_v2.HISTORICAL.md",
+    "revision5/step5_sealed_calibration_protocol_v4_parameter_authority.json",
     "scripts/r5_authority_cli.py",
     "scripts/r5_collect_test_evidence.py",
     "scripts/r5_controller_inventory.py",
     "scripts/r5_golden_master_local.py",
     "scripts/r5_parameter_authority_report.py",
+    "scripts/r5_phase2_classification.py",
     "scripts/r5_reseal_protocol.py",
     "scripts/r5_supersede_closure_records.py",
     "scripts/r5_three_engine_report.py",
@@ -365,7 +384,19 @@
     "sel_vol_surge_mult",
     "sel_vol_surge_stress_gain",
     "symbol_loss_cooldown_bars",
-    "symbol_trip_consecutive_losses"
+    "symbol_trip_consecutive_losses",
+    "tier1_atr_floor_max",
+    "tier1_atr_floor_min",
+    "tier1_normalized_vol_max",
+    "tier1_normalized_vol_min",
+    "tier1_slippage_scale_max",
+    "tier1_slippage_scale_min",
+    "tier3_kd_scale_max",
+    "tier3_kd_scale_min",
+    "tier3_ki_divisor_max",
+    "tier3_ki_divisor_min",
+    "tier3_kp_scale_max",
+    "tier3_kp_scale_min"
   ],
   "controller_modes": {
     "defaults": {
@@ -375,7 +406,9 @@
       "dispatcher_allocation_mode": "legacy",
       "hrsg_correlation_mode": "off",
       "final_exit_authority": false,
-      "authority_telemetry": false
+      "authority_telemetry": false,
+      "entry_fill_anchor_mode": "reanchor_distances",
+      "unit_protection_mode": "pre_synchronization"
     },
     "opt_in_not_sealed": {
       "governor_position_mode": [
@@ -392,31 +425,39 @@
       ],
       "final_exit_authority": [
         true
+      ],
+      "entry_fill_anchor_mode": [
+        "box6_levels"
+      ],
+      "unit_protection_mode": [
+        "pre_sync_and_in_flight"
       ]
     }
   },
   "tests": {
-    "commit": "13101806892e6151db79d24f78fb3b3dbf072023",
+    "commit": "b6fda7bcdc106bbf43bc44e55691762577fe8815 (engine_c rerun at 8a5c061; lint fix 2fde9dd: tests/test_revision5_engine_applicability.py 26 passed)",
     "environment": "operator desktop, ~/.venvs/zerodha-phase1-r5 (Python 3.12.14)",
     "suites": {
       "tests_main": {
-        "tests": 1345,
-        "failures": 0,
+        "tests": 1365,
+        "failures": 1,
         "errors": 0,
         "skipped": 7,
-        "passed": 1338,
-        "failed_tests": [],
+        "passed": 1357,
+        "failed_tests": [
+          "tests.test_revision5_engine_applicability::test_every_optimizer_and_search_space_caller_selects_an_explicit_engine"
+        ],
         "parameter_sweep": {
           "tests": 243,
           "failed": 0
         }
       },
       "engine_b": {
-        "tests": 18,
+        "tests": 21,
         "failures": 0,
         "errors": 0,
         "skipped": 0,
-        "passed": 18,
+        "passed": 21,
         "failed_tests": [],
         "parameter_sweep": {
           "tests": 0,
@@ -424,11 +465,11 @@
         }
       },
       "engine_c": {
-        "tests": 48,
+        "tests": 51,
         "failures": 0,
         "errors": 0,
         "skipped": 1,
-        "passed": 47,
+        "passed": 50,
         "failed_tests": [],
         "parameter_sweep": {
           "tests": 0,
