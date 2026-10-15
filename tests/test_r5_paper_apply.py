@@ -1,4 +1,5 @@
 """Offline PAPER_APPLY admission invariants. Synthetic grid is an explicit unit fixture."""
+import numpy as np
 import pandas as pd
 import pytest
 from revision5.ccpp_unified_plant import CentralPlantMasterDCS
@@ -18,6 +19,18 @@ def engine(vix=15.0, mode="PAPER_APPLY"):
     ts = times[-1] + pd.Timedelta('1min')
     for _ in range(10):orch._plant_control_shadow_step(ts, 1.0)
     return orch, ts
+
+
+def oscillating_bars(start, periods=90, drift=0.05):
+    """Small oscillating 1-minute ticks with a gentle up-drift.  Unlike flat bars they give
+    the native plant valid governor telemetry (z-score, ATR), so its entry gate can admit."""
+    i = np.arange(periods)
+    close = 1000.0 + drift * i + 0.8 * np.sin(i / 3.0)
+    open_ = np.concatenate([[close[0]], close[:-1]])
+    return pd.DataFrame({
+        "timestamp": pd.date_range(start, periods=periods, freq="min"),
+        "open": open_, "close": close, "high": np.maximum(open_, close) + 0.3,
+        "low": np.minimum(open_, close) - 0.3, "volume": 1000.0})
 
 
 def test_paper_cap_consumes_reference_and_never_increases_quantity():
@@ -100,18 +113,21 @@ def test_master_trip_and_86_lockout_override_previously_valid_reference():
 
 @pytest.mark.parametrize('vix,expect_fills',[(15,True),(35,False)])
 def test_pipeline_applies_grid_hold_before_any_entry_order(monkeypatch,vix,expect_fills):
-    from tests_external.test_audit_remediation import signal, long_bars
+    from tests_external.test_audit_remediation import signal
     from revision2.contracts import IDDecision
     o,t=engine(vix)
     monkeypatch.setattr(o.pa,'evaluate',lambda snapshot,cfg:(signal(),[]))
     monkeypatch.setattr(o.id_box,'evaluate',lambda *a,**kw:(IDDecision(True,'fixture',.8,2,.6),[]))
     monkeypatch.setattr(o.id_box,'_current_regime',lambda *a:'calm')
-    frame=long_bars()
-    frame['timestamp']=pd.date_range(t-pd.Timedelta('30min'),periods=len(frame),freq='min')
+    frame=oscillating_bars(t-pd.Timedelta('30min'))
     report=o.run({'INFY':frame},warmup=30)
     assert report['plant_control']['applied']
     assert bool(report['fills']) is expect_fills
     assert report['safety_violations']==0
+    if expect_fills:
+        # Every fill cleared the native plant's entry gate and was bound to its bay.
+        calls=report['plant_dcs_wiring']['call_counts']
+        assert calls['evaluate_entry']>0 and calls['on_trade_filled']==report['fills']
     if not expect_fills:
         assert report['orders_submitted']==0
         assert report['plant_control']['paper_admission_rejections']>0

@@ -78,9 +78,13 @@ class SimplePIDModelPredictiveControlBox:
         # Rolling per-symbol confidence history backing BOTH PIDs' adaptive
         # setpoint -- see _confidence_baseline below for why this exists.
         self._confidence_history: Dict[str, Deque[float]] = {}
+        # (Kp, Ki, Kd) multipliers from the R5 dynamic parameter controller,
+        # set per bay before each plan.  Neutral unless an R5 plant drives it.
+        self.gain_scale = (1.0, 1.0, 1.0)
 
     def _get_pid(self, store: Dict[str, PID], symbol: str, kp: float, ki: float, kd: float,
                  target: float, clamp: float) -> PID:
+        kp, ki, kd = (gain * scale for gain, scale in zip((kp, ki, kd), self.gain_scale))
         if symbol not in store:
             pid = PID(Kp=kp, Ki=ki, Kd=kd, setpoint=target, sample_time=None, output_limits=(-abs(clamp), abs(clamp)))
             store[symbol] = pid

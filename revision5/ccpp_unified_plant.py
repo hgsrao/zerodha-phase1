@@ -53,7 +53,10 @@ from revision5.governor import (
 )
 
 from revision5.hrsg import (
+    GAS_TURBINE_BAYS,
+    STEAM_TURBINE_BAYS,
     HRSGBalanceResult,
+    HRSGThermalState,
     HeatRecoverySteamGenerator,
 )
 
@@ -903,6 +906,8 @@ class TurbineBayPanel:
         mvar_reference_pu: float = 0.0,
         measured_mvar_pu: float = 0.0,
         avr_mode: str = "BUS_VOLTAGE",
+        side: str = "BUY",
+        entry_mode: str = "mean_reversion",
     ) -> dict:
         if hasattr(self, "startup_sequencer"):
             from revision5.startup_synchronization import (
@@ -973,6 +978,8 @@ class TurbineBayPanel:
                 grid_return_fraction=(
                     grid_return_fraction
                 ),
+                side=side,
+                entry_mode=entry_mode,
             )
         )
 
@@ -1084,6 +1091,7 @@ class TurbineBayPanel:
         mvar_reference_pu: float = 0.0,
         measured_mvar_pu: float = 0.0,
         avr_mode: str = "BUS_VOLTAGE",
+        position_id=None,
     ) -> dict:
         """
         Continuous physical-unit control:
@@ -1154,6 +1162,7 @@ class TurbineBayPanel:
                 max_hold_bars=max_hold_bars,
                 hard_stop_r=hard_stop_r,
                 trade_target_r=trade_target_r,
+                position_id=position_id,
             )
         )
 
@@ -1337,6 +1346,14 @@ class CentralPlantMasterDCS:
 
         self.dynamic_snapshot = None
         self._dynamic_bar_index = None
+
+        self.hrsg_thermal_state: Optional[
+            HRSGThermalState
+        ] = None
+
+        # Filled positions bound to their turbine bay, keyed by the
+        # caller's position id.
+        self.bound_positions: Dict[object, dict] = {}
 
         self.current_trading_date: Optional[
             date
@@ -1820,6 +1837,67 @@ class CentralPlantMasterDCS:
 
         self.current_bar_index = bar_index
 
+    def _gtg_available(
+        self,
+        bay_id: str,
+        bar_index: int,
+    ) -> bool:
+        bay = self.bays[bay_id]
+        return (
+            self.electrical_network.unit_available(bay_id)
+            and not bay.tripped_offline
+            and bay.cooldown_remaining(bar_index) == 0
+        )
+
+    def step_bar(
+        self,
+        *,
+        current_dt: datetime,
+        bar_index: int,
+        environment=None,
+        gtg_measurements: Optional[
+            Mapping[str, Mapping[str, float]]
+        ] = None,
+    ) -> dict:
+        """
+        One per-bar plant scan.
+
+        1. Session/clock bookkeeping and the dynamic operating snapshot
+           (governor/AVR/relay gains for all five bays).
+        2. HRSG thermal cycle from the measured GTG mass flow and exhaust
+           temperature.
+        3. HRSG capital balance, so low steam pressure immediately limits
+           every steam-turbine bay's effective allocation.
+        """
+        self.begin_bar(
+            current_dt,
+            bar_index,
+            environment=environment,
+        )
+
+        thermal = self.hrsg.step_bar(
+            bar_index=bar_index,
+            gtg_inputs=dict(gtg_measurements or {}),
+            gtg_available={
+                bay_id: self._gtg_available(
+                    bay_id,
+                    bar_index,
+                )
+                for bay_id in GAS_TURBINE_BAYS
+            },
+        )
+        self.hrsg_thermal_state = thermal
+
+        balance = self.apply_hrsg_balance(
+            bar_index=bar_index
+        )
+
+        return {
+            "thermal": thermal,
+            "balance": balance,
+            "dynamic_snapshot": self.dynamic_snapshot,
+        }
+
     def _hrsg_bay_states(
         self,
         bar_index: int,
@@ -2076,6 +2154,8 @@ class CentralPlantMasterDCS:
         measured_mvar_pu: float = 0.0,
         avr_mode: str = "BUS_VOLTAGE",
         dynamic_environment=None,
+        side: str = "BUY",
+        entry_mode: str = "mean_reversion",
     ) -> dict:
         validate_engine(engine_mode)
 
@@ -2165,6 +2245,20 @@ class CentralPlantMasterDCS:
 
         bay = self.bays[bay_id]
 
+        # Zero HRSG allocation leaves the last positive AVR capital in place
+        # (update_capital rejects zero), so it must block admission here.
+        if bay.effective_allocation <= 0.0:
+            return {
+                "admitted": False,
+                "reason": (
+                    "HRSG_NO_BAY_CAPACITY:"
+                    f"{bay_id}:steam_pressure="
+                    f"{self.hrsg.steam_pressure_pu:.3f}pu"
+                ),
+                "hrsg_effective_allocation": 0.0,
+                "hrsg_reserve_cash": self.hrsg_reserve_cash,
+            }
+
         result = bay.evaluate_admission(
             symbol=symbol,
             bar_index=bar_index,
@@ -2191,6 +2285,8 @@ class CentralPlantMasterDCS:
                 measured_mvar_pu
             ),
             avr_mode=avr_mode,
+            side=side,
+            entry_mode=entry_mode,
         )
 
         if (
@@ -2274,13 +2370,18 @@ class CentralPlantMasterDCS:
         measured_mvar_pu: float = 0.0,
         avr_mode: str = "BUS_VOLTAGE",
         dynamic_environment=None,
+        position_id=None,
     ) -> dict:
         """
         Continuous closed-loop control for an already-open position.
 
         Governor owns HOLD/EXIT.
         AVR controls permitted excitation/loading.
-        SEL/MiCOM may force EXIT.
+        SEL/MiCOM, the Engine-A session square-off and an HRSG steam
+        pressure collapse (steam bays only) may force EXIT.
+
+        ``position_id`` selects the bay governor's inner loop for this
+        position (a filled position bound by ``on_trade_filled``).
         """
         validate_engine(engine_mode)
 
@@ -2318,6 +2419,30 @@ class CentralPlantMasterDCS:
                     f"{grid_check.ansi_code}:"
                     f"{grid_check.reason}"
                 ),
+                "bay_id": bay_id,
+            }
+
+        if (
+            engine_mode == ENGINE_A
+            and engine_a_squareoff_due(bar_dt)
+        ):
+            return {
+                "action": "EXIT",
+                "reason": "SESSION_SQUAREOFF:ENGINE_A_15_15_IST",
+                "bay_id": bay_id,
+            }
+
+        if (
+            bay_id in STEAM_TURBINE_BAYS
+            and self.hrsg.pressure_collapsed
+        ):
+            return {
+                "action": "EXIT",
+                "reason": (
+                    "HRSG_PRESSURE_COLLAPSE:"
+                    f"{self.hrsg.steam_pressure_pu:.3f}pu"
+                ),
+                "bay_id": bay_id,
             }
 
         bay = self.bays[bay_id]
@@ -2350,6 +2475,7 @@ class CentralPlantMasterDCS:
                 measured_mvar_pu
             ),
             avr_mode=avr_mode,
+            position_id=self._position_key(position_id),
         )
 
         result.update(
@@ -2357,10 +2483,22 @@ class CentralPlantMasterDCS:
                 "engine": engine_mode,
                 "bay_id": bay_id,
                 "symbol": symbol,
+                "steam_pressure_pu": (
+                    self.hrsg.steam_pressure_pu
+                ),
             }
         )
 
         return result
+
+    @staticmethod
+    def _position_key(position_id):
+        """Bay-governor inner-loop key owned by the plant.
+
+        Namespaced so a caller that also drives the same governor with its
+        own position ids never shares an integrator with the plant.
+        """
+        return None if position_id is None else ("PLANT", position_id)
 
     def on_trade_filled(
         self,
@@ -2368,12 +2506,21 @@ class CentralPlantMasterDCS:
         engine_mode: str,
         symbol: str,
         filled_at: datetime,
+        position_id=None,
+        side: Optional[str] = None,
+        quantity: Optional[int] = None,
+        fill_price: Optional[float] = None,
     ) -> bool:
         """
         Confirm a broker/replay fill.
 
         Only a confirmed ENGINE_A fill consumes
         the persistent bay allowance.
+
+        With ``position_id`` the fill is also bound to its turbine bay:
+        the bay governor opens this position's own inner loop, and
+        ``evaluate_position_control(position_id=...)`` governs it until
+        ``release_position``.
         """
         validate_engine(engine_mode)
 
@@ -2381,8 +2528,10 @@ class CentralPlantMasterDCS:
             symbol
         )
 
+        accepted = True
+
         if engine_mode == ENGINE_A:
-            return (
+            accepted = (
                 self.state_store
                 .consume_engine_a_fill(
                     bay_id,
@@ -2390,7 +2539,59 @@ class CentralPlantMasterDCS:
                 )
             )
 
-        return True
+        if position_id is not None:
+            if position_id in self.bound_positions:
+                raise ValueError(
+                    f"position already bound: {position_id!r}"
+                )
+
+            self.bays[bay_id].governor.begin_position(
+                hard_stop_r=-1.0,
+                position_id=self._position_key(position_id),
+            )
+
+            self.bound_positions[position_id] = {
+                "bay_id": bay_id,
+                "symbol": symbol,
+                "engine": engine_mode,
+                "side": side,
+                "quantity": quantity,
+                "fill_price": fill_price,
+                "filled_at": filled_at,
+                "latch_accepted": accepted,
+            }
+
+        return accepted
+
+    def release_position(
+        self,
+        position_id,
+    ) -> Optional[dict]:
+        """Unbind a closed position and drop its bay inner loop."""
+        binding = self.bound_positions.pop(
+            position_id,
+            None,
+        )
+
+        if binding is not None:
+            self.bays[
+                binding["bay_id"]
+            ].governor.confirm_position_closed(
+                self._position_key(position_id)
+            )
+
+        return binding
+
+    def bay_bound_notional(
+        self,
+        bay_id: str,
+    ) -> float:
+        return sum(
+            float(row["quantity"] or 0)
+            * float(row["fill_price"] or 0.0)
+            for row in self.bound_positions.values()
+            if row["bay_id"] == bay_id
+        )
 
     def on_trade_closed(
         self,

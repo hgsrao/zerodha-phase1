@@ -44,14 +44,17 @@ def test_lockout_survives_session_clock_rollover():
 
 
 def fixture_run(path, crash='none'):
-    from tests_external.test_audit_remediation import signal, long_bars
+    from tests_external.test_audit_remediation import signal
+    from tests.test_r5_paper_apply import oscillating_bars
     from revision2.contracts import IDDecision
     o, t = engine()
     o.pa.evaluate = lambda snapshot, cfg: (signal(), [])
     o.id_box.evaluate = lambda *a, **kw: (IDDecision(True, 'fixture', .8, 2, .6), [])
     o.id_box._current_regime = lambda *a: 'calm'
-    data = long_bars()
-    data['timestamp'] = pd.date_range(t-pd.Timedelta(minutes=30), periods=len(data), freq='min')
+    # 60 warm-up bars so the causal buffers are mature at the first candidate, which must
+    # clear the plant before the tick-1 ANSI 86 trip; the gentle drift keeps its z-score
+    # inside the governor's overspeed limit.
+    data = oscillating_bars(t-pd.Timedelta(minutes=60), periods=120, drift=0.02)
     def after_commit(journal, eng):
         if crash == 'checkpoint' and eng.open_trades and journal.cursor >= 2:
             os._exit(73)
@@ -67,7 +70,7 @@ def fixture_run(path, crash='none'):
                 os._exit(74)
             return result
         o.broker.place_order = crash_after_fill
-    report = o.run({'INFY': data}, warmup=30)
+    report = o.run({'INFY': data}, warmup=60)
     assert report['fills'] > 0
     result = {'state': checkpoint_state(o), 'reconciled': journal.reconciled_checkpoints}
     Path(str(path)+'.result.json').write_text(json.dumps(result, default=str, sort_keys=True))
