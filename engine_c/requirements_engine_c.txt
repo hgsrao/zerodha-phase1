@@ -1,0 +1,10 @@
+# Engine C (Backtrader) dependency manifest.
+# Install INTO the existing R5 environment; this adds one package and upgrades nothing:
+#   pip install -r requirements_external_engine.txt      # shared R5 pins (unchanged)
+#   pip install --no-deps backtrader==1.9.78.123          # Engine C only
+# backtrader 1.9.78.123 is pure Python with no runtime dependencies (matplotlib only for plotting,
+# which Engine C never uses).  Verified with Python 3.13, numpy 2.5.2, pandas 2.3.3, pandera 0.33.1,
+# TA-Lib 0.7.1.  Engine B's nautilus_trader==1.231.0 is NOT required by Engine C; it is needed only
+# to run Engine B and its regression tests side by side.
+backtrader==1.9.78.123
+-r ../requirements_external_engine.txt
