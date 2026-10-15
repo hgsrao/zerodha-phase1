@@ -6,11 +6,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from revision2.contracts import IDDecision
 from revision2_external.grid_context import SealedGridContextProvider
 from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator as Engine
 from revision5.ccpp_unified_plant import CentralPlantMasterDCS
+from revision5.governor import BAY_GOVERNOR_SPECS
 from revision5.topology import GTG2_TECH_TELECOM
 from tests_external.test_audit_remediation import signal
 
@@ -59,9 +61,22 @@ def test_tracer_is_pass_through_and_records_every_loop(monkeypatch):
     summary = trace._summarize(tracer, traced, [GTG2_TECH_TELECOM], {"completed_trades": 0})
     gains = summary["gain_schedule"]
     assert gains["begin_bar_calls"] > 0
-    # The replay passes no dynamic environment: the bay's gains never change.
-    assert gains["begin_bar_with_environment"] == 0
-    assert gains["verdict"][GTG2_TECH_TELECOM] == "FIXED"
+    # Every bar the replay hands the plant a dynamic environment; the R5 controller's
+    # snapshot is installed on the bay governor and its gains move with the market.
+    assert gains["begin_bar_with_environment"] == traced["plant_dcs_wiring"]["call_counts"]["step_bar"] > 0
+    assert gains["apply_runtime_profile_calls"][GTG2_TECH_TELECOM] == gains["begin_bar_with_environment"]
+    assert gains["verdict"][GTG2_TECH_TELECOM] == "SCHEDULED"
+    orch, plant = tracer.orch, tracer.plant
+    profile = plant.dynamic_snapshot.governor_by_bay[GTG2_TECH_TELECOM]
+    governor = plant.bays[GTG2_TECH_TELECOM].governor
+    assert (governor.runtime_kp, governor.runtime_ki, governor.runtime_kd) == (profile.kp, profile.ki, profile.kd)
+    # The same schedule reaches the execution PIDs as a (Kp, Ki, Kd) ratio to the bay's base spec.
+    spec = BAY_GOVERNOR_SPECS[GTG2_TECH_TELECOM]
+    scale = (profile.kp / spec.kp, profile.ki / spec.ki, profile.kd / spec.kd)
+    assert orch._gain_scale_for("INFY") == pytest.approx(scale) != pytest.approx((1.0, 1.0, 1.0))
+    assert orch.mpc.gain_scale == pytest.approx(scale)
     for row in rows["entry"]:
-        assert abs(row["dynamic_z"] - (-2.0 + row["feedback_offset"] - row["droop_penalty"])) < 1e-12
-        assert abs(row["limit"] - (row["dynamic_z"] + 4.0)) < 1e-12      # trend_overspeed, base_z -2.0
+        # trend_overspeed: limit = dynamic_z - 2 * base_z, with base_z now scheduled per bar.
+        base_z = row["dynamic_z"] - row["feedback_offset"] + row["droop_penalty"]
+        assert spec.base_z - 0.5 - 1e-12 <= base_z <= spec.base_z + 0.1 + 1e-12
+        assert abs(row["limit"] - (row["dynamic_z"] - 2.0 * base_z)) < 1e-9
