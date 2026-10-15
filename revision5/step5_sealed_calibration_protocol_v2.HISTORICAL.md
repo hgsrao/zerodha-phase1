@@ -1,0 +1,3 @@
+# HISTORICAL: step5_sealed_calibration_protocol_v2.json
+
+`step5_sealed_calibration_protocol_v2.json` (sha256 `6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7`) is pinned to engine `c0b4672` and registry `12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d`. It is kept unchanged as a historical record and is superseded by `step5_sealed_calibration_protocol_v4_parameter_authority.json` (sha256 `11af39b51aa40a08dbd3b8406aa999ada49fe19ba5ec8cf4283d691900566501`, engine `3572a501bd1f73b42ffd3c5d203904f92a9afe5e`, registry `a4bdda2d7df63f838be49fc7e1ad08525e768eaedfec2af537c6abd764371f46`). No calibration may be run against V2 on this engine.

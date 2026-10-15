@@ -1,0 +1,1650 @@
+{
+  "block_execution_contract": {
+    "fresh_central_plant_master_dcs_per_block": true,
+    "fresh_orchestrator_per_block": true,
+    "future_or_validation_rows_may_not_influence_block_state": true,
+    "grid_context": "verified causal prefix through the block end; SealedGridContextProvider remains authoritative for availability",
+    "grid_rows_after_block_end_parsed": false,
+    "reason": "Revision2ExternalEngineOrchestrator.build_clock uses range(warmup, len(bars)-1); one real successor row is therefore required to evaluate the final target-session bar without synthetic timestamps or engine modification.",
+    "starting_equity_per_block": 1000000.0,
+    "state_carry_between_blocks": false,
+    "stock_post_block_boundary_row_may_generate_orders": false,
+    "stock_post_block_boundary_row_may_influence_indicators": false,
+    "stock_post_block_boundary_row_on_trading_clock": false,
+    "stock_post_block_boundary_row_purpose": "engine next-timestamp/session-boundary sentinel only",
+    "stock_post_block_boundary_row_scored": false,
+    "stock_post_block_boundary_row_source": "the single immediate next verified real 1-minute bar following the final target-session bar",
+    "stock_post_block_boundary_rows_per_symbol": 1,
+    "stock_rows_after_boundary_sentinel_parsed": false,
+    "stock_warmup_bars_per_symbol": 60,
+    "stock_warmup_source": "exactly the 60 immediately preceding verified real 1-minute bars for each symbol before the first target-session bar",
+    "synthetic_rows_allowed": false,
+    "target_sessions_are_scored_in_full": true,
+    "warmup_may_cross_previous_session_boundary": true,
+    "warmup_rows_are_scored": false
+  },
+  "contamination_rules": {
+    "2026_selection_data": false,
+    "oos_used_for_parameter_selection": false,
+    "retired_or_quarantined_2026_outputs": false,
+    "synthetic_market_data": false,
+    "synthetic_objective_scores": false,
+    "validation_used_for_candidate_ranking": false
+  },
+  "created_date": "2026-10-16",
+  "distributed_execution": {
+    "coordinator": "srinivas-B760M-AORUS-ELITE-AX",
+    "cross_machine_equivalence": {
+      "candidate_a_sha256": null,
+      "candidate_b_sha256": null,
+      "paper_apply_reference_sha256": null,
+      "status": "PENDING"
+    },
+    "engine_parent_commit": "3572a501bd1f73b42ffd3c5d203904f92a9afe5e",
+    "fresh_central_plant_master_dcs_per_block": true,
+    "fresh_process_per_candidate": true,
+    "live_broker_access": false,
+    "reference_worker": "srinivas-B760M-AORUS-ELITE-AX",
+    "secondary_worker": "shrinivas-Blade",
+    "shared_plant_state_between_blocks": false,
+    "transport": "SSH process execution",
+    "worker_tooling_identity": "Each run records Git HEAD, protocol SHA256 and worker-script SHA256. Tracked engine content must remain identical to frozen parent c0b4672; only Step-5 protocol/tooling files may differ."
+  },
+  "engine": {
+    "broker_network_access": false,
+    "closed_loop_mode": "active_paper",
+    "controller_modes": {
+      "authority_telemetry": false,
+      "avr_voltage_mode": "legacy",
+      "dispatcher_allocation_mode": "legacy",
+      "final_exit_authority": false,
+      "governor_authority": "full",
+      "governor_position_mode": "legacy",
+      "hrsg_correlation_mode": "off"
+    },
+    "governor_authority": "full",
+    "governor_authority_note": "full: the bay governor decides every entry and discretionary exit (safety and protection outrank it). Entry uses the trend_overspeed comparator and percentile-ranked FSRN; the earlier mean-reversion comparator with raw-confidence FSRN admitted 0 of 3559 block-1 trial-0 candidates. Engine c0b4672 adds the noise-scaled path-error tolerance (gov_path_error_sigma = 2.0, registry default): the 0.30R legacy tolerance cut 82 of 146 trial-0 trades within 1-3 bars.",
+    "grid_provider": "SealedGridContextProvider",
+    "live_trading": false,
+    "opt_in_modes_not_sealed": {
+      "avr_voltage_mode": [
+        "measured"
+      ],
+      "dispatcher_allocation_mode": [
+        "bounded"
+      ],
+      "final_exit_authority": [
+        true
+      ],
+      "governor_position_mode": [
+        "v3"
+      ],
+      "hrsg_correlation_mode": [
+        "causal_bay_returns"
+      ]
+    },
+    "orchestrator": "Revision2ExternalEngineOrchestrator",
+    "plant": "CentralPlantMasterDCS",
+    "plant_mode": "PAPER_APPLY"
+  },
+  "frozen_parent": {
+    "base": "cb10fac5be123f450ede9bb3e8c11ce2ec27817b",
+    "branch": "feature/r5-parameter-authority",
+    "commit": "3572a501bd1f73b42ffd3c5d203904f92a9afe5e",
+    "note": "engine with R5 controller parameter authority"
+  },
+  "grid_dataset": {
+    "availability_delay_minutes": 15,
+    "feeds": {
+      "INDIA_VIX_15MIN": {
+        "sha256": "9992deda85005fdb9ee2d6684f8a84a3cabd3f591655450207aeeaacbe7c1a8d",
+        "timestamp_column": "date"
+      },
+      "NIFTY_50_15MIN": {
+        "sha256": "c2e78705f61b5bad66257890ed1ec0cd3703571e721c16e1b2d2128ee4ea5443",
+        "timestamp_column": "timestamp"
+      }
+    },
+    "local_manifest": "local_workspace/records/grid-manifest-local.json",
+    "timestamp_policy": "source timestamps are conservatively treated as bar starts; availability is source timestamp plus 15 minutes"
+  },
+  "immutable_during_step5": [
+    "all safety parameters",
+    "all plant-control parameters",
+    "grid synchronization parameters",
+    "broker/execution safety contracts",
+    "dataset partitions",
+    "objective function",
+    "trial count",
+    "random seed",
+    "sampling-block construction"
+  ],
+  "objective": {
+    "minimum_completed_trades": 20,
+    "purpose": "training ranking only",
+    "score": "net_pnl - 1000000 * mtm_max_drawdown_fraction"
+  },
+  "optimizer": {
+    "candidate_parallelism": 2,
+    "jobs": 2,
+    "n_startup_trials": 2,
+    "name": "Optuna TPESampler",
+    "parallel_unit": "independent complete candidate replay; symbols within a candidate are never split",
+    "proposal_rule": "Generate trial numbers in ascending order before dispatching each batch; record completed results only after both workers return; tell Optuna in ascending trial-number order.",
+    "scheduler": "synchronous_two_trial_batches",
+    "seed": 20260924,
+    "trial_zero": "canonical current defaults",
+    "trials": 8
+  },
+  "parameter_authority": {
+    "calibration_status": "NOT_CALIBRATED: no calibration has run against this identity",
+    "module": "revision5/controller_parameters.py",
+    "parameters": {
+      "avr_excitation_max_base": {
+        "class": "FIXED_SAFETY",
+        "default": 1.0,
+        "optimizer_eligible": false
+      },
+      "avr_excitation_max_min": {
+        "class": "FIXED_SAFETY",
+        "default": 0.75,
+        "optimizer_eligible": false
+      },
+      "avr_excitation_max_stress_gain": {
+        "class": "FIXED_SAFETY",
+        "default": 0.25,
+        "optimizer_eligible": false
+      },
+      "avr_excitation_min_base": {
+        "class": "FIXED_SAFETY",
+        "default": 0.1,
+        "optimizer_eligible": false
+      },
+      "avr_excitation_min_max": {
+        "class": "FIXED_SAFETY",
+        "default": 0.2,
+        "optimizer_eligible": false
+      },
+      "avr_excitation_min_stress_gain": {
+        "class": "FIXED_SAFETY",
+        "default": 0.1,
+        "optimizer_eligible": false
+      },
+      "avr_integral_clamp_base": {
+        "class": "TUNABLE",
+        "default": 0.5,
+        "optimizer_eligible": true
+      },
+      "avr_integral_clamp_min": {
+        "class": "TUNABLE",
+        "default": 0.3,
+        "optimizer_eligible": true
+      },
+      "avr_integral_clamp_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.2,
+        "optimizer_eligible": true
+      },
+      "avr_kd_base": {
+        "class": "TUNABLE",
+        "default": 0.1,
+        "optimizer_eligible": true
+      },
+      "avr_kd_max": {
+        "class": "TUNABLE",
+        "default": 0.2,
+        "optimizer_eligible": true
+      },
+      "avr_kd_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.1,
+        "optimizer_eligible": true
+      },
+      "avr_ki_base": {
+        "class": "TUNABLE",
+        "default": 0.15,
+        "optimizer_eligible": true
+      },
+      "avr_ki_min": {
+        "class": "TUNABLE",
+        "default": 0.075,
+        "optimizer_eligible": true
+      },
+      "avr_ki_stress_gain": {
+        "class": "TUNABLE",
+        "default": 1.0,
+        "optimizer_eligible": true
+      },
+      "avr_kp_base": {
+        "class": "TUNABLE",
+        "default": 0.8,
+        "optimizer_eligible": true
+      },
+      "avr_kp_max": {
+        "class": "TUNABLE",
+        "default": 1.4,
+        "optimizer_eligible": true
+      },
+      "avr_kp_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.6,
+        "optimizer_eligible": true
+      },
+      "avr_loading_fraction_base": {
+        "class": "FIXED_SAFETY",
+        "default": 0.15,
+        "optimizer_eligible": false
+      },
+      "avr_loading_fraction_min": {
+        "class": "TUNABLE",
+        "default": 0.05,
+        "optimizer_eligible": true
+      },
+      "avr_mvar_limit_base_pu": {
+        "class": "INACTIVE",
+        "default": 0.9,
+        "optimizer_eligible": false
+      },
+      "avr_mvar_limit_min_pu": {
+        "class": "INACTIVE",
+        "default": 0.6,
+        "optimizer_eligible": false
+      },
+      "avr_mvar_limit_stress_gain": {
+        "class": "INACTIVE",
+        "default": 0.3,
+        "optimizer_eligible": false
+      },
+      "avr_oel_capital_fraction": {
+        "class": "FIXED_SAFETY",
+        "default": 0.4,
+        "optimizer_eligible": false
+      },
+      "avr_oel_fraction_min": {
+        "class": "TUNABLE",
+        "default": 0.15,
+        "optimizer_eligible": true
+      },
+      "avr_overvoltage_trip_base_pu": {
+        "class": "FIXED_SAFETY",
+        "default": 1.1,
+        "optimizer_eligible": false
+      },
+      "avr_overvoltage_trip_min_pu": {
+        "class": "FIXED_SAFETY",
+        "default": 1.05,
+        "optimizer_eligible": false
+      },
+      "avr_overvoltage_trip_stress_gain": {
+        "class": "FIXED_SAFETY",
+        "default": 0.05,
+        "optimizer_eligible": false
+      },
+      "avr_synchronous_reactance_pu": {
+        "class": "TUNABLE",
+        "default": 0.05,
+        "optimizer_eligible": true
+      },
+      "avr_uel_min_notional_inr": {
+        "class": "FIXED_SAFETY",
+        "default": 15000.0,
+        "optimizer_eligible": false
+      },
+      "avr_uel_multiplier_max": {
+        "class": "TUNABLE",
+        "default": 1.75,
+        "optimizer_eligible": true
+      },
+      "avr_uel_multiplier_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.75,
+        "optimizer_eligible": true
+      },
+      "avr_undervoltage_trip_base_pu": {
+        "class": "FIXED_SAFETY",
+        "default": 0.9,
+        "optimizer_eligible": false
+      },
+      "avr_undervoltage_trip_max_pu": {
+        "class": "FIXED_SAFETY",
+        "default": 0.95,
+        "optimizer_eligible": false
+      },
+      "avr_undervoltage_trip_stress_gain": {
+        "class": "FIXED_SAFETY",
+        "default": 0.05,
+        "optimizer_eligible": false
+      },
+      "avr_vol_scalar_max_base": {
+        "class": "TUNABLE",
+        "default": 2.0,
+        "optimizer_eligible": true
+      },
+      "avr_vol_scalar_max_min": {
+        "class": "TUNABLE",
+        "default": 0.75,
+        "optimizer_eligible": true
+      },
+      "avr_vol_scalar_min": {
+        "class": "TUNABLE",
+        "default": 0.2,
+        "optimizer_eligible": true
+      },
+      "avr_voltage_filter_alpha": {
+        "class": "TUNABLE",
+        "default": 1.0,
+        "optimizer_eligible": true
+      },
+      "avr_voltage_reference_pu": {
+        "class": "FIXED_SAFETY",
+        "default": 1.0,
+        "optimizer_eligible": false
+      },
+      "avr_z_strength_cap_base": {
+        "class": "TUNABLE",
+        "default": 1.5,
+        "optimizer_eligible": true
+      },
+      "avr_z_strength_cap_min": {
+        "class": "TUNABLE",
+        "default": 0.75,
+        "optimizer_eligible": true
+      },
+      "avr_z_strength_denominator_base": {
+        "class": "TUNABLE",
+        "default": 1.8,
+        "optimizer_eligible": true
+      },
+      "avr_z_strength_denominator_max": {
+        "class": "TUNABLE",
+        "default": 2.7,
+        "optimizer_eligible": true
+      },
+      "avr_z_strength_denominator_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.5,
+        "optimizer_eligible": true
+      },
+      "disp_allocation_ceiling": {
+        "class": "FIXED_SAFETY",
+        "default": 0.35,
+        "optimizer_eligible": false
+      },
+      "disp_allocation_floor": {
+        "class": "FIXED_SAFETY",
+        "default": 0.08,
+        "optimizer_eligible": false
+      },
+      "disp_downside_dev_default": {
+        "class": "TUNABLE",
+        "default": 0.5,
+        "optimizer_eligible": true
+      },
+      "disp_downside_dev_floor": {
+        "class": "TUNABLE",
+        "default": 0.2,
+        "optimizer_eligible": true
+      },
+      "disp_downside_min_count": {
+        "class": "TUNABLE",
+        "default": 2,
+        "optimizer_eligible": true
+      },
+      "disp_ema_retention": {
+        "class": "TUNABLE",
+        "default": 0.85,
+        "optimizer_eligible": true
+      },
+      "disp_ema_update": {
+        "class": "TUNABLE",
+        "default": 0.15,
+        "optimizer_eligible": true
+      },
+      "disp_merit_window": {
+        "class": "TUNABLE",
+        "default": 20,
+        "optimizer_eligible": true
+      },
+      "disp_min_samples": {
+        "class": "TUNABLE",
+        "default": 3,
+        "optimizer_eligible": true
+      },
+      "disp_neutral_score": {
+        "class": "TUNABLE",
+        "default": 1.0,
+        "optimizer_eligible": true
+      },
+      "disp_score_base": {
+        "class": "TUNABLE",
+        "default": 1.0,
+        "optimizer_eligible": true
+      },
+      "disp_score_floor": {
+        "class": "TUNABLE",
+        "default": 0.1,
+        "optimizer_eligible": true
+      },
+      "dyn_risk_derate_drawdown_gain": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "dyn_risk_derate_lower_bound": {
+        "class": "FIXED_SAFETY",
+        "default": 0.4,
+        "optimizer_eligible": false
+      },
+      "dyn_risk_derate_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.45,
+        "optimizer_eligible": true
+      },
+      "dyn_stress_chop_weight": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "dyn_stress_excess_vol_weight": {
+        "class": "TUNABLE",
+        "default": 0.2,
+        "optimizer_eligible": true
+      },
+      "dyn_stress_turbulent_weight": {
+        "class": "TUNABLE",
+        "default": 0.55,
+        "optimizer_eligible": true
+      },
+      "dyn_vol_max": {
+        "class": "FIXED_SAFETY",
+        "default": 2.5,
+        "optimizer_eligible": false
+      },
+      "dyn_vol_min": {
+        "class": "FIXED_SAFETY",
+        "default": 0.5,
+        "optimizer_eligible": false
+      },
+      "gov_bpstg_atr_barrier": {
+        "class": "ADVISORY",
+        "default": 1.4,
+        "optimizer_eligible": false
+      },
+      "gov_bpstg_base_z": {
+        "class": "TUNABLE",
+        "default": -1.8,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_capital_weight": {
+        "class": "TUNABLE",
+        "default": 0.12,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_droop_r": {
+        "class": "TUNABLE",
+        "default": 0.075,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_dynamic_offset_max": {
+        "class": "TUNABLE",
+        "default": 0.15,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_dynamic_offset_min": {
+        "class": "TUNABLE",
+        "default": -0.45,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_feedback_gain": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_grid_droop_gain": {
+        "class": "TUNABLE",
+        "default": 0.05,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_grid_droop_max": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_integral_clamp": {
+        "class": "TUNABLE",
+        "default": 3.0,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_kd": {
+        "class": "TUNABLE",
+        "default": 0.2,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_ki": {
+        "class": "TUNABLE",
+        "default": 0.04,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_kp": {
+        "class": "TUNABLE",
+        "default": 0.8,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_outcome_window": {
+        "class": "TUNABLE",
+        "default": 6,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_target_m": {
+        "class": "ADVISORY",
+        "default": 2.5,
+        "optimizer_eligible": false
+      },
+      "gov_bpstg_target_r": {
+        "class": "TUNABLE",
+        "default": 0.3,
+        "optimizer_eligible": true
+      },
+      "gov_bpstg_z_exit": {
+        "class": "INACTIVE",
+        "default": 0.4,
+        "optimizer_eligible": false
+      },
+      "gov_cstg1_atr_barrier": {
+        "class": "ADVISORY",
+        "default": 1.5,
+        "optimizer_eligible": false
+      },
+      "gov_cstg1_base_z": {
+        "class": "TUNABLE",
+        "default": -1.85,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_capital_weight": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_droop_r": {
+        "class": "TUNABLE",
+        "default": 0.055,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_dynamic_offset_max": {
+        "class": "TUNABLE",
+        "default": 0.15,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_dynamic_offset_min": {
+        "class": "TUNABLE",
+        "default": -0.45,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_feedback_gain": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_grid_droop_gain": {
+        "class": "TUNABLE",
+        "default": 0.05,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_grid_droop_max": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_integral_clamp": {
+        "class": "TUNABLE",
+        "default": 3.0,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_kd": {
+        "class": "TUNABLE",
+        "default": 0.15,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_ki": {
+        "class": "TUNABLE",
+        "default": 0.12,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_kp": {
+        "class": "TUNABLE",
+        "default": 0.9,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_outcome_window": {
+        "class": "TUNABLE",
+        "default": 6,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_target_m": {
+        "class": "ADVISORY",
+        "default": 2.8,
+        "optimizer_eligible": false
+      },
+      "gov_cstg1_target_r": {
+        "class": "TUNABLE",
+        "default": 0.3,
+        "optimizer_eligible": true
+      },
+      "gov_cstg1_z_exit": {
+        "class": "INACTIVE",
+        "default": 0.3,
+        "optimizer_eligible": false
+      },
+      "gov_cstg2_atr_barrier": {
+        "class": "ADVISORY",
+        "default": 1.65,
+        "optimizer_eligible": false
+      },
+      "gov_cstg2_base_z": {
+        "class": "TUNABLE",
+        "default": -1.95,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_capital_weight": {
+        "class": "TUNABLE",
+        "default": 0.18,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_droop_r": {
+        "class": "TUNABLE",
+        "default": 0.055,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_dynamic_offset_max": {
+        "class": "TUNABLE",
+        "default": 0.15,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_dynamic_offset_min": {
+        "class": "TUNABLE",
+        "default": -0.45,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_feedback_gain": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_grid_droop_gain": {
+        "class": "TUNABLE",
+        "default": 0.05,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_grid_droop_max": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_integral_clamp": {
+        "class": "TUNABLE",
+        "default": 3.0,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_kd": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_ki": {
+        "class": "TUNABLE",
+        "default": 0.07,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_kp": {
+        "class": "TUNABLE",
+        "default": 1.0,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_outcome_window": {
+        "class": "TUNABLE",
+        "default": 6,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_target_m": {
+        "class": "ADVISORY",
+        "default": 2.9,
+        "optimizer_eligible": false
+      },
+      "gov_cstg2_target_r": {
+        "class": "TUNABLE",
+        "default": 0.3,
+        "optimizer_eligible": true
+      },
+      "gov_cstg2_z_exit": {
+        "class": "INACTIVE",
+        "default": 0.4,
+        "optimizer_eligible": false
+      },
+      "gov_gtg1_atr_barrier": {
+        "class": "ADVISORY",
+        "default": 1.8,
+        "optimizer_eligible": false
+      },
+      "gov_gtg1_base_z": {
+        "class": "TUNABLE",
+        "default": -1.9,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_capital_weight": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_droop_r": {
+        "class": "TUNABLE",
+        "default": 0.04,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_dynamic_offset_max": {
+        "class": "TUNABLE",
+        "default": 0.15,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_dynamic_offset_min": {
+        "class": "TUNABLE",
+        "default": -0.45,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_feedback_gain": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_grid_droop_gain": {
+        "class": "TUNABLE",
+        "default": 0.05,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_grid_droop_max": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_integral_clamp": {
+        "class": "TUNABLE",
+        "default": 3.0,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_kd": {
+        "class": "TUNABLE",
+        "default": 0.3,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_ki": {
+        "class": "TUNABLE",
+        "default": 0.05,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_kp": {
+        "class": "TUNABLE",
+        "default": 1.2,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_outcome_window": {
+        "class": "TUNABLE",
+        "default": 6,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_target_m": {
+        "class": "ADVISORY",
+        "default": 3.0,
+        "optimizer_eligible": false
+      },
+      "gov_gtg1_target_r": {
+        "class": "TUNABLE",
+        "default": 0.3,
+        "optimizer_eligible": true
+      },
+      "gov_gtg1_z_exit": {
+        "class": "INACTIVE",
+        "default": 0.35,
+        "optimizer_eligible": false
+      },
+      "gov_gtg2_atr_barrier": {
+        "class": "ADVISORY",
+        "default": 2.1,
+        "optimizer_eligible": false
+      },
+      "gov_gtg2_base_z": {
+        "class": "TUNABLE",
+        "default": -2.0,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_capital_weight": {
+        "class": "TUNABLE",
+        "default": 0.2,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_droop_r": {
+        "class": "TUNABLE",
+        "default": 0.04,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_dynamic_offset_max": {
+        "class": "TUNABLE",
+        "default": 0.15,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_dynamic_offset_min": {
+        "class": "TUNABLE",
+        "default": -0.45,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_feedback_gain": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_grid_droop_gain": {
+        "class": "TUNABLE",
+        "default": 0.05,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_grid_droop_max": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_integral_clamp": {
+        "class": "TUNABLE",
+        "default": 3.0,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_kd": {
+        "class": "TUNABLE",
+        "default": 0.6,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_ki": {
+        "class": "TUNABLE",
+        "default": 0.08,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_kp": {
+        "class": "TUNABLE",
+        "default": 1.5,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_outcome_window": {
+        "class": "TUNABLE",
+        "default": 6,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_target_m": {
+        "class": "ADVISORY",
+        "default": 3.2,
+        "optimizer_eligible": false
+      },
+      "gov_gtg2_target_r": {
+        "class": "TUNABLE",
+        "default": 0.3,
+        "optimizer_eligible": true
+      },
+      "gov_gtg2_z_exit": {
+        "class": "INACTIVE",
+        "default": 0.5,
+        "optimizer_eligible": false
+      },
+      "gov_v3_base_gap_r": {
+        "class": "FIXED_SAFETY",
+        "default": 0.45,
+        "optimizer_eligible": false
+      },
+      "gov_v3_gamma_fast": {
+        "class": "TUNABLE",
+        "default": 0.85,
+        "optimizer_eligible": true
+      },
+      "gov_v3_gamma_slow": {
+        "class": "FIXED_SAFETY",
+        "default": 0.98,
+        "optimizer_eligible": false
+      },
+      "gov_v3_grace_bars": {
+        "class": "FIXED_SAFETY",
+        "default": 2,
+        "optimizer_eligible": false
+      },
+      "gov_v3_kappa": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gov_v3_mfe_activation_r": {
+        "class": "TUNABLE",
+        "default": 0.3,
+        "optimizer_eligible": true
+      },
+      "gov_v3_minimum_gap_r": {
+        "class": "FIXED_SAFETY",
+        "default": 0.15,
+        "optimizer_eligible": false
+      },
+      "gov_v3_noise_floor_mult": {
+        "class": "FIXED_SAFETY",
+        "default": 1.0,
+        "optimizer_eligible": false
+      },
+      "gov_v3_tau_error_multiplier": {
+        "class": "TUNABLE",
+        "default": 1.0,
+        "optimizer_eligible": true
+      },
+      "gsch_base_z_lower_offset": {
+        "class": "TUNABLE",
+        "default": 0.5,
+        "optimizer_eligible": true
+      },
+      "gsch_base_z_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gsch_base_z_trend_gain": {
+        "class": "TUNABLE",
+        "default": 0.1,
+        "optimizer_eligible": true
+      },
+      "gsch_base_z_upper_offset": {
+        "class": "TUNABLE",
+        "default": 0.1,
+        "optimizer_eligible": true
+      },
+      "gsch_droop_gain_max_scale": {
+        "class": "TUNABLE",
+        "default": 2.0,
+        "optimizer_eligible": true
+      },
+      "gsch_droop_gain_min_scale": {
+        "class": "TUNABLE",
+        "default": 0.5,
+        "optimizer_eligible": true
+      },
+      "gsch_droop_gain_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.5,
+        "optimizer_eligible": true
+      },
+      "gsch_droop_max_max_scale": {
+        "class": "TUNABLE",
+        "default": 1.6,
+        "optimizer_eligible": true
+      },
+      "gsch_droop_max_min_scale": {
+        "class": "INACTIVE",
+        "default": 0.8,
+        "optimizer_eligible": false
+      },
+      "gsch_droop_max_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.6,
+        "optimizer_eligible": true
+      },
+      "gsch_droop_r_min_scale": {
+        "class": "TUNABLE",
+        "default": 0.6,
+        "optimizer_eligible": true
+      },
+      "gsch_droop_r_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gsch_integral_error_gain": {
+        "class": "TUNABLE",
+        "default": 0.5,
+        "optimizer_eligible": true
+      },
+      "gsch_integral_max_scale": {
+        "class": "INACTIVE",
+        "default": 1.25,
+        "optimizer_eligible": false
+      },
+      "gsch_integral_min_scale": {
+        "class": "TUNABLE",
+        "default": 0.5,
+        "optimizer_eligible": true
+      },
+      "gsch_integral_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.8,
+        "optimizer_eligible": true
+      },
+      "gsch_kd_error_gain": {
+        "class": "TUNABLE",
+        "default": 0.7,
+        "optimizer_eligible": true
+      },
+      "gsch_kd_scale_max": {
+        "class": "TUNABLE",
+        "default": 2.0,
+        "optimizer_eligible": true
+      },
+      "gsch_kd_scale_min": {
+        "class": "INACTIVE",
+        "default": 0.6,
+        "optimizer_eligible": false
+      },
+      "gsch_kd_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.5,
+        "optimizer_eligible": true
+      },
+      "gsch_ki_divisor_max": {
+        "class": "TUNABLE",
+        "default": 3.5,
+        "optimizer_eligible": true
+      },
+      "gsch_ki_divisor_min": {
+        "class": "TUNABLE",
+        "default": 1.0,
+        "optimizer_eligible": true
+      },
+      "gsch_ki_error_gain": {
+        "class": "TUNABLE",
+        "default": 1.5,
+        "optimizer_eligible": true
+      },
+      "gsch_ki_stress_gain": {
+        "class": "TUNABLE",
+        "default": 1.0,
+        "optimizer_eligible": true
+      },
+      "gsch_kp_error_gain": {
+        "class": "TUNABLE",
+        "default": 1.0,
+        "optimizer_eligible": true
+      },
+      "gsch_kp_scale_max": {
+        "class": "TUNABLE",
+        "default": 2.2,
+        "optimizer_eligible": true
+      },
+      "gsch_kp_scale_min": {
+        "class": "INACTIVE",
+        "default": 0.6,
+        "optimizer_eligible": false
+      },
+      "gsch_kp_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gsch_offset_min_lower_scale": {
+        "class": "TUNABLE",
+        "default": 1.5,
+        "optimizer_eligible": true
+      },
+      "gsch_offset_min_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.25,
+        "optimizer_eligible": true
+      },
+      "gsch_offset_min_upper_scale": {
+        "class": "INACTIVE",
+        "default": 0.75,
+        "optimizer_eligible": false
+      },
+      "gsch_target_max_scale": {
+        "class": "TUNABLE",
+        "default": 1.25,
+        "optimizer_eligible": true
+      },
+      "gsch_target_min_scale": {
+        "class": "TUNABLE",
+        "default": 0.7,
+        "optimizer_eligible": true
+      },
+      "gsch_target_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.15,
+        "optimizer_eligible": true
+      },
+      "gsch_target_trend_gain": {
+        "class": "TUNABLE",
+        "default": 0.15,
+        "optimizer_eligible": true
+      },
+      "gsch_window_max": {
+        "class": "TUNABLE",
+        "default": 12,
+        "optimizer_eligible": true
+      },
+      "gsch_window_min": {
+        "class": "TUNABLE",
+        "default": 3,
+        "optimizer_eligible": true
+      },
+      "gsch_window_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.8,
+        "optimizer_eligible": true
+      },
+      "hrsg_correlation_window": {
+        "class": "TUNABLE",
+        "default": 30,
+        "optimizer_eligible": true
+      },
+      "hrsg_max_steam_pressure_pu": {
+        "class": "FIXED_SAFETY",
+        "default": 1.5,
+        "optimizer_eligible": false
+      },
+      "hrsg_min_correlation_samples": {
+        "class": "TUNABLE",
+        "default": 6,
+        "optimizer_eligible": true
+      },
+      "hrsg_min_penalty_factor": {
+        "class": "FIXED_SAFETY",
+        "default": 0.7,
+        "optimizer_eligible": false
+      },
+      "hrsg_min_steam_pressure_pu": {
+        "class": "FIXED_SAFETY",
+        "default": 0.35,
+        "optimizer_eligible": false
+      },
+      "hrsg_pressure_time_constant_bars": {
+        "class": "TUNABLE",
+        "default": 5.0,
+        "optimizer_eligible": true
+      },
+      "hrsg_recovery_fraction": {
+        "class": "TUNABLE",
+        "default": 0.6,
+        "optimizer_eligible": true
+      },
+      "hrsg_rho_crit": {
+        "class": "TUNABLE",
+        "default": 0.65,
+        "optimizer_eligible": true
+      },
+      "micom_crash_min_pct": {
+        "class": "FIXED_SAFETY",
+        "default": 0.008,
+        "optimizer_eligible": false
+      },
+      "micom_crash_stress_gain": {
+        "class": "FIXED_SAFETY",
+        "default": 0.25,
+        "optimizer_eligible": false
+      },
+      "micom_drawdown_min_pct": {
+        "class": "FIXED_SAFETY",
+        "default": 0.01,
+        "optimizer_eligible": false
+      },
+      "micom_drawdown_stress_gain": {
+        "class": "FIXED_SAFETY",
+        "default": 0.35,
+        "optimizer_eligible": false
+      },
+      "micom_max_daily_fleet_drawdown_pct": {
+        "class": "FIXED_SAFETY",
+        "default": 0.02,
+        "optimizer_eligible": false
+      },
+      "micom_max_regime_vol_z": {
+        "class": "FIXED_SAFETY",
+        "default": 3.0,
+        "optimizer_eligible": false
+      },
+      "micom_nifty_crash_rate_pct": {
+        "class": "FIXED_SAFETY",
+        "default": 0.015,
+        "optimizer_eligible": false
+      },
+      "micom_overfrequency_ratio": {
+        "class": "FIXED_SAFETY",
+        "default": 1.5,
+        "optimizer_eligible": false
+      },
+      "micom_vol_z_min": {
+        "class": "FIXED_SAFETY",
+        "default": 1.8,
+        "optimizer_eligible": false
+      },
+      "micom_vol_z_stress_gain": {
+        "class": "FIXED_SAFETY",
+        "default": 0.3,
+        "optimizer_eligible": false
+      },
+      "plant_bay_lockout_consecutive_stops": {
+        "class": "FIXED_SAFETY",
+        "default": 2,
+        "optimizer_eligible": false
+      },
+      "plant_loss_cooldown_base_bars": {
+        "class": "TUNABLE",
+        "default": 15,
+        "optimizer_eligible": true
+      },
+      "plant_loss_cooldown_max_bars": {
+        "class": "TUNABLE",
+        "default": 30,
+        "optimizer_eligible": true
+      },
+      "plant_loss_cooldown_min_bars": {
+        "class": "TUNABLE",
+        "default": 8,
+        "optimizer_eligible": true
+      },
+      "plant_loss_cooldown_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.9,
+        "optimizer_eligible": true
+      },
+      "plant_loss_cooldown_stress_offset": {
+        "class": "TUNABLE",
+        "default": 0.8,
+        "optimizer_eligible": true
+      },
+      "plant_stop_floor_price_fraction": {
+        "class": "ADVISORY",
+        "default": 0.0065,
+        "optimizer_eligible": false
+      },
+      "plant_target_cooldown_base_bars": {
+        "class": "TUNABLE",
+        "default": 3,
+        "optimizer_eligible": true
+      },
+      "plant_target_cooldown_max_bars": {
+        "class": "TUNABLE",
+        "default": 8,
+        "optimizer_eligible": true
+      },
+      "plant_target_cooldown_min_bars": {
+        "class": "TUNABLE",
+        "default": 2,
+        "optimizer_eligible": true
+      },
+      "plant_target_cooldown_stress_gain": {
+        "class": "TUNABLE",
+        "default": 0.7,
+        "optimizer_eligible": true
+      },
+      "plant_target_cooldown_stress_offset": {
+        "class": "TUNABLE",
+        "default": 0.8,
+        "optimizer_eligible": true
+      },
+      "plant_target_min_reward_risk": {
+        "class": "ADVISORY",
+        "default": 1.5,
+        "optimizer_eligible": false
+      },
+      "sel_adverse_min_bars": {
+        "class": "INACTIVE",
+        "default": 2,
+        "optimizer_eligible": false
+      },
+      "sel_adverse_stress_gain": {
+        "class": "INACTIVE",
+        "default": 0.5,
+        "optimizer_eligible": false
+      },
+      "sel_max_adverse_bars": {
+        "class": "INACTIVE",
+        "default": 4,
+        "optimizer_eligible": false
+      },
+      "sel_max_slippage_fraction": {
+        "class": "INACTIVE",
+        "default": 0.0035,
+        "optimizer_eligible": false
+      },
+      "sel_max_spread_fraction": {
+        "class": "FIXED_SAFETY",
+        "default": 0.005,
+        "optimizer_eligible": false
+      },
+      "sel_slippage_min_fraction": {
+        "class": "INACTIVE",
+        "default": 0.002,
+        "optimizer_eligible": false
+      },
+      "sel_slippage_stress_gain": {
+        "class": "INACTIVE",
+        "default": 0.3,
+        "optimizer_eligible": false
+      },
+      "sel_spread_min_fraction": {
+        "class": "FIXED_SAFETY",
+        "default": 0.0025,
+        "optimizer_eligible": false
+      },
+      "sel_spread_stress_gain": {
+        "class": "FIXED_SAFETY",
+        "default": 0.4,
+        "optimizer_eligible": false
+      },
+      "sel_stale_tick_limit_seconds": {
+        "class": "FIXED_SAFETY",
+        "default": 120.0,
+        "optimizer_eligible": false
+      },
+      "sel_stale_tick_min_seconds": {
+        "class": "FIXED_SAFETY",
+        "default": 45.0,
+        "optimizer_eligible": false
+      },
+      "sel_stale_tick_stress_gain": {
+        "class": "FIXED_SAFETY",
+        "default": 0.5,
+        "optimizer_eligible": false
+      },
+      "sel_vol_surge_min_mult": {
+        "class": "FIXED_SAFETY",
+        "default": 2.0,
+        "optimizer_eligible": false
+      },
+      "sel_vol_surge_mult": {
+        "class": "FIXED_SAFETY",
+        "default": 3.5,
+        "optimizer_eligible": false
+      },
+      "sel_vol_surge_stress_gain": {
+        "class": "FIXED_SAFETY",
+        "default": 0.3,
+        "optimizer_eligible": false
+      },
+      "symbol_loss_cooldown_bars": {
+        "class": "FIXED_SAFETY",
+        "default": 15,
+        "optimizer_eligible": false
+      },
+      "symbol_trip_consecutive_losses": {
+        "class": "FIXED_SAFETY",
+        "default": 2,
+        "optimizer_eligible": false
+      }
+    },
+    "search_space_unchanged": true
+  },
+  "periods": {
+    "fresh_oos_rule": "Acquire and seal post-2026-08-24 data only after the winning configuration and validation result are frozen.",
+    "selection_excluded_start": "2026-01-01",
+    "train_end_exclusive": "2025-07-01",
+    "train_start": "2023-09-01",
+    "validation_end_exclusive": "2026-01-01",
+    "validation_start": "2025-07-01"
+  },
+  "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V4_PARAMETER_AUTHORITY",
+  "registry_identity_sha256": "a4bdda2d7df63f838be49fc7e1ad08525e768eaedfec2af537c6abd764371f46",
+  "sampling_plan": {
+    "common_training_sessions": 453,
+    "construction": "Five consecutive sessions drawn from deterministic interior chronological quantiles of sessions common to all 48 symbols plus NIFTY and VIX.",
+    "stage_a": [
+      {
+        "block": 1,
+        "center_index": 113,
+        "end": "2024-02-19",
+        "sessions": [
+          "2024-02-13",
+          "2024-02-14",
+          "2024-02-15",
+          "2024-02-16",
+          "2024-02-19"
+        ],
+        "start": "2024-02-13"
+      },
+      {
+        "block": 2,
+        "center_index": 226,
+        "end": "2024-08-05",
+        "sessions": [
+          "2024-07-30",
+          "2024-07-31",
+          "2024-08-01",
+          "2024-08-02",
+          "2024-08-05"
+        ],
+        "start": "2024-07-30"
+      },
+      {
+        "block": 3,
+        "center_index": 339,
+        "end": "2025-01-16",
+        "sessions": [
+          "2025-01-10",
+          "2025-01-13",
+          "2025-01-14",
+          "2025-01-15",
+          "2025-01-16"
+        ],
+        "start": "2025-01-10"
+      }
+    ],
+    "stage_b": [
+      {
+        "block": 1,
+        "center_index": 65,
+        "end": "2023-12-11",
+        "sessions": [
+          "2023-12-05",
+          "2023-12-06",
+          "2023-12-07",
+          "2023-12-08",
+          "2023-12-11"
+        ],
+        "start": "2023-12-05"
+      },
+      {
+        "block": 2,
+        "center_index": 129,
+        "end": "2024-03-12",
+        "sessions": [
+          "2024-03-05",
+          "2024-03-06",
+          "2024-03-07",
+          "2024-03-11",
+          "2024-03-12"
+        ],
+        "start": "2024-03-05"
+      },
+      {
+        "block": 3,
+        "center_index": 194,
+        "end": "2024-06-19",
+        "sessions": [
+          "2024-06-12",
+          "2024-06-13",
+          "2024-06-14",
+          "2024-06-18",
+          "2024-06-19"
+        ],
+        "start": "2024-06-12"
+      },
+      {
+        "block": 4,
+        "center_index": 258,
+        "end": "2024-09-19",
+        "sessions": [
+          "2024-09-13",
+          "2024-09-16",
+          "2024-09-17",
+          "2024-09-18",
+          "2024-09-19"
+        ],
+        "start": "2024-09-13"
+      },
+      {
+        "block": 5,
+        "center_index": 323,
+        "end": "2024-12-24",
+        "sessions": [
+          "2024-12-18",
+          "2024-12-19",
+          "2024-12-20",
+          "2024-12-23",
+          "2024-12-24"
+        ],
+        "start": "2024-12-18"
+      },
+      {
+        "block": 6,
+        "center_index": 387,
+        "end": "2025-03-26",
+        "sessions": [
+          "2025-03-20",
+          "2025-03-21",
+          "2025-03-24",
+          "2025-03-25",
+          "2025-03-26"
+        ],
+        "start": "2025-03-20"
+      }
+    ]
+  },
+  "search_space": {
+    "entry_confidence_threshold": {
+      "default": 0.15,
+      "maximum": 0.35,
+      "minimum": 0.02,
+      "type": "float"
+    },
+    "max_hold_bars": {
+      "default": 60,
+      "maximum": 120,
+      "minimum": 20,
+      "type": "int"
+    },
+    "minimum_profit_margin_over_cost": {
+      "default": 0.5,
+      "maximum": 2.0,
+      "minimum": 0.0,
+      "type": "float"
+    },
+    "profit_target_atr_mult": {
+      "default": 1.5,
+      "maximum": 2.5,
+      "minimum": 0.8,
+      "type": "float"
+    },
+    "stop_loss_atr_mult": {
+      "default": 1.2,
+      "maximum": 1.2,
+      "minimum": 0.3,
+      "type": "float"
+    }
+  },
+  "search_surface": [
+    "entry_confidence_threshold",
+    "profit_target_atr_mult",
+    "stop_loss_atr_mult",
+    "minimum_profit_margin_over_cost",
+    "max_hold_bars"
+  ],
+  "selection_data_contract": {
+    "existing_2026_research_outputs_eligible_for_selection": false,
+    "fresh_post_2026_08_24_oos_loaded_before_configuration_freeze": false,
+    "no_timestamp_at_or_after_2026_01_01_used_for_selection": true,
+    "train_only_for_stage_a_b_c": true,
+    "validation_loaded_only_after_training_winner_is_frozen": true
+  },
+  "stage_a": {
+    "aggregation": {
+      "completed_trades": "sum across blocks",
+      "gross_pnl": "sum across blocks",
+      "hard_safety_gate": "aggregated safety_violations must equal 0",
+      "insufficient_trade_score": -1000000000.0,
+      "minimum_completed_trades": 20,
+      "mtm_max_drawdown_fraction": "maximum across blocks",
+      "net_pnl": "sum across blocks",
+      "safety_failure": "candidate rejected and cannot rank",
+      "safety_violations": "sum across blocks",
+      "score": "aggregated_net_pnl - 1000000 * maximum_block_mtm_max_drawdown_fraction",
+      "tie_break_order": [
+        "higher score",
+        "higher aggregated net_pnl",
+        "lower maximum block mtm_max_drawdown_fraction",
+        "higher completed_trades",
+        "lower trial number"
+      ]
+    },
+    "blocks": 3,
+    "placement": "deterministic evenly-spaced chronological training-session quantiles",
+    "price_values_must_not_influence_block_selection": true,
+    "purpose": "candidate search",
+    "sessions_per_block": 5,
+    "trial_count": 8,
+    "trial_zero": "canonical current defaults",
+    "warmup_bars_per_symbol": 60
+  },
+  "stage_b": {
+    "aggregation": {
+      "completed_trades": "sum across blocks",
+      "gross_pnl": "sum across blocks",
+      "hard_safety_gate": "aggregated safety_violations must equal 0",
+      "insufficient_trade_score": -1000000000.0,
+      "minimum_completed_trades": 20,
+      "mtm_max_drawdown_fraction": "maximum across blocks",
+      "net_pnl": "sum across blocks",
+      "safety_failure": "candidate rejected and cannot rank",
+      "safety_violations": "sum across blocks",
+      "score": "aggregated_net_pnl - 1000000 * maximum_block_mtm_max_drawdown_fraction",
+      "tie_break_order": [
+        "higher score",
+        "higher aggregated net_pnl",
+        "lower maximum block mtm_max_drawdown_fraction",
+        "higher completed_trades",
+        "lower trial number"
+      ]
+    },
+    "blocks": 6,
+    "candidate_count": 2,
+    "placement": "deterministic evenly-spaced chronological training-session quantiles",
+    "purpose": "training-only finalist selection",
+    "sessions_per_block": 5,
+    "top_candidates_from_stage_a": 2,
+    "warmup_bars_per_symbol": 60,
+    "winner_rule": "highest predeclared objective score"
+  },
+  "stage_c": {
+    "candidate": "stage_b_winner_only",
+    "candidates": 1,
+    "data": "entire frozen TRAIN interval only",
+    "execution_node": "desktop reference worker",
+    "fallback_to_second_candidate_after_failure": false,
+    "fresh_central_plant_master_dcs": true,
+    "maximum_safety_violations": 0,
+    "minimum_completed_trades": 20,
+    "parameter_changes": false,
+    "purpose": "full-training confirmation",
+    "warmup_bars_per_symbol": 60
+  },
+  "stock_dataset": {
+    "manifest": "revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json",
+    "manifest_hash": "f724074ca45eb9380ba6e7cf18ae1da4d9c9d48be0cf78ca51b0faa8d8d8ff16",
+    "symbols": 48
+  },
+  "supersedes": {
+    "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V2",
+    "reason": "V2 is pinned to engine c0b4672 and registry 12b700d6...; the engine now owns every native R5 controller value in the registry (identity changed).",
+    "sha256": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7"
+  },
+  "validation": {
+    "candidate": "frozen_stage_b_winner_after_stage_c_pass",
+    "candidates": 1,
+    "execution_count": 1,
+    "execution_node": "desktop reference worker",
+    "fallback_candidate_on_failure": false,
+    "fresh_central_plant_master_dcs": true,
+    "maximum_mtm_drawdown_fraction": 0.15,
+    "maximum_safety_violations": 0,
+    "minimum_completed_trades": 20,
+    "minimum_profit_factor": 1.05,
+    "parameter_changes_after_validation_starts": false,
+    "require_positive_net_pnl": true,
+    "retune_on_failure": false,
+    "used_for_ranking": false,
+    "warmup_bars_per_symbol": 60
+  }
+}
