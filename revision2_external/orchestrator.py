@@ -149,6 +149,7 @@ class Revision2ExternalEngineOrchestrator:
         real_plant_dcs: Optional[Any] = None,
         paper_journal: Optional[Any] = None,
         governor_authority: str = "advisory",
+        final_exit_authority: bool = False,
         plant_engine_mode: str = ENGINE_A,
     ) -> None:
         # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
@@ -400,6 +401,9 @@ class Revision2ExternalEngineOrchestrator:
         # Governor authority: registry-owned Mark V gate and causal market telemetry.  Telemetry
         # and bay exhaust spread are measured once per portfolio timestamp (one owner each).
         self.governor_authority = governor_authority
+        # Explicit research opt-in.  The default preserves the sealed baseline: the
+        # final execution controller remains telemetry-only unless enabled by a caller.
+        self.final_exit_authority = bool(final_exit_authority)
         self.governor_config = GovernorAuthorityConfig.from_config(self.config)
         self.consumed_parameters.update(GOVERNOR_AUTHORITY_PARAMETERS)
         self._governor_telemetry: Dict[str, BarTelemetry] = {}
@@ -1515,6 +1519,22 @@ class Revision2ExternalEngineOrchestrator:
             self._record_controller_event("FINAL_EXECUTION_EXIT_DECISION", timestamp, symbol, {
                 "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"), **final_exit,
             })
+            if self.final_exit_authority and final_exit.get("action") in {"EXIT", "EXIT_NEXT_BAR"}:
+                # The decision is based on a completed bar and becomes effective at the
+                # next bar's open. Hard stop/target gaps retain precedence in the pending
+                # exit handler; HOLD/PROTECT never loosen a one-way stop.
+                trade["controller_exit_pending"] = {
+                    "armed_timestamp": str(timestamp),
+                    "reason": final_exit.get("reason", "FINAL_EXECUTION_EXIT"),
+                    "exit_reason": f"final_controller_exit:{final_exit.get('reason', 'unknown')}",
+                    "event": "FINAL_EXECUTION_EXIT_ARMED",
+                }
+                self._record_controller_event("FINAL_EXECUTION_EXIT_ARMED", timestamp, symbol, {
+                    "candidate_id": trade.get("candidate_id"),
+                    "trade_id": trade.get("trade_id"),
+                    **trade["controller_exit_pending"],
+                })
+                return
 
         exit_price, reason = None, None
         if trade["side"] == "BUY":
