@@ -146,18 +146,23 @@ class HMMIntelligentDiscriminationBox:
 
         Decisions read ``latest_regime``; they never append the same close again.
         The event timestamp distinguishes consecutive bars with equal closes.
+
+        Inputs are validated before anything else, so an invalid close raises
+        without changing state even when its timestamp repeats the last one.
+        A valid repeat of the last timestamp is idempotent: it returns the
+        cached regime and ignores the close, even if the close differs.
         """
         event_time = pd.Timestamp(timestamp)
         if pd.isna(event_time):
             raise ValueError("HMM observation requires a valid timestamp")
+        close = float(latest_close)
+        if not np.isfinite(close) or close <= 0.0:
+            raise ValueError("HMM observation requires a finite positive close")
         last = self._last_observed_bar.get(symbol)
         if last is not None and event_time < last:
             raise ValueError("HMM observations must arrive in causal order")
         if last == event_time:
             return self.latest_regime(symbol)
-        close = float(latest_close)
-        if not np.isfinite(close) or close <= 0.0:
-            raise ValueError("HMM observation requires a finite positive close")
         regime = self._current_regime(symbol, close)
         self._latest_regime[symbol] = regime
         self._last_observed_bar[symbol] = event_time

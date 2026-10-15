@@ -32,6 +32,8 @@ def test_gate12_accepts_minimum_bracket_after_price_rounding(side, entry):
 
 @pytest.mark.parametrize('ratio,passed', [
     (math.nextafter(1.5, 0.), True), (1.5, True), (1.50001, True),
+    (1.5 - 5e-10, True), (1.5 - 9.9e-10, True),  # inside the absolute 1e-9 tolerance
+    (1.5 - 1.1e-9, False), (1.5 - 2e-9, False),  # just outside it (no relative allowance)
     (1.5 - 1e-7, False), (1.49, False), (0., False),
     (float('nan'), False), (float('inf'), False), (-float('inf'), False),
 ])
@@ -40,9 +42,14 @@ def test_gate12_tolerance_does_not_admit_material_shortfalls(ratio, passed):
 
 
 @pytest.mark.parametrize('value', [float('nan'), float('inf'), -float('inf')])
-def test_gate12_rejects_nonfinite_confidence_and_thresholds(value):
-    assert not Gate12StrategySignals().evaluate(entry_signal(confidence=value)).passed
-    assert not Gate12StrategySignals(SafetyGateConfig(min_risk_reward_ratio=value)).evaluate(entry_signal()).passed
+@pytest.mark.parametrize('field', ['confidence', 'ratio', 'min_confidence', 'min_ratio'])
+def test_gate12_rejects_each_nonfinite_input(value, field):
+    signal_ = entry_signal(confidence=value) if field == 'confidence' else (
+        entry_signal(ratio=value) if field == 'ratio' else entry_signal())
+    config = SafetyGateConfig(**({'min_signal_confidence': value} if field == 'min_confidence' else
+                                 {'min_risk_reward_ratio': value} if field == 'min_ratio' else {}))
+    decision = Gate12StrategySignals(config).evaluate(signal_)
+    assert not decision.passed and decision.reason == 'non-finite strategy signal or threshold'
 
 
 def test_hmm_observation_reads_do_not_double_append_equal_price_bars():
@@ -78,22 +85,40 @@ def test_hmm_rejects_out_of_order_observations_and_returns_defensive_telemetry()
     assert box.latest_regime_observation('INFY')['posterior'] == [.8, .2]
 
 
-def test_replay_observes_warmup_held_and_entry_ineligible_bars(monkeypatch):
-    from tests.test_r5_governor_authority import _pipeline
-    from tests_external.test_audit_remediation import long_bars
-    original = HMMIntelligentDiscriminationBox.observe_bar
-    seen = []
+def _seeded_box(n=80, seed=3):
+    box = HMMIntelligentDiscriminationBox()
+    box.calibrate('INFY', pd.DataFrame({'close': []}))
+    closes = 1000. * np.exp(np.cumsum(np.random.default_rng(seed).normal(0, .004, n)))
+    for minute, close in enumerate(closes):
+        box.observe_bar('INFY', float(close), timestamp=str(pd.Timestamp('2024-03-01 09:15') + pd.Timedelta(minutes=minute)))
+    return box, pd.Timestamp('2024-03-01 09:15') + pd.Timedelta(minutes=n - 1)
 
-    def observe(self, symbol, close, *, timestamp):
-        seen.append((symbol, timestamp))
-        return original(self, symbol, close, timestamp=timestamp)
 
-    monkeypatch.setattr(HMMIntelligentDiscriminationBox, 'observe_bar', observe)
-    orch, result = _pipeline(monkeypatch, 'advisory')
-    assert result['trades']  # real paper positions were held during this feed
-    assert len(seen) == len(long_bars()) - 1  # last row is the unprocessed fill/reconciliation sentinel
-    assert len(set(seen)) == len(seen)
-    assert len(orch.id_box._last_observed_bar) == 1
+def _snapshot(box):
+    posterior = box._cached_posterior.get('INFY')
+    return (list(box._bar_history['INFY']), box._bars_since_refit.get('INFY'),
+            None if posterior is None else posterior.tolist(), box.latest_regime('INFY'),
+            box._last_observed_bar.get('INFY'), box.latest_regime_observation('INFY'))
+
+
+def test_valid_duplicate_timestamp_is_idempotent_and_ignores_a_changed_close():
+    box, last = _seeded_box()
+    assert box._cached_posterior.get('INFY') is not None  # past min history: a real posterior
+    before = _snapshot(box)
+    assert box.observe_bar('INFY', 1234.5, timestamp=str(last)) == before[3]  # changed valid close ignored
+    box.observe_bar('INFY', before[0][-1], timestamp=str(last))
+    assert _snapshot(box) == before  # no history append, no refit-counter step, no filter step
+
+
+@pytest.mark.parametrize('close', [float('nan'), float('inf'), -float('inf'), 0., -1.])
+def test_invalid_close_on_a_duplicate_timestamp_raises_without_changing_state(close):
+    box, last = _seeded_box()
+    before = _snapshot(box)
+    with pytest.raises(ValueError, match='finite positive close'):
+        box.observe_bar('INFY', close, timestamp=str(last))
+    with pytest.raises(ValueError, match='finite positive close'):
+        box.observe_bar('INFY', close, timestamp=str(last + pd.Timedelta(minutes=1)))
+    assert _snapshot(box) == before
 
 
 def decide(mode, **overrides):

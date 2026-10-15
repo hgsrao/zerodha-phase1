@@ -15,6 +15,13 @@ protocol files are untouched, and nothing here is a profitability claim.
   checks. Entry and exit read `latest_regime()` and never append again. Duplicate timestamps do not
   re-append, out-of-order or invalid closes raise, recalibration clears the symbol's cached state.
   The standalone `evaluate(..., latest_close=<float>)` API keeps its old behaviour.
+  - Input validation runs first: a non-finite or non-positive close raises without changing state,
+    even when its timestamp repeats the last observation.
+  - A valid repeat of the last timestamp is idempotent. It returns the cached regime and ignores the
+    close, even if the close differs; history, refit counter and posterior do not move.
+  - Refit convention (unchanged): with `id_refit_every_bars` = 20 the counter resets to 0 on a fit
+    and steps by 1 on each later eligible observation, so fits are 21 eligible observations apart.
+    The first fit is on the `id_min_history_bars`-th observation.
 
 ## Already on this base
 
@@ -26,18 +33,39 @@ protocol files are untouched, and nothing here is a profitability claim.
 - PR #8's diagnostic-observer isolation: the gate-funnel observer hooks do not exist on this lineage.
   Its two observer tests and the funnel-script change were dropped.
 - V3 position-controller test cases: V3 is not on this lineage, so governor tests run in legacy mode only.
-- The replay-observation test uses this branch's engine harness in advisory authority.
+- PR #8's replay-observation test relied on a harness that mocks the regime model; it is replaced
+  by `tests/test_r5_step0_hmm_replay.py`, which drives the real HMM through the real replay loop
+  (see below).
+
+## Replay coverage
+
+`tests/test_r5_step0_hmm_replay.py` replays two symbols over two sessions of synthetic bars with the
+real HMM (no market data). PA, ID approval, one symbol's upstream admission and the new-entry halt
+are controlled so that warm-up, held positions, upstream rejection, halted entries and the session
+boundary all occur. It checks that each processed bar is observed exactly once and in order, that
+warm-up hands over without a gap or repeat, and that the final fill/reconciliation bar is not
+observed. Histories, refit indices and posteriors must match an independent box fed the same
+prefixes, entry and exit reads must leave the HMM untouched, and rewriting future closes must not
+change earlier posteriors. Moving the observation back behind the admission filter makes it fail.
 
 ## Validation
 
-`tests` + `tests_external`, same environment for base and candidate, excluding
+`tests` + `tests_external` on the final tree and on base `440ca5f`, run side by side in the same
+environment (Python 3.11.15, pandas 2.3.3, NumPy 2.4.6, pytest 9.1.1), excluding
 `tests/legacy_quarantine`, `tests_external/test_broker_adapter_kite.py` and
 `tests_external/test_data_loader_arctic.py` (packages not installed):
 
-| tree | passed | failed | skipped |
-| --- | ---: | ---: | ---: |
-| base `440ca5f` | 798 | 13 | 7 |
-| candidate | 847 | 13 | 7 |
+| tree | passed | failed | skipped | passed subtests |
+| --- | ---: | ---: | ---: | ---: |
+| base `440ca5f` | 798 | 13 | 7 | 146 |
+| final candidate | 873 | 13 | 7 | 146 |
 
-The 13 failures are identical on both and all need the real market dataset, which is absent in that
-environment (the loader returns None). Neither suite fully passes.
+Neither suite fully passes. The same 13 tests fail on both with the same exception. Each one loads
+the frozen 48-symbol dataset named in `revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json`, whose
+`data_dir` is a desktop path absent from this environment, so `MarketDataLoader._load_symbol_csv`
+returns None (`'NoneType' object has no attribute 'tail'`/`'head'`, `not subscriptable`, or
+`assert (None is not None)`). These results are not evidence about those 13 tests' behaviour.
+
+Sealed `revision2/`, every protocol/JSON file, and `revision5/governor.py`,
+`revision5/governor_authority.py`, `revision5/governor_position_policy.py` are byte-identical to
+`440ca5f`.
