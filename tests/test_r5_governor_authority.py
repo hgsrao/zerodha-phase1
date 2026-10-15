@@ -301,7 +301,8 @@ def _engine(authority="full", nifty=None, closed_loop_mode="active_paper"):
 
 
 def _pipeline(monkeypatch, authority, entry=None, position=None):
-    from tests_external.test_audit_remediation import signal, long_bars
+    from tests_external.test_audit_remediation import signal
+    from tests.test_r5_paper_apply import oscillating_bars
     from revision2.contracts import IDDecision
     orch, ts = _engine(authority, closed_loop_mode="active_paper" if authority == "full" else "shadow")
     monkeypatch.setattr(orch.pa, "evaluate", lambda snapshot, cfg: (signal(), []))
@@ -311,8 +312,7 @@ def _pipeline(monkeypatch, authority, entry=None, position=None):
         monkeypatch.setattr(orchestrator_module, "governor_entry_decision", entry)
     if position is not None:
         monkeypatch.setattr(orchestrator_module, "governor_position_decision", position)
-    frame = long_bars()
-    frame["timestamp"] = pd.date_range(ts - pd.Timedelta("30min"), periods=len(frame), freq="min")
+    frame = oscillating_bars(ts - pd.Timedelta("30min"))
     report = orch.run({"INFY": frame}, warmup=30)
     return orch, report
 

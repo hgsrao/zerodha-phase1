@@ -201,9 +201,17 @@ class Gate11LambdaDerating(BaseGate):
 
 class Gate12StrategySignals(BaseGate):
     def evaluate(self, signal: EntrySignal) -> GateDecision:
+        if not all(math.isfinite(value) for value in (
+                signal.confidence, signal.risk_reward_ratio,
+                self.config.min_signal_confidence, self.config.min_risk_reward_ratio)):
+            return self._make_decision("Gate12StrategySignals", False, "non-finite strategy signal or threshold")
         if signal.confidence < self.config.min_signal_confidence:
             return self._make_decision("Gate12StrategySignals", False, f"confidence {signal.confidence} below threshold {self.config.min_signal_confidence}")
-        if signal.risk_reward_ratio < self.config.min_risk_reward_ratio:
+        # Bracket prices can round an exact minimum ratio a few ulps below
+        # the threshold. Tolerate numerical error, not a material shortfall.
+        if (signal.risk_reward_ratio < self.config.min_risk_reward_ratio
+                and not math.isclose(signal.risk_reward_ratio, self.config.min_risk_reward_ratio,
+                                     rel_tol=0.0, abs_tol=1e-9)):
             return self._make_decision("Gate12StrategySignals", False, f"risk/reward {signal.risk_reward_ratio} below threshold {self.config.min_risk_reward_ratio}")
         return self._make_decision("Gate12StrategySignals", True, "strategy signals acceptable")
 

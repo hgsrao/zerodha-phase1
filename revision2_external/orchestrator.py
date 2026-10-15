@@ -72,6 +72,9 @@ from revision5.governor_authority import (
 from revision5.plant_control import (
     BayStatus, PlantControlChain, PlantControlError, PlantControlSnapshot, PlantControlMode,
 )
+from revision5.dynamic_parameters import R5EnvironmentState
+from revision5.engine_state import ENGINE_A, VALID_ENGINES
+from revision5.hrsg import GAS_TURBINE_BAYS
 from revision5.protection_snapshot import build_plant_protection_snapshot, derive_bay_status_and_master_block
 from revision5.supervisory_bridge import Revision5SupervisoryBridge, SupervisorySnapshotError
 from revision5.topology import (
@@ -88,6 +91,14 @@ SNAPSHOT_LOOKBACK_BARS = 300
 # A net losing exit blocks new entries in that symbol until bar index
 # exit_bar + BAY_LOSS_COOLDOWN_BARS.  Session rollover clears the latch.
 BAY_LOSS_COOLDOWN_BARS = 15
+
+# Native plant EXIT reasons that are protection trips (actuated at the next open as
+# ``plant_trip:<reason>``).  A plant-governor EXIT is advisory: the orchestrator's own
+# governor step owns discretionary exits.
+_PLANT_TRIP_PREFIXES = (
+    "SUBSTATION_TRIP", "SEL300G_TRIP", "AVR_TRIP", "SESSION_SQUAREOFF", "HRSG_PRESSURE_COLLAPSE",
+    "UNMAPPED_SYMBOL", "SYMBOL_NOT_IN_BAY", "PLANT_INPUT_INVALID", "ENGINE_A_FILL_LATCH_REJECTED",
+)
 
 # Float-quantity tolerance for the broker/ledger position-reconciliation check below.
 _POSITION_RECONCILIATION_EPS = 1e-6
@@ -137,6 +148,7 @@ class Revision2ExternalEngineOrchestrator:
         real_plant_dcs: Optional[Any] = None,
         paper_journal: Optional[Any] = None,
         governor_authority: str = "advisory",
+        plant_engine_mode: str = ENGINE_A,
     ) -> None:
         # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
         # Default None -- unchanged behaviour: this replay engine does not instantiate a real plant,
@@ -368,6 +380,22 @@ class Revision2ExternalEngineOrchestrator:
             self.plant_control.dispatch_controller.merit_source = self.real_plant_dcs.dispatcher
         if paper_journal is not None and self.plant_control.mode != PlantControlMode.PAPER_APPLY:
             raise PlantControlError("Durable replay requires PAPER_APPLY")
+        # Native plant execution wiring (PAPER_APPLY only; SHADOW never mutates the plant):
+        # every bar steps the plant (dynamic gains + HRSG thermal cycle), every candidate is
+        # gated and sized by evaluate_entry(), every fill is bound to its bay through
+        # on_trade_filled(), and every open position is governed by evaluate_position_control().
+        if plant_engine_mode not in VALID_ENGINES:
+            raise ValueError(f"plant_engine_mode must be one of {VALID_ENGINES}")
+        self.plant_engine_mode = plant_engine_mode
+        self._plant_wired = self.plant_control.mode == PlantControlMode.PAPER_APPLY
+        self.plant_call_counts: Counter[str] = Counter()
+        self._plant_trip_counts: Counter[str] = Counter()
+        self._plant_entry_rejections: Counter[str] = Counter()
+        self._dynamic_gain_scale: Dict[str, Tuple[float, float, float]] = {}
+        self._vol_baseline: Dict[str, float] = {}
+        self._micom_measurements: Optional[Tuple[float, float]] = None
+        self._micom_drawdown = 0.0
+        self.plant_bar_trace: List[Dict[str, Any]] = []
         # Governor authority: registry-owned Mark V gate and causal market telemetry.  Telemetry
         # and bay exhaust spread are measured once per portfolio timestamp (one owner each).
         self.governor_authority = governor_authority
@@ -539,6 +567,7 @@ class Revision2ExternalEngineOrchestrator:
             minimum_aligned_bars=sync.min_aligned_bars)
         measured = (nifty_intertie_measurements(grid.aligned["close_nifty"].to_numpy(), self.micom_vol_z_window)
                     if grid.available else None)
+        self._micom_measurements, self._micom_drawdown = measured, drawdown
         if measured is None:
             trip = {"ansi_code": "MICOM_INPUT_UNAVAILABLE",
                     "reason": grid.reason if not grid.available else "NIFTY_HISTORY_INSUFFICIENT",
@@ -609,6 +638,236 @@ class Revision2ExternalEngineOrchestrator:
         self._record_controller_event("PLANT_CONTROL_PAPER_ADMISSION", timestamp, symbol,
                                       {"requested_quantity": quantity, **result})
         return allowed
+
+    # ------------------------------------------------------------------
+    # Native R5 plant execution wiring (PAPER_APPLY only)
+    # ------------------------------------------------------------------
+    def _gain_scale_for(self, symbol: str) -> Tuple[float, float, float]:
+        """(Kp, Ki, Kd) multipliers for this symbol's bay from the current R5 snapshot."""
+        return self._dynamic_gain_scale.get(_R5_SYMBOL_TO_BAY.get(symbol), (1.0, 1.0, 1.0))
+
+    def _plant_environment(self, tick_events) -> R5EnvironmentState:
+        """Causal R5 supervisory environment for this timestamp: volatility against each
+        symbol's own EMA baseline, HMM stress posterior, trend share and fleet drawdown."""
+        alpha = 2.0 / (self.governor_config.z_window_bars + 1.0)
+        ratios, stress, trending, measured = [], [], 0, 0
+        for event in tick_events:
+            telemetry = self._governor_telemetry.get(event.symbol)
+            if telemetry is None or not telemetry.available or not telemetry.atr_fraction:
+                continue
+            measured += 1
+            fraction = float(telemetry.atr_fraction)
+            baseline = self._vol_baseline.get(event.symbol)
+            if baseline is not None and baseline > 0.0:
+                ratios.append(fraction / baseline)
+            self._vol_baseline[event.symbol] = (
+                fraction if baseline is None else baseline + alpha * (fraction - baseline))
+            trending += int(abs(float(telemetry.z_score)) >= 1.0)
+            observation = self.id_box.latest_regime_observation(event.symbol)
+            if observation.get("available") and observation.get("stress_probability") is not None:
+                stress.append(float(observation["stress_probability"]))
+        turbulent = min(1.0, max(0.0, sum(stress) / len(stress))) if stress else 1.0 / 3.0
+        trend_share = trending / measured if measured else 0.5
+        ratios.sort()
+        governors = [bay.governor for bay in self.real_plant_dcs.bays.values()]
+        return R5EnvironmentState(
+            normalized_vol=ratios[len(ratios) // 2] if ratios else 1.0,
+            trend_probability=(1.0 - turbulent) * trend_share,
+            chop_probability=(1.0 - turbulent) * (1.0 - trend_share),
+            turbulent_probability=turbulent,
+            fleet_drawdown_fraction=self._current_drawdown(),
+            control_error_delta=sum(g.last_error for g in governors) / len(governors),
+        )
+
+    def _gtg_measurements(self, tick_events, symbol_bars) -> Dict[str, Dict[str, float]]:
+        """GTG mass flow (bar volume over its trailing mean) and exhaust temperature (bar
+        range over ATR), the median across each gas-turbine bay's members at this instant."""
+        window = self.governor_config.z_window_bars
+        flows: Dict[str, List[float]] = {}
+        temps: Dict[str, List[float]] = {}
+        for event in tick_events:
+            bay_id = _R5_SYMBOL_TO_BAY.get(event.symbol)
+            telemetry = self._governor_telemetry.get(event.symbol)
+            frame = symbol_bars[event.symbol]
+            if (bay_id not in GAS_TURBINE_BAYS or telemetry is None or not telemetry.available
+                    or not telemetry.atr or "volume" not in frame.columns or event.bar_idx < 1):
+                continue
+            row = frame.iloc[event.bar_idx]
+            trailing = frame["volume"].iloc[max(0, event.bar_idx - window):event.bar_idx]
+            mean_volume = float(trailing.mean())
+            if not math.isfinite(mean_volume) or mean_volume <= 0.0:
+                continue
+            flows.setdefault(bay_id, []).append(float(row["volume"]) / mean_volume)
+            temps.setdefault(bay_id, []).append((float(row["high"]) - float(row["low"])) / float(telemetry.atr))
+        median = lambda values: sorted(values)[len(values) // 2]
+        return {bay_id: {"mass_flow_pu": median(flows[bay_id]), "exhaust_temp_pu": median(temps[bay_id])}
+                for bay_id in flows}
+
+    def _plant_bar_step(self, timestamp, tick_events, symbol_bars) -> None:
+        """Every bar: dynamic operating snapshot, HRSG thermal cycle and capital balance on
+        the native plant, then the snapshot's gains onto the execution PIDs."""
+        if not self._plant_wired:
+            return
+        plant = self.real_plant_dcs
+        self.plant_call_counts["step_bar"] += 1
+        result = plant.step_bar(
+            current_dt=self._replay_event_time(timestamp), bar_index=self._native_bar_index,
+            environment=self._plant_environment(tick_events),
+            gtg_measurements=self._gtg_measurements(tick_events, symbol_bars))
+        snapshot = result["dynamic_snapshot"]
+        for bay_id, profile in snapshot.governor_by_bay.items():
+            spec = BAY_GOVERNOR_SPECS[bay_id]
+            self._dynamic_gain_scale[bay_id] = tuple(
+                (float(getattr(profile, name)) / float(getattr(spec, name))) if getattr(spec, name) else 1.0
+                for name in ("kp", "ki", "kd"))
+        thermal = result["thermal"]
+        row = {
+            "timestamp": str(timestamp), "bar_index": self._native_bar_index,
+            "steam_pressure_pu": thermal.steam_pressure_pu, "heat_input_pu": thermal.heat_input_pu,
+            "steam_capacity_factor": thermal.steam_capacity_factor,
+            "pressure_collapsed": thermal.pressure_collapsed, "gtg_inputs": thermal.gtg_inputs,
+            "reserve_cash": plant.hrsg_reserve_cash,
+            "dynamic_version": snapshot.version, "stress_index": snapshot.stress_index,
+            "bays": {bay_id: {
+                "effective_allocation": bay.effective_allocation,
+                "tripped_offline": bay.tripped_offline,
+                "cooldown_remaining": bay.cooldown_remaining(self._native_bar_index),
+                "unit_available": plant.electrical_network.unit_available(bay_id),
+                "governor_kp": bay.governor.runtime_kp, "governor_ki": bay.governor.runtime_ki,
+                "governor_kd": bay.governor.runtime_kd, "base_z": bay.governor.runtime_base_z,
+                "gain_scale": self._dynamic_gain_scale[bay_id],
+            } for bay_id, bay in plant.bays.items()},
+        }
+        if self.telemetry_mode == "full":
+            self.plant_bar_trace.append(row)
+        self._record_controller_event("PLANT_BAR_STEP", timestamp, "PLANT", {
+            key: row[key] for key in ("steam_pressure_pu", "heat_input_pu", "steam_capacity_factor",
+                                      "pressure_collapsed", "reserve_cash", "stress_index")})
+
+    def _plant_quote(self, price: float) -> Tuple[float, float]:
+        """Replay has no quotes: bid/ask are the paper broker's own adverse-fill band."""
+        slip = float(self.broker.slippage_fraction)
+        return price * (1.0 - slip), price * (1.0 + slip)
+
+    def _plant_grid_inputs(self) -> Dict[str, float]:
+        nifty_return, vol_z = self._micom_measurements or (0.0, 0.0)
+        return {"nifty_15m_ret": float(nifty_return), "nifty_vol_z": float(vol_z),
+                "fleet_equity_dd_pct": float(self._micom_drawdown)}
+
+    def _plant_entry_gate(self, symbol, timestamp, side, quantity, price, bar, candidate_id,
+                          governor_entry) -> int:
+        """Native plant entry authority.  Returns the plant-approved quantity: the bay AVR
+        lot, capped by the bay's remaining HRSG-effective capital headroom, times the
+        governor's selected FSR.  Zero means the plant (or any of its bays) rejected."""
+        plant = self.real_plant_dcs
+        telemetry = self._governor_telemetry.get(symbol)
+        bay_id = _R5_SYMBOL_TO_BAY.get(symbol)
+        result: Dict[str, Any] = {"admitted": False}
+        if self._micom_trip is not None:
+            result["reason"] = f"PLANT_MICOM_TRIP_ACTIVE:{self._micom_trip['ansi_code']}"
+        elif (telemetry is None or not telemetry.available or not telemetry.atr
+              or telemetry.z_score is None):
+            result["reason"] = "PLANT_TELEMETRY_UNAVAILABLE"
+        else:
+            self.plant_call_counts["evaluate_entry"] += 1
+            bid, ask = self._plant_quote(price)
+            result = plant.evaluate_entry(
+                engine_mode=self.plant_engine_mode, symbol=symbol,
+                bar_dt=self._replay_event_time(timestamp), bar_index=self._native_bar_index,
+                z_score=float(telemetry.z_score), price=float(price), atr=float(telemetry.atr),
+                bid=bid, ask=ask, tick_age_s=0.0, bar_range=float(bar["high"]) - float(bar["low"]),
+                side=side, entry_mode="trend_overspeed", **self._plant_grid_inputs())
+        allowed = 0
+        detail: Dict[str, Any] = {}
+        if result.get("admitted"):
+            bay = plant.bays[result["bay_id"]]
+            bay_notional = sum(t["quantity"] * self._last_close.get(s, t["entry_price"])
+                               for s, t in self.open_trades.items() if _R5_SYMBOL_TO_BAY.get(s) == bay.bay_id)
+            headroom = max(0.0, float(bay.effective_allocation) - bay_notional)
+            fsr = float(governor_entry.get("size_multiplier", 1.0)) if self._governor_full else 1.0
+            plant_quantity = int(math.floor(min(int(result["quantity"]), math.floor(headroom / price)) * fsr))
+            allowed = max(0, plant_quantity)
+            detail = {"avr_quantity": int(result["quantity"]), "bay_headroom_notional": headroom,
+                      "bay_open_notional": bay_notional, "fsr": fsr, "plant_quantity": allowed}
+            if allowed <= 0:
+                result["reason"] = "PLANT_BAY_HEADROOM_EXHAUSTED"
+        if allowed <= 0:
+            self._plant_entry_rejections[str(result.get("reason", "UNKNOWN")).split(":")[0]] += 1
+        self._record_controller_event("PLANT_DCS_ENTRY", timestamp, symbol, {
+            "candidate_id": candidate_id, "bay_id": bay_id, "requested_quantity": int(quantity),
+            "admitted": bool(result.get("admitted")) and allowed > 0, "reason": result.get("reason"),
+            "dynamic_z": result.get("dynamic_z"),
+            "hrsg_effective_allocation": result.get("hrsg_effective_allocation"), **detail})
+        return allowed
+
+    def _plant_register_fill(self, symbol, fill_timestamp, trade) -> None:
+        """Bind a confirmed fill to its turbine bay on the native plant.  A fill the plant's
+        Engine-A latch refuses is unwound at the next open as a plant trip."""
+        self.plant_call_counts["on_trade_filled"] += 1
+        accepted = self.real_plant_dcs.on_trade_filled(
+            engine_mode=self.plant_engine_mode, symbol=symbol,
+            filled_at=self._replay_event_time(fill_timestamp), position_id=trade["trade_id"],
+            side=trade["side"], quantity=int(trade["quantity"]), fill_price=float(trade["entry_price"]))
+        binding = self.real_plant_dcs.bound_positions[trade["trade_id"]]
+        trade["plant_bay_id"] = binding["bay_id"]
+        self._record_controller_event("PLANT_FILL_BOUND", fill_timestamp, symbol, {
+            "trade_id": trade["trade_id"], "bay_id": binding["bay_id"], "latch_accepted": accepted,
+            "quantity": int(trade["quantity"]), "fill_price": float(trade["entry_price"])})
+        if not accepted:
+            self._arm_plant_trip(symbol, fill_timestamp, trade, "ENGINE_A_FILL_LATCH_REJECTED")
+
+    def _arm_plant_trip(self, symbol, timestamp, trade, reason: str) -> None:
+        trade["controller_exit_pending"] = {
+            "armed_timestamp": str(timestamp), "reason": reason,
+            "exit_reason": f"plant_trip:{reason}", "event": "PLANT_TRIP_EXIT",
+        }
+        self._plant_trip_counts[reason.split(":")[0]] += 1
+        self._record_controller_event("PLANT_TRIP_ARMED", timestamp, symbol, {
+            "trade_id": trade.get("trade_id"), **trade["controller_exit_pending"]})
+
+    def _plant_position_control(self, symbol, timestamp, trade, bar, held_bars, path_observation) -> bool:
+        """Native plant control of one open position from this completed bar.  Returns True
+        when a plant trip was armed for the next bar's open."""
+        sign = 1.0 if trade["side"] == "BUY" else -1.0
+        entry = float(trade["entry_price"])
+        risk = abs(entry - float(trade["stop_price"]))
+        if not (math.isfinite(risk) and risk > 0.0):
+            result = {"action": "EXIT", "reason": "PLANT_INPUT_INVALID:zero_initial_risk"}
+        else:
+            favorable = float(bar["high"]) if sign > 0 else float(bar["low"])
+            mfe_r = max(float(trade.get("plant_mfe_r", 0.0)), sign * (favorable - entry) / risk)
+            trade["plant_mfe_r"] = mfe_r
+            reference_r = (float(path_observation.expected_r)
+                           if path_observation is not None and math.isfinite(float(path_observation.expected_r))
+                           else 0.0)
+            telemetry = self._governor_telemetry.get(symbol)
+            atr = (float(telemetry.atr) if telemetry is not None and telemetry.available and telemetry.atr
+                   else float(trade.get("entry_atr") or 0.0))
+            bid, ask = self._plant_quote(float(bar["close"]))
+            self.plant_call_counts["evaluate_position_control"] += 1
+            try:
+                result = self.real_plant_dcs.evaluate_position_control(
+                    engine_mode=self.plant_engine_mode, symbol=symbol,
+                    bar_dt=self._replay_event_time(timestamp), bar_index=self._native_bar_index,
+                    current_r=sign * (float(bar["close"]) - entry) / risk, reference_r=reference_r,
+                    max_favorable_r=mfe_r, elapsed_bars=int(held_bars),
+                    min_hold_bars=int(trade["minimum_hold_bars"]),
+                    max_hold_bars=max(1, int(trade["maximum_hold_bars"]), int(trade["minimum_hold_bars"])),
+                    hard_stop_r=-1.0, trade_target_r=abs(float(trade["target_price"]) - entry) / risk,
+                    bid=bid, ask=ask, tick_age_s=0.0, atr=atr,
+                    bar_range=float(bar["high"]) - float(bar["low"]),
+                    position_id=trade["trade_id"], **self._plant_grid_inputs())
+            except ValueError as exc:
+                result = {"action": "EXIT", "reason": f"PLANT_INPUT_INVALID:{exc}"}
+        reason = str(result.get("reason", ""))
+        trip = result.get("action") == "EXIT" and reason.startswith(_PLANT_TRIP_PREFIXES)
+        self._record_controller_event("PLANT_POSITION_CONTROL", timestamp, symbol, {
+            "trade_id": trade.get("trade_id"), "bay_id": trade.get("plant_bay_id"),
+            "action": result.get("action"), "reason": reason, "trip": trip,
+            "steam_pressure_pu": result.get("steam_pressure_pu")})
+        if trip:
+            self._arm_plant_trip(symbol, timestamp, trade, reason)
+        return trip
 
     @property
     def _governor_full(self) -> bool:
@@ -982,6 +1241,8 @@ class Revision2ExternalEngineOrchestrator:
             _, governor = self._governor_for(symbol)
             if governor is not None:
                 governor.confirm_position_closed(trade.get("trade_id"))
+            if self._plant_wired:
+                self.real_plant_dcs.release_position(trade.get("trade_id"))
             self._record_mtm(timestamp)
             self._record_controller_event("CONTROLLER_OUTCOME", timestamp, symbol, {
                 "candidate_id": trade.get("candidate_id"), "trade_id": trade.get("trade_id"),
@@ -1139,6 +1400,7 @@ class Revision2ExternalEngineOrchestrator:
             # everywhere else in this file (signal.volatility * close).
             current_atr = float(signal.volatility) * float(bar["close"])
             self.exit_controller.configure(self.config)
+            self.exit_controller.gain_scale = self._gain_scale_for(symbol)
             state = self.exit_controller.update(
                 symbol, state, float(signal.exit_confidence), chart_studies_confidence,
                 float(bar["close"]), current_atr, held_bars=held_bars,
@@ -1259,6 +1521,13 @@ class Revision2ExternalEngineOrchestrator:
         if held_bars >= trade["maximum_hold_bars"]:
             self._execute_exit(symbol, timestamp, trade, float(bar["close"]), "max_hold")
             return
+        # Native plant position control: a protection trip, Engine-A square-off or HRSG
+        # pressure collapse arms an exit at the next bar's open and outranks the governor.
+        if self._plant_wired and self._plant_position_control(
+                symbol, timestamp, trade, bar, held_bars, path_observation):
+            if state is not None:
+                self.exit_controller.observe_completed_bar_excursion(state, bar)
+            return
         # Bay governor HOLD/EXIT from this completed bar.  In full authority it is the only
         # discretionary exit: an EXIT is executed at the next bar's open (above).
         governor_position = self._governor_position_step(
@@ -1288,23 +1557,9 @@ class Revision2ExternalEngineOrchestrator:
                 else:
                     self._execute_exit(symbol, timestamp, trade, float(bar["close"]), saturation_reason)
                     return
-        # Box 5's real feedback path: while a position is open, ID's
-        # regime check was never called at all -- `if symbol in
-        # self.open_trades: continue` skips straight past it before entry
-        # evaluation, and there was no separate call anywhere in exit
-        # logic either. A real regime shift to "stressed" DURING a held
-        # position had no path back into the exit decision, even though
-        # the exact same shift would have vetoed a fresh entry moments
-        # earlier. _current_regime() is real and safe to call here -- it's
-        # the same method the entry path already uses, refits periodically
-        # (not every bar), and this call also fixes a second, smaller real
-        # gap: the regime model's bar history previously went blind for
-        # every bar a position was held (only fed while flat), which
-        # biased its own trailing window. Gated by minimum_hold_bars, same
-        # as saturation_exit, so a position isn't force-exited on a
-        # regime read taken moments after entry.
-        self.id_box.configure(self.config)
-        regime = self.id_box._current_regime(symbol, float(bar["close"]))
+        # Observation advances before eligibility checks in run(). Exit and
+        # entry read the same completed-bar posterior without re-appending it.
+        regime = self.id_box.latest_regime(symbol)
         if regime == "stressed" and held_bars >= trade["minimum_hold_bars"]:
             if self._governor_full:
                 self._record_controller_event("ADVISORY_EXIT_NOT_ACTUATED", timestamp, symbol, {
@@ -1406,21 +1661,23 @@ class Revision2ExternalEngineOrchestrator:
             # Replay warmup through sensor histories and eligible planner PIDs,
             # with no order construction, portfolio allocation, or submission.
             for idx in range(min(warmup, len(bars))):
+                self.id_box.observe_bar(symbol, float(bars.iloc[idx]["close"]),
+                                        timestamp=str(bars.iloc[idx]["timestamp"]))
                 snapshot = MarketSnapshot(symbol, str(bars.iloc[idx]["timestamp"]), bars.iloc[:idx + 1])
                 warm_signal, _ = self.pa.evaluate(snapshot, self.config)
                 self.chart_studies.configure(self.config)
                 self._observe_conviction(symbol, warm_signal, self.chart_studies.evaluate(symbol, snapshot.bars))
                 if warm_signal.direction == 0:
-                    self.id_box._current_regime(symbol, float(bars.iloc[idx]["close"]))
                     continue
                 warm_decision, _ = self.id_box.evaluate(
-                    warm_signal, self.config, latest_close=float(bars.iloc[idx]["close"]))
+                    warm_signal, self.config, latest_close=None)
                 if warm_decision.approved:
                     close = float(bars.iloc[idx]["close"])
                     self.mpc.build_plan(warm_signal, warm_decision, close,
                                         max(float(warm_signal.volatility) * close, 1e-6), self.config)
 
         funnel = {
+            "plant_entry_rejections": 0,
             "pa_evaluations": 0, "directional_signals": 0, "confidence_qualified": 0,
             "pa_green": 0, "pa_amber": 0, "pa_red": 0, "pa_neutral": 0,
             "bay_trip_rejections": 0, "bay_cooldown_rejections": 0,
@@ -1484,6 +1741,7 @@ class Revision2ExternalEngineOrchestrator:
                 self.paper_journal.before_tick(self, timestamp)
             self._plant_control_shadow_step(timestamp, max_gross_fraction)
             self._governor_tick_telemetry(tick_events, symbol_bars)
+            self._plant_bar_step(timestamp, tick_events, symbol_bars)
 
             # Box 8: refit PyPortfolioOpt weights periodically from real
             # trailing prices across the universe -- not every tick (that
@@ -1513,6 +1771,9 @@ class Revision2ExternalEngineOrchestrator:
                 symbol, bar_idx = event.symbol, event.bar_idx
                 self._current_bar_idx = bar_idx
                 bars = symbol_bars[symbol]
+                self.id_box.configure(self.config)
+                self.id_box.observe_bar(symbol, float(bars.iloc[bar_idx]["close"]),
+                                        timestamp=str(timestamp))
                 next_ts = pd.Timestamp(bars.iloc[bar_idx + 1]["timestamp"])
                 end_time = str(self.config.require("trading_hours_end"))
                 session_last_bar = next_ts.date() != event_ts.date() or event_ts.strftime("%H:%M") >= end_time
@@ -1587,7 +1848,7 @@ class Revision2ExternalEngineOrchestrator:
                 if next_ts.date() != event_ts.date() or next_ts.strftime("%H:%M") >= str(self.safety_contract.values["no_entry_cutoff_time"]):
                     continue
 
-                decision, trace = self.id_box.evaluate(signal, self.config, latest_close=float(bars.iloc[bar_idx]["close"]))
+                decision, trace = self.id_box.evaluate(signal, self.config, latest_close=None)
                 self._record(trace)
                 self.bb05_bb06_supervisory_by_symbol[symbol] = (
                     self.supervisory_bridge.snapshot_bb05_bb06(symbol=symbol, decision=decision)
@@ -1632,6 +1893,7 @@ class Revision2ExternalEngineOrchestrator:
                 _min_atr_floor = t1_params["min_atr_floor"]
                 atr = max(float(signal.volatility * _close_price), _min_atr_floor)
                 next_open = float(bars.iloc[bar_idx + 1]["open"])
+                self.mpc.gain_scale = self._gain_scale_for(symbol)
                 plan, pid_info, trace = self.mpc.build_plan(signal, decision, next_open, atr, self.config)
                 self._record(trace)
                 self.bb05_bb06_supervisory_by_symbol[symbol] = (
@@ -1877,6 +2139,17 @@ class Revision2ExternalEngineOrchestrator:
                         self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "plant_control_paper_cap")
                         funnel["portfolio_cap_rejections"] += 1
                         continue
+                plant_quantity = None
+                if self._plant_wired:
+                    # Native five-bay plant: final entry authority and bay-headroom x FSR sizing.
+                    plant_quantity = self._plant_entry_gate(
+                        symbol, timestamp, plan.side, quantity, cap_price, bars.iloc[bar_idx],
+                        candidate_id, governor_entry)
+                    quantity = min(quantity, plant_quantity)
+                    if quantity <= 0:
+                        self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "plant_dcs_entry_rejected")
+                        funnel["plant_entry_rejections"] += 1
+                        continue
 
                 real_notional = plan.entry_price * quantity
                 if self._gross_exposure_notional() + real_notional > equity_now * max_gross_fraction:
@@ -1951,6 +2224,8 @@ class Revision2ExternalEngineOrchestrator:
                 if self.plant_control.mode is PlantControlMode.PAPER_APPLY:
                     # Recheck protection immediately before submission; safety gates may only reduce.
                     quantity = self._paper_plant_entry_limit(symbol, quantity, cap_price, timestamp)
+                if plant_quantity is not None:
+                    quantity = min(quantity, plant_quantity)
 
                 # Derating/clamping can only round DOWN to a valid symbol lot.
                 lot_size = max(1, int(self.config.require("lot_size_by_symbol").get(symbol, 1)))
@@ -2060,6 +2335,8 @@ class Revision2ExternalEngineOrchestrator:
                     self._exit_controller_states[symbol] = self.exit_controller.open_position(
                         plan.side, fill["filled_price"], plan.stop_price, plan.target_price, plan.maximum_hold_bars,
                     )
+                    if self._plant_wired:
+                        self._plant_register_fill(symbol, next_ts, self.open_trades[symbol])
                 else:
                     self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "paper_fill_rejected")
 
@@ -2098,6 +2375,15 @@ class Revision2ExternalEngineOrchestrator:
                 "position_decisions": dict(self._governor_position_counts),
             },
             "micom": {"trip_bar_counts": dict(self._micom_trip_counts), "vol_z_window": self.micom_vol_z_window},
+            "plant_dcs_wiring": {
+                "wired": self._plant_wired, "engine_mode": self.plant_engine_mode,
+                "call_counts": dict(self.plant_call_counts),
+                "entry_rejection_reasons": dict(self._plant_entry_rejections),
+                "trip_exits_armed": dict(self._plant_trip_counts),
+                "bound_positions_open": (len(self.real_plant_dcs.bound_positions)
+                                         if self._plant_wired else 0),
+                "bar_trace": self.plant_bar_trace if self.telemetry_mode == "full" else [],
+            },
             "plant_control": {
                 "mode": self.plant_control.mode.value, "applied": self._paper_admission_evaluations > 0,
                 "plant_protection_connected": self._plant_protection_connected,

@@ -17,6 +17,9 @@ Functions:
 4. Hold curtailed/damped capital in reserve rather than forcibly
    redeploying it.
 5. Recommend bounded steam-bay AVR headroom.
+6. Step a per-bar thermal cycle: GTG mass flow x exhaust temperature is
+   the heat input that raises drum steam pressure (first-order lag), and
+   low steam pressure derates every steam-turbine bay's capital.
 
 No broker I/O occurs here.
 """
@@ -58,6 +61,25 @@ class HRSGBalanceResult:
     curtailed_gtg_capital: float
     recovered_capital: float
     correlation_penalties: Dict[str, float]
+    # Steam-pressure derate applied to every steam-turbine bay (1.0 = none).
+    steam_capacity_factor: float = 1.0
+
+
+@dataclass(frozen=True)
+class HRSGThermalState:
+    """One per-bar thermal-cycle step.
+
+    Per-unit quantities: 1.0 is the design operating point.
+    ``heat_input_pu`` is None when no gas turbine was measured this bar
+    (the drum then holds its pressure instead of inventing a heat input).
+    """
+
+    bar_index: int
+    heat_input_pu: Optional[float]
+    steam_pressure_pu: float
+    steam_capacity_factor: float
+    pressure_collapsed: bool
+    gtg_inputs: Dict[str, Dict[str, float]]
 
 
 class HeatRecoverySteamGenerator:
@@ -91,6 +113,9 @@ class HeatRecoverySteamGenerator:
         max_superheat_boost: float = 0.15,
         correlation_window: int = 30,
         min_correlation_samples: int = 6,
+        pressure_time_constant_bars: float = 5.0,
+        min_steam_pressure_pu: float = 0.35,
+        max_steam_pressure_pu: float = 1.50,
     ):
         if base_plant_capital <= 0:
             raise ValueError(
@@ -127,6 +152,20 @@ class HeatRecoverySteamGenerator:
                 "min_correlation_samples must be >= 2"
             )
 
+        if not (
+            isfinite(pressure_time_constant_bars)
+            and pressure_time_constant_bars >= 1.0
+        ):
+            raise ValueError(
+                "pressure_time_constant_bars must be >= 1"
+            )
+
+        if not 0.0 < min_steam_pressure_pu < 1.0 < max_steam_pressure_pu:
+            raise ValueError(
+                "steam pressure limits must satisfy "
+                "0 < min < 1 < max"
+            )
+
         self.base_plant_capital = float(
             base_plant_capital
         )
@@ -152,6 +191,22 @@ class HeatRecoverySteamGenerator:
         self.min_correlation_samples = int(
             min_correlation_samples
         )
+
+        # Thermal cycle.  The drum starts at its design pressure, so a plant
+        # that is never stepped keeps the full steam-bay allocation.
+        self.pressure_time_constant_bars = float(
+            pressure_time_constant_bars
+        )
+        self.min_steam_pressure_pu = float(
+            min_steam_pressure_pu
+        )
+        self.max_steam_pressure_pu = float(
+            max_steam_pressure_pu
+        )
+        self.steam_pressure_pu = 1.0
+        self.last_thermal_state: Optional[
+            HRSGThermalState
+        ] = None
 
         # Synchronous per-bar/per-observation snapshots.
         # This avoids falsely correlating returns from different timestamps.
@@ -464,6 +519,102 @@ class HeatRecoverySteamGenerator:
             > 0
         )
 
+    def steam_capacity_factor(self) -> float:
+        """Fraction of steam-bay capital the current drum pressure supports.
+
+        Linear from 0 at ``min_steam_pressure_pu`` to 1 at design pressure.
+        """
+        span = 1.0 - self.min_steam_pressure_pu
+        return max(
+            0.0,
+            min(
+                1.0,
+                (self.steam_pressure_pu - self.min_steam_pressure_pu)
+                / span,
+            ),
+        )
+
+    @property
+    def pressure_collapsed(self) -> bool:
+        return self.steam_pressure_pu < self.min_steam_pressure_pu
+
+    def step_bar(
+        self,
+        *,
+        bar_index: int,
+        gtg_inputs: Mapping[str, Mapping[str, float]],
+        gtg_available: Mapping[str, bool],
+    ) -> HRSGThermalState:
+        """Advance the thermal cycle by one bar.
+
+        ``gtg_inputs`` maps a gas-turbine bay to its measured
+        ``mass_flow_pu`` and ``exhaust_temp_pu``; a GTG absent from it was
+        not measured this bar and contributes nothing.  An unavailable GTG
+        (tripped, cooling down or breaker open) burns no fuel: zero heat.
+
+            heat     = mean over measured GTGs of mass_flow * exhaust_temp
+            pressure += (clamp(heat) - pressure) / time_constant
+        """
+        if bar_index < 0:
+            raise ValueError(
+                "bar_index must be non-negative"
+            )
+
+        recorded: Dict[str, Dict[str, float]] = {}
+        heats = []
+
+        for gtg_id, values in gtg_inputs.items():
+            if gtg_id not in GAS_TURBINE_BAYS:
+                raise ValueError(
+                    f"not a gas-turbine bay: {gtg_id!r}"
+                )
+
+            mass_flow = float(values["mass_flow_pu"])
+            exhaust_temp = float(values["exhaust_temp_pu"])
+
+            if not (
+                isfinite(mass_flow)
+                and isfinite(exhaust_temp)
+                and mass_flow >= 0.0
+                and exhaust_temp >= 0.0
+            ):
+                raise ValueError(
+                    "GTG mass flow and exhaust temperature "
+                    "must be finite and non-negative"
+                )
+
+            available = bool(gtg_available.get(gtg_id, False))
+            heat = mass_flow * exhaust_temp if available else 0.0
+            heats.append(heat)
+            recorded[gtg_id] = {
+                "mass_flow_pu": mass_flow,
+                "exhaust_temp_pu": exhaust_temp,
+                "available": float(available),
+                "heat_pu": heat,
+            }
+
+        heat_input = fmean(heats) if heats else None
+
+        if heat_input is not None:
+            steady = max(
+                0.0,
+                min(self.max_steam_pressure_pu, heat_input),
+            )
+            self.steam_pressure_pu += (
+                steady - self.steam_pressure_pu
+            ) / self.pressure_time_constant_bars
+
+        state = HRSGThermalState(
+            bar_index=int(bar_index),
+            heat_input_pu=heat_input,
+            steam_pressure_pu=self.steam_pressure_pu,
+            steam_capacity_factor=self.steam_capacity_factor(),
+            pressure_collapsed=self.pressure_collapsed,
+            gtg_inputs=recorded,
+        )
+        self.last_thermal_state = state
+        return state
+
     def balance_capital(
         self,
         *,
@@ -664,6 +815,16 @@ class HeatRecoverySteamGenerator:
                 before - after
             )
 
+        # Low drum pressure limits every steam turbine; the shortfall is
+        # held in reserve, never redeployed elsewhere.
+        steam_factor = self.steam_capacity_factor()
+
+        for bay_id in STEAM_TURBINE_BAYS:
+            before = allocations[bay_id]
+            after = before * steam_factor
+            allocations[bay_id] = after
+            reserve_cash += before - after
+
         conserved = (
             sum(allocations.values())
             + reserve_cash
@@ -690,6 +851,7 @@ class HeatRecoverySteamGenerator:
             correlation_penalties=(
                 penalties
             ),
+            steam_capacity_factor=steam_factor,
         )
 
     def superheat_headroom_factor(
