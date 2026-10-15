@@ -519,7 +519,8 @@ PROTECTED = ["engine_b", "tests_engine_b", "scripts/run_engine_b_nautilus.py", "
 # data and the Engine A/B execution code may not change, and shared-code changes are confined to the
 # declared parameter-authority surface.
 PARAMETER_AUTHORITY_SURFACE = {
-    "engine_b/runner.py", "scripts/run_engine_b_nautilus.py",
+    "engine_b/runner.py", "engine_b/orchestrator.py", "scripts/run_engine_b_nautilus.py",
+    "revision2_external/dynamic_parameter_controller.py",
     "revision2_external/orchestrator.py", "revision5/ccpp_protection_cubicles.py", "revision5/ccpp_unified_plant.py",
     "revision5/controller_parameters.py", "revision5/dynamic_parameters.py", "revision5/governor.py",
     "revision5/governor_authority.py", "revision5/hrsg.py",

@@ -89,3 +89,34 @@ def test_box6_entry_pid_has_no_actuator_in_this_engine(feed, base):
     for override in ({"pid_ki_entry": 0.2}, {"pid_kd_entry": 0.2}, {"pid_kp_entry": 0.3}):
         report = run(feed, calibration_overrides=override)
         assert fills(report) == fills(base) and report["trades"] == base["trades"], override
+
+
+def booked(report):
+    return [(t["entry_timestamp"], t["quantity"], round(t["planned_stop_price"], 6), round(t["planned_target_price"], 6),
+             t["exit_timestamp"], t["reason"]) for t in report["trades"]]
+
+
+def test_box6_levels_mode_carries_the_entry_pid_into_the_booked_position(feed, base):
+    """Shared fill contract (anchor_plan_at_fill): with entry_fill_anchor_mode='box6_levels' the Box 6
+    PID-derived stop / target levels survive the venue fill, so the entry PID gains change the
+    booked protective stop and target of this engine's position."""
+    levels = run(feed, entry_fill_anchor_mode="box6_levels")
+    assert booked(levels) and booked(levels) != booked(base)
+    for override in ({"pid_ki_entry": 0.2}, {"pid_kd_entry": 0.2}, {"pid_kp_entry": 0.3}):
+        changed = run(feed, entry_fill_anchor_mode="box6_levels", calibration_overrides=override)
+        assert booked(changed) != booked(levels), override
+
+
+def test_bounded_dispatcher_keeps_every_applied_allocation_inside_its_bounds(feed):
+    report = run(feed, dispatcher_allocation_mode="bounded", authority_telemetry=True)
+    summary = report["r5_authority"]["applied_value_summary"]
+    weights = {k: v for k, v in summary.items() if k.endswith(".dispatcher.weight")}
+    assert len(weights) == 5
+    for row in weights.values():
+        assert 0.08 - 1e-12 <= row["min"] <= row["max"] <= 0.35 + 1e-12
+
+
+def test_in_flight_protection_mode_runs_through_the_harness(feed, base):
+    report = run(feed, unit_protection_mode="pre_sync_and_in_flight")
+    assert report["r5_authority"]["startup"]["modes"]["unit_protection_mode"] == "pre_sync_and_in_flight"
+    assert report["trades"] and report["reconciliation"]["breaks"] in ([], 0)

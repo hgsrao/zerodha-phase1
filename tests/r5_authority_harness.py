@@ -138,6 +138,14 @@ def plant_trace(params, *, avr_voltage_mode: str = "measured", dispatcher_alloca
         actuator.append(("thermal", bar, step["thermal"].pressure_collapsed,
                          tuple(round(b.effective_allocation, 9) for b in plant.bays.values()),
                          tuple(round(plant.dispatcher.get_allocation(b), 9) for b in BAY_IDS)))
+        # SEL-300G in-flight elements: ANSI 87G (fill vs reference slippage) and ANSI 32R (adverse
+        # closes counted per probe position; four adverse bars then four recovering bars).
+        adverse = (bar // 4) % 2 == 0
+        actuator.append(("in_flight", bar, tuple(
+            bay.relay.check_in_flight_protection(symbol=f"PROBE{k}", entry_price=1000.0,
+                                                 current_price=999.0 if adverse else 1001.0,
+                                                 exec_fill_price=1000.0 * (1.0 + slip), intended_price=1000.0).ansi_code
+            for bay in plant.bays.values() for k, slip in enumerate((0.001, 0.0022, 0.0028, 0.004)))))
         if bar < len(merit_script):
             merit_probe.register_trade(*merit_script[bar])
             actuator.append(("merit", bar, tuple(round(merit_probe.get_allocation(b), 9) for b in BAY_IDS)))

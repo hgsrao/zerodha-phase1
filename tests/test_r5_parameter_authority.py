@@ -147,7 +147,10 @@ _RELATION_LIMITS = {"avr_oel_fraction_min": ("avr_oel_capital_fraction",),
                     "plant_loss_cooldown_max_bars": ("plant_loss_cooldown_min_bars",),
                     "sel_vol_surge_min_mult": ("sel_vol_surge_mult",)}
 # Parameters owned by the orchestrator rather than the native plant (proved by their own tests).
-_ORCHESTRATOR_ONLY = {"symbol_loss_cooldown_bars", "symbol_trip_consecutive_losses"}
+from revision5.controller_parameters import TIER_ENVELOPE_PARAMETERS  # noqa: E402
+# Parameters owned outside the native plant (proved by their own tests: the orchestrator symbol
+# latches in tests/test_r5_parameter_authority_engines.py, the Box 6 Tier envelopes below).
+_ORCHESTRATOR_ONLY = {"symbol_loss_cooldown_bars", "symbol_trip_consecutive_losses", *TIER_ENVELOPE_PARAMETERS}
 
 
 def _candidates(spec):
@@ -546,3 +549,40 @@ def test_box6_gains_change_plan_stop_target_and_reference():
             assert [p[1:3] for p in changed] != [p[1:3] for p in base], change   # stop / target distances
         else:
             assert [p[3] for p in changed] != [p[3] for p in base], change       # submitted market reference
+
+
+
+# ------------------------------------------------------------------ Box 6 Tier-1 / Tier-3 envelopes
+
+@pytest.mark.parametrize("name", TIER_ENVELOPE_PARAMETERS)
+def test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable(name):
+    from revision2_external.dynamic_parameter_controller import DynamicParameterController, MarketEnvironmentState
+    spec = CONTROLLER_PARAMETERS[name]
+
+    def outputs(config):
+        rows = []
+        for err in (0.0, 0.3, 0.8, 1.6, 3.0, 8.0):
+            rows.append(DynamicParameterController.get_tier3_pid_schedule(0.15, 0.05, 0.08, err, config=config))
+        import pandas as pd
+        calm_then_wild, wild_then_calm = _bars(n=120), _bars(n=120)
+        for frame, spike in ((calm_then_wild, slice(100, 120)), (wild_then_calm, slice(60, 90))):
+            width = pd.Series(0.0005, index=frame.index)
+            width.iloc[spike] = 0.03
+            frame["high"], frame["low"] = frame["close"] * (1 + width), frame["close"] * (1 - width)
+        for bars, k in ((_bars(n=120), 60), (calm_then_wild, 119), (wild_then_calm, 119), (wild_then_calm, 95)):
+            env = MarketEnvironmentState.from_bars("INFY", bars, k, config=config)
+            rows.append(float(env.normalized_vol))          # clipped by tier1_normalized_vol_*
+            for nv in (0.2, 0.5, 1.0, 1.8, 4.0):
+                env.normalized_vol = nv
+                rows.append(tuple(DynamicParameterController.get_tier1_vol_parameters(env, config=config).values()))
+        return rows
+
+    base = outputs(_config())
+    changed = []
+    for value in _candidates(spec):
+        try:
+            changed.append(outputs(_config(**{name: value})) != base)
+        except ValueError:
+            continue
+    assert changed
+    assert any(changed) == (spec.safety_class != INACTIVE), name
