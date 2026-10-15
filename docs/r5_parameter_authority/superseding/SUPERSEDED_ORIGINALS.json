@@ -1,0 +1,27 @@
+{
+  "note": "Originals are unmodified historical records; the rows listed are superseded by the files in this folder.",
+  "originals": {
+    "/home/srinivas/projects/zerodha-r5-governor-refactor/docs/r5_remediation_project/R5_FINAL_PARAMETER_CLOSURE.csv": "8f86e2ec940f76ba5b84be9a502a67b8b0443eedb4b73774765f588d7f2a0bbe",
+    "/home/srinivas/projects/zerodha-r5-governor-refactor/docs/r5_remediation_project/R5_PARAMETER_REGISTER.json": "e8ded276a45f2fc2ee46f4c23fa85c51a0c3709ad56b8d58bb55528220a48e63",
+    "/home/srinivas/R5_ENGINEERING_PLATFORM/audit_bundle/WP-R5-001/UPDATED_PARAMETER_REGISTER.json": "0f07dc00b27bca1be33dc8b22743aa2b0065222e5056c021b21557704cb9c9fb"
+  },
+  "original_commit": "59371ff (feature/ir02a-parameter-closure)",
+  "superseded_ids": [
+    "CC-07",
+    "DP-01",
+    "GV-01",
+    "GV-02",
+    "GV-03",
+    "HR-01",
+    "MI-02",
+    "MI-03",
+    "ORC-01",
+    "ORC-02",
+    "ORC-03",
+    "PL-01",
+    "PL-02",
+    "PL-03",
+    "PL-04",
+    "PL-05"
+  ]
+}
