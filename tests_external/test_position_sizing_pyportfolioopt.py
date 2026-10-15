@@ -140,3 +140,28 @@ def test_zero_weight_for_an_unlisted_symbol_zeroes_sizing():
                       minimum_hold_bars=2, maximum_hold_bars=20)
     qty, _ = box.size(plan, 1_000_000.0, 1.0, config, symbol="NOT_IN_WEIGHTS", portfolio_weights={}, max_exposure_per_symbol_fraction=1.0)
     assert qty == 0
+
+
+def test_rupee_loss_budget_caps_worst_case_loss_across_price_scales():
+    # A Rs 11,000 stock and a Rs 300 stock, both with a 1.5% stop: the equity-fraction
+    # budget (2% of 90% of Rs 1M = Rs 18,000) exceeds max_loss_per_trade_rupees, so both
+    # are sized down to the same rupee loss at the stop instead of being rejected later.
+    box = PyPortfolioOptPositionManagerBox()
+    config = _config()
+    cap = float(config.require("max_loss_per_trade_rupees"))
+    losses = {}
+    for symbol, price in (("ULTRACEMCO", 11_000.0), ("BEL", 300.0)):
+        plan = TradePlan(side="BUY", entry_price=price, stop_price=price * 0.985,
+                         target_price=price * 1.03, minimum_hold_bars=2, maximum_hold_bars=20)
+        qty, _ = box.size(plan, 1_000_000.0, 1.0, config, symbol=symbol,
+                          portfolio_weights={"ULTRACEMCO": 0.5, "BEL": 0.5},
+                          max_exposure_per_symbol_fraction=1.0)
+        telemetry = box.last_sizing_telemetry
+        assert telemetry["base_risk_budget"] > cap
+        assert telemetry["rupee_risk_budget"] == cap
+        losses[symbol] = abs(plan.entry_price - plan.stop_price) * qty
+        assert qty > 0 and losses[symbol] <= cap
+        assert telemetry["worst_case_loss_rupees"] == losses[symbol]
+    # Same rupee risk, within one share's stop distance of the cap, at both price scales.
+    assert cap - losses["ULTRACEMCO"] < 11_000.0 * 0.015
+    assert cap - losses["BEL"] < 300.0 * 0.015

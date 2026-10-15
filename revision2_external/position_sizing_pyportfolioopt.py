@@ -170,6 +170,11 @@ class PyPortfolioOptPositionManagerBox:
             "BB08 aggressive allocation risk-budget multiplier",
             "quantity",
         ))
+        max_loss_trade = float(req(
+            "max_loss_per_trade_rupees",
+            "rupee loss budget ceiling: worst-case loss at the stop never exceeds it",
+            "quantity",
+        ))
         # rebalance_frequency_minutes used to be req()'d here for coverage-
         # tracking only (never affected this method's real output -- the
         # real PyPortfolioOpt refit cadence is orchestrator.py's own
@@ -205,7 +210,9 @@ class PyPortfolioOptPositionManagerBox:
             if equal_weight > 0
             else 0.0
         )
-        risk_budget = base_risk_budget * conviction_derate
+        # The rupee cap sizes the trade down to an affordable loss instead of letting the
+        # post-sizing safety gate reject it: worst-case loss = risk_per_share x quantity.
+        risk_budget = min(base_risk_budget * conviction_derate, max_loss_trade)
         raw_quantity = math.floor(risk_budget / risk_per_share)
 
         lot_size = int(lot_map.get(symbol, 1)) if isinstance(lot_map, Mapping) and lot_map else 1
@@ -221,7 +228,10 @@ class PyPortfolioOptPositionManagerBox:
             "symbol": symbol,
             "sizing_status": "sized" if quantity > 0 else "zero_quantity",
             "base_risk_budget": float(base_risk_budget),
-            "derated_risk_budget": float(risk_budget),
+            "derated_risk_budget": float(base_risk_budget * conviction_derate),
+            "max_loss_per_trade_rupees": float(max_loss_trade),
+            "rupee_risk_budget": float(risk_budget),
+            "worst_case_loss_rupees": float(risk_per_share * max(0, quantity)),
             "risk_per_share": float(risk_per_share),
             "symbol_weight": float(symbol_weight),
             "equal_weight": float(equal_weight),
