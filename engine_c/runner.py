@@ -81,6 +81,7 @@ def build_report(strategy: R5BacktraderStrategy, r5: EngineCOrchestrator, outcom
     final = outcome["final_reconciliation"]
     return {
         "engine": "ENGINE_C_BACKTRADER_NATIVE",
+        "r5_authority": r5.authority_report_section(r5_report),
         "execution_model": EXECUTION_MODEL,
         "engine_c_config": {**config.as_dict(), "config_hash": config.config_hash()},
         "backtrader_version": bt.__version__,

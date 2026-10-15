@@ -74,6 +74,9 @@ from revision5.plant_control import (
     BayStatus, PlantControlChain, PlantControlError, PlantControlSnapshot, PlantControlMode,
 )
 from revision5.dynamic_parameters import R5EnvironmentState
+from revision5.controller_parameters import (
+    CONTROLLER_PARAMETER_NAMES, CONTROLLER_PARAMETERS, R5ControllerParameters,
+)
 from revision5.engine_state import ENGINE_A, VALID_ENGINES
 from revision5.hrsg import GAS_TURBINE_BAYS
 from revision5.protection_snapshot import build_plant_protection_snapshot, derive_bay_status_and_master_block
@@ -90,8 +93,11 @@ SNAPSHOT_LOOKBACK_BARS = 300
 
 # F11: fixed machine-bay protection policy, deliberately NOT calibratable.
 # A net losing exit blocks new entries in that symbol until bar index
-# exit_bar + BAY_LOSS_COOLDOWN_BARS.  Session rollover clears the latch.
-BAY_LOSS_COOLDOWN_BARS = 15
+# exit_bar + symbol_loss_cooldown_bars (registry FIXED_SAFETY).  Session rollover clears the
+# latch.  BAY_LOSS_COOLDOWN_BARS is the registry-default view kept for legacy imports.
+BAY_LOSS_COOLDOWN_BARS = int(CONTROLLER_PARAMETERS["symbol_loss_cooldown_bars"].default)
+
+GOVERNOR_POSITION_MODES = ("legacy", "v3")
 
 # Native plant EXIT reasons that are protection trips (actuated at the next open as
 # ``plant_trip:<reason>``).  A plant-governor EXIT is advisory: the orchestrator's own
@@ -151,7 +157,22 @@ class Revision2ExternalEngineOrchestrator:
         governor_authority: str = "advisory",
         final_exit_authority: bool = False,
         plant_engine_mode: str = ENGINE_A,
+        governor_position_mode: str = "legacy",
+        avr_voltage_mode: str = "legacy",
+        dispatcher_allocation_mode: str = "legacy",
+        hrsg_correlation_mode: str = "off",
+        authority_telemetry: bool = False,
     ) -> None:
+        # Opt-in controller modes (defaults keep the baseline decision-identical):
+        #   governor_position_mode   "legacy" V2 inner loop | "v3" Protocol V3 inner loop (full
+        #                            authority only; revision5.governor.PositionControlV3)
+        #   avr_voltage_mode         "legacy" unmeasured AVR | "measured" causal terminal-voltage
+        #                            regulation once per bar (PAPER_APPLY plant only)
+        #   dispatcher_allocation_mode "legacy" | "bounded" (floor <= allocation <= ceiling always)
+        #   hrsg_correlation_mode    "off" | "causal_bay_returns" (feed the HRSG economizer the
+        #                            synchronous completed-bar bay returns)
+        #   authority_telemetry      record parameter / AVR / dispatcher / HRSG telemetry events
+        #                            (telemetry only; no decision effect)
         # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
         # Default None -- unchanged behaviour: this replay engine does not instantiate a real plant,
         # so protection state uses the explicit SYMBOL_TRIPS_ONLY fallback (see protection_snapshot.py).
@@ -176,6 +197,20 @@ class Revision2ExternalEngineOrchestrator:
         if governor_authority == "full" and (closed_loop_mode != "active_paper" or grid_context_provider is None):
             raise ValueError("governor_authority='full' requires closed_loop_mode='active_paper' "
                              "and a real grid context provider")
+        if governor_position_mode not in GOVERNOR_POSITION_MODES:
+            raise ValueError(f"governor_position_mode must be one of {GOVERNOR_POSITION_MODES}")
+        if governor_position_mode == "v3" and governor_authority != "full":
+            raise ValueError("governor_position_mode='v3' requires governor_authority='full'")
+        if avr_voltage_mode not in {"legacy", "measured"}:
+            raise ValueError("avr_voltage_mode must be 'legacy' or 'measured'")
+        if avr_voltage_mode == "measured" and plant_control_mode != PlantControlMode.PAPER_APPLY:
+            raise ValueError("avr_voltage_mode='measured' requires the PAPER_APPLY native plant")
+        if dispatcher_allocation_mode not in {"legacy", "bounded"}:
+            raise ValueError("dispatcher_allocation_mode must be 'legacy' or 'bounded'")
+        if hrsg_correlation_mode not in {"off", "causal_bay_returns"}:
+            raise ValueError("hrsg_correlation_mode must be 'off' or 'causal_bay_returns'")
+        if hrsg_correlation_mode != "off" and plant_control_mode != PlantControlMode.PAPER_APPLY:
+            raise ValueError("hrsg_correlation_mode requires the PAPER_APPLY native plant")
         if telemetry_mode not in {"full", "compact"}:
             raise ValueError("telemetry_mode must be 'full' or 'compact'")
         if pid_mode not in {"enabled", "disabled"}:
@@ -219,6 +254,16 @@ class Revision2ExternalEngineOrchestrator:
         self.startup_certificate_reasons: List[str] = []
 
         self.config = EffectiveConfig.build(values, registry_hash=self.registry.FROZEN_IDENTITY_SHA256)
+        # R5 controller parameter authority: one validated image of every native R5 controller
+        # value, read through EffectiveConfig.require (no fallback), passed explicitly to the
+        # governors, dispatcher and the attached native plant below.
+        self.controller_parameters = R5ControllerParameters.from_config(self.config)
+        self.governor_position_mode = governor_position_mode
+        self.avr_voltage_mode = avr_voltage_mode
+        self.dispatcher_allocation_mode = dispatcher_allocation_mode
+        self.hrsg_correlation_mode = hrsg_correlation_mode
+        self.authority_telemetry = bool(authority_telemetry)
+        self._position_control_v3 = self.controller_parameters.position_control_v3()
         self.safety_contract = SafetyContract.from_registry(self.registry)
         # BB01/BB02 remain upstream.  The bridge provides their single
         # tracked hand-off to R5; it does not call a plant or alter strategy.
@@ -345,7 +390,10 @@ class Revision2ExternalEngineOrchestrator:
                                                         pd.DataFrame({"timestamp": [], "close": []})))
         self.plant_control = PlantControlChain(
             self.config, grid_provider,
-            DynamicBayLoadDispatcher(total_capital=float(starting_equity)), plant_control_mode)
+            DynamicBayLoadDispatcher(total_capital=float(starting_equity),
+                                     parameters=self.controller_parameters.dispatcher,
+                                     governor_specs=self.controller_parameters.governor_specs,
+                                     allocation_mode=dispatcher_allocation_mode), plant_control_mode)
         self._paper_plant_snapshot = None
         self._paper_plant_timestamp = None
         self._paper_admission_evaluations = 0
@@ -370,13 +418,19 @@ class Revision2ExternalEngineOrchestrator:
         #                                                                 -- plant-level dispatch feedback
         # Neither replaces the other; see _register_realized_r_close_feedback.
         self._bay_governors: Dict[str, BayTurbineClosedLoopGovernor] = {
-            bay_id: BayTurbineClosedLoopGovernor(BAY_GOVERNOR_SPECS[bay_id]) for bay_id in _R5_BAY_IDS
+            bay_id: BayTurbineClosedLoopGovernor(self.controller_parameters.governor_specs[bay_id])
+            for bay_id in _R5_BAY_IDS
         }
         # Exactly-once (this process/replay run only) close-feedback receipts, keyed per trade.
         # See _register_realized_r_close_feedback for the state-machine contract.
         self._close_feedback_receipts: Dict[str, str] = {}
 
         if self.plant_control.mode == PlantControlMode.PAPER_APPLY:
+            # The attached native plant receives this run's EffectiveConfig controller image
+            # (state-preserving; identical values leave it unchanged) and the opt-in modes.
+            self.real_plant_dcs.apply_controller_parameters(
+                self.controller_parameters, dispatcher_allocation_mode=dispatcher_allocation_mode,
+                avr_voltage_mode=avr_voltage_mode)
             # One owner for outcome feedback: dispatch and caps consume the native objects.
             self._bay_governors = {key: bay.governor for key, bay in self.real_plant_dcs.bays.items()}
             self.plant_control.dispatch_controller.merit_source = self.real_plant_dcs.dispatcher
@@ -406,6 +460,7 @@ class Revision2ExternalEngineOrchestrator:
         self.final_exit_authority = bool(final_exit_authority)
         self.governor_config = GovernorAuthorityConfig.from_config(self.config)
         self.consumed_parameters.update(GOVERNOR_AUTHORITY_PARAMETERS)
+        self.consumed_parameters.update(CONTROLLER_PARAMETER_NAMES)
         self._governor_telemetry: Dict[str, BarTelemetry] = {}
         self._bay_exhaust_spread: Dict[str, Optional[float]] = {}
         self._session_bar_index: Dict[str, Any] = {}
@@ -424,6 +479,85 @@ class Revision2ExternalEngineOrchestrator:
         self._micom_opened_intertie = False
         self._micom_trip_counts: Counter[str] = Counter()
         self.startup_certificate = self._issue_startup_certificate()
+        self._authority_summary: Dict[str, Dict[str, float]] = {}
+        self._authority_session = None
+        if self.authority_telemetry:
+            self._record_controller_event("CONTROLLER_PARAMETER_STARTUP", "STARTUP", "PLANT",
+                                          self.controller_parameter_startup_report())
+
+    def controller_parameter_startup_report(self) -> Dict[str, Any]:
+        """Startup report: every effective R5 controller parameter value, its hash, the values
+        differing from the registry default, the registry identity and the opt-in modes."""
+        return {
+            **self.controller_parameters.startup_report(),
+            "registry_identity_sha256": self.registry.FROZEN_IDENTITY_SHA256,
+            "config_hash": self.config.config_hash,
+            "modes": {"governor_authority": self.governor_authority,
+                      "governor_position_mode": self.governor_position_mode,
+                      "avr_voltage_mode": self.avr_voltage_mode,
+                      "dispatcher_allocation_mode": self.dispatcher_allocation_mode,
+                      "hrsg_correlation_mode": self.hrsg_correlation_mode,
+                      "final_exit_authority": self.final_exit_authority,
+                      "closed_loop_mode": self.closed_loop_mode,
+                      "plant_control_mode": self.plant_control.mode.value},
+        }
+
+    def authority_report_section(self, report: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Compact controller-authority section for engine runner reports (A, B and C): the
+        startup parameter report, modes, controller event counts, governor / plant / MiCOM
+        decision counts and (with authority_telemetry) the applied-value summary."""
+        report = report or {}
+        wiring = dict(report.get("plant_dcs_wiring") or {})
+        wiring.pop("bar_trace", None)
+        return {
+            "startup": self.controller_parameter_startup_report(),
+            "controller_event_counts": dict(self._controller_event_counts),
+            "governor_authority": report.get("governor_authority"),
+            "plant_dcs_wiring": wiring,
+            "plant_control": report.get("plant_control"),
+            "micom": report.get("micom"),
+            "applied_value_summary": self._authority_summary if self.authority_telemetry else None,
+        }
+
+    def _applied_controller_values(self) -> Dict[str, float]:
+        """The operating values the native plant controllers are applying right now."""
+        plant = self.real_plant_dcs
+        values: Dict[str, float] = {}
+        for bay_id, bay in plant.bays.items():
+            g, a = bay.governor, bay.avr
+            for name in ("kp", "ki", "kd", "target_r", "outcome_window", "integral_clamp", "base_z",
+                         "droop_r", "dynamic_offset_min", "dynamic_offset_max", "grid_droop_gain",
+                         "grid_droop_max", "feedback_gain"):
+                values[f"{bay_id}.governor.{name}"] = float(getattr(g, f"runtime_{name}"))
+            for name in ("runtime_kp", "runtime_ki", "runtime_kd", "runtime_integral_clamp", "excitation_command",
+                         "excitation_min", "excitation_max", "loading_fraction", "undervoltage_trip_pu",
+                         "overvoltage_trip_pu", "oel_max", "uel_min"):
+                values[f"{bay_id}.avr.{name}"] = float(getattr(a, name))
+            values[f"{bay_id}.dispatcher.weight"] = float(plant.dispatcher.weights[bay_id])
+            values[f"{bay_id}.effective_allocation"] = float(bay.effective_allocation)
+            values[f"{bay_id}.loss_cooldown_bars"] = float(bay.loss_cooldown_bars)
+            values[f"{bay_id}.target_cooldown_bars"] = float(bay.target_cooldown_bars)
+            values[f"{bay_id}.relay.vol_surge_mult"] = float(bay.relay.vol_surge_mult)
+        values["hrsg.steam_pressure_pu"] = float(plant.hrsg.steam_pressure_pu)
+        values["hrsg.pressure_time_constant_bars"] = float(plant.hrsg.pressure_time_constant_bars)
+        values["micom.max_dd_pct"] = float(plant.grid_relay.max_dd_pct)
+        return values
+
+    def _authority_bar_telemetry(self, timestamp) -> None:
+        """Runtime telemetry of the applied controller values (authority_telemetry only): a running
+        min/max/last per value every bar, and the full value set at each session's first bar."""
+        values = self._applied_controller_values()
+        for name, value in values.items():
+            row = self._authority_summary.get(name)
+            if row is None:
+                self._authority_summary[name] = {"min": value, "max": value, "last": value, "bars": 1}
+            else:
+                row["min"], row["max"], row["last"] = min(row["min"], value), max(row["max"], value), value
+                row["bars"] += 1
+        session = pd.Timestamp(timestamp).date()
+        if session != self._authority_session:
+            self._authority_session = session
+            self._record_controller_event("CONTROLLER_APPLIED_VALUES", timestamp, "PLANT", {"values": values})
 
     def _build_safety_gate_config(self) -> SafetyGateConfig:
         v = self.safety_contract.values
@@ -720,8 +854,32 @@ class Revision2ExternalEngineOrchestrator:
             environment=self._plant_environment(tick_events),
             gtg_measurements=self._gtg_measurements(tick_events, symbol_bars))
         snapshot = result["dynamic_snapshot"]
+        if self.avr_voltage_mode == "measured":
+            # Bus voltage: the grid synchronizer's causal Nifty-deviation measurement for THIS
+            # timestamp (None when the plant reference is unavailable -> AVR fails closed).
+            deviation = self._governor_grid_return(timestamp)
+            regulation = plant.regulate_bay_voltages(
+                bar_index=self._native_bar_index,
+                bus_voltage_pu=None if deviation is None else 1.0 + float(deviation))
+            self._record_controller_event("AVR_VOLTAGE_REGULATION", timestamp, "PLANT", {"bays": regulation})
+        if self.hrsg_correlation_mode == "causal_bay_returns":
+            returns: Dict[str, List[float]] = {}
+            for event in tick_events:
+                telemetry = self._governor_telemetry.get(event.symbol)
+                bay_id = _R5_SYMBOL_TO_BAY.get(event.symbol)
+                if bay_id is not None and telemetry is not None and telemetry.available:
+                    returns.setdefault(bay_id, []).append(float(telemetry.one_bar_return))
+            bay_returns = {bay_id: sum(v) / len(v) for bay_id, v in returns.items()}
+            if bay_returns:
+                plant.record_hrsg_return_snapshot(bay_returns)
+                if self.authority_telemetry:
+                    self._record_controller_event("HRSG_RETURN_SNAPSHOT", timestamp, "PLANT", {
+                        "bay_returns": bay_returns,
+                        "correlation_penalties": plant.hrsg.compute_economizer_penalties()})
+        if self.authority_telemetry:
+            self._authority_bar_telemetry(timestamp)
         for bay_id, profile in snapshot.governor_by_bay.items():
-            spec = BAY_GOVERNOR_SPECS[bay_id]
+            spec = self.controller_parameters.governor_specs[bay_id]
             self._dynamic_gain_scale[bay_id] = tuple(
                 (float(getattr(profile, name)) / float(getattr(spec, name))) if getattr(spec, name) else 1.0
                 for name in ("kp", "ki", "kd"))
@@ -794,6 +952,13 @@ class Revision2ExternalEngineOrchestrator:
             allowed = max(0, plant_quantity)
             detail = {"avr_quantity": int(result["quantity"]), "bay_headroom_notional": headroom,
                       "bay_open_notional": bay_notional, "fsr": fsr, "plant_quantity": allowed}
+            if self.authority_telemetry:
+                detail.update({
+                    "dispatcher_weight": float(plant.dispatcher.weights[bay.bay_id]),
+                    "dispatcher_allocation": float(plant.dispatcher.get_allocation(bay.bay_id)),
+                    "bay_effective_allocation": float(bay.effective_allocation),
+                    "avr_excitation_command": float(bay.avr.excitation_command),
+                    "avr_state": result.get("avr_state"), "avr_control": result.get("avr_control")})
             if allowed <= 0:
                 result["reason"] = "PLANT_BAY_HEADROOM_EXHAUSTED"
         if allowed <= 0:
@@ -1008,7 +1173,8 @@ class Revision2ExternalEngineOrchestrator:
                 session_bar=self._governor_session_bar(symbol, getattr(self, "_current_bar_idx", None)),
                 bay_exhaust_spread=self._bay_exhaust_spread.get(bay_id), hard_stop_r=-1.0,
                 path_noise_r=(telemetry.atr / risk
-                              if telemetry is not None and telemetry.available and valid_risk else None))
+                              if telemetry is not None and telemetry.available and valid_risk else None),
+                position_control=(self._position_control_v3 if self.governor_position_mode == "v3" else None))
             result = {"measured_r": measured_r, "max_favorable_r": mfe_r,
                       "conviction_detail": conviction_detail, **result}
         self._governor_position_counts[f"{result['action']}:{result['reason']}"] += 1
@@ -1128,6 +1294,10 @@ class Revision2ExternalEngineOrchestrator:
             return
         self._close_feedback_receipts[key] = "PENDING"
         self.plant_control.dispatch_controller.merit_source.register_trade(bay_id, realized_r)
+        if self.authority_telemetry:
+            self._record_controller_event("DISPATCHER_UPDATE", getattr(self, "_native_timestamp", None), symbol, {
+                "trade_id": trade.get("trade_id"), "affected_order_quantity": trade.get("quantity"),
+                **(self.plant_control.dispatch_controller.merit_source.last_update or {})})
         if self.plant_control.mode == PlantControlMode.PAPER_APPLY:
             self.real_plant_dcs.bays[bay_id].register_outcome(
                 realized_r=realized_r, reason=reason, bar_index=max(0, self._native_bar_index))
@@ -1258,9 +1428,9 @@ class Revision2ExternalEngineOrchestrator:
                 _c_losses = self.symbol_consecutive_losses.get(symbol, 0) + 1
                 self.symbol_consecutive_losses[symbol] = _c_losses
                 self.symbol_cooldown_until_bar[symbol] = (
-                    getattr(self, "_current_bar_idx", 0) + BAY_LOSS_COOLDOWN_BARS
+                    getattr(self, "_current_bar_idx", 0) + self.controller_parameters.symbol_loss_cooldown_bars
                 )
-                if _c_losses >= 2:
+                if _c_losses >= self.controller_parameters.symbol_trip_consecutive_losses:
                     self.symbol_tripped[symbol] = True
             elif _pnl > 0:
                 # Any profitable exit breaks consecutive loss streak
@@ -1537,7 +1707,6 @@ class Revision2ExternalEngineOrchestrator:
                     "trade_id": trade.get("trade_id"),
                     **trade["controller_exit_pending"],
                 })
-                return
 
         exit_price, reason = None, None
         if trade["side"] == "BUY":
@@ -2518,6 +2687,10 @@ class Revision2ExternalEngineOrchestrator:
             },
             "closed_loop_mode": self.closed_loop_mode,
             "pid_mode": self.pid_mode,
+            **({"controller_authority": {
+                "startup": self.controller_parameter_startup_report(),
+                "applied_value_summary": self._authority_summary,
+            }} if self.authority_telemetry else {}),
             "certification_audit": certification_audit,
             "session_completeness": {
                 s: certify_session_completeness(frame, self.session_schedule)

@@ -69,6 +69,7 @@ def build_report(engine, strategy, r5: EngineBOrchestrator, outcome: Dict[str, A
     open_positions = {s: strategy.net_position(s) for s in strategy.symbols if strategy.net_position(s) != 0}
     return {
         "engine": "ENGINE_B_NAUTILUS_NATIVE",
+        "r5_authority": r5.authority_report_section(r5_report),
         "execution": "nautilus SimulatedExchange (BacktestEngine), offline; no live venue, no Kite",
         "symbols": list(strategy.symbols),
         "bars_received": strategy.bars_received,

@@ -92,6 +92,8 @@ def main() -> int:
     parser.add_argument("--grid-manifest", type=Path, default=ROOT / "local_workspace/records/grid-manifest-local.json")
     parser.add_argument("--governor-authority", choices=["full", "advisory"], default="full")
     parser.add_argument("--report", type=Path, default=ROOT / "local_workspace/validation/engine_b/engine_b_report.json")
+    from r5_authority_cli import add_authority_arguments, authority_kwargs
+    add_authority_arguments(parser)
     args = parser.parse_args()
     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
     if args.bars <= args.warmup:
@@ -104,7 +106,7 @@ def main() -> int:
     else:
         data, nifty, vix, source = load_real(symbols, args.bars, args.data_dir, args.grid_manifest)
     report = run_engine_b(data, nifty, vix, warmup=args.warmup,
-                          orchestrator_kwargs={"governor_authority": args.governor_authority})
+                          orchestrator_kwargs={**authority_kwargs(args), "governor_authority": args.governor_authority})
     report["source"] = source
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2, default=str))

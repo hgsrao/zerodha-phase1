@@ -17,6 +17,11 @@ from typing import Dict, List, Optional, Tuple
 # TIER 1: MASTER SUBSTATION / NIFTY 50 GRID PROTECTION (ANSI 81/21/67/25)
 # ---------------------------------------------------------------------------
 
+
+def _controller_defaults():
+    from revision5.controller_parameters import default_controller_parameters
+    return default_controller_parameters()
+
 @dataclass
 class GridRelayTrip:
     tripped: bool
@@ -30,14 +35,28 @@ class MasterGridProtectionMiCOM:
     """
     def __init__(
         self,
-        max_daily_fleet_drawdown_pct: float = 0.020,  # ANSI 67: 2.0% fleet hard trip
-        nifty_crash_rate_pct: float = 0.015,          # ANSI 81U: 1.5% drop in 15 mins
-        max_regime_vol_z: float = 3.0                 # ANSI 21: Distance / Zone shock
+        max_daily_fleet_drawdown_pct: Optional[float] = None,  # ANSI 67 fleet hard trip
+        nifty_crash_rate_pct: Optional[float] = None,          # ANSI 81U 15-minute drop
+        max_regime_vol_z: Optional[float] = None,              # ANSI 21 distance / zone shock
+        parameters=None,
     ):
-        self.max_dd_pct = max_daily_fleet_drawdown_pct
-        self.nifty_crash_rate = nifty_crash_rate_pct
-        self.max_regime_vol_z = max_regime_vol_z
+        # Envelopes are registry-owned (micom_* FIXED_SAFETY, revision5/controller_parameters.py);
+        # explicit arguments remain for legacy direct construction.
+        self.parameters = parameters if parameters is not None else _controller_defaults().grid_protection
+        p = self.parameters
+        self.max_dd_pct = p.max_daily_fleet_drawdown_pct if max_daily_fleet_drawdown_pct is None else max_daily_fleet_drawdown_pct
+        self.nifty_crash_rate = p.nifty_crash_rate_pct if nifty_crash_rate_pct is None else nifty_crash_rate_pct
+        self.max_regime_vol_z = p.max_regime_vol_z if max_regime_vol_z is None else max_regime_vol_z
         self.master_breaker_open = False
+
+    def configure(self, parameters) -> None:
+        """Install new envelopes; the latched breaker state is preserved.  Before the first
+        runtime profile the operating limits follow the new envelopes."""
+        self.parameters = parameters
+        if not getattr(self, "_runtime_profile_applied", False):
+            self.max_dd_pct = parameters.max_daily_fleet_drawdown_pct
+            self.nifty_crash_rate = parameters.nifty_crash_rate_pct
+            self.max_regime_vol_z = parameters.max_regime_vol_z
 
     def apply_runtime_profile(self, profile) -> None:
         # These operating trip thresholds can only tighten.
@@ -46,7 +65,7 @@ class MasterGridProtectionMiCOM:
             < float(
                 profile.max_daily_fleet_drawdown_pct
             )
-            <= 0.020
+            <= self.parameters.max_daily_fleet_drawdown_pct
         ):
             raise ValueError(
                 "MiCOM drawdown limit outside envelope"
@@ -55,7 +74,7 @@ class MasterGridProtectionMiCOM:
         if not (
             0.0
             < float(profile.nifty_crash_rate_pct)
-            <= 0.015
+            <= self.parameters.nifty_crash_rate_pct
         ):
             raise ValueError(
                 "MiCOM crash-rate limit outside envelope"
@@ -64,7 +83,7 @@ class MasterGridProtectionMiCOM:
         if not (
             0.0
             < float(profile.max_regime_vol_z)
-            <= 3.0
+            <= self.parameters.max_regime_vol_z
         ):
             raise ValueError(
                 "MiCOM volatility-zone limit outside envelope"
@@ -79,6 +98,7 @@ class MasterGridProtectionMiCOM:
         self.max_regime_vol_z = float(
             profile.max_regime_vol_z
         )
+        self._runtime_profile_applied = True
 
     def reset_session(self) -> None:
         """ANSI 67 is a DAILY fleet-drawdown trip: its lockout clears at the session boundary."""
@@ -106,7 +126,7 @@ class MasterGridProtectionMiCOM:
                 ansi_code="ANSI 81U",
                 reason=f"Under-Frequency: NIFTY 15m collapse {nifty_15m_return*100:.2f}% <= -{self.nifty_crash_rate*100:.2f}%"
             )
-        if nifty_15m_return >= self.nifty_crash_rate * 1.5:
+        if nifty_15m_return >= self.nifty_crash_rate * self.parameters.overfrequency_ratio:
             return GridRelayTrip(
                 tripped=True,
                 ansi_code="ANSI 81O",
@@ -164,8 +184,9 @@ class BayExcitationAVR:
         self,
         bay_name: str,
         allocated_capital_inr: float,
-        min_notional_uel_inr: float = 25000.0,
-        max_notional_oel_inr: float = 800000.0
+        min_notional_uel_inr: Optional[float] = None,
+        max_notional_oel_inr: Optional[float] = None,
+        parameters=None,
     ):
         self.bay_name = bay_name
 
@@ -178,6 +199,16 @@ class BayExcitationAVR:
             allocated_capital_inr
         )
 
+        # Registry-owned AVR parameters (avr_*, revision5/controller_parameters.py).  The runtime
+        # values below are the neutral (stress 0, risk derate 1) profile of those parameters,
+        # until the first dynamic AVR profile is applied.
+        self.parameters = parameters if parameters is not None else _controller_defaults().avr
+        p = self.parameters
+        if min_notional_uel_inr is None:
+            min_notional_uel_inr = p.uel_min_notional_inr
+        if max_notional_oel_inr is None:
+            max_notional_oel_inr = self.allocated_capital * p.oel_capital_fraction
+
         self._base_uel_min = float(
             min_notional_uel_inr
         )
@@ -186,29 +217,29 @@ class BayExcitationAVR:
             max_notional_oel_inr
         ) / self.allocated_capital
 
-        # Runtime operating values.
-        self.loading_fraction = 0.15
+        # Runtime operating values (neutral profile of the registry parameters).
+        self.loading_fraction = p.loading_fraction_base
         self.uel_min_multiplier = 1.0
         self.oel_fraction = self._base_oel_fraction
 
-        self.vol_scalar_min = 0.20
-        self.vol_scalar_max = 2.0
+        self.vol_scalar_min = p.vol_scalar_min
+        self.vol_scalar_max = p.vol_scalar_max_base
 
-        self.z_strength_denominator = 1.80
-        self.z_strength_cap = 1.50
+        self.z_strength_denominator = p.z_strength_denominator_base
+        self.z_strength_cap = p.z_strength_cap_base
 
         # Native AVR inner-loop controller state.
-        self.runtime_kp = 0.80
-        self.runtime_ki = 0.15
-        self.runtime_kd = 0.10
-        self.runtime_integral_clamp = 0.50
+        self.runtime_kp = p.kp_base
+        self.runtime_ki = p.ki_base
+        self.runtime_kd = p.kd_base
+        self.runtime_integral_clamp = p.integral_clamp_base
 
-        self.undervoltage_trip_pu = 0.90
-        self.overvoltage_trip_pu = 1.10
-        self.mvar_limit_pu = 0.90
+        self.undervoltage_trip_pu = p.undervoltage_trip_base_pu
+        self.overvoltage_trip_pu = p.overvoltage_trip_base_pu
+        self.mvar_limit_pu = p.mvar_limit_base_pu
 
-        self.excitation_min = 0.10
-        self.excitation_max = 1.00
+        self.excitation_min = p.excitation_min_base
+        self.excitation_max = p.excitation_max_base
 
         self.avr_integral_error = 0.0
         self.avr_last_error = 0.0
@@ -220,6 +251,33 @@ class BayExcitationAVR:
         self.oel_max = float(
             max_notional_oel_inr
         )
+
+    def configure(self, parameters) -> None:
+        """Install registry-owned AVR parameters WITHOUT resetting controller state.
+
+        The PID memory (integral, last error) and the excitation command are preserved.  The UEL
+        floor and OEL fraction envelope follow the new parameters; until a dynamic profile has been
+        applied the runtime gains/limits follow the new neutral values, afterwards the next profile
+        (built from the same parameters) replaces them.  State is re-clamped to the new limits.
+        """
+        self.parameters = parameters
+        p = parameters
+        self._base_uel_min = float(p.uel_min_notional_inr)
+        self._base_oel_fraction = float(p.oel_capital_fraction)
+        if not getattr(self, "_runtime_profile_applied", False):
+            self.loading_fraction = p.loading_fraction_base
+            self.oel_fraction = self._base_oel_fraction
+            self.vol_scalar_min, self.vol_scalar_max = p.vol_scalar_min, p.vol_scalar_max_base
+            self.z_strength_denominator, self.z_strength_cap = p.z_strength_denominator_base, p.z_strength_cap_base
+            self.runtime_kp, self.runtime_ki, self.runtime_kd = p.kp_base, p.ki_base, p.kd_base
+            self.runtime_integral_clamp = p.integral_clamp_base
+            self.undervoltage_trip_pu, self.overvoltage_trip_pu = p.undervoltage_trip_base_pu, p.overvoltage_trip_base_pu
+            self.mvar_limit_pu = p.mvar_limit_base_pu
+            self.excitation_min, self.excitation_max = p.excitation_min_base, p.excitation_max_base
+        self.excitation_command = max(self.excitation_min, min(self.excitation_max, self.excitation_command))
+        self.avr_integral_error = max(-self.runtime_integral_clamp,
+                                      min(self.runtime_integral_clamp, self.avr_integral_error))
+        self._refresh_runtime_limits()
 
     def update_allocated_capital(
         self,
@@ -276,7 +334,7 @@ class BayExcitationAVR:
         if not (
             0.0
             < float(profile.loading_fraction)
-            <= 0.15
+            <= self.parameters.loading_fraction_base
         ):
             raise ValueError(
                 "AVR loading fraction outside envelope"
@@ -353,6 +411,8 @@ class BayExcitationAVR:
         self.excitation_max = float(
             profile.excitation_max
         )
+
+        self._runtime_profile_applied = True
 
         self.excitation_command = max(
             self.excitation_min,
@@ -760,19 +820,34 @@ class BayUnitProtectionSEL300G:
     def __init__(
         self,
         bay_name: str,
-        max_slippage_pct: float = 0.0035,   # ANSI 87G: 0.35% Diff Trip
-        max_adverse_bars: int = 4,          # ANSI 32R: Negative drift timeout
-        vol_surge_mult: float = 3.5         # ANSI 24: Volts/Hz Overfluxing
+        max_slippage_pct: Optional[float] = None,   # ANSI 87G differential trip
+        max_adverse_bars: Optional[int] = None,     # ANSI 32R negative drift timeout
+        vol_surge_mult: Optional[float] = None,     # ANSI 24 volts/hertz overfluxing
+        parameters=None,
     ):
+        # Envelopes are registry-owned (sel_* FIXED_SAFETY, revision5/controller_parameters.py).
+        self.parameters = parameters if parameters is not None else _controller_defaults().unit_protection
+        p = self.parameters
         self.bay_name = bay_name
-        self.max_slippage_pct = max_slippage_pct
-        self.max_adverse_bars = max_adverse_bars
-        self.vol_surge_mult = vol_surge_mult
+        self.max_slippage_pct = p.max_slippage_fraction if max_slippage_pct is None else max_slippage_pct
+        self.max_adverse_bars = p.max_adverse_bars if max_adverse_bars is None else max_adverse_bars
+        self.vol_surge_mult = p.vol_surge_mult if vol_surge_mult is None else vol_surge_mult
 
-        self.stale_tick_limit_seconds = 120.0
-        self.max_spread_fraction = 0.005
+        self.stale_tick_limit_seconds = p.stale_tick_limit_seconds
+        self.max_spread_fraction = p.max_spread_fraction
 
         self.adverse_drift_counters: Dict[str, int] = {}
+
+    def configure(self, parameters) -> None:
+        """Install new protection envelopes; trip counters are preserved.  Before the first
+        runtime profile the operating limits follow the new envelopes."""
+        self.parameters = parameters
+        if not getattr(self, "_runtime_profile_applied", False):
+            self.max_slippage_pct = parameters.max_slippage_fraction
+            self.max_adverse_bars = parameters.max_adverse_bars
+            self.vol_surge_mult = parameters.vol_surge_mult
+            self.stale_tick_limit_seconds = parameters.stale_tick_limit_seconds
+            self.max_spread_fraction = parameters.max_spread_fraction
 
     def apply_runtime_profile(self, profile) -> None:
         if getattr(profile, "bay_id", self.bay_name) != self.bay_name:
@@ -785,7 +860,7 @@ class BayUnitProtectionSEL300G:
         if not (
             0.0
             < float(profile.stale_tick_limit_seconds)
-            <= 120.0
+            <= self.parameters.stale_tick_limit_seconds
         ):
             raise ValueError(
                 "SEL300G stale-data limit outside envelope"
@@ -794,7 +869,7 @@ class BayUnitProtectionSEL300G:
         if not (
             0.0
             < float(profile.max_spread_fraction)
-            <= 0.005
+            <= self.parameters.max_spread_fraction
         ):
             raise ValueError(
                 "SEL300G spread limit outside envelope"
@@ -803,7 +878,7 @@ class BayUnitProtectionSEL300G:
         if not (
             0.0
             < float(profile.vol_surge_mult)
-            <= 3.5
+            <= self.parameters.vol_surge_mult
         ):
             raise ValueError(
                 "SEL300G volatility limit outside envelope"
@@ -824,6 +899,7 @@ class BayUnitProtectionSEL300G:
         self.max_adverse_bars = int(
             profile.max_adverse_bars
         )
+        self._runtime_profile_applied = True
 
     def check_pre_synchronization(
         self,

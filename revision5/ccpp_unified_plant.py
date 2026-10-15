@@ -70,8 +70,16 @@ from revision5.ccpp_protection_cubicles import (
 logger = logging.getLogger("CCPP_Plant_R5")
 
 
-LOSS_COOLDOWN_BARS = 15
-TARGET_COOLDOWN_BARS = 3
+# Former literals LOSS_COOLDOWN_BARS = 15 / TARGET_COOLDOWN_BARS = 3: now registry-owned
+# (plant_loss_cooldown_base_bars / plant_target_cooldown_base_bars).  These names remain as the
+# registry-default view for legacy imports; runtime bays read their configured parameters.
+def _cooldown_default(name: str) -> int:
+    from revision5.controller_parameters import CONTROLLER_PARAMETERS
+    return int(CONTROLLER_PARAMETERS[name].default)
+
+
+LOSS_COOLDOWN_BARS = _cooldown_default("plant_loss_cooldown_base_bars")
+TARGET_COOLDOWN_BARS = _cooldown_default("plant_target_cooldown_base_bars")
 
 # Speedtronic Mark V Physical Safety Limits
 SPEEDTRONIC_FSRMIN_FLAMEOUT_FLOOR: float = 0.15
@@ -88,39 +96,120 @@ class SquareOffIntent:
     position_id: Optional[str] = None
 
 
+DISPATCHER_ALLOCATION_MODES = ("legacy", "bounded")
+AVR_VOLTAGE_MODES = ("legacy", "measured")
+
+
+def _default_controller_parameters():
+    from revision5.controller_parameters import default_controller_parameters
+    return default_controller_parameters()
+
+
+def _bounded_simplex_projection(weights: Mapping[str, float], floor: float, ceiling: float) -> Dict[str, float]:
+    """Deterministic water-filling: scale the free weights proportionally to the mass left after
+    fixed bays, pin every bay that leaves [floor, ceiling] at the violated bound, repeat.  Each
+    pass pins at least one more bay, so it terminates in <= n passes.  Requires
+    n * floor <= 1 <= n * ceiling (validated by DispatcherParameters)."""
+    order = list(BAY_IDS)
+    fixed: Dict[str, float] = {}
+    for _ in range(len(order) + 1):
+        free = [bay for bay in order if bay not in fixed]
+        if not free:
+            break
+        mass = 1.0 - sum(fixed.values())
+        free_total = sum(max(0.0, float(weights[bay])) for bay in free)
+        shares = ({bay: mass * max(0.0, float(weights[bay])) / free_total for bay in free} if free_total > 0.0
+                  else {bay: mass / len(free) for bay in free})
+        low = [bay for bay in free if shares[bay] < floor - 1e-15]
+        high = [bay for bay in free if shares[bay] > ceiling + 1e-15]
+        if not low and not high:
+            return {bay: fixed.get(bay, shares.get(bay)) for bay in order}
+        for bay in high:
+            fixed[bay] = ceiling
+        if not high:
+            for bay in low:
+                fixed[bay] = floor
+    result = {bay: fixed[bay] for bay in order}
+    if abs(sum(result.values()) - 1.0) > 1e-9:
+        raise RuntimeError("bounded dispatcher projection is infeasible")
+    return result
+
+
 class DynamicBayLoadDispatcher:
     """
     Dynamic merit-order capital allocation.
 
     Feedback input is R-multiple only.
     This is controller state, not PID coefficient tuning.
+
+    Every coefficient is registry-owned (disp_*, revision5/controller_parameters.py).
+
+    ``allocation_mode``
+        legacy   raw merit -> clamp [floor, ceiling] -> normalise -> EMA -> normalise
+                 (the final weight can exceed the ceiling: the clamp precedes the EMA)
+        bounded  raw merit -> normalise -> EMA -> bounded projection onto
+                 {floor <= w <= ceiling, sum w = 1}; floor <= final <= ceiling always holds
+    ``last_update`` records every stage of the most recent update (telemetry).
     """
 
     def __init__(
         self,
         total_capital: float = 1_000_000.0,
-        min_floor: float = 0.08,
-        max_ceiling: float = 0.35,
+        min_floor: Optional[float] = None,
+        max_ceiling: Optional[float] = None,
+        *,
+        parameters=None,
+        governor_specs: Optional[Mapping[str, Any]] = None,
+        allocation_mode: str = "legacy",
     ):
         if total_capital <= 0:
             raise ValueError("total_capital must be positive")
 
+        defaults = _default_controller_parameters()
+        self.parameters = parameters if parameters is not None else defaults.dispatcher
+        min_floor = self.parameters.allocation_floor if min_floor is None else min_floor
+        max_ceiling = self.parameters.allocation_ceiling if max_ceiling is None else max_ceiling
+
         if not 0 < min_floor < max_ceiling <= 1:
             raise ValueError("invalid dispatcher bounds")
+        if allocation_mode not in DISPATCHER_ALLOCATION_MODES:
+            raise ValueError(f"allocation_mode must be one of {DISPATCHER_ALLOCATION_MODES}")
 
         self.total_capital = float(total_capital)
         self.min_floor = float(min_floor)
         self.max_ceiling = float(max_ceiling)
+        self.allocation_mode = allocation_mode
 
         self.trade_history_r: Dict[str, list[float]] = {
             bay_id: []
             for bay_id in BAY_IDS
         }
 
+        specs = governor_specs if governor_specs is not None else defaults.governor_specs
         self.weights = {
-            bay_id: BAY_GOVERNOR_SPECS[bay_id].capital_weight
+            bay_id: specs[bay_id].capital_weight
             for bay_id in BAY_IDS
         }
+        self.updates = 0
+        self.last_update: Optional[Dict[str, Any]] = None
+
+    def configure(self, parameters, *, governor_specs: Optional[Mapping[str, Any]] = None,
+                  allocation_mode: Optional[str] = None) -> None:
+        """Install registry parameters preserving outcome history and current weights.  Before
+        the first outcome the weights follow the configured capital weights."""
+        if allocation_mode is not None:
+            if allocation_mode not in DISPATCHER_ALLOCATION_MODES:
+                raise ValueError(f"allocation_mode must be one of {DISPATCHER_ALLOCATION_MODES}")
+            self.allocation_mode = allocation_mode
+        if not 0 < parameters.allocation_floor < parameters.allocation_ceiling <= 1:
+            raise ValueError("invalid dispatcher bounds")
+        self.parameters = parameters
+        self.min_floor = float(parameters.allocation_floor)
+        self.max_ceiling = float(parameters.allocation_ceiling)
+        for bay_id, history in self.trade_history_r.items():
+            del history[:max(0, len(history) - parameters.merit_window)]
+        if self.updates == 0 and governor_specs is not None:
+            self.weights = {bay_id: governor_specs[bay_id].capital_weight for bay_id in BAY_IDS}
 
     def register_trade(
         self,
@@ -133,19 +222,22 @@ class DynamicBayLoadDispatcher:
         if not isfinite(realized_r):
             raise ValueError("realized_r must be finite")
 
+        p = self.parameters
         history = self.trade_history_r[bay_id]
         history.append(float(realized_r))
 
-        if len(history) > 20:
+        if len(history) > p.merit_window:
             history.pop(0)
 
         scores: Dict[str, float] = {}
+        downside_by_bay: Dict[str, Optional[float]] = {}
 
         for candidate_bay in BAY_IDS:
             values = self.trade_history_r[candidate_bay]
 
-            if len(values) < 3:
-                scores[candidate_bay] = 1.0
+            if len(values) < p.min_samples:
+                scores[candidate_bay] = p.neutral_score
+                downside_by_bay[candidate_bay] = None
                 continue
 
             downside = [
@@ -154,18 +246,19 @@ class DynamicBayLoadDispatcher:
                 if value < 0.0
             ]
 
-            if len(downside) > 1:
+            if len(downside) >= p.downside_min_count:
                 downside_dev = pstdev(downside)
             else:
-                downside_dev = 0.5
+                downside_dev = p.downside_dev_default
+            downside_by_bay[candidate_bay] = downside_dev
 
-            score = 1.0 + (
+            score = p.score_base + (
                 fmean(values)
-                / max(0.2, downside_dev)
+                / max(p.downside_dev_floor, downside_dev)
             )
 
             scores[candidate_bay] = max(
-                0.1,
+                p.score_floor,
                 score,
             )
 
@@ -175,37 +268,63 @@ class DynamicBayLoadDispatcher:
             bay_id: scores[bay_id] / total_score
             for bay_id in BAY_IDS
         }
+        previous = dict(self.weights)
 
-        clamped = {
-            bay_id: min(
-                self.max_ceiling,
-                max(
-                    self.min_floor,
-                    raw_targets[bay_id],
-                ),
-            )
-            for bay_id in BAY_IDS
-        }
+        if self.allocation_mode == "legacy":
+            clamped = {
+                bay_id: min(
+                    self.max_ceiling,
+                    max(
+                        self.min_floor,
+                        raw_targets[bay_id],
+                    ),
+                )
+                for bay_id in BAY_IDS
+            }
 
-        clamped_total = sum(clamped.values())
+            clamped_total = sum(clamped.values())
+            normalized_targets = {bay: clamped[bay] / clamped_total for bay in BAY_IDS}
 
-        for candidate_bay in BAY_IDS:
-            target_weight = (
-                clamped[candidate_bay]
-                / clamped_total
-            )
+            for candidate_bay in BAY_IDS:
+                target_weight = (
+                    clamped[candidate_bay]
+                    / clamped_total
+                )
 
-            self.weights[candidate_bay] = (
-                0.85 * self.weights[candidate_bay]
-                + 0.15 * target_weight
-            )
+                self.weights[candidate_bay] = (
+                    p.ema_retention * self.weights[candidate_bay]
+                    + p.ema_update * target_weight
+                )
+            ema = dict(self.weights)
 
-        # Normalize after smoothing so the portfolio remains exactly 100%.
-        weight_total = sum(self.weights.values())
+            # Normalize after smoothing so the portfolio remains exactly 100%.
+            weight_total = sum(self.weights.values())
 
-        self.weights = {
-            bay_id: weight / weight_total
-            for bay_id, weight in self.weights.items()
+            self.weights = {
+                bay_id: weight / weight_total
+                for bay_id, weight in self.weights.items()
+            }
+        else:
+            clamped = dict(raw_targets)
+            normalized_targets = dict(raw_targets)
+            ema = {bay: p.ema_retention * previous[bay] + p.ema_update * raw_targets[bay] for bay in BAY_IDS}
+            self.weights = _bounded_simplex_projection(ema, self.min_floor, self.max_ceiling)
+
+        self.updates += 1
+        self.last_update = {
+            "mode": self.allocation_mode, "update": self.updates, "affected_bay": bay_id,
+            "realized_r": float(realized_r), "floor": self.min_floor, "ceiling": self.max_ceiling,
+            "bays": {
+                bay: {
+                    "raw_merit": scores[bay], "downside_risk": downside_by_bay[bay],
+                    "previous_ema": previous[bay], "raw_allocation": raw_targets[bay],
+                    "floor_clamped": raw_targets[bay] < self.min_floor,
+                    "ceiling_clamped": raw_targets[bay] > self.max_ceiling,
+                    "normalized_allocation": normalized_targets[bay], "new_ema": ema[bay],
+                    "final_allocation": self.weights[bay],
+                    "final_within_bounds": self.min_floor - 1e-12 <= self.weights[bay] <= self.max_ceiling + 1e-12,
+                } for bay in BAY_IDS
+            },
         }
 
     def get_allocation(self, bay_id: str) -> float:
@@ -238,12 +357,15 @@ class TurbineBayPanel:
         self,
         bay_id: str,
         total_plant_capital: float,
+        parameters=None,
     ):
         if bay_id not in BAY_IDS:
             raise ValueError(f"Unknown bay: {bay_id!r}")
 
+        # Registry-owned controller parameters (revision5/controller_parameters.py).
+        self.parameters = parameters if parameters is not None else _default_controller_parameters()
         self.bay_id = bay_id
-        self.spec = BAY_GOVERNOR_SPECS[bay_id]
+        self.spec = self.parameters.governor_specs[bay_id]
         self.symbols = FLEET_TOPOLOGY[bay_id]
 
         self.governor = BayTurbineClosedLoopGovernor(
@@ -255,16 +377,26 @@ class TurbineBayPanel:
             * self.spec.capital_weight
         )
 
+        avr_parameters = self.parameters.avr
         self.avr = BayExcitationAVR(
             bay_name=bay_id,
             allocated_capital_inr=initial_capital,
-            min_notional_uel_inr=15_000.0,
-            max_notional_oel_inr=initial_capital * 0.40,
+            min_notional_uel_inr=avr_parameters.uel_min_notional_inr,
+            max_notional_oel_inr=initial_capital * avr_parameters.oel_capital_fraction,
+            parameters=avr_parameters,
         )
 
         self.relay = BayUnitProtectionSEL300G(
-            bay_name=bay_id
+            bay_name=bay_id,
+            parameters=self.parameters.unit_protection,
         )
+
+        # AVR feedback source: "legacy" (unmeasured; evaluate_control per call with the default
+        # 1.0 pu inputs) or "measured" (one regulation per bar from the plant's terminal-voltage
+        # measurement, see regulate_terminal_voltage).
+        self.avr_voltage_mode = "legacy"
+        self.avr_regulation: Optional[dict] = None
+        self._filtered_terminal_voltage_pu: Optional[float] = None
 
         self.bay_capital = initial_capital
 
@@ -283,13 +415,92 @@ class TurbineBayPanel:
         # Entry allowed when bar_index >= this value.
         self.cooldown_until_bar_exclusive = 0
 
-        # Current runtime cooldown settings.
-        self.loss_cooldown_bars = (
-            LOSS_COOLDOWN_BARS
+        # Current runtime cooldown settings (registry base until the first snapshot).
+        self.loss_cooldown_bars = int(
+            self.parameters.cooldown.loss_cooldown_base_bars
         )
-        self.target_cooldown_bars = (
-            TARGET_COOLDOWN_BARS
+        self.target_cooldown_bars = int(
+            self.parameters.cooldown.target_cooldown_base_bars
         )
+        self._dynamic_snapshot_applied = False
+
+    def configure(self, parameters) -> None:
+        """Install registry-owned parameters into this bay WITHOUT resetting state: governor
+        history/integrators/inner loops, AVR PID and excitation, relay counters, cooldown latch
+        and trip state are preserved (see each component's configure/reconfigure)."""
+        self.parameters = parameters
+        self.spec = parameters.governor_specs[self.bay_id]
+        self.governor.reconfigure(self.spec)
+        self.avr.configure(parameters.avr)
+        self.relay.configure(parameters.unit_protection)
+        if not self._dynamic_snapshot_applied:
+            self.loss_cooldown_bars = int(parameters.cooldown.loss_cooldown_base_bars)
+            self.target_cooldown_bars = int(parameters.cooldown.target_cooldown_base_bars)
+
+    def regulate_terminal_voltage(
+        self,
+        *,
+        bar_index: int,
+        bus_voltage_pu: Optional[float],
+        bound_notional: float,
+    ) -> dict:
+        """One AVR regulation step from a causal terminal-voltage measurement (measured mode).
+
+        Measurement (documented derivation, all inputs known at the decision time):
+            V_bus  = synchronized grid bus voltage, 1 + Nifty deviation from its EMA as measured
+                     by the plant grid synchronizer from completed bars strictly before now
+            I_bay  = bay armature loading = bound position notional (fill price x quantity of
+                     the positions bound to this bay) / AVR-rated bay capital
+            V_t    = V_bus - X_s * I_bay           (avr_synchronous_reactance_pu)
+            V_meas = V_meas + alpha * (V_t - V_meas) (avr_voltage_filter_alpha; first sample V_t)
+        Control:   error = V_ref - V_meas (avr_voltage_reference_pu) through the AVR PID once per
+                   bar; ANSI 27/59 trip on V_meas.  Missing / invalid inputs fail closed (tripped).
+        """
+        a = self.parameters.avr
+        command_before = float(self.avr.excitation_command)
+        record = {"bar_index": int(bar_index), "bay_id": self.bay_id, "mode": "MEASURED",
+                  "voltage_reference_pu": a.voltage_reference_pu, "bus_voltage_pu": bus_voltage_pu,
+                  "bound_notional": bound_notional, "command_before": command_before}
+        capital = float(self.avr.allocated_capital)
+        valid = (bus_voltage_pu is not None and isfinite(float(bus_voltage_pu)) and float(bus_voltage_pu) > 0.0
+                 and isfinite(float(bound_notional)) and float(bound_notional) >= 0.0
+                 and isfinite(capital) and capital > 0.0)
+        if not valid:
+            record.update({"tripped": True, "reason": "AVR_VOLTAGE_MEASUREMENT_INVALID",
+                           "excitation_command": command_before})
+            self.avr_regulation = record
+            return record
+        loading = float(bound_notional) / capital
+        raw = float(bus_voltage_pu) - a.synchronous_reactance_pu * loading
+        previous = self._filtered_terminal_voltage_pu
+        measured = raw if previous is None else previous + a.voltage_filter_alpha * (raw - previous)
+        self._filtered_terminal_voltage_pu = measured
+        kp, ki, kd = self.avr.runtime_kp, self.avr.runtime_ki, self.avr.runtime_kd
+        control = self.avr.evaluate_control(
+            mode="BUS_VOLTAGE", bus_voltage_reference_pu=a.voltage_reference_pu,
+            terminal_voltage_pu=measured)
+        record.update(control)
+        record.update({"bay_loading_pu": loading, "terminal_voltage_raw_pu": raw,
+                       "terminal_voltage_pu": measured})
+        if not control.get("tripped"):
+            record.update({"p_term": kp * control["error"], "i_term": ki * control["integral_error"],
+                           "d_term": kd * control["derivative"],
+                           "command_requested": command_before + control["delta_u"],
+                           "command_after_limits": control["excitation_command"]})
+        self.avr_regulation = record
+        return record
+
+    def _avr_feedback(self, bar_index: Optional[int], **legacy_inputs) -> dict:
+        """AVR feedback for an admission / position decision.  Legacy mode runs the AVR PID on
+        the supplied inputs (unchanged behaviour).  Measured mode reuses THIS bar's regulation
+        result and fails closed when it is missing or tripped."""
+        if self.avr_voltage_mode == "legacy":
+            return self.avr.evaluate_control(**legacy_inputs)
+        record = self.avr_regulation
+        if record is None or bar_index is None or record.get("bar_index") != int(bar_index):
+            return {"tripped": True, "reason": "AVR_VOLTAGE_NOT_MEASURED_THIS_BAR",
+                    "excitation_command": float(self.avr.excitation_command)}
+        return record
 
     def reset_session(self) -> None:
         """
@@ -356,6 +567,8 @@ class TurbineBayPanel:
                 self.bay_id
             ]
         )
+
+        self._dynamic_snapshot_applied = True
 
         self.loss_cooldown_bars = int(
             snapshot.plant.loss_cooldown_bars
@@ -997,7 +1210,8 @@ class TurbineBayPanel:
                 "dynamic_z": float(dynamic_z),
             }
 
-        avr_control = self.avr.evaluate_control(
+        avr_control = self._avr_feedback(
+            bar_index,
             mode=avr_mode,
             bus_voltage_reference_pu=(
                 bus_voltage_reference_pu
@@ -1042,12 +1256,12 @@ class TurbineBayPanel:
 
         stop_distance = max(
             self.spec.atr_barrier * atr,
-            price * 0.0065,
+            price * self.parameters.cooldown.stop_floor_price_fraction,
         )
 
         target_distance = max(
             self.spec.target_m * atr,
-            stop_distance * 1.5,
+            stop_distance * self.parameters.cooldown.target_min_reward_risk,
         )
 
         return {
@@ -1092,6 +1306,7 @@ class TurbineBayPanel:
         measured_mvar_pu: float = 0.0,
         avr_mode: str = "BUS_VOLTAGE",
         position_id=None,
+        bar_index: Optional[int] = None,
     ) -> dict:
         """
         Continuous physical-unit control:
@@ -1126,7 +1341,8 @@ class TurbineBayPanel:
                 ),
             }
 
-        avr_control = self.avr.evaluate_control(
+        avr_control = self._avr_feedback(
+            bar_index,
             mode=avr_mode,
             bus_voltage_reference_pu=(
                 bus_voltage_reference_pu
@@ -1208,7 +1424,7 @@ class TurbineBayPanel:
                 + 1
             )
 
-            if self.consecutive_stops >= 2:
+            if self.consecutive_stops >= self.parameters.cooldown.bay_lockout_consecutive_stops:
                 self.tripped_offline = True
 
         elif (
@@ -1241,18 +1457,28 @@ class CentralPlantMasterDCS:
         db_path: str | Path = (
             "revision5/r5_plant_state.sqlite3"
         ),
+        controller_parameters=None,
     ):
         if total_capital <= 0:
             raise ValueError(
                 "total_capital must be positive"
             )
 
+        # Registry-owned controller parameters.  The orchestrator re-applies the EffectiveConfig
+        # image through apply_controller_parameters() before the first bar.
+        self.controller_parameters = (
+            controller_parameters if controller_parameters is not None
+            else _default_controller_parameters()
+        )
+        params = self.controller_parameters
+        self.avr_voltage_mode = "legacy"
+
         self.total_capital = float(
             total_capital
         )
 
         self.grid_relay = (
-            MasterGridProtectionMiCOM()
+            MasterGridProtectionMiCOM(parameters=params.grid_protection)
         )
 
         # Minimal Revision-5 electrical network:
@@ -1269,14 +1495,17 @@ class CentralPlantMasterDCS:
 
         self.dispatcher = (
             DynamicBayLoadDispatcher(
-                total_capital=total_capital
+                total_capital=total_capital,
+                parameters=params.dispatcher,
+                governor_specs=params.governor_specs,
             )
         )
 
         # HRSG sits between merit-order dispatch and physical bay
         # capital/AVR configuration.
         self.hrsg = HeatRecoverySteamGenerator(
-            base_plant_capital=total_capital
+            base_plant_capital=total_capital,
+            parameters=params.hrsg,
         )
 
         self.hrsg_last_balance: Optional[
@@ -1296,6 +1525,7 @@ class CentralPlantMasterDCS:
             bay_id: TurbineBayPanel(
                 bay_id,
                 total_capital,
+                parameters=params,
             )
             for bay_id in BAY_IDS
         }
@@ -1341,7 +1571,7 @@ class CentralPlantMasterDCS:
         )
 
         self.dynamic_controller = (
-            Revision5DynamicParameterController()
+            Revision5DynamicParameterController(params)
         )
 
         self.dynamic_snapshot = None
@@ -1362,6 +1592,52 @@ class CentralPlantMasterDCS:
         self.current_bar_index: Optional[
             int
         ] = None
+
+    def apply_controller_parameters(
+        self,
+        parameters,
+        *,
+        dispatcher_allocation_mode: Optional[str] = None,
+        avr_voltage_mode: Optional[str] = None,
+    ) -> None:
+        """Install one registry-backed controller parameter image across the plant WITHOUT
+        resetting controller state (governor histories/integrators/inner loops, AVR PID and
+        excitation, relay counters, dispatcher outcomes/weights, HRSG pressure and correlation
+        history, cooldown/trip latches).  Unchanged values leave every state untouched."""
+        from revision5.controller_parameters import R5ControllerParameters
+        if not isinstance(parameters, R5ControllerParameters):
+            raise TypeError("parameters must be R5ControllerParameters")
+        if avr_voltage_mode is not None and avr_voltage_mode not in AVR_VOLTAGE_MODES:
+            raise ValueError(f"avr_voltage_mode must be one of {AVR_VOLTAGE_MODES}")
+        self.controller_parameters = parameters
+        self.grid_relay.configure(parameters.grid_protection)
+        self.dispatcher.configure(parameters.dispatcher, governor_specs=parameters.governor_specs,
+                                  allocation_mode=dispatcher_allocation_mode)
+        self.hrsg.configure(parameters.hrsg)
+        self.dynamic_controller.configure(parameters)
+        for bay in self.bays.values():
+            bay.configure(parameters)
+            if avr_voltage_mode is not None:
+                bay.avr_voltage_mode = avr_voltage_mode
+        if avr_voltage_mode is not None:
+            self.avr_voltage_mode = avr_voltage_mode
+
+    def regulate_bay_voltages(
+        self,
+        *,
+        bar_index: int,
+        bus_voltage_pu: Optional[float],
+    ) -> Dict[str, dict]:
+        """Measured-AVR mode: one regulation per bay for this bar (see
+        TurbineBayPanel.regulate_terminal_voltage for the measurement derivation)."""
+        if self.avr_voltage_mode != "measured":
+            raise RuntimeError("regulate_bay_voltages requires avr_voltage_mode='measured'")
+        return {
+            bay_id: bay.regulate_terminal_voltage(
+                bar_index=bar_index, bus_voltage_pu=bus_voltage_pu,
+                bound_notional=self.bay_bound_notional(bay_id))
+            for bay_id, bay in self.bays.items()
+        }
 
     def apply_dynamic_environment(
         self,
@@ -2476,6 +2752,7 @@ class CentralPlantMasterDCS:
             ),
             avr_mode=avr_mode,
             position_id=self._position_key(position_id),
+            bar_index=bar_index,
         )
 
         result.update(

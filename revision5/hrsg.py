@@ -107,16 +107,33 @@ class HeatRecoverySteamGenerator:
         self,
         *,
         base_plant_capital: float = 1_000_000.0,
-        recovery_fraction: float = 0.60,
-        rho_crit: float = 0.65,
-        min_penalty_factor: float = 0.70,
+        recovery_fraction: Optional[float] = None,
+        rho_crit: Optional[float] = None,
+        min_penalty_factor: Optional[float] = None,
         max_superheat_boost: float = 0.15,
-        correlation_window: int = 30,
-        min_correlation_samples: int = 6,
-        pressure_time_constant_bars: float = 5.0,
-        min_steam_pressure_pu: float = 0.35,
-        max_steam_pressure_pu: float = 1.50,
+        correlation_window: Optional[int] = None,
+        min_correlation_samples: Optional[int] = None,
+        pressure_time_constant_bars: Optional[float] = None,
+        min_steam_pressure_pu: Optional[float] = None,
+        max_steam_pressure_pu: Optional[float] = None,
+        parameters=None,
     ):
+        # Registry-owned HRSG parameters (hrsg_*, revision5/controller_parameters.py).  Explicit
+        # arguments remain for legacy direct construction.  max_superheat_boost feeds only
+        # superheat_headroom_factor(), which has no runtime caller (not a registry parameter).
+        if parameters is None:
+            from revision5.controller_parameters import default_controller_parameters
+            parameters = default_controller_parameters().hrsg
+        self.parameters = parameters
+        pick = lambda value, name: getattr(parameters, name) if value is None else value
+        recovery_fraction = pick(recovery_fraction, "recovery_fraction")
+        rho_crit = pick(rho_crit, "rho_crit")
+        min_penalty_factor = pick(min_penalty_factor, "min_penalty_factor")
+        correlation_window = pick(correlation_window, "correlation_window")
+        min_correlation_samples = pick(min_correlation_samples, "min_correlation_samples")
+        pressure_time_constant_bars = pick(pressure_time_constant_bars, "pressure_time_constant_bars")
+        min_steam_pressure_pu = pick(min_steam_pressure_pu, "min_steam_pressure_pu")
+        max_steam_pressure_pu = pick(max_steam_pressure_pu, "max_steam_pressure_pu")
         if base_plant_capital <= 0:
             raise ValueError(
                 "base_plant_capital must be positive"
@@ -215,6 +232,19 @@ class HeatRecoverySteamGenerator:
         ] = deque(
             maxlen=self.correlation_window
         )
+
+    def configure(self, parameters) -> None:
+        """Install new registry parameters preserving thermal and correlation state: the drum
+        pressure is kept, the return-snapshot history is resized keeping the newest rows."""
+        fresh = HeatRecoverySteamGenerator(
+            base_plant_capital=self.base_plant_capital, max_superheat_boost=self.max_superheat_boost,
+            parameters=parameters)
+        self.parameters = parameters
+        for name in ("recovery_fraction", "rho_crit", "min_penalty_factor", "correlation_window",
+                     "min_correlation_samples", "pressure_time_constant_bars", "min_steam_pressure_pu",
+                     "max_steam_pressure_pu"):
+            setattr(self, name, getattr(fresh, name))
+        self._return_snapshots = deque(self._return_snapshots, maxlen=self.correlation_window)
 
     @staticmethod
     def _validate_bay(
