@@ -5,7 +5,7 @@ Engine B: revision2_external.orchestrator.Revision2ExternalEngineOrchestrator dr
           revision5 CentralPlantMasterDCS (PAPER_APPLY, active_paper, full governor authority).
 
 Both engines replay the same 100-bar, 2-symbol synthetic feed (seeded random walk with drift
-and positive range; 60 warm-up bars).  Every component is wrapped pass-through: the wrappers
+and positive range; 60 warm-up bars, then a directional regime expansion).  Every component is wrapped pass-through: the wrappers
 record calls and return the original result unchanged.  No broker network access.
 """
 from __future__ import annotations
@@ -27,21 +27,26 @@ import pandas as pd
 SYMBOLS = ("INFY", "TITAN")
 BARS, WARMUP = 100, 60
 START = pd.Timestamp("2024-03-04 09:15", tz="Asia/Kolkata")
+# Post-warm-up directional regime expansion: steeper drift, wider bars (ATR expansion) and
+# heavier volume confirming the move.  Warm-up bars keep the baseline regime.
+BASE_DRIFT, TREND_DRIFT = 1.2e-3, 2.0e-3
+TREND_RANGE_MULT, TREND_VOLUME_MULT = 1.6, 2.0
 
 
 def feed(seed: int):
     data = {}
+    trend = np.arange(BARS) >= WARMUP
     for k, symbol in enumerate(SYMBOLS):
         rng = np.random.default_rng(seed + k)
-        returns = 1.2e-3 + rng.normal(0.0, 1.6e-3, BARS)
+        returns = np.where(trend, TREND_DRIFT, BASE_DRIFT) + rng.normal(0.0, 1.6e-3, BARS)
         close = 1000.0 * np.exp(np.cumsum(returns))
         open_ = np.concatenate([[1000.0], close[:-1]])
-        wick = np.abs(rng.normal(0.0, 1.2e-3, BARS)) * close
+        wick = np.abs(rng.normal(0.0, 1.2e-3, BARS)) * close * np.where(trend, TREND_RANGE_MULT, 1.0)
         data[symbol] = pd.DataFrame({
             "timestamp": pd.date_range(START, periods=BARS, freq="min"),
             "open": open_, "high": np.maximum(open_, close) + wick,
             "low": np.minimum(open_, close) - wick, "close": close,
-            "volume": rng.lognormal(10.0, 0.4, BARS)})
+            "volume": rng.lognormal(10.0, 0.4, BARS) * np.where(trend, TREND_VOLUME_MULT, 1.0)})
     return data
 
 
