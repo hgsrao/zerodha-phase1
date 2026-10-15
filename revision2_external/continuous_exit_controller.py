@@ -211,6 +211,8 @@ class ContinuousExitController:
         if saturation_exit_bars is None:
             saturation_exit_bars = require(self.config, 'saturation_exit_bars')
         self.kp, self.ki, self.kd = kp, ki, kd
+        # (Kp, Ki, Kd) multipliers from the R5 dynamic parameter controller.
+        self.gain_scale = (1.0, 1.0, 1.0)
         self.clamp = abs(clamp)
         self.atr_droop_mult = abs(atr_droop_mult)
         self.baseline_window = max(1, int(baseline_window))
@@ -240,7 +242,8 @@ class ContinuousExitController:
             # -- the value here only matters for the very first construction.
             store[symbol] = PID(Kp=self.kp, Ki=self.ki, Kd=self.kd, setpoint=0.5,
                                  sample_time=None, output_limits=(-self.clamp, self.clamp))
-        store[symbol].tunings = (self.kp, self.ki, self.kd)
+        scale = self.gain_scale
+        store[symbol].tunings = (self.kp * scale[0], self.ki * scale[1], self.kd * scale[2])
         store[symbol].output_limits = (-self.clamp, self.clamp)
         return store[symbol]
 

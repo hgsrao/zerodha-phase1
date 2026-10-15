@@ -116,9 +116,18 @@ class EngineStateStore:
     def __init__(self, db_path: str | Path):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        # Every sqlite3.connect(":memory:") is a new, empty database, so an
+        # in-memory store must keep one connection for its whole lifetime.
+        self._memory_con = (
+            sqlite3.connect(":memory:", isolation_level=None)
+            if str(db_path) == ":memory:"
+            else None
+        )
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
+        if self._memory_con is not None:
+            return self._memory_con
         con = sqlite3.connect(
             str(self.db_path),
             timeout=30.0,
@@ -230,7 +239,8 @@ class EngineStateStore:
             raise
 
         finally:
-            con.close()
+            if con is not self._memory_con:
+                con.close()
 
     def entry_allowed(
         self,
