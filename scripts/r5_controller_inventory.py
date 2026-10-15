@@ -171,7 +171,7 @@ CONTROLLERS = [
          reset="never", update="per candidate / per held bar", persistence="whole run",
          actuator="active_paper: entry size derate, confidence offset, path stop tightening/exit (advisory under full governor authority)", registry=["cl_*"],
          hardcoded=["_ENTRY_DERATE_BOUNDS (0.5, 1.0), persistence bounds, gain-scale bounds (FIXED_SAFETY / TELEMETRY_ONLY, annotated)",
-                     "TradeReferencePath applies curve_gamma twice (progress() ** gamma, then ** gamma again)"],
+                     "TradeReferencePath.curve_gamma = 1.0 (applied once in progress(); the a695913 double-application fix is already present at cb10fac)"],
          tests="tests_external/test_closed_loop_*.py, tests/test_revision5_closed_loop_unit_controls.py", status="ACTIVE"),
     dict(id="C17", name="HMM risk hysteresis", file="revision2_external/closed_loop_control.py", symbol="HMMRiskHysteresis.update", anchor="class HMMRiskHysteresis",
          instances="1 per symbol", scope="symbol", input="HMM stress posterior", setpoint="enter/exit probabilities", error="filtered - threshold",

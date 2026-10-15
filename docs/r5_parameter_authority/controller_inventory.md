@@ -381,7 +381,7 @@ Engines B and C subclass the Engine A orchestrator and override only execution s
 - State persistence: whole run
 - Runtime actuator: active_paper: entry size derate, confidence offset, path stop tightening/exit (advisory under full governor authority)
 - Registry parameters: cl_*
-- Hardcoded values: _ENTRY_DERATE_BOUNDS (0.5, 1.0), persistence bounds, gain-scale bounds (FIXED_SAFETY / TELEMETRY_ONLY, annotated); TradeReferencePath applies curve_gamma twice (progress() ** gamma, then ** gamma again)
+- Hardcoded values: _ENTRY_DERATE_BOUNDS (0.5, 1.0), persistence bounds, gain-scale bounds (FIXED_SAFETY / TELEMETRY_ONLY, annotated); TradeReferencePath.curve_gamma = 1.0 (applied once in progress(); the a695913 double-application fix is already present at cb10fac)
 - Tests: tests_external/test_closed_loop_*.py, tests/test_revision5_closed_loop_unit_controls.py
 - Status: **ACTIVE**
 

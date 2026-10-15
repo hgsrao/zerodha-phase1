@@ -31,6 +31,15 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import capture_r5_golden_master as gm  # noqa: E402
 
 DECISION_KEYS = ("funnel", "exit_reasons", "report_keys")
+# Report fields that carry configuration identity rather than behaviour.  Adding registry
+# parameters necessarily changes them; every other top-level key must stay byte-identical.
+IDENTITY_KEYS = frozenset({"config_hash", "parameter_coverage"})
+
+
+def summarize(report):
+    summary = gm.summarize(report)
+    summary["keys_sha256"] = {k: gm.digest(report[k]) for k in sorted(report)}
+    return summary
 
 
 def main() -> int:
@@ -46,7 +55,7 @@ def main() -> int:
     names = args.only or list(matrix)
     results = {}
     for name in names:
-        results[name] = gm.summarize(gm.run_scenario(matrix[name]))
+        results[name] = summarize(gm.run_scenario(matrix[name]))
         f = results[name]["funnel"]
         print(f"{name:<44} {results[name]['report_sha256'][:16]}  orders={f['orders_submitted']} "
               f"trades={f['completed_trades']} net={f['net_pnl']}", flush=True)
@@ -59,17 +68,25 @@ def main() -> int:
 
     if args.check_decisions:
         expected = json.loads((gm.OUT_DIR / "baseline.json").read_text())["scenarios"]
+        for n in names:
+            results[n].pop("keys_sha256")
         failures = [(n, [k for k in DECISION_KEYS if expected.get(n, {}).get(k) != results[n][k]])
                     for n in names if any(expected.get(n, {}).get(k) != results[n][k] for k in DECISION_KEYS)]
         label = "DECISION-LEVEL GOLDEN MASTER (stored 500abab baseline)"
     else:
         expected = json.loads((args.check_local / "baseline.json").read_text())["scenarios"]
-        failures = []
+        failures, identity_changes = [], set()
         for n in names:
-            if expected.get(n) != results[n]:
-                diff = [k for k, v in results[n]["sections_sha256"].items()
-                        if expected.get(n, {}).get("sections_sha256", {}).get(k) != v]
-                failures.append((n, diff or ["funnel/report"]))
+            exp, got = expected.get(n, {}), results[n]
+            keys = sorted(set(exp.get("keys_sha256", {})) | set(got["keys_sha256"]))
+            changed = [k for k in keys if exp.get("keys_sha256", {}).get(k) != got["keys_sha256"].get(k)]
+            identity_changes.update(k for k in changed if k in IDENTITY_KEYS)
+            behaviour = [k for k in changed if k not in IDENTITY_KEYS]
+            behaviour += [k for k in ("funnel", "exit_reasons", "report_keys") if exp.get(k) != got[k]]
+            if behaviour:
+                failures.append((n, behaviour))
+        if identity_changes:
+            print(f"identity-only fields changed (expected with a registry change): {sorted(identity_changes)}")
         label = f"LOCAL BYTE-LEVEL GOLDEN MASTER ({args.check_local})"
     for name, diff in failures:
         print(f"MISMATCH {name}: {diff}")
