@@ -175,7 +175,7 @@ def main() -> int:
         spec = registry.params[name]
         rows.append({"parameter": name, "controller": controller, "engine_path": "pre-existing registry row (extended, not redone)",
                      "source_of_truth": "canonical registry -> EffectiveConfig.require", "default": spec.default,
-                     "classification": cls, "registry_safety_class": "TUNABLE" if registry.is_calibratable(name) else "FIXED",
+                     "classification": cls, "registry_safety_class": "TUNABLE" if registry.is_calibratable(name, "EXTERNAL") else "FIXED",
                      "update_frequency": "per Box 6 plan / per bar" if cls == "DYNAMIC" else "constant during the run",
                      "formula_or_schedule": formula, "runtime_inputs": inputs, "bounds": [spec.minimum, spec.maximum],
                      "fallback": "none: EffectiveConfig.require raises", "mode_gate": "always",

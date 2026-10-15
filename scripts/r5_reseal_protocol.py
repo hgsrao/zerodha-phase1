@@ -83,7 +83,7 @@ def main() -> int:
     protocol["engine"] = engine
     protocol["parameter_authority"] = {
         "module": "revision5/controller_parameters.py",
-        "parameters": {s.name: {"class": s.safety_class, "optimizer_eligible": registry.is_calibratable(s.name), "default": s.default}
+        "parameters": {s.name: {"class": s.safety_class, "optimizer_eligible": registry.is_calibratable(s.name, "EXTERNAL"), "default": s.default}
                        for s in sorted(CONTROLLER_PARAMETER_SPECS, key=lambda s: s.name)},
         "search_space_unchanged": True,
         "calibration_status": "NOT_CALIBRATED: no calibration has run against this identity",
