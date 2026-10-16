@@ -616,6 +616,9 @@ class Revision5DynamicParameterController:
         ] = {}
 
         abs_error = abs(error_delta)
+        full = getattr(self, "full_adaptation", False)
+        signed_stress = (stress - P.values["adapt_signed_relief"] * max(0., trend_bias) * (1. - stress)) if full else stress
+        signed_error = float(error_delta) if full else abs_error
 
         for bay_id, base in P.governor_specs.items():
 
@@ -646,11 +649,11 @@ class Revision5DynamicParameterController:
 
             integral_clamp = _clamp(
                 base.integral_clamp
-                / (
+                / max(1e-12, (
                     1.0
-                    + gs.integral_stress_gain * stress
-                    + gs.integral_error_gain * abs_error
-                ),
+                    + gs.integral_stress_gain * signed_stress
+                    + gs.integral_error_gain * signed_error
+                )),
                 base.integral_clamp * gs.integral_min_scale,
                 base.integral_clamp * gs.integral_max_scale,
             )
@@ -670,7 +673,7 @@ class Revision5DynamicParameterController:
                 base.grid_droop_max
                 * (
                     1.0
-                    + gs.droop_max_stress_gain * stress
+                    + gs.droop_max_stress_gain * signed_stress
                 ),
                 base.grid_droop_max * gs.droop_max_min_scale,
                 base.grid_droop_max * gs.droop_max_max_scale,
@@ -682,8 +685,8 @@ class Revision5DynamicParameterController:
 
             kp = base.kp * _clamp(
                 1.0
-                + gs.kp_error_gain * abs_error
-                + gs.kp_stress_gain * stress,
+                + gs.kp_error_gain * signed_error
+                + gs.kp_stress_gain * signed_stress,
                 gs.kp_scale_min,
                 gs.kp_scale_max,
             )
@@ -698,8 +701,8 @@ class Revision5DynamicParameterController:
 
             kd = base.kd * _clamp(
                 1.0
-                + gs.kd_error_gain * abs_error
-                + gs.kd_stress_gain * stress,
+                + gs.kd_error_gain * signed_error
+                + gs.kd_stress_gain * signed_stress,
                 gs.kd_scale_min,
                 gs.kd_scale_max,
             )
@@ -747,7 +750,7 @@ class Revision5DynamicParameterController:
                             base.dynamic_offset_min
                             * (
                                 1.0
-                                + gs.offset_min_stress_gain * stress
+                                + gs.offset_min_stress_gain * signed_stress
                             ),
                             base.dynamic_offset_min * gs.offset_min_lower_scale,
                             base.dynamic_offset_min * gs.offset_min_upper_scale,

@@ -315,7 +315,7 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
                       hard_stop_r: float = -1.0, path_noise_r: Optional[float] = None,
                       fuel_cut_confirmed: Optional[bool] = None, position_control=None,
                       side: Optional[str] = None, z_score: Optional[float] = None,
-                      entry_signed_z: Optional[float] = None) -> Dict[str, Any]:
+                      entry_signed_z: Optional[float] = None, entry_z_exit: Optional[float] = None) -> Dict[str, Any]:
     """The governor's HOLD / EXIT decision for one open position.  Fails closed to EXIT.
 
     ``path_noise_r`` is one bar's typical move in R (current ATR / initial risk).  The inner loop
@@ -354,7 +354,8 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
         z_exit = None
         if side is not None and z_score is not None and entry_signed_z is not None:
             z_exit = governor.evaluate_z_exit(side=side, z_score=_finite("z_score", z_score),
-                                              entry_signed_z=_finite("entry_signed_z", entry_signed_z))
+                                              entry_signed_z=_finite("entry_signed_z", entry_signed_z),
+                                              entry_z_exit=entry_z_exit)
     except (GovernorInputError, ValueError) as exc:
         return {"action": "EXIT", "reason": f"INVALID_GOVERNOR_INPUT:{exc}", "load_shed": False}
     detail = {**gate, "inner": inner, "bay_exhaust_spread": spread,

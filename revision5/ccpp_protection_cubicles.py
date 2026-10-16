@@ -784,6 +784,7 @@ class BayExcitationAVR:
 
         raw_notional = (
             self.allocated_capital
+            * float(getattr(self, "proxy_risk_derate", 1.0))
             * self.loading_fraction
             * self.excitation_command
             * vol_scalar

@@ -191,6 +191,7 @@ class DynamicBayLoadDispatcher:
             bay_id: specs[bay_id].capital_weight
             for bay_id in BAY_IDS
         }
+        self.merit_weights = dict(self.weights)
         self.updates = 0
         self.last_update: Optional[Dict[str, Any]] = None
         # Per-bar runtime cap on the sector-dispatch reference (dynamic_profile_mode='consume');
@@ -330,6 +331,7 @@ class DynamicBayLoadDispatcher:
             ema = {bay: p.ema_retention * previous[bay] + p.ema_update * raw_targets[bay] for bay in BAY_IDS}
             self.weights = _bounded_simplex_projection(ema, self.min_floor, self.max_ceiling)
 
+        self.merit_weights = dict(self.weights)
         self.updates += 1
         self.last_update = {
             "mode": self.allocation_mode, "update": self.updates, "affected_bay": bay_id,
@@ -2299,6 +2301,18 @@ class CentralPlantMasterDCS:
             bay_beta=bay_beta,
         )
 
+        if getattr(self, "full_adaptation", False):
+            from dataclasses import replace
+            committed = {b: self.bay_bound_notional(b) for b in BAY_IDS}
+            free = self.total_capital - sum(committed.values())
+            if free < -1e-6:
+                raise RuntimeError("committed capital exceeds plant budget")
+            desired = {b: max(0., balance.allocations[b] - committed[b]) for b in BAY_IDS}
+            requested = sum(desired.values())
+            scale = min(1., max(0., free) / requested) if requested else 0.
+            allocations = {b: committed[b] + desired[b] * scale for b in BAY_IDS}
+            balance = replace(balance, allocations=allocations,
+                              reserve_cash=max(0., self.total_capital-sum(allocations.values())))
         for bay_id, allocation in (
             balance.allocations.items()
         ):

@@ -1,8 +1,8 @@
 """Shared command-line options for the R5 controller-authority modes (Engines A, B and C runners).
 
-Defaults reproduce the baseline engine exactly; every non-default value is an opt-in behaviour
-change (see docs/r5_parameter_authority/BEHAVIOUR_CHANGES_REQUIRING_APPROVAL.md), except
---authority-telemetry, which records telemetry only.
+Shared R5 PAPER_APPLY runs select full adaptation in auto mode. Use
+--r5-full-adaptation off to retain the previous explicit research modes.
+This is implemented but not regression-qualified; see FULL_ADAPTATION_IMPLEMENTATION.md.
 """
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ from typing import Any, Dict
 
 def add_authority_arguments(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("R5 controller authority (opt-in)")
+    group.add_argument("--r5-full-adaptation", choices=["auto", "on", "off"], default="auto",
+                       help="auto enables the full shared R5 adaptation on PAPER_APPLY only")
     group.add_argument("--final-exit-authority", action="store_true",
                        help="final execution controller EXIT/EXIT_NEXT_BAR arms a next-open exit")
     group.add_argument("--governor-position-mode", choices=["legacy", "v3"], default="legacy")
@@ -27,7 +29,9 @@ def add_authority_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def authority_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
+    mode = getattr(args, "r5_full_adaptation", "auto")
     return {
+        "full_adaptation": None if mode == "auto" else mode == "on",
         "final_exit_authority": bool(args.final_exit_authority),
         "governor_position_mode": args.governor_position_mode,
         "avr_voltage_mode": args.avr_voltage_mode,

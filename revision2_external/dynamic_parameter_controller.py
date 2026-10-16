@@ -123,10 +123,11 @@ class DynamicParameterController:
         if not np.isfinite(error_delta):
             raise ValueError('error_delta must be finite')
         abs_err = abs(error_delta)
+        signed_err = float(error_delta) if require(config, "adapt_active") else abs_err
         # Scale Kp up on rapid error divergence
-        kp_dyn = base_kp * np.clip(1.0 + require(config, "mpc_schedule_kp_gain") * abs_err, *_envelope(config, "tier3_kp_scale"))
+        kp_dyn = base_kp * np.clip(1.0 + require(config, "mpc_schedule_kp_gain") * signed_err, *_envelope(config, "tier3_kp_scale"))
         # Bleed Ki during transient spikes to eliminate integral windup
         ki_dyn = base_ki / np.clip(1.0 + require(config, "mpc_schedule_ki_gain") * abs_err, *_envelope(config, "tier3_ki_divisor"))
         # Damping Kd scaled with vol
-        kd_dyn = base_kd * np.clip(1.0 + require(config, "mpc_schedule_kd_gain") * abs_err, *_envelope(config, "tier3_kd_scale"))
+        kd_dyn = base_kd * np.clip(1.0 + require(config, "mpc_schedule_kd_gain") * signed_err, *_envelope(config, "tier3_kd_scale"))
         return float(kp_dyn), float(ki_dyn), float(kd_dyn)
