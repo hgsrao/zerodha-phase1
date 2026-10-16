@@ -660,6 +660,28 @@ class BayTurbineClosedLoopGovernor:
             "signed_z_limit": float(limit),
         }
 
+    def evaluate_z_exit(self, *, side: str, z_score: float, entry_signed_z: float) -> dict:
+        """Mean-reversion release (``gov_<bay>_z_exit``; sigma units, causal).
+
+        z is the governor comparator's own measurement, (close - mean) / std over gov_z_window_bars of
+        completed bars.  With ``signed_z = +z`` for a BUY and ``-z`` for a SELL (the entry comparator's
+        sign convention, where the entry level ``dynamic_z`` is negative), a position that was entered
+        BELOW the release level ``-z_exit`` (``entry_signed_z < -z_exit``: price stretched against the
+        trade) is released once the price has reverted to it: ``signed_z >= -z_exit``.  A position
+        entered at or above the level is never armed (the crossing has not happened), so the rule can
+        not fire on entry.  Larger ``z_exit`` releases earlier (further from the mean).  This only
+        classifies; the shared exit decision (governor_authority.position_decision) applies the
+        protection / minimum-hold hierarchy."""
+        if side not in ("BUY", "SELL"):
+            raise ValueError("side must be BUY or SELL")
+        if not (isfinite(float(z_score)) and isfinite(float(entry_signed_z))):
+            raise ValueError("z-exit inputs must be finite")
+        signed = (1.0 if side == "BUY" else -1.0) * float(z_score)
+        level = -float(self.spec.z_exit)
+        armed = float(entry_signed_z) < level
+        return {"z_exit": float(self.spec.z_exit), "release_level": level, "signed_z": signed,
+                "entry_signed_z": float(entry_signed_z), "armed": armed, "release": armed and signed >= level}
+
     def begin_position(
         self,
         *,

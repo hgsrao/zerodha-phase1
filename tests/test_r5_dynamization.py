@@ -285,6 +285,10 @@ def expected_profiles(s, bases, registry):
         "slippage": min(bases["max_slippage_fraction"], clip(bases["max_slippage_fraction"] * (1 + p("slippage_vol_gain") * (s["vol"] - 1)), p("slippage_min_fraction"), p("slippage_max_fraction"))),
         "data_age": int(round(clip(bases["max_market_data_age_seconds"] / (1 + p("data_age_stress_gain") * s["stress"]), p("data_age_min_seconds"), bases["max_market_data_age_seconds"]))),
         "dispatch_ceiling": clip(D["disp_allocation_ceiling"] * s["rd"], p("dispatch_ceiling_min"), D["disp_allocation_ceiling"]),
+        # order timeout SHORTENS with stress: base / (1 + gain * stress), upper = min(max_seconds, base)
+        "order_timeout": int(round(clip(bases["order_timeout_seconds_execution"] / (1 + p("order_timeout_stress_gain") * s["stress"]),
+                                        min(p("order_timeout_min_seconds"), min(p("order_timeout_max_seconds"), bases["order_timeout_seconds_execution"])),
+                                        min(p("order_timeout_max_seconds"), bases["order_timeout_seconds_execution"])))),
     }
     return strategy, safety
 
@@ -321,7 +325,9 @@ def test_runtime_profiles_reach_their_consumers_each_bar(env, monkeypatch):
     assert gate.daily_loss_halt_threshold == pytest.approx(contract["max_daily_loss_rupees"] * safety["daily_loss_multiplier"])
     assert gate.slippage_tolerance_percent == pytest.approx(safety["slippage"])
     assert gate.max_market_data_age_seconds == safety["data_age"]
-    assert gate.order_timeout_seconds == o._base_gate_config.order_timeout_seconds    # tighten-only: never longer
+    assert gate.order_timeout_seconds == min(o._base_gate_config.order_timeout_seconds, safety["order_timeout"])
+    assert gate.order_timeout_seconds <= o._base_gate_config.order_timeout_seconds    # tighten-only: never longer
+    assert o.real_plant_dcs.dispatcher.runtime_floor is not None
     assert o.real_plant_dcs.dispatcher.dispatch_ceiling == pytest.approx(safety["dispatch_ceiling"])
     # Actuation: the tightened gates reject what the contract gates admit; the plan carries the holds.
     from gates_framework import SystemState
@@ -351,7 +357,7 @@ def _consumed(o, ts):
         o._native_bar_index = k
         o._plant_bar_step(ts + pd.Timedelta(seconds=k), [], {})
         out.append((o._decision_config_key, o.entry_decision_engine.config,
-                    o.real_plant_dcs.dispatcher.runtime_ceiling_cap))
+                    o.real_plant_dcs.dispatcher.runtime_ceiling_cap, o.real_plant_dcs.dispatcher.runtime_floor))
     return out
 
 
@@ -382,11 +388,18 @@ def test_every_profile_coefficient_moves_its_consumer_or_is_inactive(name, consu
     def install(params):
         o.controller_parameters = params
         o.real_plant_dcs.apply_controller_parameters(params)
+    # The floor/ceiling ratio only acts when the runtime floor reaches the runtime ceiling: a feasible
+    # corner (risk-derate floor 0.1 reached at full drawdown, ceiling clip 0) makes the ceiling fall below the floor.
+    corner = ({"dyn_risk_derate_lower_bound": 0.1, "dyn_risk_derate_stress_gain": 1.0, "dyn_risk_derate_drawdown_gain": 2.0,
+               "psch_dispatch_ceiling_min": 0.0}
+              if name == "psch_dispatch_floor_ceiling_ratio" else {})
+    base_values = {**controller_parameter_defaults(), **corner}
+    install(R5ControllerParameters.from_values(base_values, safety_bases=bases))
     baseline = _consumed(o, ts)
     spec, changed, tried = CONTROLLER_PARAMETERS[name], False, []
     try:
         for value in _profile_candidates(spec):
-            values = controller_parameter_defaults()
+            values = dict(base_values)
             values[name] = value
             try:
                 params = R5ControllerParameters.from_values(values, safety_bases=bases)
@@ -420,6 +433,7 @@ def test_consume_mode_tracks_the_profile_across_bars_and_off_mode_never_consumes
     off._native_bar_index = 0
     off._plant_bar_step(ts, [], {})
     assert off._decision_cfg() is off.config and off.real_plant_dcs.dispatcher.runtime_ceiling_cap is None
+    assert off.real_plant_dcs.dispatcher.runtime_floor is None
 
 
 # ------------------------------------------------------- end to end (shared core, Engine A harness)

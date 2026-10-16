@@ -152,8 +152,14 @@ from revision5.controller_parameters import TIER_ENVELOPE_PARAMETERS  # noqa: E4
 # latches in tests/test_r5_parameter_authority_engines.py, the Box 6 Tier envelopes below).
 from revision5.controller_parameters import PROFILE_SCHEDULE_PARAMETERS  # noqa: E402
 # (the psch_* runtime-profile coefficients are swept at their orchestrator consumers in tests/test_r5_dynamization.py)
+# Closure parameters whose actuator is not in the plant trace: the closed-loop / studies envelopes (their
+# consumers are swept in tests/test_r5_dynamization_closure.py), gov_<bay>_z_exit (the shared governor exit
+# decision) and the MVAR limiter (live only with a supplied MVAR measurement), each with its own sweep there.
+from revision5.controller_parameters import ENVELOPE_PARAMETER_NAMES  # noqa: E402
+_CLOSURE_SWEPT_ELSEWHERE = {*ENVELOPE_PARAMETER_NAMES, *(f"gov_{t}_z_exit" for t in BAY_TOKENS.values()),
+                            "avr_mvar_limit_base_pu", "avr_mvar_limit_stress_gain", "avr_mvar_limit_min_pu"}
 _ORCHESTRATOR_ONLY = {"symbol_loss_cooldown_bars", "symbol_trip_consecutive_losses", *TIER_ENVELOPE_PARAMETERS,
-                      *PROFILE_SCHEDULE_PARAMETERS}
+                      *PROFILE_SCHEDULE_PARAMETERS, *_CLOSURE_SWEPT_ELSEWHERE}
 
 
 def _candidates(spec):

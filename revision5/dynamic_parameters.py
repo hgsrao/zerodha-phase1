@@ -493,6 +493,8 @@ class Revision5DynamicParameterController:
             P.dispatcher.allocation_ceiling,
         )
 
+        # Feasibility of the floor against the runtime ceiling (the consumer additionally projects
+        # it onto the total budget: floor <= ceiling and n * floor <= demand, see plant_control).
         if (
             dispatcher_min_floor
             >= dispatcher_max_ceiling
@@ -536,15 +538,20 @@ class Revision5DynamicParameterController:
             )
         )
 
+        # Order timeout SHORTENS with stress (tighten-only consumer): base / (1 + gain * stress),
+        # bounded above by min(max_seconds, base) so the schedule can never exceed the contract
+        # value, and below by min_seconds (itself capped at the upper bound so the clip is ordered).
+        timeout_base = base["order_timeout_seconds_execution"]
+        timeout_upper = min(ps.order_timeout_max_seconds, timeout_base)
         order_timeout = int(
             round(
                 _clamp(
-                    base["order_timeout_seconds_execution"] * (
+                    timeout_base / (
                         1.0
                         + ps.order_timeout_stress_gain * stress
                     ),
-                    ps.order_timeout_min_seconds,
-                    ps.order_timeout_max_seconds,
+                    min(ps.order_timeout_min_seconds, timeout_upper),
+                    timeout_upper,
                 )
             )
         )

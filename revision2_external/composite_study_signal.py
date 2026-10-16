@@ -84,10 +84,12 @@ from revision2_external.bb05_bb06_parameters import default_config, require
 STUDY_NAMES = ("ichimoku", "bollinger", "stochastic", "session_vwap")
 
 # Grading horizon, hit-rate window and the PID gains/clamp are registry-owned
-# (studies_* in canonical_parameter_registry.py).  The weight bounds below are
-# FIXED_SAFETY_ENVELOPE values, deliberately not parameters.
-MIN_WEIGHT = 0.05  # a study can be down-weighted hard, never to zero (never silently deleted)
-MAX_WEIGHT = 0.60  # and never let one study dominate the composite entirely
+# (studies_* in canonical_parameter_registry.py).  The weight bounds are registry-owned too
+# (studies_weight_min / studies_weight_max, FIXED_SAFETY) and are read from the run's
+# EffectiveConfig by CompositeStudySignal.configure(); MIN_WEIGHT / MAX_WEIGHT below are only
+# the registry-default VIEW kept for legacy imports -- no runtime consumer reads them.
+MIN_WEIGHT = require(default_config(), "studies_weight_min")
+MAX_WEIGHT = require(default_config(), "studies_weight_max")
 # Backward-compatible alias DERIVED from the registry default (not an owner);
 # existing tests use it as the default grading horizon.
 _GRADING_HORIZON = require(default_config(), "studies_grading_horizon_bars")
@@ -239,6 +241,12 @@ class CompositeStudySignal:
         future information can enter).  All values validate before any mutation.
         """
         values = {name: require(config, name) for name in self._NAMES}
+        weight_min, weight_max = require(config, "studies_weight_min"), require(config, "studies_weight_max")
+        count = len(STUDY_NAMES)
+        if not 0.0 < weight_min <= 1.0 / count <= weight_max <= 1.0:
+            raise ValueError("studies weight bounds must contain the neutral weight 1/n so that weights "
+                             "can sum to one (n*min <= 1 <= n*max)")
+        self.weight_min, self.weight_max = weight_min, weight_max
         self.config = config
         self.kp, self.ki, self.kd = (values[n] for n in self._NAMES[:3])
         self.clamp = abs(values["studies_pid_output_clamp"])
@@ -318,7 +326,7 @@ class CompositeStudySignal:
             raw_output = float(state.pid(state.hit_rate, dt=1))
             adjustment = -raw_output
             base = 1.0 / len(STUDY_NAMES)
-            state.weight = _clip(base + adjustment, MIN_WEIGHT, MAX_WEIGHT)
+            state.weight = _clip(base + adjustment, self.weight_min, self.weight_max)
             weights[name] = state.weight
             weight_pid_audit[name] = {
                 "setpoint": float(cross_study_baseline),
@@ -334,7 +342,22 @@ class CompositeStudySignal:
                 "graded_vote_count": len(state.hit_history),
             }
 
-        total_weight = sum(weights.values()) or 1.0
+        # Project onto the bounded unit simplex. Clipping unnormalised weights
+        # alone does not bound their final share after division by their sum.
+        low, high = 0.0, 1.0 / min(weights.values())
+        for _ in range(64):  # binary64 precision, not a controller coefficient
+            scale = (low + high) / 2.0
+            if sum(_clip(w * scale, self.weight_min, self.weight_max) for w in weights.values()) < 1.0:
+                low = scale
+            else:
+                high = scale
+        scale = (low + high) / 2.0
+        weights = {n: _clip(w * scale, self.weight_min, self.weight_max) for n, w in weights.items()}
+        for name, weight in weights.items():
+            states[name].weight = weight
+            weight_pid_audit[name]["weight_before_projection"] = weight_pid_audit[name]["weight_after"]
+            weight_pid_audit[name]["weight_after"] = weight
+        total_weight = sum(weights.values())
         weighted_score = sum(current_votes[n] * weights[n] for n in STUDY_NAMES) / total_weight  # in [-1, 1]
         confidence = abs(weighted_score)  # conviction magnitude; direction is independent
         direction = 1 if weighted_score > 0 else (-1 if weighted_score < 0 else 0)

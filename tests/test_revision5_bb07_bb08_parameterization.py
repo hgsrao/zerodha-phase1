@@ -64,12 +64,12 @@ def set_config(orch, **overrides):
 # ---------------------------------------------------------------- contract --
 
 def test_canonical_counts_and_frozen_identity():
-    assert REGISTRY.total_target_surface() == 170 + 291  # + R5 controller authority (291 rows: 178 tunable, 78 fixed safety, 12 advisory, 23 inactive)
+    assert REGISTRY.total_target_surface() == 170 + 299  # + R5 controller authority (299 rows: 188 tunable, 97 fixed safety, 14 advisory, 0 inactive)
     assert len(REGISTRY.safety_params) == 22
-    assert len(REGISTRY.fixed_target_names()) == 48 + 113
-    assert len(REGISTRY.calibratable_names()) == 122 + 178
+    assert len(REGISTRY.fixed_target_names()) == 48 + 111
+    assert len(REGISTRY.calibratable_names()) == 122 + 188
     assert REGISTRY.identity_sha256() == REGISTRY.FROZEN_IDENTITY_SHA256 == (
-        "fc04a43394e4d744a44991f28058a244790524e54320ca30546f91d0559ab88e"
+        "d7f4e89718a38d724d57f4e70b8bdbd93bb8ccb9385b4940e896efee906d5b55"
     )
 
 

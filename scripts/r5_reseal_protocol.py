@@ -40,11 +40,13 @@ BASE = "cb10fac5be123f450ede9bb3e8c11ce2ec27817b"
 DEFAULT_MODES = {"governor_authority": "full", "governor_position_mode": "legacy", "avr_voltage_mode": "legacy",
                  "dispatcher_allocation_mode": "legacy", "hrsg_correlation_mode": "off", "final_exit_authority": False,
                  "authority_telemetry": False, "entry_fill_anchor_mode": "reanchor_distances",
-                 "unit_protection_mode": "pre_synchronization"}
+                 "unit_protection_mode": "pre_synchronization", "dynamic_profile_mode": "off",
+                 "avr_mvar_limiter_mode": "off"}
 OPT_IN_MODES = {"governor_position_mode": ["v3"], "avr_voltage_mode": ["measured"],
                 "dispatcher_allocation_mode": ["bounded"], "hrsg_correlation_mode": ["causal_bay_returns"],
                 "final_exit_authority": [True], "entry_fill_anchor_mode": ["box6_levels"],
-                "unit_protection_mode": ["pre_sync_and_in_flight"]}
+                "unit_protection_mode": ["pre_sync_and_in_flight"], "dynamic_profile_mode": ["consume"],
+                "avr_mvar_limiter_mode": ["required"]}
 
 
 def git(*args) -> str:
@@ -85,7 +87,9 @@ def main() -> int:
         "module": "revision5/controller_parameters.py",
         "parameters": {s.name: {"class": s.safety_class, "optimizer_eligible": registry.is_calibratable(s.name, "EXTERNAL"), "default": s.default}
                        for s in sorted(CONTROLLER_PARAMETER_SPECS, key=lambda s: s.name)},
-        "search_space_unchanged": True,
+        "search_space_unchanged": False,
+        "search_space_change": "Formerly inactive controls are now eligible where TUNABLE; ranges and cross-bound validation changed. Recalibration is not authorized by resealing.",
+        "mvar_input_contract": "required mode needs measured AVR plus a caller-supplied causal signed per-unit measurement per bay/bar; absent or invalid values fail closed; no physical MVAR inferred from OHLC",
         "calibration_status": "NOT_CALIBRATED: no calibration has run against this identity",
     }
     if "distributed_execution" in protocol and isinstance(protocol["distributed_execution"], dict):

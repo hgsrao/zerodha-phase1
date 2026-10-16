@@ -50,6 +50,7 @@ GOV_SCHEDULE = {
     "dynamic_offset_max": "clip(base*risk_derate, 0, base)",
 }
 AVR_SCHEDULE = {
+    "avr_mvar_limit_base_pu": "mvar_limit = clip(base - avr_mvar_limit_stress_gain*control_stress, avr_mvar_limit_min_pu, base); supplied signed per-unit input required for actuation",
     "avr_loading_fraction_base": "loading = clip(base*risk_derate, avr_loading_fraction_min, base); control_stress = 1 - loading/base",
     "avr_oel_capital_fraction": "oel_fraction = clip(base*risk_derate, avr_oel_fraction_min, base)",
     "avr_vol_scalar_max_base": "vol_scalar_max = clip(base*risk_derate, avr_vol_scalar_max_min, base)",
@@ -69,11 +70,13 @@ SAFETY_SCHEDULE_BASES = {
     "sel_max_adverse_bars", "micom_max_daily_fleet_drawdown_pct", "micom_nifty_crash_rate_pct", "micom_max_regime_vol_z",
 }
 COOLDOWN_BASES = {"plant_loss_cooldown_base_bars", "plant_target_cooldown_base_bars"}
-MODE_GATE = {"psch_": "dynamic_profile_mode='consume'", "gov_v3_": "governor_position_mode='v3'", "avr_voltage_reference_pu": "avr_voltage_mode='measured'",
+MODE_GATE = {"cl_": "closed_loop_mode=active_paper for actuation", "studies_": "shared study signal evaluation", "psch_": "dynamic_profile_mode='consume'", "gov_v3_": "governor_position_mode='v3'", "avr_mvar_": "avr_voltage_mode='measured', avr_mvar_limiter_mode='required', supplied measurement", "avr_voltage_reference_pu": "avr_voltage_mode='measured'",
              "avr_synchronous_reactance_pu": "avr_voltage_mode='measured'", "avr_voltage_filter_alpha": "avr_voltage_mode='measured'",
              "sel_max_slippage": "unit_protection_mode='pre_sync_and_in_flight'", "sel_slippage": "unit_protection_mode='pre_sync_and_in_flight'",
              "sel_max_adverse": "unit_protection_mode='pre_sync_and_in_flight'", "sel_adverse": "unit_protection_mode='pre_sync_and_in_flight'"}
-EFFECT = [("psch_", "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling"),
+EFFECT = [("cl_", "closed-loop derate / response-time envelopes; gain-scale suggestion remains advisory"),
+          ("studies_", "bounded unit-sum study weights -> composite confidence and direction"),
+          ("psch_", "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling"),
           ("gov_v3_", "V3 inner loop -> protected R floor -> governor stop (next bar) / ratchet exit"),
           ("gov_", "governor outer loop / comparator / inner loop -> entry admission, protected stop, governor exit"),
           ("gsch_", "governor operating gains, target, window, clamp, z, droop -> entry admission, stop, exit"),
@@ -152,6 +155,7 @@ def classify(spec):
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--verification-evidence", type=Path)
     args = parser.parse_args()
     registry = CanonicalParameterRegistry()
     rows = []
@@ -192,22 +196,26 @@ def main() -> int:
         "registered_not_consumed_at_runtime": sorted(r["parameter"] for r in rows if r["classification"] == "STATIC_REGISTRATION_ONLY"),
         "still_hardcoded_or_effectively_constant": "docs/r5_parameter_authority/REMAINING_HARDCODED_VALUES.md (enforced by tests/r5_remaining_literals.py)",
         "dynamic_schedule_hardcoded_outside_registry": [
-            "revision2_external/closed_loop_control.py _ENTRY_DERATE_BOUNDS / _PERSISTENCE_BOUNDS / _GAIN_SCALE_BOUNDS (FIXED_SAFETY_ENVELOPE, pre-existing)",
-            "revision2_external/composite_study_signal.py MIN_WEIGHT / MAX_WEIGHT (FIXED_SAFETY_ENVELOPE, pre-existing)",
-            "revision2_external/pid_controller.py / continuous_exit_controller.py _EXIT_TIGHTNESS_FLOOR 0.5 (cannot bind: |PID output| <= pid_integral_max_clamp <= 0.25)",
-            "revision5/dynamic_parameters.py strategy / execution / safety profiles and dispatcher snapshot bounds (no consumer)",
-            "revision2_external/dynamic_parameter_controller.py Tier-2 regime schedule (called only from tests)",
+            "Legacy Tier-2 regime schedule remains test-only; no claimed live actuator.",
+            "Box6/continuous-exit structural envelopes outside this closure remain separately documented.",
         ],
         "mode_gated_dynamic_paths": sorted({r["mode_gate"] for r in rows if r["mode_gate"] not in ("n/a", "always", "always (PAPER_APPLY native plant)")}),
     }
-    verdict = {"verdict": "PARTIAL", "reasons": [
-        "PASS: every active native-controller tuning value is registry-owned, read with no fallback, and proven to move an actuator.",
-        f"Genuinely dynamic at runtime: {counts['CALIBRATABLE_DYNAMIC'] + counts['DYNAMIC_SAFETY_ENVELOPE'] + counts['DYNAMIC']} parameters "
-        "(scheduled every plant bar or every Box 6 plan); the rest are constant during a run by design (coefficients, controller constants, safety limits).",
-        "Not dynamic and not actuating: the STATIC_REGISTRATION_ONLY rows (12 advisory, 15 inactive, each with its reason).",
-        "AVR MVAR limiter has no measured-MVAR source (inactive); closed-loop / studies-weight envelopes remain annotated pre-existing literals.",
-        "V3, measured AVR, bounded dispatch, HRSG returns, Box 6 levels at fill and in-flight protection are live only in their opt-in modes (defaults unchanged pending approval).",
+    verdict = {"verdict": "IMPLEMENTED_REQUIRES_EVIDENCE", "reasons": [
+        "Original 312 keys preserved; new closed-loop/studies envelopes counted separately in closure evidence.",
+        f"Declared dynamic runtime outputs: {counts['CALIBRATABLE_DYNAMIC'] + counts['DYNAMIC_SAFETY_ENVELOPE'] + counts['DYNAMIC']}; constant coefficients are not advertised as per-bar variables.",
+        "Previously inactive keys now have runtime consumers or reachable validated bounds; see test_r5_dynamization_closure.py.",
+        "MVAR actuation requires a supplied signed per-unit source and measured AVR mode; missing data is not zero and required mode fails closed.",
+        "Advisory values remain explicitly advisory; classification is not evidence of a production run.",
+        "Runtime evidence and limits are in DYNAMIZATION_CLOSURE.md and TEST_RESULTS_CLOSURE.json; real replay and calibration were not performed.",
     ]}
+    if args.verification_evidence:
+        evidence = json.loads(args.verification_evidence.read_text())
+        if (evidence.get("verdict") != "PASS_SCOPED_IMPLEMENTATION"
+                or evidence.get("registry_identity_sha256") != registry.identity_sha256()):
+            raise ValueError("verification evidence does not certify this registry identity")
+        verdict["verdict"] = "IMPLEMENTATION_VERIFIED_CONDITIONAL_INPUTS"
+        verdict["evidence"] = str(args.verification_evidence)
     doc = {"definition": __doc__.split("Classes:")[0].strip(), "counts": dict(counts), "verdict": verdict, "lists": lists, "parameters": rows}
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "phase2_parameter_classification.json").write_text(json.dumps(doc, indent=2, default=str) + "\n")

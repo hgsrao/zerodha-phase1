@@ -313,7 +313,9 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
                       conviction: float, drawdown: float, velocity: Optional[float],
                       session_bar: int, bay_exhaust_spread: Optional[float] = None,
                       hard_stop_r: float = -1.0, path_noise_r: Optional[float] = None,
-                      fuel_cut_confirmed: Optional[bool] = None, position_control=None) -> Dict[str, Any]:
+                      fuel_cut_confirmed: Optional[bool] = None, position_control=None,
+                      side: Optional[str] = None, z_score: Optional[float] = None,
+                      entry_signed_z: Optional[float] = None) -> Dict[str, Any]:
     """The governor's HOLD / EXIT decision for one open position.  Fails closed to EXIT.
 
     ``path_noise_r`` is one bar's typical move in R (current ATR / initial risk).  The inner loop
@@ -322,7 +324,16 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
 
     ``position_control`` (a ``PositionControlV3``) selects the Protocol V3 inner loop
     (governor_position_mode="v3"); the Mark V gate, exhaust-spread trip and the hierarchy below
-    are unchanged and keep their priority."""
+    are unchanged and keep their priority.
+
+    ``z_score`` (this completed bar's comparator z), ``side`` and ``entry_signed_z`` (the side-signed
+    z at entry, same telemetry) enable the bay's mean-reversion release ``gov_<bay>_z_exit``
+    (``BayTurbineClosedLoopGovernor.evaluate_z_exit``).  Precedence, highest first: inner-loop hard
+    exits (target, hard stop, ratchet floor, max hold) -> exhaust-spread trip -> Mark V limiters
+    (FSR_BELOW_EXIT) -> z-exit (``GOVERNOR_Z_EXIT``, discretionary: deferred inside the minimum-hold
+    window, reported as ``z_exit_deferred``) -> HOLD.  Plant / unit / grid protection and the
+    safety gates act in the orchestrator ahead of this function.  Any of the three inputs ``None``
+    leaves the rule unevaluated (legacy callers and positions opened before the field existed)."""
     try:
         if path_noise_r is None:
             raise GovernorInputError("path noise (ATR / risk) unavailable")
@@ -340,10 +351,14 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
                                            velocity=velocity, session_bar=session_bar),
                                   cfg.fsr_min_floor)
         spread = None if bay_exhaust_spread is None else _finite("bay_exhaust_spread", bay_exhaust_spread)
+        z_exit = None
+        if side is not None and z_score is not None and entry_signed_z is not None:
+            z_exit = governor.evaluate_z_exit(side=side, z_score=_finite("z_score", z_score),
+                                              entry_signed_z=_finite("entry_signed_z", entry_signed_z))
     except (GovernorInputError, ValueError) as exc:
         return {"action": "EXIT", "reason": f"INVALID_GOVERNOR_INPUT:{exc}", "load_shed": False}
     detail = {**gate, "inner": inner, "bay_exhaust_spread": spread,
-              "protected_r_floor": inner["protected_r_floor"]}
+              "protected_r_floor": inner["protected_r_floor"], "z_exit": z_exit}
     if inner["action"] == "EXIT":
         return {**detail, "action": "EXIT", "reason": inner["reason"], "load_shed": False}
     if spread is not None and spread >= cfg.exhaust_spread_trip:
@@ -372,8 +387,15 @@ def position_decision(governor, cfg: GovernorAuthorityConfig, *, position_id, me
         if others[limiter] < cfg.fsr_exit_threshold:
             return {**detail, "action": "EXIT", "reason": f"FSR_BELOW_EXIT:{limiter}", "load_shed": False}
         conviction_deferred = True
+    z_exit_deferred = False
+    if z_exit is not None and z_exit["release"]:
+        if not in_min_hold:
+            return {**detail, "action": "EXIT", "reason": "GOVERNOR_Z_EXIT", "load_shed": False,
+                    "conviction_exit_deferred": conviction_deferred}
+        z_exit_deferred = True
     # Between the exit and entry thresholds Mark V sheds load.  The replay engine carries one
     # indivisible position per symbol, so load shedding is reported and the position is held.
     load_shed = gate["fsr_selected"] < cfg.fsr_entry_threshold
     return {**detail, "action": "HOLD", "reason": "GOVERNOR_LOAD_SHED" if load_shed else "GOVERNOR_TRACKING",
-            "load_shed": load_shed, "conviction_exit_deferred": conviction_deferred}
+            "load_shed": load_shed, "conviction_exit_deferred": conviction_deferred,
+            "z_exit_deferred": z_exit_deferred}

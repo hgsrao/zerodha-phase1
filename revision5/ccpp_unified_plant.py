@@ -98,6 +98,7 @@ class SquareOffIntent:
 
 DISPATCHER_ALLOCATION_MODES = ("legacy", "bounded")
 AVR_VOLTAGE_MODES = ("legacy", "measured")
+AVR_MVAR_LIMITER_MODES = ("off", "required")
 
 
 def _default_controller_parameters():
@@ -195,6 +196,15 @@ class DynamicBayLoadDispatcher:
         # Per-bar runtime cap on the sector-dispatch reference (dynamic_profile_mode='consume');
         # None = no runtime cap.  It never changes the merit weights or max_ceiling itself.
         self.runtime_ceiling_cap: Optional[float] = None
+        # Per-bar runtime per-bay FLOOR of the sector-dispatch reference (same mode); None = no floor
+        # (the baseline sector dispatch has none).  The consumer projects it onto the ceiling and the
+        # total budget (plant_control.SectorDispatchController), so it can never create capital.
+        self.runtime_floor: Optional[float] = None
+
+    @property
+    def dispatch_floor(self) -> float:
+        """Per-bay dispatch reference floor requested by the runtime profile (0.0 = none)."""
+        return 0.0 if self.runtime_floor is None else float(self.runtime_floor)
 
     @property
     def dispatch_ceiling(self) -> float:
@@ -453,6 +463,8 @@ class TurbineBayPanel:
         bar_index: int,
         bus_voltage_pu: Optional[float],
         bound_notional: float,
+        measured_mvar_pu: Optional[float] = None,
+        mvar_limiter_mode: str = "off",
     ) -> dict:
         """One AVR regulation step from a causal terminal-voltage measurement (measured mode).
 
@@ -465,7 +477,15 @@ class TurbineBayPanel:
             V_meas = V_meas + alpha * (V_t - V_meas) (avr_voltage_filter_alpha; first sample V_t)
         Control:   error = V_ref - V_meas (avr_voltage_reference_pu) through the AVR PID once per
                    bar; ANSI 27/59 trip on V_meas.  Missing / invalid inputs fail closed (tripped).
+        MVAR limiter: ``measured_mvar_pu`` is an OPTIONAL finite signed per-unit MEASURED reactive power
+        for this bay and bar (positive = over-excited).  Supplied -> passed unchanged to the AVR limiter
+        (|Q| beyond the avr_mvar_limit holds the excitation command in the saturated direction);
+        ``None`` = not measured, the limiter is not evaluated (never a synthetic 0).  With
+        ``mvar_limiter_mode="required"`` a missing / non-finite measurement trips this bar
+        (AVR_MVAR_MEASUREMENT_MISSING / AVR_MVAR_MEASUREMENT_INVALID) before any PID update.
         """
+        if mvar_limiter_mode not in AVR_MVAR_LIMITER_MODES:
+            raise ValueError(f"mvar_limiter_mode must be one of {AVR_MVAR_LIMITER_MODES}")
         a = self.parameters.avr
         command_before = float(self.avr.excitation_command)
         record = {"bar_index": int(bar_index), "bay_id": self.bay_id, "mode": "MEASURED",
@@ -475,8 +495,20 @@ class TurbineBayPanel:
         valid = (bus_voltage_pu is not None and isfinite(float(bus_voltage_pu)) and float(bus_voltage_pu) > 0.0
                  and isfinite(float(bound_notional)) and float(bound_notional) >= 0.0
                  and isfinite(capital) and capital > 0.0)
+        record["measured_mvar_pu"] = None if measured_mvar_pu is None else measured_mvar_pu
+        record["mvar_limiter_mode"] = mvar_limiter_mode
         if not valid:
             record.update({"tripped": True, "reason": "AVR_VOLTAGE_MEASUREMENT_INVALID",
+                           "excitation_command": command_before})
+            self.avr_regulation = record
+            return record
+        mvar_bad = (measured_mvar_pu is not None
+                    and (isinstance(measured_mvar_pu, bool) or not isinstance(measured_mvar_pu, (int, float))
+                         or not isfinite(float(measured_mvar_pu))))
+        if mvar_bad or (mvar_limiter_mode == "required" and measured_mvar_pu is None):
+            record.update({"tripped": True,
+                           "reason": ("AVR_MVAR_MEASUREMENT_MISSING" if measured_mvar_pu is None
+                                      else "AVR_MVAR_MEASUREMENT_INVALID"),
                            "excitation_command": command_before})
             self.avr_regulation = record
             return record
@@ -488,7 +520,8 @@ class TurbineBayPanel:
         kp, ki, kd = self.avr.runtime_kp, self.avr.runtime_ki, self.avr.runtime_kd
         control = self.avr.evaluate_control(
             mode="BUS_VOLTAGE", bus_voltage_reference_pu=a.voltage_reference_pu,
-            terminal_voltage_pu=measured)
+            terminal_voltage_pu=measured,
+            measured_mvar_pu=None if measured_mvar_pu is None else float(measured_mvar_pu))
         record.update(control)
         record.update({"bay_loading_pu": loading, "terminal_voltage_raw_pu": raw,
                        "terminal_voltage_pu": measured})
@@ -850,7 +883,7 @@ class TurbineBayPanel:
                 generator_voltage_pu
             ),
             mvar_reference_pu=0.0,
-            measured_mvar_pu=0.0,
+            measured_mvar_pu=None,
         )
 
         relay_25 = (
@@ -1127,7 +1160,7 @@ class TurbineBayPanel:
         bus_voltage_reference_pu: float = 1.0,
         terminal_voltage_pu: float = 1.0,
         mvar_reference_pu: float = 0.0,
-        measured_mvar_pu: float = 0.0,
+        measured_mvar_pu: Optional[float] = None,
         avr_mode: str = "BUS_VOLTAGE",
         side: str = "BUY",
         entry_mode: str = "mean_reversion",
@@ -1313,7 +1346,7 @@ class TurbineBayPanel:
         bus_voltage_reference_pu: float = 1.0,
         terminal_voltage_pu: float = 1.0,
         mvar_reference_pu: float = 0.0,
-        measured_mvar_pu: float = 0.0,
+        measured_mvar_pu: Optional[float] = None,
         avr_mode: str = "BUS_VOLTAGE",
         position_id=None,
         bar_index: Optional[int] = None,
@@ -1637,15 +1670,26 @@ class CentralPlantMasterDCS:
         *,
         bar_index: int,
         bus_voltage_pu: Optional[float],
+        measured_mvar_pu: Optional[Mapping[str, Optional[float]]] = None,
+        mvar_limiter_mode: str = "off",
     ) -> Dict[str, dict]:
         """Measured-AVR mode: one regulation per bay for this bar (see
-        TurbineBayPanel.regulate_terminal_voltage for the measurement derivation)."""
+        TurbineBayPanel.regulate_terminal_voltage for the measurement derivation).
+
+        ``measured_mvar_pu`` maps bay id -> signed per-unit MEASURED reactive power for THIS bar (a
+        missing key / None = not measured).  The supplied value reaches the shared per-bar AVR
+        unchanged; with ``mvar_limiter_mode="required"`` a bay without a finite value fails closed."""
         if self.avr_voltage_mode != "measured":
             raise RuntimeError("regulate_bay_voltages requires avr_voltage_mode='measured'")
+        supplied = measured_mvar_pu or {}
+        unknown = set(supplied) - set(self.bays)
+        if unknown:
+            raise ValueError(f"measured_mvar_pu names unknown bays: {sorted(unknown)}")
         return {
             bay_id: bay.regulate_terminal_voltage(
                 bar_index=bar_index, bus_voltage_pu=bus_voltage_pu,
-                bound_notional=self.bay_bound_notional(bay_id))
+                bound_notional=self.bay_bound_notional(bay_id),
+                measured_mvar_pu=supplied.get(bay_id), mvar_limiter_mode=mvar_limiter_mode)
             for bay_id, bay in self.bays.items()
         }
 
@@ -2437,7 +2481,7 @@ class CentralPlantMasterDCS:
         bus_voltage_reference_pu: float = 1.0,
         terminal_voltage_pu: float = 1.0,
         mvar_reference_pu: float = 0.0,
-        measured_mvar_pu: float = 0.0,
+        measured_mvar_pu: Optional[float] = None,
         avr_mode: str = "BUS_VOLTAGE",
         dynamic_environment=None,
         side: str = "BUY",
@@ -2653,7 +2697,7 @@ class CentralPlantMasterDCS:
         bus_voltage_reference_pu: float = 1.0,
         terminal_voltage_pu: float = 1.0,
         mvar_reference_pu: float = 0.0,
-        measured_mvar_pu: float = 0.0,
+        measured_mvar_pu: Optional[float] = None,
         avr_mode: str = "BUS_VOLTAGE",
         dynamic_environment=None,
         position_id=None,

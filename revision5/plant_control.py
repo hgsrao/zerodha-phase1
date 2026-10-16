@@ -335,6 +335,15 @@ class DispatchResult:
         return dict(self.references_pu)
 
 
+def project_dispatch_floor(floor: float, ceiling: float, demand: float, n_active: int) -> float:
+    """Feasible per-bay floor: min(floor, ceiling, demand / n_active) (0 when no bay is active).
+
+    Priority when the requested floor is infeasible: ceiling, then total budget, then floor."""
+    if n_active <= 0 or floor <= 0.0:
+        return 0.0
+    return max(0.0, min(float(floor), float(ceiling), float(demand) / n_active))
+
+
 class SectorDispatchController:
     """Allocate ECS plant demand over the five bays.
 
@@ -364,24 +373,41 @@ class SectorDispatchController:
 
         refs = {bay: 0.0 for bay in BAY_IDS}
         active = [bay for bay in BAY_IDS if available[bay]]
-        remaining = demand
+        # Per-bay FLOOR (runtime profile; 0 = none = the baseline).  Bounded projection, priority when
+        # the requested floor is infeasible:  1) availability (an unavailable bay gets exactly 0),
+        # 2) the per-bay ceiling, 3) the total budget (the plant demand: the references never sum to
+        # more than it -- no capital is created), 4) the floor, which is reduced to
+        # min(floor, ceiling, demand / n_active) and reported.  Above the floor, merit water-filling
+        # shares the remaining demand over the headroom (ceiling - floor).
+        requested_floor = float(getattr(self.merit_source, "dispatch_floor", 0.0))
+        if not isfinite(requested_floor) or requested_floor < 0.0:
+            raise PlantControlError("bay floor must be finite and non-negative")
+        floor = project_dispatch_floor(requested_floor, ceiling, demand, len(active))
+        cap = ceiling - floor
+        remaining = demand - floor * len(active)
         reasons = []
+        if floor < requested_floor - _EPS:
+            reasons.append("DISPATCH_FLOOR_PROJECTED_BELOW_REQUEST")
         while remaining > _EPS and active:
             total_weight = sum(weights[bay] for bay in active)
             if total_weight <= _EPS:
                 shares = {bay: remaining / len(active) for bay in active}   # no merit signal: equal split
             else:
                 shares = {bay: remaining * weights[bay] / total_weight for bay in active}
-            over = [bay for bay in active if refs[bay] + shares[bay] > ceiling + _EPS]
+            over = [bay for bay in active if refs[bay] + shares[bay] > cap + _EPS]
             if not over:
                 for bay in active:
                     refs[bay] += shares[bay]
                 remaining = 0.0
                 break
             for bay in over:                      # cap, remove, redistribute the excess next pass
-                remaining -= ceiling - refs[bay]
-                refs[bay] = ceiling
+                remaining -= cap - refs[bay]
+                refs[bay] = cap
             active = [bay for bay in active if bay not in over]
+        if floor:
+            for bay in BAY_IDS:
+                if available[bay]:
+                    refs[bay] += floor
         unallocated = max(0.0, remaining) if remaining > _EPS else 0.0
         feasible = unallocated <= _EPS
         if not feasible:

@@ -109,7 +109,7 @@ _GOVERNOR_FIELDS = (
     ("ki", "float", (0.0, 0.50), TUNABLE, "outer/inner loop integral gain"),
     ("kd", "float", (0.0, 2.0), TUNABLE, "outer/inner loop derivative gain"),
     ("base_z", "float", (-4.0, -0.5), TUNABLE, "entry comparator base z threshold (BUY side)"),
-    ("z_exit", "float", (0.0, 2.0), INACTIVE, "BayGovernorSpec.z_exit: no runtime consumer (dead field)"),
+    ("z_exit", "float", (0.0, 2.0), TUNABLE, "mean-reversion release: sigma distance below the mean at which the governor releases a position; exit when side-signed z >= -z_exit after entry below it (governor_authority.position_decision; after protection / min-hold)"),
     ("atr_barrier", "float", (0.5, 4.0), ADVISORY, "plant admission stop distance in ATR (advisory: replay uses the MPC plan stop)"),
     ("target_m", "float", (0.5, 6.0), ADVISORY, "plant admission target distance in ATR (advisory: replay uses the MPC plan target)"),
     ("capital_weight", "float", (0.05, 0.50), TUNABLE, "initial bay capital weight (dispatcher seed and initial AVR capital); the five must sum to 1"),
@@ -152,16 +152,16 @@ _SCHEDULE = (
     ("gsch_integral_stress_gain", 0.80, (0.0, 2.0), "integral_clamp /= 1 + stress_gain * stress + error_gain * |e|"),
     ("gsch_integral_error_gain", 0.50, (0.0, 2.0), "integral_clamp error divisor gain"),
     ("gsch_integral_min_scale", 0.50, (0.1, 1.0), "integral_clamp lower clip as a fraction of the bay base"),
-    ("gsch_integral_max_scale", 1.25, (1.0, 2.0), "integral_clamp upper clip as a fraction of the bay base [STRUCTURALLY UNREACHABLE: the divisor 1 + g*stress + g*|e| >= 1, so the clamp never exceeds the base: an upper clip >= 1 cannot bind]"),
+    ("gsch_integral_max_scale", 1.25, (0.1, 2.0), "integral_clamp upper clip as a fraction of the bay base; the schedule never exceeds the base, so the clip binds only below 1 (admissible down to integral_min_scale, validated)"),
     ("gsch_droop_gain_stress_gain", 0.50, (0.0, 2.0), "grid_droop_gain *= vol * (1 + gain * stress)"),
     ("gsch_droop_gain_min_scale", 0.50, (0.1, 1.0), "grid_droop_gain lower clip (fraction of base)"),
     ("gsch_droop_gain_max_scale", 2.00, (1.0, 4.0), "grid_droop_gain upper clip (fraction of base)"),
     ("gsch_droop_max_stress_gain", 0.60, (0.0, 2.0), "grid_droop_max *= 1 + gain * stress"),
-    ("gsch_droop_max_min_scale", 0.80, (0.1, 1.0), "grid_droop_max lower clip (fraction of base) [STRUCTURALLY UNREACHABLE: grid_droop_max*(1 + g*stress) >= grid_droop_max >= base*min_scale for min_scale <= 1: cannot bind]"),
+    ("gsch_droop_max_min_scale", 0.80, (0.1, 4.0), "grid_droop_max lower clip (fraction of base); the schedule never falls below the base, so the clip binds only above 1 (admissible up to droop_max_max_scale, validated)"),
     ("gsch_droop_max_max_scale", 1.60, (1.0, 4.0), "grid_droop_max upper clip (fraction of base)"),
     ("gsch_kp_error_gain", 1.00, (0.0, 3.0), "Kp *= clip(1 + error_gain * |e| + stress_gain * stress, min, max)"),
     ("gsch_kp_stress_gain", 0.25, (0.0, 2.0), "Kp schedule stress gain"),
-    ("gsch_kp_scale_min", 0.60, (0.1, 1.0), "Kp schedule lower clip [STRUCTURALLY UNREACHABLE: the scale argument 1 + g*|e| + g*stress >= 1 >= any admissible minimum: cannot bind]"),
+    ("gsch_kp_scale_min", 0.60, (0.1, 5.0), "Kp schedule lower clip; the scale argument is >= 1, so the clip binds only above 1 (a Kp floor multiplier; admissible up to kp_scale_max, validated)"),
     ("gsch_kp_scale_max", 2.20, (1.0, 5.0), "Kp schedule upper clip"),
     ("gsch_ki_error_gain", 1.50, (0.0, 4.0), "Ki /= clip(1 + error_gain * |e| + stress_gain * stress, min, max)"),
     ("gsch_ki_stress_gain", 1.00, (0.0, 4.0), "Ki schedule stress gain"),
@@ -169,7 +169,7 @@ _SCHEDULE = (
     ("gsch_ki_divisor_max", 3.50, (1.0, 10.0), "Ki divisor upper clip"),
     ("gsch_kd_error_gain", 0.70, (0.0, 3.0), "Kd *= clip(1 + error_gain * |e| + stress_gain * stress, min, max)"),
     ("gsch_kd_stress_gain", 0.50, (0.0, 2.0), "Kd schedule stress gain"),
-    ("gsch_kd_scale_min", 0.60, (0.1, 1.0), "Kd schedule lower clip [STRUCTURALLY UNREACHABLE: the scale argument 1 + g*|e| + g*stress >= 1 >= any admissible minimum: cannot bind]"),
+    ("gsch_kd_scale_min", 0.60, (0.1, 5.0), "Kd schedule lower clip; the scale argument is >= 1, so the clip binds only above 1 (a Kd floor multiplier; admissible up to kd_scale_max, validated)"),
     ("gsch_kd_scale_max", 2.00, (1.0, 5.0), "Kd schedule upper clip"),
     ("gsch_base_z_trend_gain", 0.10, (0.0, 0.5), "base_z += trend_gain * trend_bias - stress_gain * stress"),
     ("gsch_base_z_stress_gain", 0.25, (0.0, 1.0), "base_z stress gain"),
@@ -179,11 +179,10 @@ _SCHEDULE = (
     ("gsch_droop_r_min_scale", 0.60, (0.1, 1.0), "droop_r lower clip (fraction of base); upper clip is the base (never widened)"),
     ("gsch_offset_min_stress_gain", 0.25, (0.0, 1.0), "dynamic_offset_min *= 1 + gain * stress"),
     ("gsch_offset_min_lower_scale", 1.50, (1.0, 3.0), "dynamic_offset_min clip: base * lower_scale (more negative)"),
-    ("gsch_offset_min_upper_scale", 0.75, (0.1, 1.0), "dynamic_offset_min clip: base * upper_scale [STRUCTURALLY UNREACHABLE: offset_min*(1 + g*stress) <= offset_min (negative) <= base*upper_scale for upper_scale <= 1: cannot bind]"),
+    ("gsch_offset_min_upper_scale", 0.75, (0.1, 3.0), "dynamic_offset_min clip: base * upper_scale (the less negative bound); the schedule is never less negative than the base, so the clip binds only above 1 (admissible up to offset_min_lower_scale, validated)"),
 )
 for _name, _default, (_lo, _hi), _desc in _SCHEDULE:
-    _add(_name, "int" if isinstance(_default, int) else "float", _default, _lo, _hi,
-         INACTIVE if "STRUCTURALLY UNREACHABLE" in _desc else TUNABLE,
+    _add(_name, "int" if isinstance(_default, int) else "float", _default, _lo, _hi, TUNABLE,
          "Revision5DynamicParameterController (governor schedule)",
          "revision5/dynamic_parameters.py:evaluate", _desc)
 
@@ -262,9 +261,9 @@ _AVR = (
     ("avr_overvoltage_trip_base_pu", 1.10, (1.001, 1.5), FIXED_SAFETY, "ANSI 59 trip = clip(base - gain * stress, min, base)"),
     ("avr_overvoltage_trip_stress_gain", 0.05, (0.0, 0.2), FIXED_SAFETY, "ANSI 59 stress tightening gain"),
     ("avr_overvoltage_trip_min_pu", 1.05, (1.001, 1.5), FIXED_SAFETY, "ANSI 59 trip lower clip"),
-    ("avr_mvar_limit_base_pu", 0.90, (0.1, 2.0), INACTIVE, "MVAR limiter = clip(base - gain * stress, min, base); no runtime path supplies measured MVAR (always 0)"),
-    ("avr_mvar_limit_stress_gain", 0.30, (0.0, 2.0), INACTIVE, "MVAR limiter stress gain"),
-    ("avr_mvar_limit_min_pu", 0.60, (0.1, 2.0), INACTIVE, "MVAR limiter lower clip"),
+    ("avr_mvar_limit_base_pu", 0.90, (0.1, 2.0), FIXED_SAFETY, "MVAR limiter |Q| limit (per unit) = clip(base - gain * stress, min, base); acts on an explicit signed per-unit MEASURED reactive power only (avr_mvar_limiter_mode='required' with a supplied measurement source); no measurement is ever synthesized and absence is not zero"),
+    ("avr_mvar_limit_stress_gain", 0.30, (0.0, 2.0), FIXED_SAFETY, "MVAR limiter stress tightening gain (live only with avr_mvar_limiter_mode='required')"),
+    ("avr_mvar_limit_min_pu", 0.60, (0.1, 2.0), FIXED_SAFETY, "MVAR limiter lower clip (live only with avr_mvar_limiter_mode='required')"),
     ("avr_excitation_min_base", 0.10, (0.0, 1.0), FIXED_SAFETY, "UEL excitation floor = clip(base + gain * stress, base, max)"),
     ("avr_excitation_min_stress_gain", 0.10, (0.0, 1.0), FIXED_SAFETY, "UEL excitation floor stress gain"),
     ("avr_excitation_min_max", 0.20, (0.0, 1.0), FIXED_SAFETY, "UEL excitation floor upper clip"),
@@ -385,20 +384,20 @@ _PROFILE = (
     ("psch_slippage_max_fraction", 0.0020, (0.0, 0.05), FIXED_SAFETY, "slippage tolerance upper clip; at its default it lies above the contract base (inert), set below the base it tightens the gate"),
     ("psch_data_age_stress_gain", 0.75, (0.0, 5.0), FIXED_SAFETY, "max market-data age = clip(base/(1 + gain*stress), min, base)"),
     ("psch_data_age_min_seconds", 10.0, (1.0, 600.0), FIXED_SAFETY, "max market-data age lower clip"),
-    ("psch_order_timeout_stress_gain", 0.50, (0.0, 5.0), INACTIVE, "order timeout = clip(base*(1 + gain*stress), min, max), applied tighten-only [NO ACTUATOR: order timeout = base*(1 + gain*stress) >= base for stress >= 0, so the tighten-only consumer always keeps the contract value]"),
-    ("psch_order_timeout_min_seconds", 15.0, (1.0, 600.0), INACTIVE, "order timeout lower clip [NO ACTUATOR: below the (always >= base) timeout schedule; cannot bind]"),
-    ("psch_order_timeout_max_seconds", 60.0, (1.0, 600.0), FIXED_SAFETY, "order timeout upper clip; at its default it lies above the contract base (inert), set below the base it is the only way the scheduled timeout tightens the gate"),
+    ("psch_order_timeout_stress_gain", 0.50, (0.0, 5.0), FIXED_SAFETY, "order timeout = clip(base/(1 + gain*stress), min(min_seconds, upper), upper) with upper = min(max_seconds, base): shortens with stress, applied tighten-only (replaces base*(1 + gain*stress), which could never tighten)"),
+    ("psch_order_timeout_min_seconds", 15.0, (1.0, 600.0), FIXED_SAFETY, "order timeout lower clip (binds when base/(1 + gain*stress) falls below it; never raises the timeout above the contract base)"),
+    ("psch_order_timeout_max_seconds", 60.0, (1.0, 600.0), FIXED_SAFETY, "order timeout upper clip; effective upper = min(max_seconds, contract base); at its default it lies above the contract base (inert), set below the base it caps the timeout at every stress level"),
     ("psch_drawdown_halt_stress_gain", 0.30, (0.0, 0.95), FIXED_SAFETY, "drawdown halt = clip(base*(1 - gain*stress), min, base)"),
     ("psch_drawdown_halt_min", 0.10, (0.0, 1.0), FIXED_SAFETY, "drawdown halt lower clip"),
     ("psch_gross_exposure_min", 0.20, (0.0, 1.0), FIXED_SAFETY, "gross exposure = clip(base*risk_derate, min, base)"),
     ("psch_symbol_exposure_min", 0.05, (0.0, 1.0), FIXED_SAFETY, "symbol exposure = clip(base*risk_derate, min, base)"),
     ("psch_concurrent_positions_min", 1.0, (0.0, 50.0), FIXED_SAFETY, "concurrent positions = round(clip(base*risk_derate, min, base))"),
     ("psch_daily_loss_multiplier_min", 0.40, (0.0, 1.0), FIXED_SAFETY, "daily loss limit multiplier = clip(risk_derate, min, 1)"),
-    ("psch_dispatch_floor_stress_gain", 0.20, (0.0, 0.95), INACTIVE, "dispatcher floor = clip(base*(1 - gain*stress), min, max); NO CONSUMER CONTRACT (gap) [NO ACTUATOR: dispatcher floor has no consumer contract (raising or lowering a merit floor is neither tightening nor specified)]"),
-    ("psch_dispatch_floor_min", 0.05, (0.0, 0.2), INACTIVE, "dispatcher floor lower clip [NO ACTUATOR: dispatcher floor has no consumer contract]"),
-    ("psch_dispatch_floor_max", 0.10, (0.0, 0.2), INACTIVE, "dispatcher floor upper clip [NO ACTUATOR: dispatcher floor has no consumer contract]"),
+    ("psch_dispatch_floor_stress_gain", 0.20, (0.0, 0.95), FIXED_SAFETY, "dispatcher floor = clip(base*(1 - gain*stress), min, max); consumed by the sector-dispatch bounded projection (per-bay reference floor)"),
+    ("psch_dispatch_floor_min", 0.05, (0.0, 0.2), FIXED_SAFETY, "dispatcher floor lower clip"),
+    ("psch_dispatch_floor_max", 0.10, (0.0, 0.2), FIXED_SAFETY, "dispatcher floor upper clip"),
     ("psch_dispatch_ceiling_min", 0.15, (0.0, 1.0), FIXED_SAFETY, "dispatch ceiling = clip(base*risk_derate, min, base); consumed as the sector-dispatch per-bay cap"),
-    ("psch_dispatch_floor_ceiling_ratio", 0.50, (0.0, 1.0), INACTIVE, "if floor >= ceiling: floor = min(floor, ratio*ceiling) [NO ACTUATOR: dispatcher floor has no consumer contract]"),
+    ("psch_dispatch_floor_ceiling_ratio", 0.50, (0.0, 1.0), FIXED_SAFETY, "if floor >= ceiling: floor = min(floor, ratio*ceiling) (keeps the floor strictly feasible below the runtime ceiling)"),
 )
 PROFILE_SCHEDULE_PARAMETERS = tuple(name for name, *_ in _PROFILE)
 for _name, _default, (_lo, _hi), _cls, _desc in _PROFILE:
@@ -415,20 +414,38 @@ _TIER = (
     ("tier1_atr_floor_max", 0.0120, (0.0, 0.10), "Tier-1 ATR floor multiplier upper clip"),
     ("tier1_slippage_scale_min", 0.6, (0.0, 1.0), "Tier-1 slippage multiplier lower clip"),
     ("tier1_slippage_scale_max", 3.0, (1.0, 10.0), "Tier-1 slippage multiplier upper clip"),
-    ("tier3_kp_scale_min", 0.5, (0.0, 1.0), "Tier-3 Box 6 Kp schedule lower clip"),
+    ("tier3_kp_scale_min", 0.5, (0.0, 10.0), "Tier-3 Box 6 Kp schedule lower clip; the scale argument 1 + gain*|error| is >= 1, so the clip binds only above 1 (admissible up to tier3_kp_scale_max, validated)"),
     ("tier3_kp_scale_max", 2.5, (1.0, 10.0), "Tier-3 Box 6 Kp schedule upper clip"),
     ("tier3_ki_divisor_min", 1.0, (1.0, 2.0), "Tier-3 Box 6 Ki divisor lower clip (>= 1: the schedule only bleeds Ki)"),
     ("tier3_ki_divisor_max", 4.0, (1.0, 20.0), "Tier-3 Box 6 Ki divisor upper clip"),
-    ("tier3_kd_scale_min", 0.5, (0.0, 1.0), "Tier-3 Box 6 Kd schedule lower clip"),
+    ("tier3_kd_scale_min", 0.5, (0.0, 10.0), "Tier-3 Box 6 Kd schedule lower clip; the scale argument 1 + gain*|error| is >= 1, so the clip binds only above 1 (admissible up to tier3_kd_scale_max, validated)"),
     ("tier3_kd_scale_max", 2.0, (1.0, 10.0), "Tier-3 Box 6 Kd schedule upper clip"),
 )
-_TIER_UNREACHABLE = {"tier3_kp_scale_min", "tier3_kd_scale_min"}   # argument 1 + g*|e| >= 1 >= any admissible min
 for _name, _default, (_lo, _hi), _desc in _TIER:
-    if _name in _TIER_UNREACHABLE:
-        _desc += " [STRUCTURALLY UNREACHABLE: the scale argument 1 + gain*|error| >= 1 >= any admissible minimum]"
-    _add(_name, "float", _default, _lo, _hi, INACTIVE if _name in _TIER_UNREACHABLE else FIXED_SAFETY, "DynamicParameterController (Box 6 Tier-1 / Tier-3)",
+    _add(_name, "float", _default, _lo, _hi, FIXED_SAFETY, "DynamicParameterController (Box 6 Tier-1 / Tier-3)",
          "revision2_external/dynamic_parameter_controller.py", _desc)
 TIER_ENVELOPE_PARAMETERS = tuple(name for name, *_ in _TIER)
+
+# ------------------------------------------- closed-loop / studies-weight safety envelopes
+# Former literals revision2_external/closed_loop_control.py (_ENTRY_DERATE_BOUNDS, _PERSISTENCE_BOUNDS,
+# _GAIN_SCALE_BOUNDS) and revision2_external/composite_study_signal.py (MIN_WEIGHT, MAX_WEIGHT).  They
+# are ADDED to the 312 audited rows (the original classification table is unchanged); defaults equal
+# the former literals.  Consumers read them from the run's EffectiveConfig on every configure().
+STUDY_COUNT = 4          # len(revision2_external.composite_study_signal.STUDY_NAMES); asserted by a test
+_ENVELOPE = (
+    ("cl_entry_derate_min", 0.5, (0.1, 1.0), FIXED_SAFETY, "ClosedLoopSupervisor / CausalOutcomeLedger", "entry-quality derate = clip(0.5 + pooled_win_rate, min, max): lower bound (the derate scales entry size in closed_loop_mode='active_paper')"),
+    ("cl_entry_derate_max", 1.0, (0.5, 1.0), FIXED_SAFETY, "ClosedLoopSupervisor / CausalOutcomeLedger", "entry-quality derate upper bound; never above 1 (a supervisory derate only reduces risk)"),
+    ("cl_persistence_min", 0.05, (0.001, 0.95), FIXED_SAFETY, "ClosedLoopSupervisor / SymbolDynamicsProfiler", "deviation-persistence phi lower clip (0 < phi < 1 for a finite half-life) -> reference-path response time; at its default the response-time floor (cl_response_time_min_bars) dominates, the clip is observable once phi_min > 0.5 ** (1 / response_time_min)"),
+    ("cl_persistence_max", 0.99, (0.5, 0.999), FIXED_SAFETY, "ClosedLoopSupervisor / SymbolDynamicsProfiler", "deviation-persistence phi upper clip (strictly below 1) -> reference-path response time; at its default the response-time ceiling dominates, the clip is observable once phi_max < 0.5 ** (1 / response_time_max)"),
+    ("cl_gain_scale_min", 0.5, (0.1, 1.0), ADVISORY, "ClosedLoopSupervisor / SymbolDynamicsProfiler", "suggested_pid_gain_scale = clip(default_response_time / response_time, min, max) lower clip [ADVISORY: the suggestion feeds no actuator]"),
+    ("cl_gain_scale_max", 1.5, (1.0, 3.0), ADVISORY, "ClosedLoopSupervisor / SymbolDynamicsProfiler", "suggested_pid_gain_scale upper clip [ADVISORY: the suggestion feeds no actuator]"),
+    ("studies_weight_min", 0.05, (0.01, 0.25), FIXED_SAFETY, "CompositeStudySignal", "chart-studies weight = clip(1/4 + PID adjustment, min, max): lower bound (a study is down-weighted, never deleted); requires 4*min <= 1"),
+    ("studies_weight_max", 0.60, (0.25, 1.0), FIXED_SAFETY, "CompositeStudySignal", "chart-studies weight upper bound (no study dominates); requires 4*max >= 1"),
+)
+for _name, _default, (_lo, _hi), _cls, _owner, _desc in _ENVELOPE:
+    _add(_name, "float", _default, _lo, _hi, _cls, _owner,
+         "revision2_external/closed_loop_control.py; revision2_external/composite_study_signal.py (configure(config))", _desc)
+ENVELOPE_PARAMETER_NAMES = tuple(name for name, *_ in _ENVELOPE)
 
 # ------------------------------------------------------------------- Governor V3 inner loop
 # Ported from a695913 (research/r5-step0-correctness); same names, defaults and classes.
@@ -543,6 +560,8 @@ class GovernorScheduleParameters:
             _require(getattr(self, lo) <= getattr(self, hi), f"governor schedule requires {lo} <= {hi}")
         _require(self.offset_min_upper_scale <= self.offset_min_lower_scale,
                  "governor schedule requires offset_min_upper_scale <= offset_min_lower_scale")
+        # Reachable-clip domains: a clip that cannot bind the schedule is still ordered against its partner.
+        _require(self.integral_max_scale >= self.integral_min_scale, "governor schedule requires integral_max_scale >= integral_min_scale")
 
 
 @dataclass(frozen=True)
@@ -587,6 +606,10 @@ class ProfileScheduleParameters:
                        ("max_hold_min", "max_hold_max"), ("slippage_min_fraction", "slippage_max_fraction"),
                        ("order_timeout_min_seconds", "order_timeout_max_seconds"), ("dispatch_floor_min", "dispatch_floor_max")):
             _require(getattr(self, lo) <= getattr(self, hi), f"profile schedule requires {lo} <= {hi}")
+        # The dispatch floor is projected below the runtime ceiling by the consumer (priority: ceiling,
+        # then total budget, then floor); every admissible floor must itself fit n bays in the budget.
+        _require(len(BAY_IDS) * self.dispatch_floor_max <= 1.0 + 1e-12,
+                 "profile schedule requires n_bays * dispatch_floor_max <= 1 (a floor must fit the total budget)")
 
 
 # Bases of the runtime profiles: the run's own registry parameters / safety-contract values.
@@ -832,6 +855,7 @@ class R5ControllerParameters:
         for group in (built.governor_schedule, built.stress, built.cooldown, built.avr, built.unit_protection,
                       built.grid_protection, built.dispatcher, built.hrsg, built.profile):
             group.validate()
+        _validate_envelopes(built.values, built.profile, built.dispatcher)
         return built
 
     @classmethod
@@ -858,6 +882,20 @@ class R5ControllerParameters:
         return {"parameter_count": len(payload), "values_sha256": digest,
                 "non_default": {k: v for k, v in payload.items() if v != CONTROLLER_PARAMETERS[k].default},
                 "effective_values": payload}
+
+
+def _validate_envelopes(v: Mapping[str, Any], profile: "ProfileScheduleParameters", dispatcher: "DispatcherParameters") -> None:
+    """Cross-parameter ordering / feasibility of the envelope rows (Tier 1/3, closed-loop, studies, profile)."""
+    for stem in ("tier1_normalized_vol", "tier1_atr_floor", "tier1_slippage_scale", "tier3_kp_scale", "tier3_ki_divisor",
+                 "tier3_kd_scale", "cl_entry_derate", "cl_persistence", "cl_gain_scale", "studies_weight"):
+        _require(v[f"{stem}_min"] <= v[f"{stem}_max"], f"{stem} envelope requires min <= max")
+    _require(0.0 < v["cl_persistence_min"] < v["cl_persistence_max"] < 1.0, "persistence envelope must lie strictly inside (0, 1)")
+    # Study weights start at 1/n and are renormalized: the bounds must contain the neutral weight, so
+    # n * min <= 1 <= n * max (the weights can sum to one under the bounds).
+    _require(STUDY_COUNT * v["studies_weight_min"] <= 1.0 + 1e-12 and STUDY_COUNT * v["studies_weight_max"] >= 1.0 - 1e-12,
+             "studies weight bounds must admit a unit sum (n*min <= 1 <= n*max)")
+    _require(profile.dispatch_ceiling_min <= dispatcher.allocation_ceiling,
+             "psch_dispatch_ceiling_min must not exceed disp_allocation_ceiling")
 
 
 def _profile_bases(values: Mapping[str, Any], safety_bases: Optional[Mapping[str, Any]]) -> Dict[str, float]:

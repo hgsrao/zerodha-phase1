@@ -90,7 +90,7 @@ def test_registry_owns_the_new_parameters():
     assert not set(OLD_LITERALS) & set(trading_search_space(REG, engine="IN_HOUSE").names)
     assert set(OLD_LITERALS) <= set(trading_search_space(REG, engine="EXTERNAL").names)
     assert (len(REG.params), len(REG.fixed_target_names()), len(REG.safety_params),
-            len(REG.calibratable_names())) == (170 + 291, 48 + 113, 22, 122 + 178)  # + R5 controller authority (291 rows: 178 tunable, 80 fixed safety, 12 advisory, 21 inactive)
+            len(REG.calibratable_names())) == (170 + 299, 48 + 111, 22, 122 + 188)  # + R5 controller authority (299 rows: 188 tunable, 97 fixed safety, 14 advisory, 0 inactive)
     REG.verify_frozen_identity()
 
 
@@ -124,16 +124,21 @@ def _run(engine, bars, symbol="S", start=30):
     return out
 
 
-def test_studies_defaults_equal_previous_literals_and_previous_behavior(old_studies):
+def test_studies_defaults_preserve_pid_terms_and_enforce_effective_weight_bounds(old_studies):
     new, old = CompositeStudySignal(), old_studies.CompositeStudySignal()
     assert (new.kp, new.ki, new.kd, new.clamp, new.grading_horizon, new.hit_rate_window) == (
         old.kp, old.ki, old.kd, old.clamp, old_studies._GRADING_HORIZON, old_studies._HIT_RATE_WINDOW)
     assert (MIN_WEIGHT, MAX_WEIGHT) == (old_studies._MIN_WEIGHT, old_studies._MAX_WEIGHT)
     bars = _bars(seed=3)
     for a, b in zip(_run(new, bars), _run(old, bars)):
-        assert a["weights"] == b["weights"] and a["confidence"] == b["confidence"]
-        assert a["direction"] == b["direction"] and a["hit_rates"] == b["hit_rates"]
-        assert a["weight_pid_audit"] == b["weight_pid_audit"]
+        assert a["hit_rates"] == b["hit_rates"]
+        assert sum(a["weights"].values()) == pytest.approx(1.0, abs=1e-12)
+        assert all(MIN_WEIGHT - 1e-12 <= w <= MAX_WEIGHT + 1e-12 for w in a["weights"].values())
+        for study in STUDY_NAMES:
+            current, previous = a["weight_pid_audit"][study], b["weight_pid_audit"][study]
+            for field in ("setpoint", "measurement_hit_rate", "error", "p", "i", "d", "raw_output", "applied_adjustment", "graded_vote_count"):
+                assert current[field] == previous[field]
+            assert current["weight_before_projection"] == previous["weight_after"]
 
 
 def test_explicit_legacy_constructor_arguments_still_win():
@@ -181,12 +186,16 @@ def test_clamp_limits_pid_output_and_weight_swing():
         for result in _run(engine, bars):
             for audit in result["weight_pid_audit"].values():
                 assert abs(audit["raw_output"]) <= clamp + 1e-12
-                assert abs(audit["weight_after"] - 0.25) <= clamp + 1e-9 or audit["weight_after"] in (MIN_WEIGHT, MAX_WEIGHT)
+                assert abs(audit["weight_before_projection"] - 0.25) <= clamp + 1e-9 or audit["weight_before_projection"] in (MIN_WEIGHT, MAX_WEIGHT)
+                assert MIN_WEIGHT - 1e-12 <= audit["weight_after"] <= MAX_WEIGHT + 1e-12
 
 
-def test_weight_envelope_is_fixed_not_a_parameter():
+def test_weight_envelope_is_registry_owned_with_the_former_literals_as_defaults():
+    # Superseded by WP-R5-DYNAMIZATION-CLOSURE: the weight bounds are FIXED_SAFETY registry rows
+    # (studies_weight_min / studies_weight_max); MIN_WEIGHT / MAX_WEIGHT are only the default view.
     assert (MIN_WEIGHT, MAX_WEIGHT) == (0.05, 0.60)
-    assert not any("weight_min" in n or "weight_max" in n for n in REG.params)
+    assert (REG.params["studies_weight_min"].default, REG.params["studies_weight_max"].default) == (0.05, 0.60)
+    assert CompositeStudySignal(config=cfg()).weight_min == 0.05
 
 
 def test_grading_horizon_controls_when_a_vote_becomes_gradeable():

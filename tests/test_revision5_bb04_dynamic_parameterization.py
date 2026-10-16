@@ -159,8 +159,8 @@ def test_registry_identity_metadata_and_bounds():
     new = [spec for spec in registry.params.values()
            if "ENGINEERING_INITIAL_VALUE" in spec.notes and "BB04" in spec.notes]
     assert len(new) == 16
-    assert len(registry.params) == 170 + 291  # 141 + 11 plant-control + 18 governor-authority + 291 R5 controller authority
-    assert len(registry.calibratable_names()) == 122 + 178
+    assert len(registry.params) == 170 + 299  # 141 + 11 plant-control + 18 governor-authority + 291 R5 controller authority
+    assert len(registry.calibratable_names()) == 122 + 188
     assert len(registry.calibratable_names("IN_HOUSE")) == 46
     for spec in new:
         assert spec.black_box == "PA"

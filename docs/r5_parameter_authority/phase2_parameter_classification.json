@@ -1,72 +1,55 @@
 {
   "definition": "Phase 2 audit: is each controller parameter a renamed constant or a genuinely dynamic runtime value?\n\nA parameter is DYNAMIC only when its RUNTIME value is recomputed during execution from signals,\nregime, time, plant state or an explicit schedule.  Being stored in the registry does not make it\ndynamic.",
   "counts": {
-    "DYNAMIC_SAFETY_ENVELOPE": 14,
-    "STATIC_SCHEDULE_COEFFICIENT": 134,
+    "DYNAMIC_SAFETY_ENVELOPE": 15,
+    "STATIC_SCHEDULE_COEFFICIENT": 149,
     "CALIBRATABLE_DYNAMIC": 69,
-    "STATIC_REGISTRATION_ONLY": 33,
-    "STATIC_CONTROLLER_CONSTANT": 40,
-    "STATIC_SAFETY_LIMIT": 16,
+    "STATIC_CONTROLLER_CONSTANT": 45,
+    "STATIC_SAFETY_LIMIT": 22,
+    "STATIC_REGISTRATION_ONLY": 14,
     "DYNAMIC": 6
   },
   "verdict": {
-    "verdict": "PARTIAL",
+    "verdict": "IMPLEMENTATION_VERIFIED_CONDITIONAL_INPUTS",
     "reasons": [
-      "PASS: every active native-controller tuning value is registry-owned, read with no fallback, and proven to move an actuator.",
-      "Genuinely dynamic at runtime: 89 parameters (scheduled every plant bar or every Box 6 plan); the rest are constant during a run by design (coefficients, controller constants, safety limits).",
-      "Not dynamic and not actuating: the STATIC_REGISTRATION_ONLY rows (12 advisory, 15 inactive, each with its reason).",
-      "AVR MVAR limiter has no measured-MVAR source (inactive); closed-loop / studies-weight envelopes remain annotated pre-existing literals.",
-      "V3, measured AVR, bounded dispatch, HRSG returns, Box 6 levels at fill and in-flight protection are live only in their opt-in modes (defaults unchanged pending approval)."
-    ]
+      "Original 312 keys preserved; new closed-loop/studies envelopes counted separately in closure evidence.",
+      "Declared dynamic runtime outputs: 90; constant coefficients are not advertised as per-bar variables.",
+      "Previously inactive keys now have runtime consumers or reachable validated bounds; see test_r5_dynamization_closure.py.",
+      "MVAR actuation requires a supplied signed per-unit source and measured AVR mode; missing data is not zero and required mode fails closed.",
+      "Advisory values remain explicitly advisory; classification is not evidence of a production run.",
+      "Runtime evidence and limits are in DYNAMIZATION_CLOSURE.md and TEST_RESULTS_CLOSURE.json; real replay and calibration were not performed."
+    ],
+    "evidence": "docs/r5_parameter_authority/TEST_RESULTS_CLOSURE.json"
   },
   "lists": {
     "registered_not_consumed_at_runtime": [
-      "avr_mvar_limit_base_pu",
-      "avr_mvar_limit_min_pu",
-      "avr_mvar_limit_stress_gain",
+      "cl_gain_scale_max",
+      "cl_gain_scale_min",
       "gov_bpstg_atr_barrier",
       "gov_bpstg_target_m",
-      "gov_bpstg_z_exit",
       "gov_cstg1_atr_barrier",
       "gov_cstg1_target_m",
-      "gov_cstg1_z_exit",
       "gov_cstg2_atr_barrier",
       "gov_cstg2_target_m",
-      "gov_cstg2_z_exit",
       "gov_gtg1_atr_barrier",
       "gov_gtg1_target_m",
-      "gov_gtg1_z_exit",
       "gov_gtg2_atr_barrier",
       "gov_gtg2_target_m",
-      "gov_gtg2_z_exit",
-      "gsch_droop_max_min_scale",
-      "gsch_integral_max_scale",
-      "gsch_kd_scale_min",
-      "gsch_kp_scale_min",
-      "gsch_offset_min_upper_scale",
       "plant_stop_floor_price_fraction",
-      "plant_target_min_reward_risk",
-      "psch_dispatch_floor_ceiling_ratio",
-      "psch_dispatch_floor_max",
-      "psch_dispatch_floor_min",
-      "psch_dispatch_floor_stress_gain",
-      "psch_order_timeout_min_seconds",
-      "psch_order_timeout_stress_gain",
-      "tier3_kd_scale_min",
-      "tier3_kp_scale_min"
+      "plant_target_min_reward_risk"
     ],
     "still_hardcoded_or_effectively_constant": "docs/r5_parameter_authority/REMAINING_HARDCODED_VALUES.md (enforced by tests/r5_remaining_literals.py)",
     "dynamic_schedule_hardcoded_outside_registry": [
-      "revision2_external/closed_loop_control.py _ENTRY_DERATE_BOUNDS / _PERSISTENCE_BOUNDS / _GAIN_SCALE_BOUNDS (FIXED_SAFETY_ENVELOPE, pre-existing)",
-      "revision2_external/composite_study_signal.py MIN_WEIGHT / MAX_WEIGHT (FIXED_SAFETY_ENVELOPE, pre-existing)",
-      "revision2_external/pid_controller.py / continuous_exit_controller.py _EXIT_TIGHTNESS_FLOOR 0.5 (cannot bind: |PID output| <= pid_integral_max_clamp <= 0.25)",
-      "revision5/dynamic_parameters.py strategy / execution / safety profiles and dispatcher snapshot bounds (no consumer)",
-      "revision2_external/dynamic_parameter_controller.py Tier-2 regime schedule (called only from tests)"
+      "Legacy Tier-2 regime schedule remains test-only; no claimed live actuator.",
+      "Box6/continuous-exit structural envelopes outside this closure remain separately documented."
     ],
     "mode_gated_dynamic_paths": [
       "avr_voltage_mode='measured'",
+      "avr_voltage_mode='measured', avr_mvar_limiter_mode='required', supplied measurement",
+      "closed_loop_mode=active_paper for actuation",
       "dynamic_profile_mode='consume'",
       "governor_position_mode='v3'",
+      "shared study signal evaluation",
       "unit_protection_mode='pre_sync_and_in_flight'"
     ]
   },
@@ -597,20 +580,24 @@
       "engine_path": "revision5/ccpp_protection_cubicles.py:BayExcitationAVR; revision5/dynamic_parameters.py:AVRRuntimeProfile",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.9,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "MVAR limiter = clip(base - gain * stress, min, base); no runtime path supplies measured MVAR (always 0)",
-      "runtime_inputs": "-",
+      "classification": "DYNAMIC_SAFETY_ENVELOPE",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "every PAPER_APPLY bar (CentralPlantMasterDCS.step_bar -> apply_dynamic_environment)",
+      "formula_or_schedule": "mvar_limit = clip(base - avr_mvar_limit_stress_gain*control_stress, avr_mvar_limit_min_pu, base); supplied signed per-unit input required for actuation",
+      "runtime_inputs": "risk_derate, stress (control_stress = 1 - loading/base)",
       "bounds": [
         0.1,
         2.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "avr_voltage_mode='measured', avr_mvar_limiter_mode='required', supplied measurement",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "AVR excitation / lot sizing / ANSI 27/59 -> position size, AVR trip exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -619,20 +606,24 @@
       "engine_path": "revision5/ccpp_protection_cubicles.py:BayExcitationAVR; revision5/dynamic_parameters.py:AVRRuntimeProfile",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.6,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "MVAR limiter lower clip",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the schedule it parameterizes runs every bar)",
+      "formula_or_schedule": "MVAR limiter lower clip (live only with avr_mvar_limiter_mode='required')",
       "runtime_inputs": "-",
       "bounds": [
         0.1,
         2.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "avr_voltage_mode='measured', avr_mvar_limiter_mode='required', supplied measurement",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "AVR excitation / lot sizing / ANSI 27/59 -> position size, AVR trip exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -641,20 +632,24 @@
       "engine_path": "revision5/ccpp_protection_cubicles.py:BayExcitationAVR; revision5/dynamic_parameters.py:AVRRuntimeProfile",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.3,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "MVAR limiter stress gain",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the schedule it parameterizes runs every bar)",
+      "formula_or_schedule": "MVAR limiter stress tightening gain (live only with avr_mvar_limiter_mode='required')",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
         2.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "avr_voltage_mode='measured', avr_mvar_limiter_mode='required', supplied measurement",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "AVR excitation / lot sizing / ANSI 27/59 -> position size, AVR trip exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -1227,6 +1222,154 @@
       ],
       "changes_real_decision": true,
       "decision_effect": "AVR excitation / lot sizing / ANSI 27/59 -> position size, AVR trip exit",
+      "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
+    },
+    {
+      "parameter": "cl_entry_derate_max",
+      "controller": "ClosedLoopSupervisor / CausalOutcomeLedger",
+      "engine_path": "revision2_external/closed_loop_control.py; revision2_external/composite_study_signal.py (configure(config))",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 1.0,
+      "classification": "STATIC_SAFETY_LIMIT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant during the run",
+      "formula_or_schedule": "entry-quality derate upper bound; never above 1 (a supervisory derate only reduces risk)",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.5,
+        1.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "closed_loop_mode=active_paper for actuation",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "closed-loop derate / response-time envelopes; gain-scale suggestion remains advisory",
+      "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
+    },
+    {
+      "parameter": "cl_entry_derate_min",
+      "controller": "ClosedLoopSupervisor / CausalOutcomeLedger",
+      "engine_path": "revision2_external/closed_loop_control.py; revision2_external/composite_study_signal.py (configure(config))",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.5,
+      "classification": "STATIC_SAFETY_LIMIT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant during the run",
+      "formula_or_schedule": "entry-quality derate = clip(0.5 + pooled_win_rate, min, max): lower bound (the derate scales entry size in closed_loop_mode='active_paper')",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.1,
+        1.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "closed_loop_mode=active_paper for actuation",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "closed-loop derate / response-time envelopes; gain-scale suggestion remains advisory",
+      "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
+    },
+    {
+      "parameter": "cl_gain_scale_max",
+      "controller": "ClosedLoopSupervisor / SymbolDynamicsProfiler",
+      "engine_path": "revision2_external/closed_loop_control.py; revision2_external/composite_study_signal.py (configure(config))",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 1.5,
+      "classification": "STATIC_REGISTRATION_ONLY",
+      "registry_safety_class": "ADVISORY",
+      "update_frequency": "never (no actuating consumer)",
+      "formula_or_schedule": "suggested_pid_gain_scale upper clip [ADVISORY: the suggestion feeds no actuator]",
+      "runtime_inputs": "-",
+      "bounds": [
+        1.0,
+        3.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "n/a",
+      "consumed_by_engines": [],
+      "changes_real_decision": false,
+      "decision_effect": "none (ADVISORY)",
+      "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
+    },
+    {
+      "parameter": "cl_gain_scale_min",
+      "controller": "ClosedLoopSupervisor / SymbolDynamicsProfiler",
+      "engine_path": "revision2_external/closed_loop_control.py; revision2_external/composite_study_signal.py (configure(config))",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.5,
+      "classification": "STATIC_REGISTRATION_ONLY",
+      "registry_safety_class": "ADVISORY",
+      "update_frequency": "never (no actuating consumer)",
+      "formula_or_schedule": "suggested_pid_gain_scale = clip(default_response_time / response_time, min, max) lower clip [ADVISORY: the suggestion feeds no actuator]",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.1,
+        1.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "n/a",
+      "consumed_by_engines": [],
+      "changes_real_decision": false,
+      "decision_effect": "none (ADVISORY)",
+      "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
+    },
+    {
+      "parameter": "cl_persistence_max",
+      "controller": "ClosedLoopSupervisor / SymbolDynamicsProfiler",
+      "engine_path": "revision2_external/closed_loop_control.py; revision2_external/composite_study_signal.py (configure(config))",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.99,
+      "classification": "STATIC_SAFETY_LIMIT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant during the run",
+      "formula_or_schedule": "deviation-persistence phi upper clip (strictly below 1) -> reference-path response time; at its default the response-time ceiling dominates, the clip is observable once phi_max < 0.5 ** (1 / response_time_max)",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.5,
+        0.999
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "closed_loop_mode=active_paper for actuation",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "closed-loop derate / response-time envelopes; gain-scale suggestion remains advisory",
+      "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
+    },
+    {
+      "parameter": "cl_persistence_min",
+      "controller": "ClosedLoopSupervisor / SymbolDynamicsProfiler",
+      "engine_path": "revision2_external/closed_loop_control.py; revision2_external/composite_study_signal.py (configure(config))",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.05,
+      "classification": "STATIC_SAFETY_LIMIT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant during the run",
+      "formula_or_schedule": "deviation-persistence phi lower clip (0 < phi < 1 for a finite half-life) -> reference-path response time; at its default the response-time floor (cl_response_time_min_bars) dominates, the clip is observable once phi_min > 0.5 ** (1 / response_time_min)",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.001,
+        0.95
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "closed_loop_mode=active_paper for actuation",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "closed-loop derate / response-time envelopes; gain-scale suggestion remains advisory",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -2163,20 +2306,24 @@
       "engine_path": "revision5/governor.py:BayGovernorSpec; revision5/dynamic_parameters.py:evaluate (schedule base)",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.4,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "BPSTG_HEALTHCARE BayGovernorSpec.z_exit: no runtime consumer (dead field)",
+      "classification": "STATIC_CONTROLLER_CONSTANT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant during the run",
+      "formula_or_schedule": "BPSTG_HEALTHCARE mean-reversion release: sigma distance below the mean at which the governor releases a position; exit when side-signed z >= -z_exit after entry below it (governor_authority.position_decision; after protection / min-hold)",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
         2.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "governor outer loop / comparator / inner loop -> entry admission, protected stop, governor exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -2593,20 +2740,24 @@
       "engine_path": "revision5/governor.py:BayGovernorSpec; revision5/dynamic_parameters.py:evaluate (schedule base)",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.3,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "CSTG1_BFSI BayGovernorSpec.z_exit: no runtime consumer (dead field)",
+      "classification": "STATIC_CONTROLLER_CONSTANT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant during the run",
+      "formula_or_schedule": "CSTG1_BFSI mean-reversion release: sigma distance below the mean at which the governor releases a position; exit when side-signed z >= -z_exit after entry below it (governor_authority.position_decision; after protection / min-hold)",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
         2.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "governor outer loop / comparator / inner loop -> entry admission, protected stop, governor exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -3023,20 +3174,24 @@
       "engine_path": "revision5/governor.py:BayGovernorSpec; revision5/dynamic_parameters.py:evaluate (schedule base)",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.4,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "CSTG2_CONSUMER_AUTO BayGovernorSpec.z_exit: no runtime consumer (dead field)",
+      "classification": "STATIC_CONTROLLER_CONSTANT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant during the run",
+      "formula_or_schedule": "CSTG2_CONSUMER_AUTO mean-reversion release: sigma distance below the mean at which the governor releases a position; exit when side-signed z >= -z_exit after entry below it (governor_authority.position_decision; after protection / min-hold)",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
         2.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "governor outer loop / comparator / inner loop -> entry admission, protected stop, governor exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -3453,20 +3608,24 @@
       "engine_path": "revision5/governor.py:BayGovernorSpec; revision5/dynamic_parameters.py:evaluate (schedule base)",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.35,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "GTG1_HEAVY_INDUSTRY BayGovernorSpec.z_exit: no runtime consumer (dead field)",
+      "classification": "STATIC_CONTROLLER_CONSTANT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant during the run",
+      "formula_or_schedule": "GTG1_HEAVY_INDUSTRY mean-reversion release: sigma distance below the mean at which the governor releases a position; exit when side-signed z >= -z_exit after entry below it (governor_authority.position_decision; after protection / min-hold)",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
         2.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "governor outer loop / comparator / inner loop -> entry admission, protected stop, governor exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -3883,20 +4042,24 @@
       "engine_path": "revision5/governor.py:BayGovernorSpec; revision5/dynamic_parameters.py:evaluate (schedule base)",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.5,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "GTG2_TECH_TELECOM BayGovernorSpec.z_exit: no runtime consumer (dead field)",
+      "classification": "STATIC_CONTROLLER_CONSTANT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant during the run",
+      "formula_or_schedule": "GTG2_TECH_TELECOM mean-reversion release: sigma distance below the mean at which the governor releases a position; exit when side-signed z >= -z_exit after entry below it (governor_authority.position_decision; after protection / min-hold)",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
         2.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "governor outer loop / comparator / inner loop -> entry admission, protected stop, governor exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -4347,20 +4510,24 @@
       "engine_path": "revision5/dynamic_parameters.py:evaluate",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.8,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "grid_droop_max lower clip (fraction of base) [STRUCTURALLY UNREACHABLE: grid_droop_max*(1 + g*stress) >= grid_droop_max >= base*min_scale for min_scale <= 1: cannot bind]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the schedule it parameterizes runs every bar)",
+      "formula_or_schedule": "grid_droop_max lower clip (fraction of base); the schedule never falls below the base, so the clip binds only above 1 (admissible up to droop_max_max_scale, validated)",
       "runtime_inputs": "-",
       "bounds": [
         0.1,
-        1.0
+        4.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "governor operating gains, target, window, clamp, z, droop -> entry admission, stop, exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -4473,20 +4640,24 @@
       "engine_path": "revision5/dynamic_parameters.py:evaluate",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 1.25,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "integral_clamp upper clip as a fraction of the bay base [STRUCTURALLY UNREACHABLE: the divisor 1 + g*stress + g*|e| >= 1, so the clamp never exceeds the base: an upper clip >= 1 cannot bind]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the schedule it parameterizes runs every bar)",
+      "formula_or_schedule": "integral_clamp upper clip as a fraction of the bay base; the schedule never exceeds the base, so the clip binds only below 1 (admissible down to integral_min_scale, validated)",
       "runtime_inputs": "-",
       "bounds": [
-        1.0,
+        0.1,
         2.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "governor operating gains, target, window, clamp, z, droop -> entry admission, stop, exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -4599,20 +4770,24 @@
       "engine_path": "revision5/dynamic_parameters.py:evaluate",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.6,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "Kd schedule lower clip [STRUCTURALLY UNREACHABLE: the scale argument 1 + g*|e| + g*stress >= 1 >= any admissible minimum: cannot bind]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the schedule it parameterizes runs every bar)",
+      "formula_or_schedule": "Kd schedule lower clip; the scale argument is >= 1, so the clip binds only above 1 (a Kd floor multiplier; admissible up to kd_scale_max, validated)",
       "runtime_inputs": "-",
       "bounds": [
         0.1,
-        1.0
+        5.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "governor operating gains, target, window, clamp, z, droop -> entry admission, stop, exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -4803,20 +4978,24 @@
       "engine_path": "revision5/dynamic_parameters.py:evaluate",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.6,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "Kp schedule lower clip [STRUCTURALLY UNREACHABLE: the scale argument 1 + g*|e| + g*stress >= 1 >= any admissible minimum: cannot bind]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the schedule it parameterizes runs every bar)",
+      "formula_or_schedule": "Kp schedule lower clip; the scale argument is >= 1, so the clip binds only above 1 (a Kp floor multiplier; admissible up to kp_scale_max, validated)",
       "runtime_inputs": "-",
       "bounds": [
         0.1,
-        1.0
+        5.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "governor operating gains, target, window, clamp, z, droop -> entry admission, stop, exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -4903,20 +5082,24 @@
       "engine_path": "revision5/dynamic_parameters.py:evaluate",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.75,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "dynamic_offset_min clip: base * upper_scale [STRUCTURALLY UNREACHABLE: offset_min*(1 + g*stress) <= offset_min (negative) <= base*upper_scale for upper_scale <= 1: cannot bind]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "TUNABLE",
+      "update_frequency": "constant (the schedule it parameterizes runs every bar)",
+      "formula_or_schedule": "dynamic_offset_min clip: base * upper_scale (the less negative bound); the schedule is never less negative than the base, so the clip binds only above 1 (admissible up to offset_min_lower_scale, validated)",
       "runtime_inputs": "-",
       "bounds": [
         0.1,
-        1.0
+        3.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "governor operating gains, target, window, clamp, z, droop -> entry admission, stop, exit",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
@@ -5922,7 +6105,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -5948,7 +6131,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -5974,7 +6157,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6000,7 +6183,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6026,7 +6209,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6035,20 +6218,24 @@
       "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.5,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "if floor >= ceiling: floor = min(floor, ratio*ceiling) [NO ACTUATOR: dispatcher floor has no consumer contract]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "if floor >= ceiling: floor = min(floor, ratio*ceiling) (keeps the floor strictly feasible below the runtime ceiling)",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
         1.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6057,20 +6244,24 @@
       "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.1,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "dispatcher floor upper clip [NO ACTUATOR: dispatcher floor has no consumer contract]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "dispatcher floor upper clip",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
         0.2
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6079,20 +6270,24 @@
       "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.05,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "dispatcher floor lower clip [NO ACTUATOR: dispatcher floor has no consumer contract]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "dispatcher floor lower clip",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
         0.2
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6101,20 +6296,24 @@
       "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.2,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "dispatcher floor = clip(base*(1 - gain*stress), min, max); NO CONSUMER CONTRACT (gap) [NO ACTUATOR: dispatcher floor has no consumer contract (raising or lowering a merit floor is neither tightening nor specified)]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "dispatcher floor = clip(base*(1 - gain*stress), min, max); consumed by the sector-dispatch bounded projection (per-bay reference floor)",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
         0.95
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6140,7 +6339,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6166,7 +6365,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6192,7 +6391,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6218,7 +6417,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6244,7 +6443,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6270,7 +6469,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6296,7 +6495,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6322,7 +6521,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6348,7 +6547,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6374,7 +6573,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6400,7 +6599,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6426,7 +6625,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6452,7 +6651,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6478,7 +6677,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6504,7 +6703,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6530,7 +6729,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6556,7 +6755,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6582,7 +6781,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6594,7 +6793,7 @@
       "classification": "STATIC_SCHEDULE_COEFFICIENT",
       "registry_safety_class": "FIXED_SAFETY",
       "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
-      "formula_or_schedule": "order timeout upper clip; at its default it lies above the contract base (inert), set below the base it is the only way the scheduled timeout tightens the gate",
+      "formula_or_schedule": "order timeout upper clip; effective upper = min(max_seconds, contract base); at its default it lies above the contract base (inert), set below the base it caps the timeout at every stress level",
       "runtime_inputs": "-",
       "bounds": [
         1.0,
@@ -6608,7 +6807,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6617,20 +6816,24 @@
       "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 15.0,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "order timeout lower clip [NO ACTUATOR: below the (always >= base) timeout schedule; cannot bind]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "order timeout lower clip (binds when base/(1 + gain*stress) falls below it; never raises the timeout above the contract base)",
       "runtime_inputs": "-",
       "bounds": [
         1.0,
         600.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6639,20 +6842,24 @@
       "engine_path": "revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py dynamic_profile_mode='consume'",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.5,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "order timeout = clip(base*(1 + gain*stress), min, max), applied tighten-only [NO ACTUATOR: order timeout = base*(1 + gain*stress) >= base for stress >= 0, so the tighten-only consumer always keeps the contract value]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (the runtime profile it parameterizes is recomputed every plant bar)",
+      "formula_or_schedule": "order timeout = clip(base/(1 + gain*stress), min(min_seconds, upper), upper) with upper = min(max_seconds, base): shortens with stress, applied tighten-only (replaces base*(1 + gain*stress), which could never tighten)",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
         5.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "dynamic_profile_mode='consume'",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6678,7 +6885,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6704,7 +6911,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6730,7 +6937,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -6756,7 +6963,7 @@
         "C"
       ],
       "changes_real_decision": true,
-      "decision_effect": "R5 strategy / safety / dispatch profile (per bar) -> Box 4 confidence, Box 5 min R:R, Box 6 holds, tighten-only entry gates and sizing, drawdown exit, dispatcher ceiling",
+      "decision_effect": "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling",
       "sensitivity_proof": "tests/test_r5_dynamization.py::test_every_profile_coefficient_moves_its_consumer_or_is_inactive"
     },
     {
@@ -7150,6 +7357,58 @@
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
     },
     {
+      "parameter": "studies_weight_max",
+      "controller": "CompositeStudySignal",
+      "engine_path": "revision2_external/closed_loop_control.py; revision2_external/composite_study_signal.py (configure(config))",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.6,
+      "classification": "STATIC_SAFETY_LIMIT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant during the run",
+      "formula_or_schedule": "chart-studies weight upper bound (no study dominates); requires 4*max >= 1",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.25,
+        1.0
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "shared study signal evaluation",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "bounded unit-sum study weights -> composite confidence and direction",
+      "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
+    },
+    {
+      "parameter": "studies_weight_min",
+      "controller": "CompositeStudySignal",
+      "engine_path": "revision2_external/closed_loop_control.py; revision2_external/composite_study_signal.py (configure(config))",
+      "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
+      "default": 0.05,
+      "classification": "STATIC_SAFETY_LIMIT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant during the run",
+      "formula_or_schedule": "chart-studies weight = clip(1/4 + PID adjustment, min, max): lower bound (a study is down-weighted, never deleted); requires 4*min <= 1",
+      "runtime_inputs": "-",
+      "bounds": [
+        0.01,
+        0.25
+      ],
+      "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
+      "mode_gate": "shared study signal evaluation",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "bounded unit-sum study weights -> composite confidence and direction",
+      "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_every_parameter_sensitivity_matches_its_class"
+    },
+    {
       "parameter": "symbol_loss_cooldown_bars",
       "controller": "TurbineBayPanel cooldown / lockout",
       "engine_path": "revision5/ccpp_unified_plant.py:TurbineBayPanel; revision5/dynamic_parameters.py:evaluate; revision2_external/orchestrator.py",
@@ -7389,20 +7648,24 @@
       "engine_path": "revision2_external/dynamic_parameter_controller.py",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.5,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "Tier-3 Box 6 Kd schedule lower clip [STRUCTURALLY UNREACHABLE: the scale argument 1 + gain*|error| >= 1 >= any admissible minimum]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (bounds a per-plan schedule)",
+      "formula_or_schedule": "Tier-3 Box 6 Kd schedule lower clip; the scale argument 1 + gain*|error| is >= 1, so the clip binds only above 1 (admissible up to tier3_kd_scale_max, validated)",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
-        1.0
+        10.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "Box 6 Tier-3 entry gain schedule -> entry PID -> order reference (A) / booked levels (B/C box6_levels)",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable"
     },
     {
@@ -7489,20 +7752,24 @@
       "engine_path": "revision2_external/dynamic_parameter_controller.py",
       "source_of_truth": "canonical registry (revision5/controller_parameters.py row) -> EffectiveConfig -> R5ControllerParameters.from_config",
       "default": 0.5,
-      "classification": "STATIC_REGISTRATION_ONLY",
-      "registry_safety_class": "INACTIVE",
-      "update_frequency": "never (no actuating consumer)",
-      "formula_or_schedule": "Tier-3 Box 6 Kp schedule lower clip [STRUCTURALLY UNREACHABLE: the scale argument 1 + gain*|error| >= 1 >= any admissible minimum]",
+      "classification": "STATIC_SCHEDULE_COEFFICIENT",
+      "registry_safety_class": "FIXED_SAFETY",
+      "update_frequency": "constant (bounds a per-plan schedule)",
+      "formula_or_schedule": "Tier-3 Box 6 Kp schedule lower clip; the scale argument 1 + gain*|error| is >= 1, so the clip binds only above 1 (admissible up to tier3_kp_scale_max, validated)",
       "runtime_inputs": "-",
       "bounds": [
         0.0,
-        1.0
+        10.0
       ],
       "fallback": "none: missing -> ControllerParameterError / MissingParameterError at startup (fail closed)",
-      "mode_gate": "n/a",
-      "consumed_by_engines": [],
-      "changes_real_decision": false,
-      "decision_effect": "none (INACTIVE)",
+      "mode_gate": "always (PAPER_APPLY native plant)",
+      "consumed_by_engines": [
+        "A",
+        "B",
+        "C"
+      ],
+      "changes_real_decision": true,
+      "decision_effect": "Box 6 Tier-3 entry gain schedule -> entry PID -> order reference (A) / booked levels (B/C box6_levels)",
       "sensitivity_proof": "tests/test_r5_parameter_authority.py::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable"
     },
     {

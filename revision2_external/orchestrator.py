@@ -43,7 +43,7 @@ from gates_framework import EntryDecisionEngine, EntrySignal, SafetyGateConfig, 
 from revision2.boxes import P01DBox, SafetyGatesTargetBox
 from revision2.contracts import EffectiveConfig, MarketSnapshot, SafetyContract, StartupCertificate, StartupNotCertifiedError
 from revision2.portfolio_orchestrator import SECTOR_MAP, _ClockEvent
-from revision2_external.composite_study_signal import CompositeStudySignal, MAX_WEIGHT, MIN_WEIGHT
+from revision2_external.composite_study_signal import CompositeStudySignal
 from revision2_external.closed_loop_control import ClosedLoopSupervisor, HMMRiskHysteresis, regime_risk_derate
 from revision2_external.continuous_exit_controller import ContinuousExitController, ExitControllerState
 from revision2_external.data_certification_pandera import certify_bars, certify_session_completeness
@@ -101,6 +101,7 @@ GOVERNOR_POSITION_MODES = ("legacy", "v3")
 ENTRY_FILL_ANCHOR_MODES = ("reanchor_distances", "box6_levels")
 UNIT_PROTECTION_MODES = ("pre_synchronization", "pre_sync_and_in_flight")
 DYNAMIC_PROFILE_MODES = ("off", "consume")
+AVR_MVAR_LIMITER_MODES = ("off", "required")
 
 # Native plant EXIT reasons that are protection trips (actuated at the next open as
 # ``plant_trip:<reason>``).  A plant-governor EXIT is advisory: the orchestrator's own
@@ -168,6 +169,8 @@ class Revision2ExternalEngineOrchestrator:
         entry_fill_anchor_mode: str = "reanchor_distances",
         unit_protection_mode: str = "pre_synchronization",
         dynamic_profile_mode: str = "off",
+        avr_mvar_limiter_mode: str = "off",
+        mvar_measurement_provider: Optional[Any] = None,
     ) -> None:
         # Opt-in controller modes (defaults keep the baseline decision-identical):
         #   governor_position_mode   "legacy" V2 inner loop | "v3" Protocol V3 inner loop (full
@@ -189,6 +192,15 @@ class Revision2ExternalEngineOrchestrator:
         #                            dispatch profiles reach their consumers (strategy values replace the
         #                            run's bases for PA / ID / Box 6; safety and execution values and the
         #                            dispatch ceiling TIGHTEN only).  "off": computed, not consumed.
+        #   avr_mvar_limiter_mode    "required": the per-bar measured AVR runs its MVAR limiter on a
+        #                            caller-supplied signed per-unit MEASURED reactive power
+        #                            (``mvar_measurement_provider(timestamp, bar_index, bay_id)`` ->
+        #                            finite float | None, causal: known at or before ``timestamp``).  A
+        #                            missing / non-finite value trips the bay's AVR for that bar (fail
+        #                            closed); NO measurement is synthesized -- market OHLC is not physical
+        #                            MVAR and this repository has no MVAR source, so the limiter is
+        #                            active only when an integrator supplies one.  "off": limiter not
+        #                            evaluated (a measurement, if supplied, is still passed through).
         # ``real_plant_dcs``: an optional, already-constructed native R5 ``CentralPlantMasterDCS``.
         # Default None -- unchanged behaviour: this replay engine does not instantiate a real plant,
         # so protection state uses the explicit SYMBOL_TRIPS_ONLY fallback (see protection_snapshot.py).
@@ -233,6 +245,16 @@ class Revision2ExternalEngineOrchestrator:
             raise ValueError(f"unit_protection_mode must be one of {UNIT_PROTECTION_MODES}")
         if unit_protection_mode != "pre_synchronization" and plant_control_mode != PlantControlMode.PAPER_APPLY:
             raise ValueError("unit_protection_mode='pre_sync_and_in_flight' requires the PAPER_APPLY native plant")
+        if avr_mvar_limiter_mode not in AVR_MVAR_LIMITER_MODES:
+            raise ValueError(f"avr_mvar_limiter_mode must be one of {AVR_MVAR_LIMITER_MODES}")
+        if avr_mvar_limiter_mode == "required" and avr_voltage_mode != "measured":
+            raise ValueError("avr_mvar_limiter_mode='required' requires avr_voltage_mode='measured'")
+        if avr_mvar_limiter_mode == "required" and not callable(mvar_measurement_provider):
+            raise ValueError("avr_mvar_limiter_mode='required' requires a callable mvar_measurement_provider "
+                             "(no MVAR source exists in this engine; none is synthesized)")
+        if mvar_measurement_provider is not None and (not callable(mvar_measurement_provider)
+                                                      or avr_voltage_mode != "measured"):
+            raise ValueError("mvar_measurement_provider must be callable and requires avr_voltage_mode='measured'")
         if dynamic_profile_mode not in DYNAMIC_PROFILE_MODES:
             raise ValueError(f"dynamic_profile_mode must be one of {DYNAMIC_PROFILE_MODES}")
         if dynamic_profile_mode != "off" and plant_control_mode != PlantControlMode.PAPER_APPLY:
@@ -295,6 +317,8 @@ class Revision2ExternalEngineOrchestrator:
         self.unit_protection_mode = unit_protection_mode
         self._position_control_v3 = self.controller_parameters.position_control_v3()
         self.dynamic_profile_mode = dynamic_profile_mode
+        self.avr_mvar_limiter_mode = avr_mvar_limiter_mode
+        self.mvar_measurement_provider = mvar_measurement_provider
         self._decision_config: Optional[EffectiveConfig] = None     # per-bar strategy overlay (consume)
         self._decision_config_key = None
         self._runtime_profile: Optional[Dict[str, Any]] = None
@@ -535,6 +559,7 @@ class Revision2ExternalEngineOrchestrator:
                       "entry_fill_anchor_mode": self.entry_fill_anchor_mode,
                       "unit_protection_mode": self.unit_protection_mode,
                       "dynamic_profile_mode": self.dynamic_profile_mode,
+                      "avr_mvar_limiter_mode": self.avr_mvar_limiter_mode,
                       "closed_loop_mode": self.closed_loop_mode,
                       "plant_control_mode": self.plant_control.mode.value},
         }
@@ -568,9 +593,10 @@ class Revision2ExternalEngineOrchestrator:
         PA / ID / Box 6 decisions of this bar, additionally clipped to each parameter's registry bounds.
         Safety and execution values are TIGHTEN-ONLY against the safety contract (min / max as the limit
         demands): drawdown halt, daily-loss halt, concurrent positions, gross and symbol exposure,
-        slippage tolerance, market-data age, order timeout.  The dispatch ceiling tightens the sector
-        dispatch per-bay cap from the next plant-control evaluation.  The dispatch FLOOR has no consumer
-        contract and is not applied (documented gap)."""
+        slippage tolerance, market-data age, order timeout (the timeout schedule SHORTENS with stress).  The
+        dispatch ceiling tightens the sector dispatch per-bay cap and the dispatch floor is a per-bay
+        reference floor, both from the next plant-control evaluation; SectorDispatchController projects
+        the floor onto the ceiling and the total demand budget (no capital is created)."""
         strategy, safety, execution = snapshot.strategy, snapshot.safety, snapshot.execution
         overlay = {}
         for name, value in (("entry_confidence_threshold", float(strategy.entry_confidence_threshold)),
@@ -609,8 +635,9 @@ class Revision2ExternalEngineOrchestrator:
         merit = self.plant_control.dispatch_controller.merit_source
         ceiling = min(float(merit.max_ceiling), float(snapshot.plant.dispatcher_max_ceiling))
         merit.runtime_ceiling_cap = ceiling
+        merit.runtime_floor = float(snapshot.plant.dispatcher_min_floor)
         profile = {"version": snapshot.version, "strategy": overlay, "safety_and_execution": tightened,
-                   "dispatch_ceiling": ceiling, "dispatch_floor_not_applied": float(snapshot.plant.dispatcher_min_floor)}
+                   "dispatch_ceiling": ceiling, "dispatch_floor": merit.runtime_floor}
         if profile != self._runtime_profile and (self._runtime_profile is None
                                                  or {k: v for k, v in profile.items() if k != "version"}
                                                  != {k: v for k, v in self._runtime_profile.items() if k != "version"}):
@@ -997,9 +1024,14 @@ class Revision2ExternalEngineOrchestrator:
             # Bus voltage: the grid synchronizer's causal Nifty-deviation measurement for THIS
             # timestamp (None when the plant reference is unavailable -> AVR fails closed).
             deviation = self._governor_grid_return(timestamp)
+            mvar = None
+            if self.mvar_measurement_provider is not None:
+                mvar = {bay_id: self.mvar_measurement_provider(timestamp, self._native_bar_index, bay_id)
+                        for bay_id in plant.bays}
             regulation = plant.regulate_bay_voltages(
                 bar_index=self._native_bar_index,
-                bus_voltage_pu=None if deviation is None else 1.0 + float(deviation))
+                bus_voltage_pu=None if deviation is None else 1.0 + float(deviation),
+                measured_mvar_pu=mvar, mvar_limiter_mode=self.avr_mvar_limiter_mode)
             self._record_controller_event("AVR_VOLTAGE_REGULATION", timestamp, "PLANT", {"bays": regulation})
         if self.hrsg_correlation_mode == "causal_bay_returns":
             returns: Dict[str, List[float]] = {}
@@ -1324,7 +1356,10 @@ class Revision2ExternalEngineOrchestrator:
                 bay_exhaust_spread=self._bay_exhaust_spread.get(bay_id), hard_stop_r=-1.0,
                 path_noise_r=(telemetry.atr / risk
                               if telemetry is not None and telemetry.available and valid_risk else None),
-                position_control=(self._position_control_v3 if self.governor_position_mode == "v3" else None))
+                position_control=(self._position_control_v3 if self.governor_position_mode == "v3" else None),
+                side=trade["side"],
+                z_score=telemetry.z_score if telemetry is not None and telemetry.available else None,
+                entry_signed_z=trade.get("governor_entry_signed_z"))
             result = {"measured_r": measured_r, "max_favorable_r": mfe_r,
                       "conviction_detail": conviction_detail, **result}
         self._governor_position_counts[f"{result['action']}:{result['reason']}"] += 1
@@ -1334,7 +1369,7 @@ class Revision2ExternalEngineOrchestrator:
             **{key: result.get(key) for key in (
                 "action", "reason", "load_shed", "measured_r", "max_favorable_r", "protected_r_floor",
                 "fsr_selected", "fsr_effective", "controlling_limiter", "limiters", "bay_exhaust_spread",
-                "conviction_detail", "inner", "conviction_exit_deferred")},
+                "conviction_detail", "inner", "conviction_exit_deferred", "z_exit", "z_exit_deferred")},
         })
         if not self._governor_full:
             return result
@@ -1813,7 +1848,7 @@ class Revision2ExternalEngineOrchestrator:
             # These bounds are owned by CompositeStudySignal.  This is a
             # passive audit label only; it cannot influence the controller.
             study_weights_clamped = any(
-                weight <= MIN_WEIGHT + 1e-12 or weight >= MAX_WEIGHT - 1e-12
+                weight <= self.chart_studies.weight_min + 1e-12 or weight >= self.chart_studies.weight_max - 1e-12
                 for weight in study_weights.values()
             )
             self._record_controller_event("EXIT_PROTECTION_UPDATE", timestamp, symbol, {
@@ -2767,6 +2802,10 @@ class Revision2ExternalEngineOrchestrator:
             self.open_trades[symbol].update({
                 "governor_stop_price": float(plan.stop_price), "governor_mfe_r": 0.0,
                 "governor_entry_conviction": governor_entry.get("entry_absolute_conviction"),
+                # Side-signed governor z at the signal bar (same causal telemetry as the entry
+                # comparator); arms the bay's z-exit release.  None = not measured.
+                "governor_entry_signed_z": (None if governor_entry.get("z_score") is None else
+                                            (1.0 if plan.side == "BUY" else -1.0) * float(governor_entry["z_score"])),
             })
             _, governor = self._governor_for(symbol)
             if governor is not None:

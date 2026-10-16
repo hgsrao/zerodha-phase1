@@ -23,16 +23,18 @@ from revision2_external.bb05_bb06_parameters import default_config, require
 #   STRUCTURAL: the neutral win rate is the definition of "no evidence"; the
 #     derate map derate = 0.5 + win_rate; persistence phi must lie in (0, 1)
 #     for a finite half-life; the dynamics lookback floor; numerical guards.
-#   FIXED_SAFETY_ENVELOPE: entry derate never below 0.5 and never above 1.0
-#     (a supervisory derate can only reduce, never add, risk); a latched HMM
-#     stress applies derate 0.0.
-#   TELEMETRY_ONLY: gain-scale bounds (suggested_pid_gain_scale feeds nothing).
+#   A latched HMM stress applies derate 0.0.
+# The entry-derate, persistence and gain-scale envelopes are REGISTRY-OWNED
+# (cl_entry_derate_*, cl_persistence_*, cl_gain_scale_*; defaults equal the former
+# literals 0.5/1.0, 0.05/0.99, 0.5/1.5) and are read from the run's EffectiveConfig by
+# configure(); the module-level tuples below are only the registry-default VIEW kept for
+# legacy imports -- no runtime consumer reads them.
 _NEUTRAL_WIN_RATE = 0.5
-_ENTRY_DERATE_BOUNDS = (0.5, 1.0)
-_PERSISTENCE_BOUNDS = (0.05, 0.99)
+_ENTRY_DERATE_BOUNDS = (require(default_config(), "cl_entry_derate_min"), require(default_config(), "cl_entry_derate_max"))
+_PERSISTENCE_BOUNDS = (require(default_config(), "cl_persistence_min"), require(default_config(), "cl_persistence_max"))
 _PERSISTENCE_FALLBACK = 0.5
 _MINIMUM_LOOKBACK_FLOOR = 20
-_GAIN_SCALE_BOUNDS = (0.5, 1.5)
+_GAIN_SCALE_BOUNDS = (require(default_config(), "cl_gain_scale_min"), require(default_config(), "cl_gain_scale_max"))
 _LATCHED_DERATE = 0.0
 # Registry-derived compatibility alias (not an owner).
 _DEFAULT_RESPONSE_TIME_BARS = require(default_config(), "cl_response_time_default_bars")
@@ -246,7 +248,11 @@ class CausalOutcomeLedger:
         """Refresh evidence controls; recorded outcomes are untouched."""
         values = [require(config, n) for n in
                   ("cl_outcome_min_history", "cl_confidence_offset_gain", "cl_confidence_offset_max")]
+        derate = (require(config, "cl_entry_derate_min"), require(config, "cl_entry_derate_max"))
+        if not 0.0 < derate[0] <= derate[1] <= 1.0:
+            raise ValueError("entry derate envelope requires 0 < min <= max <= 1 (a derate only reduces risk)")
         self.minimum_history, self.confidence_offset_gain, self.confidence_offset_max = values
+        self.entry_derate_bounds = derate
 
     def record(self, outcome: Dict[str, Any]) -> None:
         if "net_pnl" not in outcome or "symbol" not in outcome:
@@ -283,7 +289,7 @@ class CausalOutcomeLedger:
             "global_win_rate": global_win_rate,
             "symbol_regime_win_rate": local_win_rate,
             "pooled_win_rate": pooled_win_rate,
-            "suggested_entry_derate": _clip(_NEUTRAL_WIN_RATE + pooled_win_rate, *_ENTRY_DERATE_BOUNDS),
+            "suggested_entry_derate": _clip(_NEUTRAL_WIN_RATE + pooled_win_rate, *self.entry_derate_bounds),
             # This is a future-entry correction, not a new safety limit.
             # It becomes actionable only after enough completed evidence.
             "suggested_confidence_offset": _clip(
@@ -316,6 +322,13 @@ class SymbolDynamicsProfiler:
         values = [require(config, n) for n in names]
         if values[2] >= values[3]:
             raise ValueError("response-time minimum must be below maximum")
+        persistence = (require(config, "cl_persistence_min"), require(config, "cl_persistence_max"))
+        gain_scale = (require(config, "cl_gain_scale_min"), require(config, "cl_gain_scale_max"))
+        if not 0.0 < persistence[0] < persistence[1] < 1.0:
+            raise ValueError("persistence envelope requires 0 < min < max < 1 (finite half-life)")
+        if not 0.0 < gain_scale[0] <= gain_scale[1]:
+            raise ValueError("gain-scale envelope requires 0 < min <= max")
+        self.persistence_bounds, self.gain_scale_bounds = persistence, gain_scale
         self.lookback_bars = max(_MINIMUM_LOOKBACK_FLOOR, int(values[0]))
         self.ema_span = max(2, int(values[1]))
         (self.response_time_min, self.response_time_max,
@@ -340,7 +353,7 @@ class SymbolDynamicsProfiler:
         persistence = sum(a * b for a, b in zip(previous, current)) / denominator if denominator > 1e-12 else _PERSISTENCE_FALLBACK
         # A stable, finite half-life requires 0 < phi < 1. Out-of-range
         # samples fall back to the closest defensible bounded response.
-        bounded_phi = _clip(persistence, *_PERSISTENCE_BOUNDS)
+        bounded_phi = _clip(persistence, *self.persistence_bounds)
         base_response_time = _clip(math.log(0.5) / math.log(bounded_phi),
                                   self.response_time_min, self.response_time_max)
         absolute_path = sum(abs(b - a) for a, b in zip(closes[:-1], closes[1:]))
@@ -354,7 +367,7 @@ class SymbolDynamicsProfiler:
                               self.response_time_min, self.response_time_max)
         # Recorded for future PID gain scheduling research. It is not yet
         # fed into the PID gains, avoiding unvalidated mid-trade retuning.
-        gain_scale = _clip(self.response_time_default / response_time, *_GAIN_SCALE_BOUNDS)
+        gain_scale = _clip(self.response_time_default / response_time, *self.gain_scale_bounds)
         return {
             "sample_bars": len(closes), "base_response_time_bars": base_response_time,
             "response_time_bars": response_time,

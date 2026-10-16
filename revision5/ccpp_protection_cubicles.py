@@ -574,7 +574,7 @@ class BayExcitationAVR:
         bus_voltage_reference_pu: float = 1.0,
         terminal_voltage_pu: float = 1.0,
         mvar_reference_pu: float = 0.0,
-        measured_mvar_pu: float = 0.0,
+        measured_mvar_pu: Optional[float] = None,
     ) -> dict:
         """
         Continuous AVR feedback loop.
@@ -583,17 +583,23 @@ class BayExcitationAVR:
             error = synchronized bus reference - terminal voltage
 
         MVAR:
-            error = requested MVAR - measured MVAR
+            error = requested MVAR - measured MVAR   (requires a measurement)
+
+        ``measured_mvar_pu`` is an OPTIONAL finite SIGNED per-unit measured reactive power (positive =
+        over-excited / lagging, negative = under-excited / leading).  ``None`` means NOT MEASURED: the
+        MVAR limiter is not evaluated (it is NOT fed a synthetic 0.0, which would read as a measured
+        zero), the result reports ``mvar_limiter="NOT_EVALUATED"`` and MVAR mode raises.  A supplied
+        value is validated finite and drives the limiter against ``mvar_limit_pu``.
 
         AVR output is bidirectional. UEL/OEL and voltage protections
         constrain or trip the actuator.
         """
+        measured = measured_mvar_pu is not None
         values = (
             bus_voltage_reference_pu,
             terminal_voltage_pu,
             mvar_reference_pu,
-            measured_mvar_pu,
-        )
+        ) + ((measured_mvar_pu,) if measured else ())
 
         if not all(
             isinstance(v, (int, float))
@@ -645,6 +651,10 @@ class BayExcitationAVR:
             )
 
         elif normalized_mode == "MVAR":
+            if not measured:
+                raise ValueError(
+                    "AVR MVAR mode requires a measured MVAR"
+                )
             error = (
                 float(mvar_reference_pu)
                 - float(measured_mvar_pu)
@@ -688,27 +698,24 @@ class BayExcitationAVR:
         # MVAR/excitation limiter: do not continue driving farther
         # into an already exceeded reactive-power limit.
         #
-        if (
-            float(measured_mvar_pu)
-            > self.mvar_limit_pu
-            and requested_command
-            > self.excitation_command
-        ):
-            requested_command = (
-                self.excitation_command
-            )
-            limiter_state = "OEL_ACTIVE"
+        mvar_limiter = "NOT_EVALUATED"
+        if measured:
+            mvar_limiter = "IN_RANGE"
+            if float(measured_mvar_pu) > self.mvar_limit_pu:
+                mvar_limiter = "POSITIVE_SATURATED"
+                if requested_command > self.excitation_command:
+                    requested_command = (
+                        self.excitation_command
+                    )
+                    limiter_state = "OEL_ACTIVE"
 
-        elif (
-            float(measured_mvar_pu)
-            < -self.mvar_limit_pu
-            and requested_command
-            < self.excitation_command
-        ):
-            requested_command = (
-                self.excitation_command
-            )
-            limiter_state = "UEL_ACTIVE"
+            elif float(measured_mvar_pu) < -self.mvar_limit_pu:
+                mvar_limiter = "NEGATIVE_SATURATED"
+                if requested_command < self.excitation_command:
+                    requested_command = (
+                        self.excitation_command
+                    )
+                    limiter_state = "UEL_ACTIVE"
 
         command = max(
             self.excitation_min,
@@ -746,9 +753,11 @@ class BayExcitationAVR:
             "terminal_voltage_pu": (
                 terminal_voltage_pu
             ),
-            "measured_mvar_pu": float(
-                measured_mvar_pu
+            "measured_mvar_pu": (
+                float(measured_mvar_pu) if measured else None
             ),
+            "mvar_limiter": mvar_limiter,
+            "mvar_limit_pu": float(self.mvar_limit_pu),
         }
 
     def calculate_lot_size(
