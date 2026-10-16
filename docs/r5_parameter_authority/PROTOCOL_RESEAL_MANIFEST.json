@@ -1,12 +1,12 @@
 {
   "manifest": "R5_PROTOCOL_RESEAL_PARAMETER_AUTHORITY",
-  "engine_commit": "e4fe76ddee942c29aed0d9eaa853f152cc9833cc",
+  "engine_commit": "8300acc928e79d5ab7a128411b3611ad374a4846",
   "base_commit": "cb10fac5be123f450ede9bb3e8c11ce2ec27817b",
-  "registry_identity_sha256": "dc8acc009e9e3c639c4652a0da3be5f15db16d37c5039f60879b96077597b47d",
+  "registry_identity_sha256": "d7f4e89718a38d724d57f4e70b8bdbd93bb8ccb9385b4940e896efee906d5b55",
   "superseded_registry_identity_sha256": "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d",
   "protocol": {
     "file": "revision5/step5_sealed_calibration_protocol_v4_parameter_authority.json",
-    "sha256": "6c63b2bdcfebbfbcc82ccc8f76028411674fececabb24ce51a40d554b5e45b48",
+    "sha256": "42b747151457c9fe98b1ef264b020ccef37d86fcef1a18723b671fb7bcdaf89a",
     "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V4_PARAMETER_AUTHORITY"
   },
   "superseded_protocol": {
@@ -19,13 +19,13 @@
     "historical_note": "revision5/step5_sealed_calibration_protocol_v2.HISTORICAL.md"
   },
   "surface_counts": {
-    "total_targets": 427,
-    "fixed_targets": 142,
+    "total_targets": 469,
+    "fixed_targets": 159,
     "safety_params": 22,
     "in_house_eligible": 46,
-    "external_eligible": 285,
+    "external_eligible": 310,
     "shared_eligible": 46,
-    "external_only_eligible": 239,
+    "external_only_eligible": 264,
     "in_house_only_eligible": 0
   },
   "changed_files": [
@@ -35,6 +35,10 @@
     "docs/R5_PARAMETER_INVENTORY.md",
     "docs/r5_parameter_authority/BEHAVIOUR_CHANGES_REQUIRING_APPROVAL.md",
     "docs/r5_parameter_authority/CHANGED_FILES.txt",
+    "docs/r5_parameter_authority/CLOSURE_PARAMETER_MIGRATION.json",
+    "docs/r5_parameter_authority/CLOSURE_PARAMETER_MIGRATION.md",
+    "docs/r5_parameter_authority/DYNAMIZATION_CLOSURE.md",
+    "docs/r5_parameter_authority/DYNAMIZATION_STATUS_REPORT.md",
     "docs/r5_parameter_authority/PARAMETER_OWNERSHIP_MATRIX.csv",
     "docs/r5_parameter_authority/PARAMETER_OWNERSHIP_MATRIX.md",
     "docs/r5_parameter_authority/PHASE0_BASELINE_MANIFEST.json",
@@ -47,6 +51,7 @@
     "docs/r5_parameter_authority/REGISTRY_ADDITIONS.json",
     "docs/r5_parameter_authority/REMAINING_HARDCODED_VALUES.md",
     "docs/r5_parameter_authority/TEST_RESULTS.json",
+    "docs/r5_parameter_authority/TEST_RESULTS_CLOSURE.json",
     "docs/r5_parameter_authority/controller_inventory.json",
     "docs/r5_parameter_authority/controller_inventory.md",
     "docs/r5_parameter_authority/patches/canonical_parameter_registry.py.patch",
@@ -102,6 +107,8 @@
     "engine_b/runner.py",
     "engine_c/orchestrator.py",
     "engine_c/runner.py",
+    "revision2_external/closed_loop_control.py",
+    "revision2_external/composite_study_signal.py",
     "revision2_external/dynamic_parameter_controller.py",
     "revision2_external/orchestrator.py",
     "revision5/ccpp_protection_cubicles.py",
@@ -111,6 +118,7 @@
     "revision5/governor.py",
     "revision5/governor_authority.py",
     "revision5/hrsg.py",
+    "revision5/plant_control.py",
     "revision5/step5_sealed_calibration_protocol_v2.HISTORICAL.md",
     "revision5/step5_sealed_calibration_protocol_v4_parameter_authority.json",
     "scripts/r5_authority_cli.py",
@@ -128,6 +136,8 @@
     "tests/r5_authority_harness.py",
     "tests/r5_remaining_literals.py",
     "tests/test_canonical_parameter_registry.py",
+    "tests/test_r5_dynamization.py",
+    "tests/test_r5_dynamization_closure.py",
     "tests/test_r5_parameter_authority.py",
     "tests/test_r5_parameter_authority_engines.py",
     "tests/test_revision5_bb04_dynamic_parameterization.py",
@@ -185,6 +195,12 @@
     "avr_z_strength_denominator_base",
     "avr_z_strength_denominator_max",
     "avr_z_strength_denominator_stress_gain",
+    "cl_entry_derate_max",
+    "cl_entry_derate_min",
+    "cl_gain_scale_max",
+    "cl_gain_scale_min",
+    "cl_persistence_max",
+    "cl_persistence_min",
     "disp_allocation_ceiling",
     "disp_allocation_floor",
     "disp_downside_dev_default",
@@ -368,6 +384,40 @@
     "plant_target_cooldown_stress_gain",
     "plant_target_cooldown_stress_offset",
     "plant_target_min_reward_risk",
+    "psch_concurrent_positions_min",
+    "psch_daily_loss_multiplier_min",
+    "psch_data_age_min_seconds",
+    "psch_data_age_stress_gain",
+    "psch_dispatch_ceiling_min",
+    "psch_dispatch_floor_ceiling_ratio",
+    "psch_dispatch_floor_max",
+    "psch_dispatch_floor_min",
+    "psch_dispatch_floor_stress_gain",
+    "psch_drawdown_halt_min",
+    "psch_drawdown_halt_stress_gain",
+    "psch_entry_conf_chop_gain",
+    "psch_entry_conf_max",
+    "psch_entry_conf_min",
+    "psch_entry_conf_stress_gain",
+    "psch_gross_exposure_min",
+    "psch_max_hold_max",
+    "psch_max_hold_min",
+    "psch_max_hold_stress_gain",
+    "psch_max_hold_trend_gain",
+    "psch_min_hold_chop_gain",
+    "psch_min_hold_max",
+    "psch_min_hold_min",
+    "psch_min_hold_turbulent_gain",
+    "psch_min_rr_max",
+    "psch_min_rr_min",
+    "psch_min_rr_stress_gain",
+    "psch_order_timeout_max_seconds",
+    "psch_order_timeout_min_seconds",
+    "psch_order_timeout_stress_gain",
+    "psch_slippage_max_fraction",
+    "psch_slippage_min_fraction",
+    "psch_slippage_vol_gain",
+    "psch_symbol_exposure_min",
     "sel_adverse_min_bars",
     "sel_adverse_stress_gain",
     "sel_max_adverse_bars",
@@ -383,6 +433,8 @@
     "sel_vol_surge_min_mult",
     "sel_vol_surge_mult",
     "sel_vol_surge_stress_gain",
+    "studies_weight_max",
+    "studies_weight_min",
     "symbol_loss_cooldown_bars",
     "symbol_trip_consecutive_losses",
     "tier1_atr_floor_max",
@@ -408,7 +460,9 @@
       "final_exit_authority": false,
       "authority_telemetry": false,
       "entry_fill_anchor_mode": "reanchor_distances",
-      "unit_protection_mode": "pre_synchronization"
+      "unit_protection_mode": "pre_synchronization",
+      "dynamic_profile_mode": "off",
+      "avr_mvar_limiter_mode": "off"
     },
     "opt_in_not_sealed": {
       "governor_position_mode": [
@@ -431,65 +485,2013 @@
       ],
       "unit_protection_mode": [
         "pre_sync_and_in_flight"
+      ],
+      "dynamic_profile_mode": [
+        "consume"
+      ],
+      "avr_mvar_limiter_mode": [
+        "required"
       ]
     }
   },
   "tests": {
-    "commit": "b6fda7bcdc106bbf43bc44e55691762577fe8815 (engine_c rerun at 8a5c061; lint fix 2fde9dd: tests/test_revision5_engine_applicability.py 26 passed)",
-    "environment": "operator desktop, ~/.venvs/zerodha-phase1-r5 (Python 3.12.14)",
-    "suites": {
-      "tests_main": {
-        "tests": 1365,
-        "failures": 1,
-        "errors": 0,
-        "skipped": 7,
-        "passed": 1357,
-        "failed_tests": [
-          "tests.test_revision5_engine_applicability::test_every_optimizer_and_search_space_caller_selects_an_explicit_engine"
-        ],
-        "parameter_sweep": {
-          "tests": 243,
-          "failed": 0
-        }
+    "verdict": "PASS_SCOPED_IMPLEMENTATION",
+    "recorded_at": "2026-10-16T00:10:10.253928+00:00",
+    "reviewer": "Codex; Claude implementation exited without final receipt, Codex corrected and verified",
+    "baseline_commit": "b177c9db91b6d59886e1470ed991d50f0c70b4cf",
+    "registry_identity_sha256": "d7f4e89718a38d724d57f4e70b8bdbd93bb8ccb9385b4940e896efee906d5b55",
+    "unique_final_passed": 481,
+    "unique_final_failed": 0,
+    "runs": [
+      {
+        "file": "r5-closure-final-fast.xml",
+        "sha256": "b4892639d4883b986ad882ea67cc30bea10ba46f89f8c8ea4070d6c292928e3c",
+        "tests": 358,
+        "failed": [
+          "tests.test_r5_parameter_authority::test_every_controller_parameter_is_registered_with_full_metadata",
+          "tests.test_canonical_parameter_registry::test_registry_identity_is_frozen_and_matches_contract"
+        ]
       },
-      "engine_b": {
-        "tests": 21,
-        "failures": 0,
-        "errors": 0,
-        "skipped": 0,
-        "passed": 21,
-        "failed_tests": [],
-        "parameter_sweep": {
-          "tests": 0,
-          "failed": 0
-        }
+      {
+        "file": "r5-closure-final-shared.xml",
+        "sha256": "6a0ba59f2f1d1954ded5c7dbf1821fd9778de45069454d084738e58d21e0388c",
+        "tests": 161,
+        "failed": []
       },
-      "engine_c": {
-        "tests": 51,
-        "failures": 0,
-        "errors": 0,
-        "skipped": 1,
-        "passed": 50,
-        "failed_tests": [],
-        "parameter_sweep": {
-          "tests": 0,
-          "failed": 0
-        }
+      {
+        "file": "r5-closure-final-recovery.xml",
+        "sha256": "80cd1c4a0cfb879616bbdf9339ee4649ecd7077dcdb6b599b5e2e542497352f8",
+        "tests": 41,
+        "failed": []
       }
+    ],
+    "cases": [
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_controller_parameter_is_registered_with_full_metadata",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_governor_parameters_are_per_bay_and_distinct_values_are_not_collapsed",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_registry_defaults_equal_the_former_literals",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_runtime_read_path_requires_every_name_and_has_no_fallback",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_bounds_and_relationships_are_validated[changes0-alpha \\\\+ beta|disp_ema_retention \\\\+ disp_ema_update]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_bounds_and_relationships_are_validated[changes1-capital weights must sum]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_bounds_and_relationships_are_validated[changes2-floor < ceiling]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_bounds_and_relationships_are_validated[changes3-strictly inside]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_bounds_and_relationships_are_validated[changes4-window_min <= window_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_bounds_and_relationships_are_validated[changes5-min samples <= window]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_bounds_and_relationships_are_validated[changes6-outside]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_orchestrator_startup_report_and_engine_values_come_from_effective_config",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_excitation_max_base]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_excitation_max_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_excitation_max_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_excitation_min_base]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_excitation_min_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_excitation_min_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_integral_clamp_base]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_integral_clamp_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_integral_clamp_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_kd_base]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_kd_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_kd_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_ki_base]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_ki_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_ki_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_kp_base]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_kp_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_kp_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_loading_fraction_base]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_loading_fraction_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_oel_capital_fraction]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_oel_fraction_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_overvoltage_trip_base_pu]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_overvoltage_trip_min_pu]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_overvoltage_trip_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_synchronous_reactance_pu]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_uel_min_notional_inr]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_uel_multiplier_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_uel_multiplier_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_undervoltage_trip_base_pu]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_undervoltage_trip_max_pu]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_undervoltage_trip_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_vol_scalar_max_base]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_vol_scalar_max_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_vol_scalar_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_voltage_filter_alpha]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_voltage_reference_pu]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_z_strength_cap_base]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_z_strength_cap_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_z_strength_denominator_base]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_z_strength_denominator_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[avr_z_strength_denominator_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_allocation_ceiling]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_allocation_floor]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_downside_dev_default]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_downside_dev_floor]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_downside_min_count]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_ema_retention]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_ema_update]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_merit_window]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_min_samples]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_neutral_score]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_score_base]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[disp_score_floor]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[dyn_risk_derate_drawdown_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[dyn_risk_derate_lower_bound]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[dyn_risk_derate_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[dyn_stress_chop_weight]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[dyn_stress_excess_vol_weight]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[dyn_stress_turbulent_weight]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[dyn_vol_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[dyn_vol_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_atr_barrier]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_base_z]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_capital_weight]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_droop_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_dynamic_offset_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_dynamic_offset_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_feedback_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_grid_droop_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_grid_droop_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_integral_clamp]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_kd]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_ki]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_kp]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_outcome_window]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_target_m]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_bpstg_target_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_atr_barrier]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_base_z]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_capital_weight]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_droop_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_dynamic_offset_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_dynamic_offset_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_feedback_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_grid_droop_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_grid_droop_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_integral_clamp]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_kd]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_ki]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_kp]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_outcome_window]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_target_m]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg1_target_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_atr_barrier]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_base_z]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_capital_weight]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_droop_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_dynamic_offset_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_dynamic_offset_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_feedback_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_grid_droop_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_grid_droop_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_integral_clamp]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_kd]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_ki]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_kp]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_outcome_window]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_target_m]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_cstg2_target_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_atr_barrier]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_base_z]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_capital_weight]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_droop_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_dynamic_offset_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_dynamic_offset_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_feedback_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_grid_droop_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_grid_droop_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_integral_clamp]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_kd]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_ki]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_kp]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_outcome_window]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_target_m]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg1_target_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_atr_barrier]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_base_z]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_capital_weight]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_droop_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_dynamic_offset_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_dynamic_offset_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_feedback_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_grid_droop_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_grid_droop_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_integral_clamp]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_kd]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_ki]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_kp]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_outcome_window]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_target_m]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_gtg2_target_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_v3_base_gap_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_v3_gamma_fast]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_v3_gamma_slow]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_v3_grace_bars]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_v3_kappa]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_v3_mfe_activation_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_v3_minimum_gap_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_v3_noise_floor_mult]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gov_v3_tau_error_multiplier]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_base_z_lower_offset]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_base_z_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_base_z_trend_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_base_z_upper_offset]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_droop_gain_max_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_droop_gain_min_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_droop_gain_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_droop_max_max_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_droop_max_min_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_droop_max_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_droop_r_min_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_droop_r_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_integral_error_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_integral_max_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_integral_min_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_integral_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_kd_error_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_kd_scale_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_kd_scale_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_kd_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_ki_divisor_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_ki_divisor_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_ki_error_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_ki_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_kp_error_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_kp_scale_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_kp_scale_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_kp_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_offset_min_lower_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_offset_min_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_offset_min_upper_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_target_max_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_target_min_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_target_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_target_trend_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_window_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_window_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[gsch_window_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[hrsg_correlation_window]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[hrsg_max_steam_pressure_pu]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[hrsg_min_correlation_samples]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[hrsg_min_penalty_factor]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[hrsg_min_steam_pressure_pu]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[hrsg_pressure_time_constant_bars]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[hrsg_recovery_fraction]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[hrsg_rho_crit]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[micom_crash_min_pct]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[micom_crash_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[micom_drawdown_min_pct]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[micom_drawdown_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[micom_max_daily_fleet_drawdown_pct]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[micom_max_regime_vol_z]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[micom_nifty_crash_rate_pct]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[micom_overfrequency_ratio]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[micom_vol_z_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[micom_vol_z_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_bay_lockout_consecutive_stops]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_loss_cooldown_base_bars]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_loss_cooldown_max_bars]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_loss_cooldown_min_bars]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_loss_cooldown_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_loss_cooldown_stress_offset]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_stop_floor_price_fraction]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_target_cooldown_base_bars]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_target_cooldown_max_bars]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_target_cooldown_min_bars]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_target_cooldown_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_target_cooldown_stress_offset]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[plant_target_min_reward_risk]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_adverse_min_bars]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_adverse_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_max_adverse_bars]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_max_slippage_fraction]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_max_spread_fraction]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_slippage_min_fraction]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_slippage_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_spread_min_fraction]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_spread_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_stale_tick_limit_seconds]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_stale_tick_min_seconds]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_stale_tick_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_vol_surge_min_mult]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_vol_surge_mult]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_every_parameter_sensitivity_matches_its_class[sel_vol_surge_stress_gain]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_governor_kp_moves_the_entry_threshold_and_admission",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_governor_ki_accumulates_and_kd_responds_to_change",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_governor_target_and_window_change_decisions",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_governor_offsets_and_droop_change_entry_behaviour",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_each_v3_parameter_changes_the_inner_loop_floor[gov_v3_kappa]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_each_v3_parameter_changes_the_inner_loop_floor[gov_v3_gamma_fast]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_each_v3_parameter_changes_the_inner_loop_floor[gov_v3_gamma_slow]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_each_v3_parameter_changes_the_inner_loop_floor[gov_v3_tau_error_multiplier]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_each_v3_parameter_changes_the_inner_loop_floor[gov_v3_base_gap_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_each_v3_parameter_changes_the_inner_loop_floor[gov_v3_minimum_gap_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_each_v3_parameter_changes_the_inner_loop_floor[gov_v3_grace_bars]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_each_v3_parameter_changes_the_inner_loop_floor[gov_v3_mfe_activation_r]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_each_v3_parameter_changes_the_inner_loop_floor[gov_v3_noise_floor_mult]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_avr_kp_ki_kd_change_excitation_and_limits_clamp_the_command",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_nonzero_measured_voltage_error_changes_excitation_and_reaches_order_quantity",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_measured_avr_fails_closed_on_missing_or_invalid_voltage_and_trips_on_undervoltage",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_dispatcher_ema_floor_ceiling_and_merit_parameters_change_allocation",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_legacy_dispatcher_can_exceed_the_ceiling_and_bounded_mode_never_does",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_bounded_dispatch_reaches_the_bay_capital_actuator",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_hrsg_lag_and_collapse_threshold_change_pressure_allocation_and_exit",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_parameter_refresh_preserves_controller_state_and_identical_refresh_is_a_no_op",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_state_resets_between_positions_symbols_and_sessions",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_no_active_controller_consumes_an_unregistered_tuning_literal",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_studies_pid_gains_change_study_weights",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_gains_change_plan_stop_target_and_reference",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier1_normalized_vol_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier1_normalized_vol_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier1_atr_floor_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier1_atr_floor_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier1_slippage_scale_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier1_slippage_scale_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier3_kp_scale_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier3_kp_scale_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier3_ki_divisor_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier3_ki_divisor_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier3_kd_scale_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_parameter_authority::test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable[tier3_kd_scale_max]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_canonical_parameter_registry::test_revision_2_manifest_surface_contract_is_exact",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_canonical_parameter_registry::test_registry_identity_is_frozen_and_matches_contract",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_canonical_parameter_registry::test_registry_black_box_mapping_and_fixed_surface_are_consistent",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_missing_mvar_is_not_a_measured_zero_and_limiter_is_not_evaluated",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_mvar_limiter_holds_the_command_at_saturation_in_the_driving_direction_and_releases_in_range[1.0]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_mvar_limiter_holds_the_command_at_saturation_in_the_driving_direction_and_releases_in_range[-1.0]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_mvar_limit_parameters_move_the_limiter_and_the_stress_schedule_follows_its_formula",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_supplied_measurement_reaches_the_per_bar_avr_saturates_and_returns_to_range",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_required_limiter_fails_closed_on_missing_or_invalid_measurement_and_entry_follows",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_orchestrator_mvar_contract_requires_a_source_and_propagates_the_supplied_value",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_envelope_rows_are_registered_with_the_former_literal_defaults",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_entry_derate_envelope_binds_at_both_ends[0.5-1.0]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_entry_derate_envelope_binds_at_both_ends[0.7-0.85]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_entry_derate_envelope_binds_at_both_ends[0.9-0.95]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_entry_derate_envelope_binds_at_both_ends[0.3-1.0]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_entry_derate_envelope_reaches_the_supervisor_and_is_never_above_one",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_persistence_envelope_changes_the_response_time_exactly_as_the_formula[persistent-bounds0]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_persistence_envelope_changes_the_response_time_exactly_as_the_formula[persistent-bounds1]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_persistence_envelope_changes_the_response_time_exactly_as_the_formula[persistent-bounds2]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_persistence_envelope_changes_the_response_time_exactly_as_the_formula[alternating-bounds3]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_persistence_envelope_changes_the_response_time_exactly_as_the_formula[alternating-bounds4]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_persistence_envelope_changes_the_response_time_exactly_as_the_formula[alternating-bounds5]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_persistence_clip_is_observable_once_it_leaves_the_response_time_clip_shadow",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_gain_scale_envelope_bounds_the_advisory_suggestion[bounds0]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_gain_scale_envelope_bounds_the_advisory_suggestion[bounds1]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_gain_scale_envelope_bounds_the_advisory_suggestion[bounds2]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_gain_scale_envelope_bounds_the_advisory_suggestion[bounds3]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_studies_weight_envelope_bounds_every_weight_and_binds[0.05-0.6]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_studies_weight_envelope_bounds_every_weight_and_binds[0.2-0.3]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_studies_weight_envelope_bounds_every_weight_and_binds[0.24-0.26]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_studies_weight_envelope_bounds_every_weight_and_binds[0.25-0.25]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_studies_weight_envelope_bounds_every_weight_and_binds[0.01-0.25]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_studies_weight_envelope_validates_feasibility_of_a_unit_sum",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_each_bay_z_exit_threshold_changes_the_exit_decision[GTG1_HEAVY_INDUSTRY]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_each_bay_z_exit_threshold_changes_the_exit_decision[GTG2_TECH_TELECOM]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_each_bay_z_exit_threshold_changes_the_exit_decision[CSTG1_BFSI]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_each_bay_z_exit_threshold_changes_the_exit_decision[CSTG2_CONSUMER_AUTO]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_each_bay_z_exit_threshold_changes_the_exit_decision[BPSTG_HEALTHCARE]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_z_exit_needs_a_prior_crossing_and_respects_the_protection_and_min_hold_hierarchy",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_z_exit_measurement_is_causal_and_per_symbol",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_z_exit_wiring_in_the_orchestrator_records_entry_z_and_passes_the_comparator_z",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_formerly_unreachable_gsch_clip_binds_at_the_neutral_corner_and_reaches_the_governor[gsch_kp_scale_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_formerly_unreachable_gsch_clip_binds_at_the_neutral_corner_and_reaches_the_governor[gsch_kd_scale_min]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_formerly_unreachable_gsch_clip_binds_at_the_neutral_corner_and_reaches_the_governor[gsch_integral_max_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_formerly_unreachable_gsch_clip_binds_at_the_neutral_corner_and_reaches_the_governor[gsch_droop_max_min_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_formerly_unreachable_gsch_clip_binds_at_the_neutral_corner_and_reaches_the_governor[gsch_offset_min_upper_scale]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_gsch_clip_orderings_are_validated_and_slack_values_are_still_admissible",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_tier3_kp_kd_floor_binds_in_the_box6_gain_schedule_and_reaches_the_entry_pid",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_feasible_floor_lifts_low_merit_bays_conserves_the_budget_and_respects_the_ceiling",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_infeasible_floor_is_projected_with_documented_priority_and_never_creates_capital",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_psch_dispatch_floor_coefficients_each_move_the_runtime_floor_in_a_feasible_corner",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_order_timeout_tightens_under_stress_with_registry_bounds_and_warmup_behaviour",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_dynamization_closure::test_dispatch_floor_reaches_the_sector_dispatch_references_in_consume_mode",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_composite_study_signal::test_real_uptrend_produces_a_bullish_composite",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_composite_study_signal::test_real_downtrend_produces_a_bearish_composite",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_composite_study_signal::test_weights_sum_and_stay_within_bounds",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_composite_study_signal::test_audit_exposes_causal_study_inputs_and_each_weight_pid_output",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_composite_study_signal::test_a_consistently_wrong_study_gets_down_weighted_relative_to_a_correct_one",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_composite_study_signal::test_grading_uses_no_lookahead",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_composite_study_signal::test_two_symbols_do_not_share_weight_or_pid_state",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_composite_study_signal::test_real_infy_data_produces_bounded_non_degenerate_output",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_closed_loop_control::test_one_symbol_one_signal_traverses_all_three_closed_loops",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_closed_loop_control::test_reference_path_is_frozen_and_does_not_use_future_outcome",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_closed_loop_control::test_orchestrator_only_allows_explicit_closed_loop_modes",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_closed_loop_control::test_symbol_response_time_changes_path_speed_without_future_bars",
+        "status": "PASS"
+      },
+      {
+        "node": "tests_external.test_closed_loop_control::test_high_damping_slows_not_accelerates_response_time",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_closed_loop_unit_controls::test_governor_is_final_entry_authority",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_closed_loop_unit_controls::test_governor_ratchet_never_moves_backwards",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_closed_loop_unit_controls::test_governor_ratchet_can_force_exit",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_closed_loop_unit_controls::test_avr_voltage_pid_is_bidirectional",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_closed_loop_unit_controls::test_avr_undervoltage_and_overvoltage_trip",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_closed_loop_unit_controls::test_avr_pid_directly_derates_real_lot_size",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_closed_loop_unit_controls::test_dcs_runs_hold_exit_loop_inside_real_bay",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_closed_loop_unit_controls::test_avr_trip_overrides_governor_hold",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_each_open_position_has_its_own_inner_loop_and_ratchet",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_closing_one_position_leaves_the_others_untouched",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_a_new_position_never_inherits_a_closed_positions_ratchet",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_legacy_single_position_api_is_unchanged",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_entry_is_symmetric_for_buy_and_sell",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_adverse_grid_tightens_both_sides_symmetrically",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_entry_rejects_invalid_side_and_inputs",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_every_governor_authority_value_is_registry_owned",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_config_rejects_inverted_mark_v_thresholds",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_telemetry_is_causal_and_measures_the_last_completed_bar",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_telemetry_fails_closed_on_warmup_flat_and_invalid_bars",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_vibration_is_wick_range_over_atr_and_zero_for_a_full_body_bar",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_exhaust_spread_needs_two_members_and_scales_by_atr",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_session_bar_index_counts_only_the_current_session",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_limiters_follow_their_physical_mappings",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_minimum_value_gate_selects_the_minimum_and_applies_the_floor",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_side_aligned_conviction_zeroes_an_opposing_signal",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_entry_decision_admits_and_only_derates_size",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_entry_decision_fails_closed",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_vibration_damper_raises_the_entry_hurdle",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_position_decision_holds_tracks_and_sheds_load",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_position_decision_exits_on_trip_low_fsr_invalid_input_and_inner_stop",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_full_authority_requires_paper_actuation_and_a_grid",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_full_authority_governor_no_action_blocks_every_entry",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_advisory_governor_records_but_does_not_block",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_full_authority_size_multiplier_only_derates",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_full_authority_governor_exit_executes_at_the_next_open",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_full_authority_hold_moves_the_protective_stop_one_way",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_nifty_intertie_measurements",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_micom_crash_trips_blocks_admission_and_unwinds_positions",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_micom_recloses_when_healthy_and_daily_latch_resets_next_session",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_trend_overspeed_admits_momentum_and_blocks_overextension_symmetrically",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_trend_overspeed_limit_tightens_under_adverse_grid",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_mean_reversion_remains_the_governor_default_and_unknown_modes_fail",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_causal_percentile_rank",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_full_authority_with_the_real_governor_decision_admits_momentum_candidates",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_path_error_tolerance_scales_with_bar_noise_and_time",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_path_noise_inputs_must_come_together_and_be_positive",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_authority::test_position_decision_fails_closed_without_path_noise",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_governor::test_exactly_five_governor_specs",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_governor::test_initial_capital_weights_sum_to_one",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_governor::test_droop_classes",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_governor::test_target_is_explicitly_r_multiple",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_governor::test_loss_tightens_governor",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_governor::test_win_relaxes_governor",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_governor::test_pid_coefficients_never_mutate",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_governor::test_adverse_grid_tightens_threshold",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_governor::test_history_and_integral_are_bounded",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_governor::test_invalid_numeric_feedback_fails_closed",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_governor::test_build_fleet_governors_matches_topology",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_no_preprofit_tightening_and_continuous_pid_actuation",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_gap_bounds_latch_one_way_and_state_reset",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_conviction_baseline_same_signal_masks_and_persistence",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_gamma_once[0.5]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_gamma_once[1.0]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_gamma_once[2.0]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_policy_validation[kwargs0]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_policy_validation[kwargs1]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_policy_validation[kwargs2]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_policy_validation[kwargs3]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_fuel_cut_persistence_does_not_delay_other_protection",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_experimental_trace_is_passthrough",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_actual_stop_price_anchor_and_next_bar_activation[BUY]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_refactor::test_actual_stop_price_anchor_and_next_bar_activation[SELL]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_healthy_inner_loop_baseline_holds",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_conviction_collapse_inside_min_hold_is_held_when_inner_loop_healthy",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_sustained_fuel_cut_inside_min_hold_is_held",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_conviction_collapse_at_or_after_min_hold_exits_on_fsrn[8]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_conviction_collapse_at_or_after_min_hold_exits_on_fsrn[9]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_conviction_collapse_at_or_after_min_hold_exits_on_fsrn[30]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_sustained_fuel_cut_after_min_hold_exits",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_hard_stop_exits_immediately_regardless_of_elapsed_or_conviction[0.9-0]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_hard_stop_exits_immediately_regardless_of_elapsed_or_conviction[0.9-1]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_hard_stop_exits_immediately_regardless_of_elapsed_or_conviction[0.9-7]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_hard_stop_exits_immediately_regardless_of_elapsed_or_conviction[0.9-8]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_hard_stop_exits_immediately_regardless_of_elapsed_or_conviction[0.9-40]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_hard_stop_exits_immediately_regardless_of_elapsed_or_conviction[0.0-0]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_hard_stop_exits_immediately_regardless_of_elapsed_or_conviction[0.0-1]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_hard_stop_exits_immediately_regardless_of_elapsed_or_conviction[0.0-7]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_hard_stop_exits_immediately_regardless_of_elapsed_or_conviction[0.0-8]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_hard_stop_exits_immediately_regardless_of_elapsed_or_conviction[0.0-40]",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_target_reached_exits_inside_min_hold",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_exhaust_spread_trip_overrides_min_hold",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_independent_protective_limiter_is_not_deferred_inside_min_hold",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_governor_authority_hierarchy::test_invalid_inputs_still_fail_closed_inside_min_hold",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_r5_governor_trace::test_tracer_is_pass_through_and_records_every_loop",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_bb07_bb08_parameterization::test_canonical_counts_and_frozen_identity",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_registry_owns_the_new_parameters",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_hmm_hysteresis_ranges_can_never_cross",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_in_house_sensitivity_sweeps_only_include_in_house_parameters",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_studies_defaults_preserve_pid_terms_and_enforce_effective_weight_bounds",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_explicit_legacy_constructor_arguments_still_win",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_kp_ki_kd_change_the_matching_pid_terms_and_weights",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_ki_accumulates_across_bars_and_kd_responds_to_transients",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_clamp_limits_pid_output_and_weight_swing",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_weight_envelope_is_registry_owned_with_the_former_literals_as_defaults",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_grading_horizon_controls_when_a_vote_becomes_gradeable",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_grading_uses_only_elapsed_closes",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_hit_rate_window_changes_retained_history",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_reconfiguration_preserves_pid_objects_and_state",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_clamp_reduction_bounds_integral_without_rebuilding",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_invalid_reconfiguration_changes_nothing",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_per_symbol_state_isolated_across_reconfiguration",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_ledger_defaults_match_previous_source",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_dynamics_defaults_match_previous_source",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_hysteresis_and_portfolio_defaults_match_previous_source",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_outcome_history_and_offset_controls_change_entry_quality",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_entry_derate_envelope_is_fixed_and_bounded",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_dynamics_controls_change_the_profile",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_profiler_bounds_must_be_ordered",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_reference_path_is_frozen_at_entry_and_ignores_later_reconfiguration",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_hysteresis_thresholds_and_confirmation_latch_and_release",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_hysteresis_smoothing_step_and_deadband_change_the_derate_stream",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_hysteresis_reconfiguration_preserves_state_and_is_atomic",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_portfolio_soft_budget_controls_derate_but_hard_limit_stays_authoritative",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_supervisor_configure_keeps_recorded_outcomes",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_orchestrator_wires_controls_from_effective_config",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_final_execution_controller_has_no_operational_numeric_constants",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_entry_action_depends_only_on_id_approval_side_and_studies_direction",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_three_controller_parameterization::test_exit_action_depends_only_on_named_inputs_and_boundaries",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_bb04_dynamic_parameterization::test_registry_identity_metadata_and_bounds",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_bb05_bb06_parameterization::test_surface_counts_and_identity_and_search_space",
+        "status": "PASS"
+      },
+      {
+        "node": "tests.test_revision5_engine_applicability::test_registry_accounting_is_reported_per_surface",
+        "status": "PASS"
+      }
+    ],
+    "source_sha256": {
+      "canonical_parameter_registry.py": "19cf6b902232be57cd77f65a6bdd0597c5112e1ea20cc183d7650f5b9e7e3182",
+      "revision2_external/closed_loop_control.py": "d6c36b7dd146fd567a3d978551cfe5c891374073fd5cf44351eb3207aeaeb038",
+      "revision2_external/composite_study_signal.py": "449ef73fa61415b7857393b4f6ab40a8175dc8a657e8661aaafd8b370e26f8d1",
+      "revision2_external/orchestrator.py": "3e121c97f7fffcffe16f141024defb2713e90761b0b5dc7625d12ddef014bb17",
+      "revision5/ccpp_protection_cubicles.py": "c8dec662f9b54a65e337e911ccf9364b60ab7e1e62b5f5b244f3b3d2f34a3948",
+      "revision5/ccpp_unified_plant.py": "cebf47032dc45b3ca172342c337798e31f54f1da3a18c34df92b95cfbef44620",
+      "revision5/controller_parameters.py": "d919d4eeeed4f4e0ddd3cbb2a44de3272ddf0c0f3b03dbe8f0f654fa68573524",
+      "revision5/dynamic_parameters.py": "521c960ebac9f9399565db6b9937a96ffe05a4bf3965ed83397435760d4c414a",
+      "revision5/governor.py": "70c53223efb5026712bf17c941fe96cd52381431f0f16a7d8bbc7ca6d52af937",
+      "revision5/governor_authority.py": "71f5118d6459b59223611089d4dde3131d5563e8a76c230593cef20f9fc21b65",
+      "revision5/plant_control.py": "4912617912a25e50d9a8e33e32ececc9b7995c1e86ce25b2b1bf29f99d92951f",
+      "scripts/r5_phase2_classification.py": "be2191d84b119c7497306af7ae20c38233692da673b88a4c79216e216c9c11d6",
+      "scripts/r5_reseal_protocol.py": "b6ba3ca7ca11d6a88a365404420269d1a12674b91b1e3f0bfb221104c05dd6bd",
+      "tests/test_canonical_parameter_registry.py": "e37697fccd4ee8feb7e0300fe57923e2b7ace664e9e1c2b5f39abc40a94c6dcc",
+      "tests/test_r5_dynamization.py": "00ea927dbb8aa2fab077990a3657266f1f035383269508fef6f3ee7292cdb640",
+      "tests/test_r5_parameter_authority.py": "35973dae1f994d29780a55826ea61885ee7853e5160ff109a9b0ffce27cabcfb",
+      "tests/test_revision5_bb04_dynamic_parameterization.py": "98ea19e0e0559d9dff429c36a6704008b257b46790d30cb1eab91d431c20aeb0",
+      "tests/test_revision5_bb05_bb06_parameterization.py": "4969428718d98155c1fc0b9a14f9ad763484d7c5b53fc15830bf2efc5e4bae45",
+      "tests/test_revision5_bb07_bb08_parameterization.py": "40c0c1524b52b45cd252d3df9aec5b7f421774a2be39080c64e57c1b768e8d2b",
+      "tests/test_revision5_engine_applicability.py": "5aa0a8b659e64cc197e80f926d74c61d47ecc153d25f35b2e83ec0bcb2c6d788",
+      "tests/test_revision5_three_controller_parameterization.py": "4244db7e1241669fdc84e4de0e631d11c71591d82be859355dbe1c1d5fdf1547",
+      "tests/test_r5_dynamization_closure.py": "a733e968a9547c60f82a395514d8e896c3ffcba4dd3f7c1d9fd0e885c6ca6a3e"
     },
-    "golden_master": {
-      "local_byte_level_vs_cb10fac": "LOCAL BYTE-LEVEL GOLDEN MASTER (local_workspace/golden_local/cb10fac): PASS",
-      "local_identity_fields_changed": "identity-only fields changed (expected with a registry change): ['config_hash', 'parameter_coverage']",
-      "decision_level_vs_stored_500abab": "DECISION-LEVEL GOLDEN MASTER (stored 500abab baseline): PASS",
-      "stored_byte_level_500abab": "GOLDEN MASTER: FAIL (17/17)",
-      "stored_byte_level_note": "fails identically at untouched cb10fac on this machine (HMM last-digit float drift); decisions identical"
+    "broad_regression": {
+      "passed": 235,
+      "failed": 8,
+      "elapsed_seconds": 428.6,
+      "failures": "stale registry counts and frozen identity; all eight rerun and passed in final recovery/shared runs"
     },
-    "commands": {
-      "tests_main": "PYTHONPATH=$PWD python -m pytest tests tests_external --ignore=tests/legacy_quarantine",
-      "engine_b": "PYTHONPATH=$PWD python -m pytest tests_engine_b",
-      "engine_c": "ENGINE_C_SKIP_GOLDEN_MASTER=1 PYTHONPATH=$PWD python -m pytest tests_engine_c",
-      "local_gate": "PYTHONPATH=$PWD python scripts/r5_golden_master_local.py --check-local local_workspace/golden_local/cb10fac",
-      "decision_gate": "PYTHONPATH=$PWD python scripts/r5_golden_master_local.py --check-decisions"
+    "scope": "Shared R5 code, synthetic tests; no new separate B/C campaigns; no raw real data, calibration or live execution",
+    "limitations": [
+      "Actual MVAR source remains integration-supplied; no physical MVAR is present in market data. Required mode refuses absence/invalid values.",
+      "Defaults retain opt-in modes. Active means consumer proven under explicit mode/input conditions.",
+      "Original12 advisory preserved as advisory; two new gain-scale envelope keys also advisory.",
+      "Gemini file-upload route presented new terms/rights consent before attachment; cancelled without agreement. No Gemini verdict claimed; Codex fallback review performed."
+    ],
+    "protected_indicator": {
+      "path": "revision2_external/indicators_talib.py",
+      "sha256": "70ff1999ddf06a15ef9e650cb7db3539ee8e5379440c8bd183f544433440c549",
+      "matches_baseline": true
     }
   }
 }
