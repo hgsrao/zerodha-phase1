@@ -40,7 +40,7 @@
       "paper_apply_reference_sha256": null,
       "status": "PENDING"
     },
-    "engine_parent_commit": "8300acc928e79d5ab7a128411b3611ad374a4846",
+    "engine_parent_commit": "35ef7982eed6dcc3824902e46d21cec1910168ba",
     "fresh_central_plant_master_dcs_per_block": true,
     "fresh_process_per_candidate": true,
     "live_broker_access": false,
@@ -61,7 +61,7 @@
       "dynamic_profile_mode": "off",
       "entry_fill_anchor_mode": "reanchor_distances",
       "final_exit_authority": false,
-      "governor_authority": "full",
+      "governor_authority": "advisory",
       "governor_position_mode": "legacy",
       "hrsg_correlation_mode": "off",
       "unit_protection_mode": "pre_synchronization"
@@ -89,6 +89,9 @@
       "final_exit_authority": [
         true
       ],
+      "governor_authority": [
+        "full"
+      ],
       "governor_position_mode": [
         "v3"
       ],
@@ -106,7 +109,7 @@
   "frozen_parent": {
     "base": "cb10fac5be123f450ede9bb3e8c11ce2ec27817b",
     "branch": "feature/r5-parameter-authority",
-    "commit": "8300acc928e79d5ab7a128411b3611ad374a4846",
+    "commit": "35ef7982eed6dcc3824902e46d21cec1910168ba",
     "note": "engine with R5 controller parameter authority"
   },
   "grid_dataset": {
