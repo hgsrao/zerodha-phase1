@@ -1968,7 +1968,7 @@
     "revision5/governor_authority.py": "71f5118d6459b59223611089d4dde3131d5563e8a76c230593cef20f9fc21b65",
     "revision5/plant_control.py": "4912617912a25e50d9a8e33e32ececc9b7995c1e86ce25b2b1bf29f99d92951f",
     "scripts/r5_phase2_classification.py": "be2191d84b119c7497306af7ae20c38233692da673b88a4c79216e216c9c11d6",
-    "scripts/r5_reseal_protocol.py": "b6ba3ca7ca11d6a88a365404420269d1a12674b91b1e3f0bfb221104c05dd6bd",
+    "scripts/r5_reseal_protocol.py": "dcf9dd5dd6071c729d0a15a6db57cc462adde31977acca6a4be33b9d04c6195b",
     "tests/test_canonical_parameter_registry.py": "e37697fccd4ee8feb7e0300fe57923e2b7ace664e9e1c2b5f39abc40a94c6dcc",
     "tests/test_r5_dynamization.py": "00ea927dbb8aa2fab077990a3657266f1f035383269508fef6f3ee7292cdb640",
     "tests/test_r5_parameter_authority.py": "35973dae1f994d29780a55826ea61885ee7853e5160ff109a9b0ffce27cabcfb",
@@ -1996,5 +1996,6 @@
     "path": "revision2_external/indicators_talib.py",
     "sha256": "70ff1999ddf06a15ef9e650cb7db3539ee8e5379440c8bd183f544433440c549",
     "matches_baseline": true
-  }
+  },
+  "protocol_review": "Corrected legacy resealer governor_authority default full -> advisory to match actual constructor; full listed as explicit opt-in. Constructor defaults independently checked."
 }

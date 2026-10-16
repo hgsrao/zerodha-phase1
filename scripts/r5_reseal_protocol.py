@@ -37,12 +37,12 @@ HISTORICAL_NOTE = ROOT / "revision5/step5_sealed_calibration_protocol_v2.HISTORI
 MANIFEST = ROOT / "docs/r5_parameter_authority/PROTOCOL_RESEAL_MANIFEST.json"
 BASE = "cb10fac5be123f450ede9bb3e8c11ce2ec27817b"
 
-DEFAULT_MODES = {"governor_authority": "full", "governor_position_mode": "legacy", "avr_voltage_mode": "legacy",
+DEFAULT_MODES = {"governor_authority": "advisory", "governor_position_mode": "legacy", "avr_voltage_mode": "legacy",
                  "dispatcher_allocation_mode": "legacy", "hrsg_correlation_mode": "off", "final_exit_authority": False,
                  "authority_telemetry": False, "entry_fill_anchor_mode": "reanchor_distances",
                  "unit_protection_mode": "pre_synchronization", "dynamic_profile_mode": "off",
                  "avr_mvar_limiter_mode": "off"}
-OPT_IN_MODES = {"governor_position_mode": ["v3"], "avr_voltage_mode": ["measured"],
+OPT_IN_MODES = {"governor_authority": ["full"], "governor_position_mode": ["v3"], "avr_voltage_mode": ["measured"],
                 "dispatcher_allocation_mode": ["bounded"], "hrsg_correlation_mode": ["causal_bay_returns"],
                 "final_exit_authority": [True], "entry_fill_anchor_mode": ["box6_levels"],
                 "unit_protection_mode": ["pre_sync_and_in_flight"], "dynamic_profile_mode": ["consume"],
