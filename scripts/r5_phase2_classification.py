@@ -74,7 +74,7 @@ MODE_GATE = {"cl_": "closed_loop_mode=active_paper for actuation", "studies_": "
              "avr_synchronous_reactance_pu": "avr_voltage_mode='measured'", "avr_voltage_filter_alpha": "avr_voltage_mode='measured'",
              "sel_max_slippage": "unit_protection_mode='pre_sync_and_in_flight'", "sel_slippage": "unit_protection_mode='pre_sync_and_in_flight'",
              "sel_max_adverse": "unit_protection_mode='pre_sync_and_in_flight'", "sel_adverse": "unit_protection_mode='pre_sync_and_in_flight'"}
-EFFECT = [("adapt_", "immutable finite adaptation policy; full operating-image coverage recorded separately"),("cl_", "closed-loop derate / response-time envelopes; gain-scale suggestion remains advisory"),
+EFFECT = [("cl_", "closed-loop derate / response-time envelopes; gain-scale suggestion remains advisory"),
           ("studies_", "bounded unit-sum study weights -> composite confidence and direction"),
           ("psch_", "per-bar runtime profile -> confidence, holds, tighten-only gates, sizing, dispatcher floor and ceiling"),
           ("gov_v3_", "V3 inner loop -> protected R floor -> governor stop (next bar) / ratchet exit"),
@@ -216,7 +216,7 @@ def main() -> int:
             raise ValueError("verification evidence does not certify this registry identity")
         verdict["verdict"] = "IMPLEMENTATION_VERIFIED_CONDITIONAL_INPUTS"
         verdict["evidence"] = str(args.verification_evidence)
-    doc = {"classification_scope": "configured bases/legacy schedule roles; full adaptive operating counterparts are recorded in FULL_ADAPTATION_COVERAGE.json", "definition": __doc__.split("Classes:")[0].strip(), "counts": dict(counts), "verdict": verdict, "lists": lists, "parameters": rows}
+    doc = {"definition": __doc__.split("Classes:")[0].strip(), "counts": dict(counts), "verdict": verdict, "lists": lists, "parameters": rows}
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "phase2_parameter_classification.json").write_text(json.dumps(doc, indent=2, default=str) + "\n")
     md = ["# Phase 2 parameter classification (static vs dynamic)", "", doc["definition"], "",

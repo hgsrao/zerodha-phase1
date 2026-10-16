@@ -660,7 +660,7 @@ class BayTurbineClosedLoopGovernor:
             "signed_z_limit": float(limit),
         }
 
-    def evaluate_z_exit(self, *, side: str, z_score: float, entry_signed_z: float, entry_z_exit: Optional[float] = None) -> dict:
+    def evaluate_z_exit(self, *, side: str, z_score: float, entry_signed_z: float) -> dict:
         """Mean-reversion release (``gov_<bay>_z_exit``; sigma units, causal).
 
         z is the governor comparator's own measurement, (close - mean) / std over gov_z_window_bars of
@@ -678,10 +678,7 @@ class BayTurbineClosedLoopGovernor:
             raise ValueError("z-exit inputs must be finite")
         signed = (1.0 if side == "BUY" else -1.0) * float(z_score)
         level = -float(self.spec.z_exit)
-        entry_level = level if entry_z_exit is None else -float(entry_z_exit)
-        if not isfinite(entry_level) or entry_level > 0:
-            raise ValueError("entry z-exit threshold must be finite and nonnegative")
-        armed = float(entry_signed_z) < entry_level
+        armed = float(entry_signed_z) < level
         return {"z_exit": float(self.spec.z_exit), "release_level": level, "signed_z": signed,
                 "entry_signed_z": float(entry_signed_z), "armed": armed, "release": armed and signed >= level}
 

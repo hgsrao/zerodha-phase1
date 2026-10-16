@@ -50,11 +50,6 @@ def checkpoint_state(engine):
              for fill in engine.broker.fills]
     return {
         'plant': plant_state(engine), 'active_fills': engine.open_trades,
-        'full_adaptation': getattr(engine, 'full_adaptation', False),
-        'adaptive_image': getattr(engine, '_adaptive_operating_values', None),
-        'adaptation_projection': getattr(getattr(engine, '_adaptation', None), 'last_report', None),
-        'dispatcher_weights': dict(engine.real_plant_dcs.dispatcher.weights),
-        'dispatcher_merit': dict(engine.real_plant_dcs.dispatcher.merit_weights),
         'positions': engine.broker.positions, 'fills': fills,
         'completed_trades': engine.completed_trades,
         'realized_pnl': engine.broker.realized_pnl,
@@ -119,10 +114,7 @@ class PaperStateJournal:
             'schema': 1, 'python': sys.version, 'source': source,
             'packages': sorted((d.metadata['Name'], d.version) for d in importlib.metadata.distributions()),
             'modes': [engine.closed_loop_mode, engine.pid_mode, engine.risk_profile,
-                      engine.dynamic_target_setpoint_mode, engine.full_adaptation,
-                      engine.dynamic_profile_mode, engine.governor_authority, engine.governor_position_mode,
-                      engine.avr_voltage_mode, engine.avr_mvar_limiter_mode, engine.dispatcher_allocation_mode,
-                      engine.entry_fill_anchor_mode, engine.unit_protection_mode],
+                      engine.dynamic_target_setpoint_mode],
             'sectors': engine.sector_map, 'sessions': engine.session_schedule,
             'config': engine.config.config_hash, 'safety': engine.safety_contract.contract_hash,
             'warmup': warmup, 'symbols': engine.symbols, 'equity': engine.starting_equity,

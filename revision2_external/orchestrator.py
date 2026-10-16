@@ -101,7 +101,7 @@ GOVERNOR_POSITION_MODES = ("legacy", "v3")
 ENTRY_FILL_ANCHOR_MODES = ("reanchor_distances", "box6_levels")
 UNIT_PROTECTION_MODES = ("pre_synchronization", "pre_sync_and_in_flight")
 DYNAMIC_PROFILE_MODES = ("off", "consume")
-AVR_MVAR_LIMITER_MODES = ("off", "required", "market_churn_proxy")
+AVR_MVAR_LIMITER_MODES = ("off", "required")
 
 # Native plant EXIT reasons that are protection trips (actuated at the next open as
 # ``plant_trip:<reason>``).  A plant-governor EXIT is advisory: the orchestrator's own
@@ -171,20 +171,7 @@ class Revision2ExternalEngineOrchestrator:
         dynamic_profile_mode: str = "off",
         avr_mvar_limiter_mode: str = "off",
         mvar_measurement_provider: Optional[Any] = None,
-        full_adaptation: Optional[bool] = None,
     ) -> None:
-        # Full adaptation is the normal shared R5 PAPER_APPLY path. Explicit False
-        # retains the previous research/legacy mode. This never enables a live broker.
-        self.full_adaptation = (plant_control_mode == "PAPER_APPLY" if full_adaptation is None else bool(full_adaptation))
-        if self.full_adaptation:
-            if plant_control_mode != "PAPER_APPLY":
-                raise ValueError("full R5 adaptation requires PAPER_APPLY")
-            dynamic_profile_mode, governor_authority = "consume", "full"
-            governor_position_mode, avr_voltage_mode = "v3", "measured"
-            dispatcher_allocation_mode, hrsg_correlation_mode = "bounded", "causal_bay_returns"
-            closed_loop_mode, final_exit_authority = "active_paper", True
-            entry_fill_anchor_mode, unit_protection_mode = "box6_levels", "pre_sync_and_in_flight"
-            avr_mvar_limiter_mode = "required" if mvar_measurement_provider is not None else "market_churn_proxy"
         # Opt-in controller modes (defaults keep the baseline decision-identical):
         #   governor_position_mode   "legacy" V2 inner loop | "v3" Protocol V3 inner loop (full
         #                            authority only; revision5.governor.PositionControlV3)
@@ -329,9 +316,6 @@ class Revision2ExternalEngineOrchestrator:
         self.entry_fill_anchor_mode = entry_fill_anchor_mode
         self.unit_protection_mode = unit_protection_mode
         self._position_control_v3 = self.controller_parameters.position_control_v3()
-        from revision5.full_adaptation import FullR5Adaptation
-        self._adaptation = FullR5Adaptation(self.registry, self.config, self.safety_contract.values)
-        self._adaptive_operating_values = None
         self.dynamic_profile_mode = dynamic_profile_mode
         self.avr_mvar_limiter_mode = avr_mvar_limiter_mode
         self.mvar_measurement_provider = mvar_measurement_provider
@@ -566,7 +550,7 @@ class Revision2ExternalEngineOrchestrator:
             **self.controller_parameters.startup_report(),
             "registry_identity_sha256": self.registry.FROZEN_IDENTITY_SHA256,
             "config_hash": self.config.config_hash,
-            "modes": {"full_adaptation": self.full_adaptation, "governor_authority": self.governor_authority,
+            "modes": {"governor_authority": self.governor_authority,
                       "governor_position_mode": self.governor_position_mode,
                       "avr_voltage_mode": self.avr_voltage_mode,
                       "dispatcher_allocation_mode": self.dispatcher_allocation_mode,
@@ -595,9 +579,6 @@ class Revision2ExternalEngineOrchestrator:
             "plant_control": report.get("plant_control"),
             "micom": report.get("micom"),
             "applied_value_summary": self._authority_summary if self.authority_telemetry else None,
-            "full_adaptation": {"enabled": self.full_adaptation,
-                                "last_operating_image": self._adaptation.last_report,
-                                "qualification": "IMPLEMENTED_TESTING_DEFERRED"},
         }
 
     def _decision_cfg(self) -> EffectiveConfig:
@@ -617,7 +598,7 @@ class Revision2ExternalEngineOrchestrator:
         reference floor, both from the next plant-control evaluation; SectorDispatchController projects
         the floor onto the ceiling and the total demand budget (no capital is created)."""
         strategy, safety, execution = snapshot.strategy, snapshot.safety, snapshot.execution
-        overlay = dict(self._adaptive_operating_values or {}) if self.full_adaptation else {}
+        overlay = {}
         for name, value in (("entry_confidence_threshold", float(strategy.entry_confidence_threshold)),
                             ("min_risk_reward_ratio", float(strategy.min_risk_reward_ratio)),
                             ("min_hold_bars", int(strategy.min_hold_bars)),
@@ -631,12 +612,6 @@ class Revision2ExternalEngineOrchestrator:
             values.update(overlay)
             self._decision_config = EffectiveConfig.build(values, registry_hash=self.registry.FROZEN_IDENTITY_SHA256)
             self._decision_config_key = key
-        if self.full_adaptation:
-            self.governor_config = GovernorAuthorityConfig.from_config(self._decision_config)
-            self.plant_control.configure(self._decision_config)
-            self.chart_studies.configure(self._decision_config)
-            self.closed_loop.configure(self._decision_config)
-            self.exit_controller.configure(self._decision_config)
         c = self.safety_contract.values
         tightened = {
             "drawdown_halt_threshold": min(float(c["safety_drawdown_halt_threshold"]), float(safety.drawdown_halt_threshold)),
@@ -1039,26 +1014,10 @@ class Revision2ExternalEngineOrchestrator:
         if not self._plant_wired:
             return
         plant = self.real_plant_dcs
-        environment = self._plant_environment(tick_events)
-        if self.full_adaptation:
-            operating, parameters = self._adaptation.evaluate(environment, {b: v.governor for b,v in plant.bays.items()})
-            self._adaptive_operating_values = operating
-            self.controller_parameters = parameters
-            plant.apply_controller_parameters(parameters)
-            plant.full_adaptation = True
-            plant.dynamic_controller.full_adaptation = True
-            from revision5.full_adaptation import bounded_weights
-            from revision5.controller_parameters import governor_parameter_name
-            seed = {b: parameters.governor_specs[b].capital_weight * plant.dispatcher.merit_weights[b] for b in plant.bays}
-            lower = {b: max(parameters.dispatcher.allocation_floor, self.registry.params[governor_parameter_name(b, "capital_weight")].minimum) for b in plant.bays}
-            upper = {b: min(parameters.dispatcher.allocation_ceiling, self.registry.params[governor_parameter_name(b, "capital_weight")].maximum) for b in plant.bays}
-            plant.dispatcher.weights = bounded_weights(seed, lower, upper)
-            self._position_control_v3 = parameters.position_control_v3()
-            self._record_controller_event("FULL_ADAPTATION_OPERATING_IMAGE", timestamp, "PLANT", self._adaptation.last_report)
         self.plant_call_counts["step_bar"] += 1
         result = plant.step_bar(
             current_dt=self._replay_event_time(timestamp), bar_index=self._native_bar_index,
-            environment=environment,
+            environment=self._plant_environment(tick_events),
             gtg_measurements=self._gtg_measurements(tick_events, symbol_bars))
         snapshot = result["dynamic_snapshot"]
         if self.avr_voltage_mode == "measured":
@@ -1069,28 +1028,10 @@ class Revision2ExternalEngineOrchestrator:
             if self.mvar_measurement_provider is not None:
                 mvar = {bay_id: self.mvar_measurement_provider(timestamp, self._native_bar_index, bay_id)
                         for bay_id in plant.bays}
-            proxy = self.avr_mvar_limiter_mode == "market_churn_proxy"
-            if proxy and mvar is None:
-                probs = environment.trend_probability + environment.chop_probability + environment.turbulent_probability
-                q = min(self.config.require("adapt_proxy_max"), max(0.,
-                    self.config.require("adapt_proxy_scale") * environment.chop_probability / probs
-                    * min(environment.normalized_vol, self.config.require("dyn_vol_max")) / self.config.require("dyn_vol_max")))
-                mvar = {bay: q for bay in plant.bays}
             regulation = plant.regulate_bay_voltages(
                 bar_index=self._native_bar_index,
                 bus_voltage_pu=None if deviation is None else 1.0 + float(deviation),
-                measured_mvar_pu=mvar, mvar_limiter_mode=("required" if proxy else self.avr_mvar_limiter_mode))
-            if not proxy:
-                for bay in plant.bays.values():
-                    bay.avr.proxy_risk_derate = 1.0
-            if proxy:
-                for bay_id, record in regulation.items():
-                    record["reactive_input_source"] = "market_churn_proxy"
-                    record["reactive_input_units"] = "unitless_model_proxy_not_measured_MVAR"
-                    record["proxy_value"] = record.pop("measured_mvar_pu", None)
-                    value = float(mvar[bay_id])
-                    limit = float(plant.bays[bay_id].avr.mvar_limit_pu)
-                    plant.bays[bay_id].avr.proxy_risk_derate = max(float(self.config.require("adapt_proxy_derate_floor")), min(1., limit / value if value > 0 else 1.))
+                measured_mvar_pu=mvar, mvar_limiter_mode=self.avr_mvar_limiter_mode)
             self._record_controller_event("AVR_VOLTAGE_REGULATION", timestamp, "PLANT", {"bays": regulation})
         if self.hrsg_correlation_mode == "causal_bay_returns":
             returns: Dict[str, List[float]] = {}
@@ -1418,8 +1359,7 @@ class Revision2ExternalEngineOrchestrator:
                 position_control=(self._position_control_v3 if self.governor_position_mode == "v3" else None),
                 side=trade["side"],
                 z_score=telemetry.z_score if telemetry is not None and telemetry.available else None,
-                entry_signed_z=trade.get("governor_entry_signed_z"),
-                entry_z_exit=trade.get("governor_entry_z_exit"))
+                entry_signed_z=trade.get("governor_entry_signed_z"))
             result = {"measured_r": measured_r, "max_favorable_r": mfe_r,
                       "conviction_detail": conviction_detail, **result}
         self._governor_position_counts[f"{result['action']}:{result['reason']}"] += 1
@@ -1846,7 +1786,7 @@ class Revision2ExternalEngineOrchestrator:
             # frozen entry-time ATR -- matches how atr is computed
             # everywhere else in this file (signal.volatility * close).
             current_atr = float(signal.volatility) * float(bar["close"])
-            self.exit_controller.configure(self._decision_cfg())
+            self.exit_controller.configure(self.config)
             self.exit_controller.gain_scale = self._gain_scale_for(symbol)
             state = self.exit_controller.update(
                 symbol, state, float(signal.exit_confidence), chart_studies_confidence,
@@ -2151,7 +2091,7 @@ class Revision2ExternalEngineOrchestrator:
                                         timestamp=str(bars.iloc[idx]["timestamp"]))
                 snapshot = MarketSnapshot(symbol, str(bars.iloc[idx]["timestamp"]), bars.iloc[:idx + 1])
                 warm_signal, _ = self.pa.evaluate(snapshot, self.config)
-                self.chart_studies.configure(self._decision_cfg())
+                self.chart_studies.configure(self.config)
                 self._observe_conviction(symbol, warm_signal, self.chart_studies.evaluate(symbol, snapshot.bars))
                 if warm_signal.direction == 0:
                     continue
@@ -2270,7 +2210,7 @@ class Revision2ExternalEngineOrchestrator:
             symbol, bar_idx = event.symbol, event.bar_idx
             self._current_bar_idx = bar_idx
             bars = symbol_bars[symbol]
-            self.id_box.configure(self._decision_cfg())
+            self.id_box.configure(self.config)
             self.id_box.observe_bar(symbol, float(bars.iloc[bar_idx]["close"]),
                                     timestamp=str(timestamp))
             next_ts = self._next_bar_timestamp(bars, bar_idx)
@@ -2330,8 +2270,8 @@ class Revision2ExternalEngineOrchestrator:
             # merged with PA's confidence, never touching entry
             # (ID/MPC) at all. See continuous_exit_controller.py's
             # module docstring for the two-track design.
-            self.chart_studies.configure(self._decision_cfg())
-            self.closed_loop.configure(self._decision_cfg())
+            self.chart_studies.configure(self.config)
+            self.closed_loop.configure(self.config)
             composite_result = self.chart_studies.evaluate(symbol, snapshot.bars)
             chart_studies_confidence = float(composite_result["confidence"])
             self._observe_conviction(symbol, signal, composite_result)
@@ -2383,8 +2323,8 @@ class Revision2ExternalEngineOrchestrator:
                 self.grid_shadow_observations.append(observation.to_dict())
 
             _close_price = float(bars.iloc[bar_idx]["close"])
-            env_state = MarketEnvironmentState.from_bars(symbol, bars, bar_idx, regime=decision.regime if hasattr(decision, "regime") else "trend", config=self._decision_cfg())
-            t1_params = DynamicParameterController.get_tier1_vol_parameters(env_state, config=self._decision_cfg())
+            env_state = MarketEnvironmentState.from_bars(symbol, bars, bar_idx, regime=decision.regime if hasattr(decision, "regime") else "trend", config=self.config)
+            t1_params = DynamicParameterController.get_tier1_vol_parameters(env_state, config=self.config)
             self.consumed_parameters.update({
                 'mpc_environment_lookback', 'mpc_range_atr_period',
                 'mpc_range_fallback_fraction', 'mpc_atr_floor_gain', 'mpc_slippage_vol_gain',
@@ -2537,14 +2477,6 @@ class Revision2ExternalEngineOrchestrator:
         chart_studies_confidence = pending["chart_studies_confidence"]
         atr = pending["atr"]
 
-        if self.full_adaptation:
-            from revision5.full_adaptation import constrain_entry_plan
-            bay_id = _R5_SYMBOL_TO_BAY.get(symbol)
-            if bay_id is None:
-                raise ValueError("no R5 bay for adaptive entry")
-            plan, constraint = constrain_entry_plan(plan, float(atr),
-                self.controller_parameters.governor_specs[bay_id], self.controller_parameters)
-            self._record_controller_event("PLANT_ORDER_ENVELOPE", timestamp, symbol, constraint)
         # Some lifecycle/audit code uses this authoritative bar index.
         self._current_bar_idx = bar_idx
 
@@ -2597,13 +2529,13 @@ class Revision2ExternalEngineOrchestrator:
         if (
             self.closed_loop_mode == "active_paper" and not self._governor_full
             and entry_quality["symbol_regime_samples"] >= self.closed_loop.outcomes.minimum_history
-            and float(decision.confidence) < float(self._decision_cfg().require("entry_confidence_threshold"))
+            and float(decision.confidence) < float(self.config.require("entry_confidence_threshold"))
             + float(entry_quality["suggested_confidence_offset"])
         ):
             self.entry_candidate_observations.dispose(candidate_id, "DEFERRED", "entry_quality_hold")
             self._record_controller_event("ENTRY_QUALITY_HOLD", timestamp, symbol, {
                 "candidate_id": candidate_id,
-                "effective_confidence_floor": float(self._decision_cfg().require("entry_confidence_threshold"))
+                "effective_confidence_floor": float(self.config.require("entry_confidence_threshold"))
                 + float(entry_quality["suggested_confidence_offset"]),
                 "id_confidence": float(decision.confidence),
             })
@@ -2633,7 +2565,7 @@ class Revision2ExternalEngineOrchestrator:
         sector = self.sector_map.get(symbol, "Unclassified")
 
         quantity, trace = self.position_manager.size(
-            plan, equity_now, size_mult, self._decision_cfg(), symbol=symbol,
+            plan, equity_now, size_mult, self.config, symbol=symbol,
             portfolio_weights=self._portfolio_weights,
             max_exposure_per_symbol_fraction=(
                 float(self._runtime_profile["safety_and_execution"]["max_exposure_per_symbol_fraction"])
@@ -2875,8 +2807,6 @@ class Revision2ExternalEngineOrchestrator:
                 "governor_entry_signed_z": (None if governor_entry.get("z_score") is None else
                                             (1.0 if plan.side == "BUY" else -1.0) * float(governor_entry["z_score"])),
             })
-            if self.full_adaptation:
-                self.open_trades[symbol]["governor_entry_z_exit"] = self.controller_parameters.governor_specs[_R5_SYMBOL_TO_BAY[symbol]].z_exit
             _, governor = self._governor_for(symbol)
             if governor is not None:
                 governor.begin_position(hard_stop_r=-1.0, position_id=f"trade-{self._trade_sequence}")

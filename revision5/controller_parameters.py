@@ -110,8 +110,8 @@ _GOVERNOR_FIELDS = (
     ("kd", "float", (0.0, 2.0), TUNABLE, "outer/inner loop derivative gain"),
     ("base_z", "float", (-4.0, -0.5), TUNABLE, "entry comparator base z threshold (BUY side)"),
     ("z_exit", "float", (0.0, 2.0), TUNABLE, "mean-reversion release: sigma distance below the mean at which the governor releases a position; exit when side-signed z >= -z_exit after entry below it (governor_authority.position_decision; after protection / min-hold)"),
-    ("atr_barrier", "float", (0.5, 4.0), TUNABLE, "plant ATR stop-distance constraint; actuates Box6 plan before sizing in full adaptation"),
-    ("target_m", "float", (0.5, 6.0), TUNABLE, "plant ATR target-distance constraint; actuates Box6 plan before sizing in full adaptation"),
+    ("atr_barrier", "float", (0.5, 4.0), ADVISORY, "plant admission stop distance in ATR (advisory: replay uses the MPC plan stop)"),
+    ("target_m", "float", (0.5, 6.0), ADVISORY, "plant admission target distance in ATR (advisory: replay uses the MPC plan target)"),
     ("capital_weight", "float", (0.05, 0.50), TUNABLE, "initial bay capital weight (dispatcher seed and initial AVR capital); the five must sum to 1"),
     ("target_r", "float", (0.05, 1.0), TUNABLE, "outer-loop realized-R setpoint"),
     ("outcome_window", "int", (2, 30), TUNABLE, "outer-loop realized-R moving-average window (trades)"),
@@ -214,8 +214,8 @@ _COOLDOWN = (
     ("plant_target_cooldown_min_bars", "int", 2, (0, 30), TUNABLE, "target cooldown lower clip"),
     ("plant_target_cooldown_max_bars", "int", 8, (1, 60), TUNABLE, "target cooldown upper clip"),
     ("plant_bay_lockout_consecutive_stops", "int", 2, (1, 10), FIXED_SAFETY, "consecutive stopped/losing outcomes that latch the ANSI 86 bay lockout for the session"),
-    ("plant_stop_floor_price_fraction", "float", 0.0065, (0.0, 0.05), TUNABLE, "plant admission stop floor as a price fraction (advisory output; replay uses the MPC plan stop)"),
-    ("plant_target_min_reward_risk", "float", 1.5, (1.0, 5.0), TUNABLE, "plant admission target floor as a multiple of the stop distance (advisory output)"),
+    ("plant_stop_floor_price_fraction", "float", 0.0065, (0.0, 0.05), ADVISORY, "plant admission stop floor as a price fraction (advisory output; replay uses the MPC plan stop)"),
+    ("plant_target_min_reward_risk", "float", 1.5, (1.0, 5.0), ADVISORY, "plant admission target floor as a multiple of the stop distance (advisory output)"),
     ("symbol_loss_cooldown_bars", "int", 15, (0, 120), FIXED_SAFETY, "orchestrator per-symbol entry block after a net losing exit (former BAY_LOSS_COOLDOWN_BARS)"),
     ("symbol_trip_consecutive_losses", "int", 2, (1, 10), FIXED_SAFETY, "orchestrator: consecutive net losing exits that trip a symbol for the session (former literal 2)"),
 )
@@ -463,24 +463,6 @@ _V3 = (
 for _name, _kind, _default, (_lo, _hi), _cls, _desc in _V3:
     _add(_name, _kind, _default, _lo, _hi, _cls, "PositionControlV3 (governor inner loop, governor_position_mode='v3')",
          "revision5/governor.py:BayTurbineClosedLoopGovernor._position_control_v3", _desc)
-
-# Finite immutable adaptation policy, not recursively adapted meta-coefficients.
-_ADAPTATION = (
-    ("adapt_active", 0.0, 0.0, 1.0),
-    ("adapt_fraction", 0.20, 0.0, 1.0),
-    ("adapt_stress_weight", 1.0, 0.0, 5.0),
-    ("adapt_trend_weight", 0.5, 0.0, 5.0),
-    ("adapt_error_weight", 0.5, 0.0, 5.0),
-    ("adapt_signed_relief", 2.0, 0.0, 5.0),
-    ("adapt_proxy_scale", 1.5, 0.0, 5.0),
-    ("adapt_proxy_max", 2.0, 0.1, 5.0),
-    ("adapt_proxy_derate_floor", 0.1, 0.0, 1.0),
-)
-for _name, _default, _lo, _hi in _ADAPTATION:
-    _add(_name, "float", _default, _lo, _hi, FIXED_SAFETY,
-         "Full R5 adaptation policy", "revision5/full_adaptation.py",
-         "Immutable registered adaptation policy; engineering initial value, NOT_CALIBRATED")
-ADAPTATION_POLICY_NAMES = tuple(n for n, *_ in _ADAPTATION)
 
 CONTROLLER_PARAMETER_SPECS: Tuple[ControllerParameterSpec, ...] = tuple(_SPECS)
 CONTROLLER_PARAMETERS: Dict[str, ControllerParameterSpec] = {s.name: s for s in CONTROLLER_PARAMETER_SPECS}
