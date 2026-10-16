@@ -1,3 +1,5 @@
+> Historical snapshot at b177c9d. Superseded by [DYNAMIZATION_CLOSURE.md](DYNAMIZATION_CLOSURE.md) and [CLOSURE_PARAMETER_MIGRATION.md](CLOSURE_PARAMETER_MIGRATION.md). Counts and inactive findings below describe the pre-correction implementation.
+
 # R5 dynamization status: every parameter
 
 Generated from `phase2_parameter_classification.json` (registry fc04a433…, commit b177c9d). It covers 312 parameters: 291 R5 controller rows and 21 pre-existing registry rows they extend.
