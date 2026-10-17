@@ -1,5 +1,5 @@
 """One symbol's market control pipeline and hysteretic pulse state machine."""
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from copy import deepcopy
 import json
 from .r7_state import Bar, Context, ControlConfig, Decision, MarketVote, GovernorOutput, digest, clamp
@@ -65,33 +65,58 @@ class SymbolController:
         self.fsm = PulseFSM(config)
         self.last_input = None
         self.last_result = None
+        self._pending = None
         self.steps = 0
 
     def step(self, bar, context):
-        inputs = (bar, context)
+        """Single-symbol step: prepare and commit with the context's own capacity."""
         if self.last_input is not None and bar.index == self.last_input[0].index:
-            if inputs != self.last_input:
+            if (bar, context) != self.last_input:
                 raise ValueError('conflicting same-bar input; integrators not replayed')
             return self.last_result
+        self.prepare(bar, context)
+        return self.commit(context.increase_capacity, context.execution_blocked)
+
+    def prepare(self, bar, context):
+        """Advance features and AVR once and form the strategy reference E_ref.
+
+        No governor or FSM state moves here, so a portfolio allocator can gather every
+        symbol's demand at a timestamp before any control state is committed."""
+        if self._pending is not None:
+            raise RuntimeError('previous bar prepared but not committed')
+        if self.last_input is not None and bar.index <= self.last_input[0].index:
+            raise ValueError('bar must advance before prepare')
         f = self.features.extract(bar)
         vote = self.avr.step(f, self.config.bar_seconds)
-        # Market evidence is counted once through the AVR; studies/dispatch enter once here.
         c = self.config
-        # Parameter 1: three-source signed strategy reference E_ref.
+        # Parameter 1: three-source signed strategy reference E_ref. Market evidence is
+        # counted once through the AVR; studies and grid direction enter once here.
         reference = clamp(c.avr_weight * vote.score + c.study_weight * context.study + c.dispatch_weight * context.dispatch)
-        # Parameters 2/3: portfolio-capacity allocation (droop-inspired 1/R sharing).
-        target = approve_target(reference, context.actual_exposure, context.increase_capacity)
         eligible = f.ready and not f.degraded and not f.gap and context.study_available and context.dispatch_available
+        self._pending = (bar, context, f, vote, reference, eligible)
+        return reference, eligible
+
+    def commit(self, increase_capacity, execution_blocked):
+        """Apply the allocated capacity and advance governor and FSM exactly once."""
+        if self._pending is None:
+            raise RuntimeError('commit without prepare')
+        bar, context, f, vote, reference, eligible = self._pending
+        context = replace(context, increase_capacity=increase_capacity, execution_blocked=execution_blocked)
+        c = self.config
+        # Parameters 2/3: portfolio-capacity allocation result for this symbol.
+        target = approve_target(reference, context.actual_exposure, context.increase_capacity)
         gov = self.governor.step(target, context.actual_exposure, f.dt_seconds,
                                  enabled=eligible, execution_blocked=context.execution_blocked)
         pulse, reason = self.fsm.step(gov.applied, eligible)
         out = Decision(c.symbol, c.bay_id, bar.index, bar.timestamp, pulse, reason,
                        target, context.actual_exposure, gov.applied, eligible, vote, gov, reference)
-        self.last_input, self.last_result = inputs, out
+        self.last_input, self.last_result, self._pending = (bar, context), out, None
         self.steps += 1
         return out
 
     def snapshot(self):
+        if self._pending is not None:
+            raise RuntimeError('snapshot requires a committed bar')
         f, g, p = self.features, self.governor, self.fsm
         return deepcopy({'schema': 2, 'config': asdict(self.config),
             'volumes': list(f.volumes), 'ranges': list(f.ranges), 'pvt': f.pvt,

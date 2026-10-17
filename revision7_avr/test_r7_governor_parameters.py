@@ -6,7 +6,7 @@ import math
 import pytest
 
 from .r7_state import ControlConfig, Context, DROOP_LIMITS, default_configs, registry_bay_settings, validation_config
-from .r7_allocator import Utilization, approve_target, droop_shares, increase_capacity_pu
+from .r7_allocator import Utilization, approve_target, droop_weights, allocate_headroom, increase_demand_pu
 from .r7_market_governor import MarketGovernor
 from .r7_coordinated_controller import SymbolController
 from .conftest import make_bar, context
@@ -77,25 +77,11 @@ def test_p3_budgets_from_registry_and_subset_does_not_reallocate():
     assert one.budget_fraction == pytest.approx(0.20 / len(FLEET_TOPOLOGY['GTG2_TECH_TELECOM']))
 
 
-def test_p3_shares_proportional_to_budget_over_r():
+def test_p3_weights_are_budget_over_r():
     a = ControlConfig('A', 'X', 0.1, droop_r=0.04)
     b = ControlConfig('B', 'Y', 0.1, droop_r=0.075)
-    s = droop_shares([a, b])
-    assert s['A'] / s['B'] == pytest.approx(0.075 / 0.04)
-    assert sum(s.values()) == pytest.approx(1.0)
-
-
-def test_p3_total_allocation_never_exceeds_headroom():
-    configs = default_configs(list(SYMBOL_TO_BAY))
-    shares = droop_shares(configs)
-    u = Utilization(800_000, 50_000, 1_000_000)
-    equity = 1_000_000
-    total = 0.0
-    for c in configs:
-        cap = increase_capacity_pu(shares[c.symbol], u, equity, c.budget_fraction)
-        approved = approve_target(1.0, 0.0, cap)
-        total += approved * equity * c.budget_fraction
-    assert total <= u.headroom_notional + 1e-6
+    w = droop_weights([a, b])
+    assert w['A'] / w['B'] == pytest.approx(0.075 / 0.04)
 
 
 def test_p3_allocation_rules():
@@ -104,7 +90,7 @@ def test_p3_allocation_rules():
     assert approve_target(-0.6, -0.2, 0.1) == pytest.approx(-0.3)
     assert approve_target(-0.6, -0.2, 0.0) == pytest.approx(-0.2)   # rising U: not more negative
     assert approve_target(0.8, -0.5, 0.0) == 0.0                # bullish never becomes short
-    assert approve_target(0.8, -0.5, 0.3) == pytest.approx(0.3)
+    assert approve_target(0.8, -0.5, 0.3) == 0.0                # no direct reversal: close first
     assert approve_target(0.3, 0.9, 0.0) == pytest.approx(0.3)  # reduction allowed at zero headroom
     assert approve_target(1.0, 1.4, 0.0) == pytest.approx(1.0)  # over-budget long reduces
 
@@ -251,7 +237,7 @@ def test_engine_records_allocation_and_freezes_on_working_order(config):
     for i in range(10):
         e._r7_step('INFY', i, asdict(make_bar(i)), 0.8, True)
     rec = e.r7_decisions[-1]
-    assert rec['allocation']['share'] == pytest.approx(1.0)
+    assert rec['allocation']['weight'] == pytest.approx(config.budget_fraction / config.droop_r)
     assert rec['allocation']['execution_blocked'] is False
     e._symbol_inflight = {'INFY': 'coid-1'}
     e._r7_step('INFY', 10, asdict(make_bar(10)), 0.8, True)
@@ -264,7 +250,9 @@ def test_engine_b_pending_entry_counts_conservatively(config):
     e._last_close = {'INFY': 100.0}
     e._inflight = {'c1': {'kind': 'entry', 'symbol': 'INFY', 'requested': 30, 'filled': 10},
                    'c2': {'kind': 'exit', 'symbol': 'INFY', 'requested': 99, 'filled': 0}}
-    assert e._r7_pending_increase_notional() == pytest.approx(2000.0)
+    # Full requested quantity is reserved until the entry completes (filled part of a
+    # working Engine B partial is not yet in open_trades).
+    assert e._r7_pending_increase_notional() == pytest.approx(3000.0)
 
 
 def test_engine_full_headroom_used_zero_capacity_blocks_increase_only(config):

@@ -61,12 +61,18 @@ Trading governor (`r7_market_governor.py`), all in signed symbol-budget pu:
   authorized gross limit (equity x max_gross_fraction). Projected U adds working
   entry orders, valued conservatively; a missing price fails closed. U is never
   clamped.
-- Droop-inspired capital sharing (`r7_allocator.py`): each symbol may increase
-  same-side exposure by at most its share of the remaining headroom; shares are
-  budget/R over the universe, fixed per run and order independent. This is capital
-  sharing, not physical frequency droop. R is settable within 0.02 to 0.10 and fixed
-  during a run. A neutral reference approves zero, reductions are always approved,
-  and rising utilization never pushes a target further from flat or flips its sign.
+- Demand-aware capital allocation (`r7_allocator.py`), evaluated once per market
+  timestamp against one common portfolio state, at the native pre-admission
+  arbitration point (after every symbol's exits, before any candidate admission).
+  Headroom H = max(0, G_limit - G_filled - G_pending). If total same-side increase
+  demand fits in H, every demand is approved in full. Otherwise headroom is shared by
+  demand-capped water-filling with weights w = budget/R (R settable 0.02-0.10, fixed per
+  run), redistributing unclaimed share; the total never exceeds H and the result is
+  independent of symbol order. A neutral reference approves zero; reductions are always
+  approved; an opposing reference with an open position approves flat only (a reversal
+  needs a native close first); the native per-symbol exposure cap bounds demand.
+  Features, AVR and reference advance once when a symbol's bar is observed; governor and
+  FSM advance once when the batch commits. This is capital sharing, not physical droop.
 - PID tracks approved target minus measured exposure (never clamped). Kp is
   independent of R. Integral uses conditional anti-windup and is frozen while a
   native order is working. Derivative is on measurement, optionally filtered.

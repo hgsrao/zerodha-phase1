@@ -14,7 +14,7 @@ from revision5.topology import SYMBOL_TO_BAY, BAY_IDS
 from revision6_avr.r6_turbine_governor import repository_defaults, TurbineGovernorUnit
 from .r7_state import Bar, Context, ControlConfig, BayAggregateState, number, clamp
 from .r7_coordinated_controller import SymbolController
-from .r7_allocator import Utilization, droop_shares, increase_capacity_pu
+from .r7_allocator import Utilization, droop_weights, increase_demand_pu, allocate_headroom
 
 
 class _StudiesTap:
@@ -52,8 +52,14 @@ class R7EngineMixin:
         self.r7_allow_native_shorts = r7_allow_native_shorts
         self.r7_configs = configs
         self.r7_symbol_controllers = {s: SymbolController(c) for s, c in configs.items()}
-        # Fixed per run: shares of portfolio headroom proportional to budget / R.
-        self.r7_headroom_shares = droop_shares(configs.values())
+        # Commissioned sharing weights w_i = B_i / R_i, fixed for the run.
+        self.r7_weights = droop_weights(configs.values())
+        # Timestamp batch: every symbol at a market timestamp is allocated against one
+        # common portfolio state before any governor or FSM state is committed.
+        self._r7_batch = {}
+        self._r7_batch_ts = None
+        self._r7_tick_events = None
+        self._r7_deferred_exits = {}
         self._r7_utilization_ts = None
         self._r7_utilization = None
         self._r7_utilization_error = None
@@ -107,9 +113,13 @@ class R7EngineMixin:
         pending = 0.0
         for record in getattr(self, '_inflight', {}).values():       # Engine B (Nautilus)
             if record.get('kind') == 'entry':
-                remaining = max(0.0, float(record['requested']) - float(record.get('filled', 0)))
-                if remaining > 0:
-                    pending += remaining * self._r7_pending_price(record)
+                # Engine B books a position into open_trades only when the entry order
+                # completes, so the filled part of a working partial is in neither the
+                # filled ledger nor the remainder. Reserve the full requested quantity
+                # until completion: conservative and never double counted.
+                requested = max(0.0, float(record['requested']))
+                if requested > 0:
+                    pending += requested * self._r7_pending_price(record)
         return pending
 
     def _r7_pending_price(self, record):
@@ -160,41 +170,105 @@ class R7EngineMixin:
                 or bool(getattr(self, '_execution_halted', False)))
 
     def _r7_step(self, symbol, index, row, study, study_available):
-        bar = Bar(index, str(row['timestamp']), *[float(row[k]) for k in ('open', 'high', 'low', 'close', 'volume')])
+        """Single observation step (used outside a tick): queue it and allocate now."""
+        self._r7_queue(symbol, index, row, study, study_available)
+        decisions = self._r7_flush_batch()
+        return decisions[symbol]
+
+    def _r7_queue(self, symbol, index, row, study, study_available):
+        """Prepare one symbol's completed bar: features, AVR and reference advance once."""
+        ts = str(row['timestamp'])
+        if self._r7_batch and self._r7_batch_ts != ts:
+            self._r7_flush_batch()
+        if symbol in self._r7_batch:
+            raise RuntimeError(f'R7 symbol observed twice at one timestamp: {symbol}')
+        bar = Bar(index, ts, *[float(row[k]) for k in ('open', 'high', 'low', 'close', 'volume')])
+        ctrl = self.r7_symbol_controllers[symbol]
+        if ctrl.last_input is not None and bar.index <= ctrl.last_input[0].index:
+            return None
         grid = self._governor_grid_return(row['timestamp'])
         available = grid is not None
+        # Signed NIFTY market direction (not capacity), normalized and bounded.
         dispatch = clamp(float(grid) / self.r7_dispatch_scale) if available else 0.0
-        util = self.r7_utilization(row['timestamp'])
-        capacity = (0.0 if util is None else
-                    increase_capacity_pu(self.r7_headroom_shares[symbol], util, self._equity(),
-                                         self.r7_configs[symbol].budget_fraction))
         context = Context(self._r7_actual(symbol, bar.close), clamp(study), dispatch,
-                          study_available=study_available, dispatch_available=available,
-                          increase_capacity=capacity, execution_blocked=self._r7_execution_blocked(symbol))
-        ctrl = self.r7_symbol_controllers[symbol]
-        before = ctrl.steps
-        decision = ctrl.step(bar, context)
-        if ctrl.steps != before:
-            self.r7_gate_counts['BARS_PROCESSED'] += 1
-            fraction = self.r7_configs[symbol].budget_fraction
-            # Aggregate portfolio fractions, not incomparable normalized symbol units.
-            weighted = type(decision)(**{**vars(decision), 'target': decision.target * fraction,
-                                         'actual': decision.actual * fraction})
-            self.r7_bay_state[decision.bay_id].update(weighted)
-            record = asdict(decision)
-            record['allocation'] = {'utilization': None if util is None else util.actual,
-                                    'projected_utilization': None if util is None else util.projected,
-                                    'headroom_notional': 0.0 if util is None else util.headroom_notional,
-                                    'measurement_error': self._r7_utilization_error,
-                                    'share': self.r7_headroom_shares[symbol], 'increase_capacity_pu': capacity,
-                                    'execution_blocked': context.execution_blocked}
-            # Causal inputs as consumed this bar, for alignment audits.
-            record['inputs'] = {'study': context.study, 'dispatch': context.dispatch,
-                                'grid_deviation': None if grid is None else float(grid),
-                                'study_available': study_available, 'dispatch_available': available}
-            self._r7_emit_decision(record)
-            self._record_controller_event('R7_COMPLETED_BAR', bar.timestamp, symbol, record)
-        return decision
+                          study_available=study_available, dispatch_available=available)
+        reference, eligible = ctrl.prepare(bar, context)
+        self._r7_batch[symbol] = {'bar': bar, 'context': context, 'reference': reference, 'eligible': eligible,
+                                  'grid': grid, 'study_available': study_available}
+        self._r7_batch_ts = ts
+        return reference
+
+    def _r7_symbol_cap_notional(self, symbol, actual, equity):
+        """Native per-symbol exposure cap, expressed as remaining same-side notional."""
+        values = getattr(getattr(self, 'safety_contract', None), 'values', {}) or {}
+        frac = values.get('max_exposure_per_symbol_fraction')
+        if frac is None:
+            return float('inf')
+        held = abs(number(actual)) * equity * self.r7_configs[symbol].budget_fraction
+        return max(0.0, number(float(frac)) * equity - held)
+
+    def _r7_flush_batch(self):
+        """Allocate headroom across every queued symbol at once, then commit each once."""
+        batch, ts = self._r7_batch, self._r7_batch_ts
+        self._r7_batch, self._r7_batch_ts = {}, None
+        if not batch:
+            return {}
+        util = self.r7_utilization(ts)
+        equity = number(float(self._equity()))
+        demands, blocked = {}, {}
+        for symbol in sorted(batch):
+            item = batch[symbol]
+            blocked[symbol] = self._r7_execution_blocked(symbol)
+            pu = increase_demand_pu(item['reference'], item['context'].actual_exposure)
+            if not item['eligible'] or blocked[symbol] or util is None:
+                pu = 0.0
+            notional = pu * equity * self.r7_configs[symbol].budget_fraction
+            demands[symbol] = min(notional, self._r7_symbol_cap_notional(symbol, item['context'].actual_exposure, equity))
+        headroom = 0.0 if util is None else util.headroom_notional
+        grants, case = allocate_headroom(demands, self.r7_weights, headroom)
+        self.r7_gate_counts[f'ALLOCATION_{case}'] += 1
+        if util is None:
+            self.r7_gate_counts['ALLOCATION_FAIL_CLOSED'] += 1
+        out = {}
+        for symbol in sorted(batch):
+            item = batch[symbol]
+            ctrl = self.r7_symbol_controllers[symbol]
+            base = equity * self.r7_configs[symbol].budget_fraction
+            capacity = 0.0 if util is None else grants[symbol] / base
+            decision = ctrl.commit(capacity, blocked[symbol])
+            out[symbol] = decision
+            self._r7_record(decision, item, util, case, demands[symbol], grants[symbol], capacity, blocked[symbol])
+        for symbol, args in sorted(self._r7_deferred_exits.items()):
+            self._r7_arm_normal_exit(symbol, *args)
+        self._r7_deferred_exits = {}
+        return out
+
+    def _r7_record(self, decision, item, util, case, demand, grant, capacity, blocked):
+        context, grid = item['context'], item['grid']
+        self.r7_gate_counts['BARS_PROCESSED'] += 1
+        fraction = self.r7_configs[decision.symbol].budget_fraction
+        # Aggregate portfolio fractions, not incomparable normalized symbol units.
+        weighted = type(decision)(**{**vars(decision), 'target': decision.target * fraction,
+                                     'actual': decision.actual * fraction})
+        self.r7_bay_state[decision.bay_id].update(weighted)
+        record = asdict(decision)
+        record['allocation'] = {'utilization': None if util is None else util.actual,
+                                'projected_utilization': None if util is None else util.projected,
+                                'headroom_notional': 0.0 if util is None else util.headroom_notional,
+                                'measurement_error': self._r7_utilization_error,
+                                'case': case, 'weight': self.r7_weights[decision.symbol],
+                                'demand_notional': demand, 'granted_notional': grant,
+                                'rejected_demand_notional': max(0.0, demand - grant),
+                                'increase_capacity_pu': capacity, 'execution_blocked': blocked}
+        # Causal inputs as consumed this bar, for alignment audits. 'dispatch' is kept for
+        # serialization compatibility; it is the signed grid direction signal.
+        record['inputs'] = {'study': context.study, 'dispatch': context.dispatch,
+                            'grid_direction_signal': context.dispatch,
+                            'grid_deviation': None if grid is None else float(grid),
+                            'study_available': item['study_available'],
+                            'dispatch_available': context.dispatch_available}
+        self._r7_emit_decision(record)
+        self._record_controller_event('R7_COMPLETED_BAR', decision.timestamp, decision.symbol, record)
 
     def _r7_emit_decision(self, record):
         line = json.dumps(record, sort_keys=True, allow_nan=False, default=str)
@@ -224,18 +298,43 @@ class R7EngineMixin:
         direction, confidence = float(result['direction']), float(result['confidence'])
         if direction not in (-1, 0, 1) or not 0 <= confidence <= 1:
             raise ValueError('invalid signed study observation')
-        self._r7_step(symbol, index, row, direction * confidence, True)
+        self._r7_queue(symbol, index, row, direction * confidence, True)
+
+    def r7_flush(self):
+        """Allocate and commit any queued observations (e.g. the last warmup bar)."""
+        return self._r7_flush_batch()
 
     def _process_tick(self, timestamp, tick_events):
         events = list(tick_events)
-        result = super()._process_tick(timestamp, events)
-        # Symbols rejected before studies still receive a degraded observation.
+        # Warmup observations arrive symbol by symbol outside the tick clock; settle any
+        # leftover batch before this timestamp's observations are gathered.
+        self._r7_flush_batch()
+        self._r7_tick_events = events
+        try:
+            result = super()._process_tick(timestamp, events)
+        finally:
+            self._r7_tick_events = None
+        # Normally the batch is allocated at the pre-admission hook; this covers a
+        # native core that skips it, and symbols rejected before studies.
+        self._r7_complete_tick(events)
+        return result
+
+    def _r7_complete_tick(self, events):
         for event in events:
             ctrl = self.r7_symbol_controllers[event.symbol]
-            if ctrl.last_result is None or ctrl.last_result.bar_index < event.bar_idx:
+            done = ctrl.last_result is not None and ctrl.last_result.bar_index >= event.bar_idx
+            if not done and event.symbol not in self._r7_batch:
+                # Symbols rejected before studies still receive a degraded observation.
                 row = self._run.symbol_bars[event.symbol].iloc[event.bar_idx]
-                self._r7_step(event.symbol, event.bar_idx, row, 0.0, False)
-        return result
+                self._r7_queue(event.symbol, event.bar_idx, row, 0.0, False)
+        self._r7_flush_batch()
+
+    def rank_simultaneous_entry_candidates(self, candidates):
+        """Native S4 arbitration point: every symbol at this timestamp has been observed
+        and exited; allocate R7 capacity once, before any candidate is admitted."""
+        if self._r7_tick_events is not None:
+            self._r7_complete_tick(self._r7_tick_events)
+        return super().rank_simultaneous_entry_candidates(candidates)
 
     def _plant_entry_gate(self, symbol, timestamp, side, quantity, price, bar, candidate_id, governor_entry):
         self.r7_gate_counts['CANDIDATES_RECEIVED'] += 1
@@ -342,17 +441,35 @@ class R7EngineMixin:
         # Existing protective pending exits and venue working exits take precedence.
         if trade.get('controller_exit_pending') or symbol in getattr(self, '_symbol_inflight', {}) or symbol in getattr(self, '_working_exits', {}):
             return result
+        bar_index = self._current_bar_idx
+        decision = self.r7_symbol_controllers[symbol].last_result
+        if symbol in self._r7_batch or (decision is not None and decision.timestamp != str(timestamp)
+                                        and self._r7_batch_ts == str(timestamp)):
+            # The batch for this timestamp is not allocated yet: arm after commit.
+            self._r7_deferred_exits[symbol] = (timestamp, held_bars, bar_index)
+            return result
+        self._r7_arm_normal_exit(symbol, timestamp, held_bars, bar_index)
+        return result
+
+    def _r7_arm_normal_exit(self, symbol, timestamp, held_bars, bar_index):
+        trade = self.open_trades.get(symbol)
+        if trade is None:
+            self.r7_normal_exit_state.pop(symbol, None)
+            return
+        # Existing protective pending exits and venue working exits take precedence.
+        if trade.get('controller_exit_pending') or symbol in getattr(self, '_symbol_inflight', {}) or symbol in getattr(self, '_working_exits', {}):
+            return
         decision = self.r7_symbol_controllers[symbol].last_result
         c = self.r7_configs[symbol]
         if (decision is None or decision.timestamp != str(timestamp) or
-                decision.bar_index != self._current_bar_idx):
-            return result
+                decision.bar_index != bar_index):
+            return
         identity = str(trade.get('trade_id', trade.get('candidate_id', '')))
         state = self.r7_normal_exit_state.get(symbol)
         if state is None or state['position_id'] != identity:
             state = {'position_id': identity, 'last_bar': -1, 'count': 0}
         if state['last_bar'] == decision.bar_index:
-            return result
+            return
         same_direction = 'BUY' if trade['side'] == 'BUY' else 'SELL'
         opposite = 'SELL' if same_direction == 'BUY' else 'BUY'
         neutral = (decision.pulse == 'HOLD' and abs(decision.signal) <= c.buy_release
@@ -375,10 +492,9 @@ class R7EngineMixin:
             self.r7_gate_counts['NORMAL_EXITS_ARMED'] += 1
             self._record_controller_event('R7_NORMAL_EXIT_ARMED', timestamp, symbol,
                                           dict(trade['controller_exit_pending']))
-        return result
 
     def r7_snapshot(self):
-        if self._r7_observed:
+        if self._r7_observed or self._r7_batch or self._r7_deferred_exits:
             raise RuntimeError('snapshot requires a completed control handoff')
         return deepcopy({'schema': 2, 'adaptation': 'off', 'dispatch_scale': self.r7_dispatch_scale,
             'allow_shorts': self.r7_allow_native_shorts, 'topology': self.r7_topology_report,

@@ -71,6 +71,8 @@ def test_handoff_studies_once_signed_exposure_and_native_cap(config):
         frame = pd.DataFrame([asdict(bar)], index=[i])
         result = e.chart_studies.evaluate('INFY', frame)
         e._observe_conviction('INFY', None, result)
+    # Observations are allocated per timestamp batch; complete the final batch.
+    e.r7_flush()
     assert e.chart_studies.calls == 30
     assert e.r7_gate_counts['BARS_PROCESSED'] == 30
     e.quantity = -10
