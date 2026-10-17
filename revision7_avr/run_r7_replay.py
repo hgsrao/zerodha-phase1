@@ -102,14 +102,18 @@ def _extended(o, a, trades, tel, log_path):
     ids = [t.get("trade_id") for t in trades if isinstance(t, dict)]
     ext["integrity"] = {"overfilled_orders": len(overfills), "duplicate_trade_ids": len(ids) - len(set(ids)),
                         "audit_events": len(audit)}
-    if a.mode == "r7" and log_path.exists():
+    if a.mode == "r7":
         from hashlib import sha256
         digest, rows = "0" * 64, []
-        for line in log_path.read_text().splitlines():
-            digest = sha256((digest + line).encode()).hexdigest()
-            rows.append(json.loads(line))
-        ext["decision_journal"] = {"lines": len(rows), "chain_matches_engine": digest == getattr(o, "r7_decision_digest", None),
-                                   "count_matches_engine": len(rows) == getattr(o, "r7_decision_count", None)}
+        if log_path.exists():
+            for line in log_path.read_text().splitlines():
+                digest = sha256((digest + line).encode()).hexdigest()
+                rows.append(json.loads(line))
+            ext["decision_journal"] = {"lines": len(rows), "chain_matches_engine": digest == getattr(o, "r7_decision_digest", None),
+                                       "count_matches_engine": len(rows) == getattr(o, "r7_decision_count", None)}
+        else:   # frozen baseline: no external journal; use its in-memory decision list
+            rows = json.loads(json.dumps(list(getattr(o, "r7_decisions", [])), default=str))
+            ext["decision_journal"] = {"lines": len(rows), "external_journal": False}
         gov = [r["governor"] for r in rows if r.get("eligible")]
         sat = sum(1 for g in gov if abs(g["applied"]) >= 0.999 or abs(g["requested"]) >= 0.999)
         ext["pid"] = {"eligible": len(gov), "saturated": sat,
@@ -148,7 +152,7 @@ def _extended(o, a, trades, tel, log_path):
                                  "scaling_errors": sum(1 for c in caus if c.get("grid_deviation") is not None and
                                                        abs(c["grid_direction_signal"] - max(-1.0, min(1.0, c["grid_deviation"] / 0.01))) > 1e-12)}
         try:
-            snap = json.loads(json.dumps(o.r7_snapshot()))
+            snap = json.loads(json.dumps(o.r7_snapshot(), default=str))
             o.r7_restore(snap)
             ext["checkpoint_roundtrip"] = {"ok": json.loads(json.dumps(o.r7_snapshot())) == snap,
                                            "bytes": len(json.dumps(snap))}
