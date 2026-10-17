@@ -258,6 +258,17 @@ def main() -> int:
             saturated_applied=sum(1 for d in decisions if abs(d["signal"]) >= 0.999),
             decisions_sha256=dig(decisions))
     summary.update(_extended(o, a, trades, tel, log_path))
+    summary["trades"] = [{k: t.get(k) for k in ("symbol", "side", "entry_timestamp", "exit_timestamp", "quantity",
+                                                "entry_price", "exit_price", "reason", "net_pnl", "costs")}
+                         for t in trades if isinstance(t, dict)]
+    audit = (info.get("audit") or {})
+    windows = [v.get("window", {}) for v in audit.values() if isinstance(v, dict)]
+    summary["data_window"] = {"symbols": len(windows),
+                              "first": min((str(w.get("first")) for w in windows), default=None),
+                              "last": max((str(w.get("last")) for w in windows), default=None),
+                              "sessions_min": min((w.get("sessions", 0) for w in windows), default=None),
+                              "sessions_max": max((w.get("sessions", 0) for w in windows), default=None),
+                              "missing_minutes_total": sum(int(w.get("missing_minutes") or 0) for w in windows)}
     (out / "summary.json").write_text(json.dumps(summary, indent=1, default=str))
     print(json.dumps(summary, default=str))
     return 0
