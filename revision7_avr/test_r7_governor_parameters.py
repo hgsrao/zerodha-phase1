@@ -276,3 +276,37 @@ def test_engine_full_headroom_used_zero_capacity_blocks_increase_only(config):
     assert rec['allocation']['headroom_notional'] == 0
     assert rec['allocation']['increase_capacity_pu'] == 0
     assert rec['target'] <= max(rec['reference'], 0) + 1e-12
+
+
+def test_engine_b_pending_entry_without_valid_price_fails_closed(config):
+    from types import SimpleNamespace
+    e = _engine(config)
+    e._last_close = {}
+    e._inflight = {'c1': {'kind': 'entry', 'symbol': 'INFY', 'requested': 30, 'filled': 0, 'intent': {}}}
+    with pytest.raises(ValueError):
+        e._r7_pending_increase_notional()
+    for i in range(10):
+        e._r7_step('INFY', i, asdict(make_bar(i)), 0.9, True)
+    rec = e.r7_decisions[-1]
+    assert rec['allocation']['increase_capacity_pu'] == 0
+    assert rec['allocation']['utilization'] is None and rec['allocation']['measurement_error']
+    assert rec['target'] == 0.0                      # flat: no new exposure authorized
+    assert e.r7_gate_counts['UTILIZATION_UNAVAILABLE_FAIL_CLOSED'] >= 1
+    # A valid planned price values the order conservatively instead.
+    e._inflight['c1']['intent'] = {'plan': SimpleNamespace(entry_price=101.0)}
+    e._last_close = {'INFY': 99.0}
+    assert e._r7_pending_increase_notional() == pytest.approx(30 * 101.0)
+    e._last_close = {'INFY': 0.0}
+    assert e._r7_pending_increase_notional() == pytest.approx(30 * 101.0)
+
+
+def test_fail_closed_still_allows_reduction(config):
+    e = _engine(config)
+    e._equity = lambda: 100000
+    e.quantity = 50                     # long
+    e._r7_gross_limit_notional = lambda: (_ for _ in ()).throw(ValueError('limit unavailable'))
+    for i in range(10):
+        e._r7_step('INFY', i, asdict(make_bar(i)), 0.0, True)
+    rec = e.r7_decisions[-1]
+    assert rec['allocation']['increase_capacity_pu'] == 0
+    assert abs(rec['target']) <= abs(rec['actual']) + 1e-12

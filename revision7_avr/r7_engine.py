@@ -7,6 +7,7 @@ from collections import Counter
 from dataclasses import asdict
 from copy import deepcopy
 import json
+import math
 
 from revision5.topology import SYMBOL_TO_BAY, BAY_IDS
 from revision6_avr.r6_turbine_governor import repository_defaults, TurbineGovernorUnit
@@ -53,6 +54,7 @@ class R7EngineMixin:
         self.r7_headroom_shares = droop_shares(configs.values())
         self._r7_utilization_ts = None
         self._r7_utilization = None
+        self._r7_utilization_error = None
         self.r7_bay_state = {b: BayAggregateState() for b in BAY_IDS}
         self.r7_physical_units = {b: TurbineGovernorUnit(c, p_mech_pu=c.power_min_pu)
                                   for b, c in repository_defaults().items()}
@@ -95,8 +97,25 @@ class R7EngineMixin:
         for record in getattr(self, '_inflight', {}).values():       # Engine B (Nautilus)
             if record.get('kind') == 'entry':
                 remaining = max(0.0, float(record['requested']) - float(record.get('filled', 0)))
-                pending += remaining * number(float(self._last_close.get(record['symbol'], 0.0)))
+                if remaining > 0:
+                    pending += remaining * self._r7_pending_price(record)
         return pending
+
+    def _r7_pending_price(self, record):
+        """Conservative valuation price for a working entry: the larger of the last close
+        and the planned entry price. A missing or non-positive price is never valued as
+        zero; it raises, and the caller fails closed."""
+        candidates = []
+        last = self._last_close.get(record['symbol'])
+        if last is not None:
+            candidates.append(float(last))
+        plan = (record.get('intent') or {}).get('plan')
+        if plan is not None and getattr(plan, 'entry_price', None) is not None:
+            candidates.append(float(plan.entry_price))
+        valid = [p for p in candidates if math.isfinite(p) and p > 0]
+        if not valid:
+            raise ValueError(f"no valid price for working entry on {record['symbol']}")
+        return max(valid)
 
     def _r7_gross_limit_notional(self):
         run = getattr(self, '_run', None)
@@ -111,9 +130,17 @@ class R7EngineMixin:
         symbol at this tick is allocated against the same headroom (order independent)."""
         key = str(timestamp)
         if self._r7_utilization_ts != key:
-            self._r7_utilization = Utilization(self._r7_filled_gross_notional(),
-                                               self._r7_pending_increase_notional(),
-                                               self._r7_gross_limit_notional())
+            try:
+                self._r7_utilization = Utilization(self._r7_filled_gross_notional(),
+                                                   self._r7_pending_increase_notional(),
+                                                   self._r7_gross_limit_notional())
+                self._r7_utilization_error = None
+            except (ValueError, KeyError, TypeError) as exc:
+                # Fail closed: no exposure increase may be authorized without a valid
+                # measurement. Reductions remain approved by the allocator.
+                self._r7_utilization = None
+                self._r7_utilization_error = f'{type(exc).__name__}: {exc}'
+                self.r7_gate_counts['UTILIZATION_UNAVAILABLE_FAIL_CLOSED'] += 1
             self._r7_utilization_ts = key
         return self._r7_utilization
 
@@ -127,8 +154,9 @@ class R7EngineMixin:
         available = grid is not None
         dispatch = clamp(float(grid) / self.r7_dispatch_scale) if available else 0.0
         util = self.r7_utilization(row['timestamp'])
-        capacity = increase_capacity_pu(self.r7_headroom_shares[symbol], util, self._equity(),
-                                        self.r7_configs[symbol].budget_fraction)
+        capacity = (0.0 if util is None else
+                    increase_capacity_pu(self.r7_headroom_shares[symbol], util, self._equity(),
+                                         self.r7_configs[symbol].budget_fraction))
         context = Context(self._r7_actual(symbol, bar.close), clamp(study), dispatch,
                           study_available=study_available, dispatch_available=available,
                           increase_capacity=capacity, execution_blocked=self._r7_execution_blocked(symbol))
@@ -143,8 +171,10 @@ class R7EngineMixin:
                                          'actual': decision.actual * fraction})
             self.r7_bay_state[decision.bay_id].update(weighted)
             record = asdict(decision)
-            record['allocation'] = {'utilization': util.actual, 'projected_utilization': util.projected,
-                                    'headroom_notional': util.headroom_notional,
+            record['allocation'] = {'utilization': None if util is None else util.actual,
+                                    'projected_utilization': None if util is None else util.projected,
+                                    'headroom_notional': 0.0 if util is None else util.headroom_notional,
+                                    'measurement_error': self._r7_utilization_error,
                                     'share': self.r7_headroom_shares[symbol], 'increase_capacity_pu': capacity,
                                     'execution_blocked': context.execution_blocked}
             self.r7_decisions.append(record)
