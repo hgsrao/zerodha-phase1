@@ -12,6 +12,7 @@ from revision5.topology import SYMBOL_TO_BAY, BAY_IDS
 from revision6_avr.r6_turbine_governor import repository_defaults, TurbineGovernorUnit
 from .r7_state import Bar, Context, ControlConfig, BayAggregateState, number, clamp
 from .r7_coordinated_controller import SymbolController
+from .r7_allocator import Utilization, droop_shares, increase_capacity_pu
 
 
 class _StudiesTap:
@@ -48,6 +49,10 @@ class R7EngineMixin:
         self.r7_allow_native_shorts = r7_allow_native_shorts
         self.r7_configs = configs
         self.r7_symbol_controllers = {s: SymbolController(c) for s, c in configs.items()}
+        # Fixed per run: shares of portfolio headroom proportional to budget / R.
+        self.r7_headroom_shares = droop_shares(configs.values())
+        self._r7_utilization_ts = None
+        self._r7_utilization = None
         self.r7_bay_state = {b: BayAggregateState() for b in BAY_IDS}
         self.r7_physical_units = {b: TurbineGovernorUnit(c, p_mech_pu=c.power_min_pu)
                                   for b, c in repository_defaults().items()}
@@ -75,13 +80,58 @@ class R7EngineMixin:
         # Keep excess exposure visible rather than clamping it away.
         return quantity * close / (equity * self.r7_configs[symbol].budget_fraction)
 
+    def _r7_filled_gross_notional(self):
+        """Gross notional of FILLED native positions only (native base definition)."""
+        from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator as Core
+        if isinstance(self, Core):
+            return number(float(Core._gross_exposure_notional(self)))
+        return number(float(self._gross_exposure_notional()))
+
+    def _r7_pending_increase_notional(self):
+        """Conservative notional of working exposure-increasing (entry) orders."""
+        if hasattr(self, '_pending_entries'):                       # Engine C (Backtrader)
+            return sum(number(float(r['reserved_notional'])) for r in self._pending_entries())
+        pending = 0.0
+        for record in getattr(self, '_inflight', {}).values():       # Engine B (Nautilus)
+            if record.get('kind') == 'entry':
+                remaining = max(0.0, float(record['requested']) - float(record.get('filled', 0)))
+                pending += remaining * number(float(self._last_close.get(record['symbol'], 0.0)))
+        return pending
+
+    def _r7_gross_limit_notional(self):
+        run = getattr(self, '_run', None)
+        fraction = getattr(run, 'max_gross_fraction', None)
+        if fraction is None:
+            fraction = float(self.safety_contract.values['max_gross_exposure_fraction'])
+        equity = number(float(self._equity()))
+        return equity * number(float(fraction))
+
+    def r7_utilization(self, timestamp):
+        """Common portfolio measurement, snapshotted once per clock timestamp so every
+        symbol at this tick is allocated against the same headroom (order independent)."""
+        key = str(timestamp)
+        if self._r7_utilization_ts != key:
+            self._r7_utilization = Utilization(self._r7_filled_gross_notional(),
+                                               self._r7_pending_increase_notional(),
+                                               self._r7_gross_limit_notional())
+            self._r7_utilization_ts = key
+        return self._r7_utilization
+
+    def _r7_execution_blocked(self, symbol):
+        return (symbol in getattr(self, '_symbol_inflight', {}) or symbol in getattr(self, '_symbol_working', {})
+                or bool(getattr(self, '_execution_halted', False)))
+
     def _r7_step(self, symbol, index, row, study, study_available):
         bar = Bar(index, str(row['timestamp']), *[float(row[k]) for k in ('open', 'high', 'low', 'close', 'volume')])
         grid = self._governor_grid_return(row['timestamp'])
         available = grid is not None
         dispatch = clamp(float(grid) / self.r7_dispatch_scale) if available else 0.0
+        util = self.r7_utilization(row['timestamp'])
+        capacity = increase_capacity_pu(self.r7_headroom_shares[symbol], util, self._equity(),
+                                        self.r7_configs[symbol].budget_fraction)
         context = Context(self._r7_actual(symbol, bar.close), clamp(study), dispatch,
-                          study_available=study_available, dispatch_available=available)
+                          study_available=study_available, dispatch_available=available,
+                          increase_capacity=capacity, execution_blocked=self._r7_execution_blocked(symbol))
         ctrl = self.r7_symbol_controllers[symbol]
         before = ctrl.steps
         decision = ctrl.step(bar, context)
@@ -93,6 +143,10 @@ class R7EngineMixin:
                                          'actual': decision.actual * fraction})
             self.r7_bay_state[decision.bay_id].update(weighted)
             record = asdict(decision)
+            record['allocation'] = {'utilization': util.actual, 'projected_utilization': util.projected,
+                                    'headroom_notional': util.headroom_notional,
+                                    'share': self.r7_headroom_shares[symbol], 'increase_capacity_pu': capacity,
+                                    'execution_blocked': context.execution_blocked}
             self.r7_decisions.append(record)
             self._record_controller_event('R7_COMPLETED_BAR', bar.timestamp, symbol, record)
         return decision
@@ -262,7 +316,7 @@ class R7EngineMixin:
     def r7_snapshot(self):
         if self._r7_observed:
             raise RuntimeError('snapshot requires a completed control handoff')
-        return deepcopy({'schema': 1, 'adaptation': 'off', 'dispatch_scale': self.r7_dispatch_scale,
+        return deepcopy({'schema': 2, 'adaptation': 'off', 'dispatch_scale': self.r7_dispatch_scale,
             'allow_shorts': self.r7_allow_native_shorts, 'topology': self.r7_topology_report,
             'controllers': {s: c.snapshot() for s, c in self.r7_symbol_controllers.items()},
             'physical': {b: x.snapshot() for b, x in self.r7_physical_units.items()},
@@ -273,7 +327,7 @@ class R7EngineMixin:
     def r7_restore(self, payload):
         """Restore R7 control state only, alongside a separately restored native ledger."""
         json.dumps(payload, allow_nan=False)
-        if (payload['schema'], payload['adaptation'], payload['dispatch_scale'], payload['allow_shorts'], payload['topology']) != (1, 'off', self.r7_dispatch_scale, self.r7_allow_native_shorts, self.r7_topology_report):
+        if (payload['schema'], payload['adaptation'], payload['dispatch_scale'], payload['allow_shorts'], payload['topology']) != (2, 'off', self.r7_dispatch_scale, self.r7_allow_native_shorts, self.r7_topology_report):
             raise ValueError('R7 checkpoint identity/configuration mismatch')
         if set(payload['controllers']) != set(self.r7_symbol_controllers) or set(payload['physical']) != set(BAY_IDS) or set(payload['bay_state']) != set(BAY_IDS):
             raise ValueError('R7 checkpoint universe mismatch')

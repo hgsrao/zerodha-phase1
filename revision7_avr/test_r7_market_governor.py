@@ -32,12 +32,11 @@ def test_market_response_time_is_seconds(config):
     assert r.applied == pytest.approx(1 - math.exp(-60 / config.market_response_tau_seconds))
 
 
-@pytest.mark.parametrize('speed,expected', [(1.0, 0.2), (0.996, 0.3), (1.004, 0.1)])
-def test_market_speed_uses_real_droop_equation(config, speed, expected):
-    out = MarketGovernor(config).step(0.2, 0.0, 60, market_speed_pu=speed)
-    assert out.droop_target == pytest.approx(expected)
-    assert out.error == pytest.approx(expected)
-    assert out.market_speed_pu == speed
+def test_governor_has_no_market_speed_input(config):
+    import inspect
+    assert 'market_speed_pu' not in inspect.signature(MarketGovernor.step).parameters
+    out = MarketGovernor(config).step(0.2, 0.0, 60)
+    assert out.target == 0.2 and out.error == pytest.approx(0.2)
 
 
 def test_at_target_pid_zero_keeps_engagement(config):

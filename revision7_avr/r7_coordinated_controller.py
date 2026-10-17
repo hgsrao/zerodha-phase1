@@ -6,9 +6,22 @@ from .r7_state import Bar, Context, ControlConfig, Decision, MarketVote, Governo
 from .r7_features import SymbolFeatureExtractor
 from .r7_market_avr import MarketAVR
 from .r7_market_governor import MarketGovernor
+from .r7_allocator import approve_target
 
 
 class PulseFSM:
+    """BUY/HOLD/SELL Schmitt trigger with explicit completed-bar counting.
+
+    * active_age is the number of completed bars the current pulse has been shown,
+      including its entry bar. A pulse may release only when active_age >= hold_bars,
+      evaluated BEFORE the current bar is counted, so a pulse is visible for at least
+      exactly hold_bars bars.
+    * hold_age is the number of completed HOLD bars since a release, including the
+      release bar, capped at cooldown_bars. A new pulse may enter only when
+      hold_age >= cooldown_bars. An ineligible bar resets hold_age to 0.
+    * An emergency reversal flips the pulse immediately. It is a pulse state only:
+      positions still change only through the native admission and exit paths.
+    """
     def __init__(self, config):
         self.config = config
         self.pulse = 'HOLD'
@@ -22,13 +35,13 @@ class PulseFSM:
             self.pulse, self.active_age, self.hold_age = 'HOLD', 0, 0
             return self.pulse, 'INPUT_NOT_ELIGIBLE'
         if previous == 'HOLD':
-            self.hold_age += 1
-            if self.hold_age > c.cooldown_bars:
+            if self.hold_age >= c.cooldown_bars:
                 self.pulse = 'BUY' if signal >= c.buy_enter else 'SELL' if signal <= c.sell_enter else 'HOLD'
-                if self.pulse != 'HOLD':
-                    self.active_age, self.hold_age = 1, 0
+            if self.pulse != 'HOLD':
+                self.active_age, self.hold_age = 1, 0
+            else:
+                self.hold_age = min(c.cooldown_bars, self.hold_age + 1)
         else:
-            self.active_age = min(c.max_pulse_age, self.active_age + 1)
             emergency = signal <= -c.emergency if previous == 'BUY' else signal >= c.emergency
             release = signal < c.buy_release if previous == 'BUY' else signal > c.sell_release
             unsupported = signal < c.buy_enter if previous == 'BUY' else signal > c.sell_enter
@@ -36,7 +49,10 @@ class PulseFSM:
                 self.pulse = 'SELL' if previous == 'BUY' else 'BUY'
                 self.active_age, self.hold_age = 1, 0
             elif (release and self.active_age >= c.hold_bars) or (unsupported and self.active_age >= c.max_pulse_age):
-                self.pulse, self.active_age, self.hold_age = 'HOLD', 0, 0
+                # The release bar is the first completed HOLD bar of the cooldown.
+                self.pulse, self.active_age, self.hold_age = 'HOLD', 0, min(1, c.cooldown_bars)
+            else:
+                self.active_age = min(c.max_pulse_age, self.active_age + 1)
         return self.pulse, f'{previous}_TO_{self.pulse}'
 
 
@@ -61,20 +77,23 @@ class SymbolController:
         vote = self.avr.step(f, self.config.bar_seconds)
         # Market evidence is counted once through the AVR; studies/dispatch enter once here.
         c = self.config
-        target = clamp(c.avr_weight * vote.score + c.study_weight * context.study + c.dispatch_weight * context.dispatch)
+        # Parameter 1: three-source signed strategy reference E_ref.
+        reference = clamp(c.avr_weight * vote.score + c.study_weight * context.study + c.dispatch_weight * context.dispatch)
+        # Parameters 2/3: portfolio-capacity allocation (droop-inspired 1/R sharing).
+        target = approve_target(reference, context.actual_exposure, context.increase_capacity)
         eligible = f.ready and not f.degraded and not f.gap and context.study_available and context.dispatch_available
-        gov = self.governor.step(target, context.actual_exposure, c.bar_seconds,
-                                 enabled=eligible, market_speed_pu=f.market_speed_pu)
+        gov = self.governor.step(target, context.actual_exposure, f.dt_seconds,
+                                 enabled=eligible, execution_blocked=context.execution_blocked)
         pulse, reason = self.fsm.step(gov.applied, eligible)
         out = Decision(c.symbol, c.bay_id, bar.index, bar.timestamp, pulse, reason,
-                       target, context.actual_exposure, gov.applied, eligible, vote, gov)
+                       target, context.actual_exposure, gov.applied, eligible, vote, gov, reference)
         self.last_input, self.last_result = inputs, out
         self.steps += 1
         return out
 
     def snapshot(self):
         f, g, p = self.features, self.governor, self.fsm
-        return deepcopy({'schema': 1, 'config': asdict(self.config),
+        return deepcopy({'schema': 2, 'config': asdict(self.config),
             'volumes': list(f.volumes), 'ranges': list(f.ranges), 'pvt': f.pvt,
             'speed_reference': f.speed_reference,
             'avr': {'i': self.avr.pi.i_term, 'level': self.avr.level},
@@ -87,7 +106,7 @@ class SymbolController:
     def restore(self, payload):
         # Reconstruct into a temporary object; failed validation cannot partially mutate self.
         json.dumps(payload, allow_nan=False)
-        if payload['schema'] != 1 or payload['config'] != asdict(self.config):
+        if payload['schema'] != 2 or payload['config'] != asdict(self.config):
             raise ValueError('checkpoint configuration mismatch')
         new = type(self)(self.config)
         if len(payload['volumes']) > self.config.feature_window or len(payload['ranges']) != len(payload['volumes']):
@@ -119,8 +138,10 @@ class SymbolController:
         ps = payload['pulse']
         if set(ps) != {'pulse', 'active_age', 'hold_age'} or ps['pulse'] not in ('BUY', 'SELL', 'HOLD'):
             raise ValueError('invalid pulse state')
-        if any(type(ps[k]) is not int or ps[k] < 0 for k in ('active_age', 'hold_age')) or ps['active_age'] > self.config.max_pulse_age:
+        if any(type(ps[k]) is not int or ps[k] < 0 for k in ('active_age', 'hold_age')) or ps['active_age'] > self.config.max_pulse_age or ps['hold_age'] > self.config.cooldown_bars:
             raise ValueError('invalid pulse clock')
+        if (ps['pulse'] == 'HOLD') != (ps['active_age'] == 0):
+            raise ValueError('pulse clock inconsistent with pulse state')
         new.fsm.__dict__.update(ps)
         if type(payload['steps']) is not int or payload['steps'] < 0:
             raise ValueError('invalid step count')

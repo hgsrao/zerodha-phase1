@@ -38,6 +38,13 @@ class NativeSeams:
     def _broker_position(self, symbol):
         return {'quantity': self.quantity}
 
+    # Minimal stand-ins for the native gross-exposure interfaces used by R7 allocation.
+    safety_contract = SimpleNamespace(values={'max_gross_exposure_fraction': 1.0})
+    _last_close = {}
+
+    def _gross_exposure_notional(self):
+        return abs(self.quantity) * 100.0
+
     def _governor_grid_return(self, ts):
         return 0.006
 
@@ -141,7 +148,7 @@ def test_real_studies_called_once_even_when_no_candidates(config):
     assert e.r7_gate_counts['BARS_PROCESSED'] == 99
 
 
-def test_one_day_native_engine_uses_real_market_droop_and_context(config):
+def test_one_day_native_engine_reference_allocation_and_context(config):
     # Explicit synthetic Nifty context fixture; this is not historical data.
     e = Revision7Engine(['INFY'], r7_configs=[config])
     e._governor_grid_return = lambda ts: 0.002
@@ -151,8 +158,10 @@ def test_one_day_native_engine_uses_real_market_droop_and_context(config):
     assert e.chart_studies.evaluations['INFY'] == 389
     eligible = [d for d in e.r7_decisions if d['eligible']]
     assert eligible
-    assert any(d['governor']['market_speed_pu'] < 1 for d in eligible)
-    assert any(d['governor']['droop_target'] > d['target'] for d in eligible)
+    # Market price/volume no longer drives a 1/R amplifier; with ample headroom the
+    # approved target equals the strategy reference.
+    assert all(d['target'] == pytest.approx(d['reference']) for d in eligible)
+    assert all(d['allocation']['utilization'] >= 0 for d in eligible)
     assert report['operating_mode'] == 'paper'
 
 

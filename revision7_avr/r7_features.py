@@ -26,8 +26,14 @@ class SymbolFeatureExtractor:
             if bar.index < previous.index or delta <= 0:
                 raise ValueError('bar clock moved backwards')
             gap = bar.index != previous.index + 1 or not math.isclose(delta, self.config.bar_seconds)
+            # Exchange-session time: an overnight close-to-open interval is one bar of
+            # session time, so integrators, slew and lags do not run through the night.
+            same_session = (datetime.fromisoformat(bar.timestamp).date()
+                            == datetime.fromisoformat(previous.timestamp).date())
+            dt_seconds = max(self.config.bar_seconds, delta) if same_session else self.config.bar_seconds
         else:
             gap = False
+            dt_seconds = self.config.bar_seconds
         # Keep all observations, including zero-volume intervals, in the bounded window.
         baseline = sum(self.volumes) / len(self.volumes) if self.volumes else 0.0
         ready = len(self.volumes) >= self.config.min_history and baseline > 0
@@ -35,8 +41,8 @@ class SymbolFeatureExtractor:
         # Previous EMA only: current close cannot dilute its own displacement.
         reference = self.speed_reference if self.speed_reference is not None else bar.close
         market_imbalance = (bar.close / reference - 1) * math.sqrt(min(ratio, 3)) if ready else 0.0
-        # Positive price/volume pressure is defined as a speed deficit, so droop
-        # increases the signed market load request. No R term appears in measurement.
+        # Diagnostic telemetry only. It is NOT physical speed and is never passed to
+        # the R6 speed-droop equation or to the trading governor.
         market_speed = 1 - clamp(market_imbalance, -0.5, 0.5)
         liquidity = clamp(ratio / 2, 0, 1) if ready and bar.volume > 0 else 0.0
         spread = bar.high - bar.low
@@ -54,6 +60,6 @@ class SymbolFeatureExtractor:
         volatility = clamp(sum(self.ranges) / len(self.ranges) / 0.02, 0, 1)
         frozen = previous is not None and bar.volume == 0 and bar.open == bar.high == bar.low == bar.close == previous.close
         result = Features(bar, self.pvt, pressure, liquidity, volatility, ready,
-                          frozen or bar.volume == 0, gap, market_speed, reference, ratio)
+                          frozen or bar.volume == 0, gap, market_speed, reference, ratio, dt_seconds)
         self.last_bar, self.last_result = bar, result
         return result
