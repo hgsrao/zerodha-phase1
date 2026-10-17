@@ -220,17 +220,19 @@ class R7EngineMixin:
         return self.r7_physical_units[bay_id].step(dt_s=dt_s, p_ref_pu=p_ref_pu,
                                                  p_electrical_pu=p_electrical_pu)
 
-    @staticmethod
-    def _r7_normal_reason(reason):
-        """Explicit discretionary allowlist; unknown reasons retain native authority."""
-        return (reason in {'controller_path_exit', 'regime_stressed_exit',
-                           'governor_exit:GOVERNOR_Z_EXIT',
-                           'governor_exit:GOVERNOR_PATH_ERROR',
-                           'governor_exit:FSRN_SUSTAINED_DETERIORATION',
-                           'governor_exit:FSR_BELOW_EXIT:FSRN',
-                           'final_controller_exit:STUDIES_PID_SUSTAINED_LOW_CONFIDENCE',
-                           'final_controller_exit:BEHIND_REFERENCE_PATH'}
-                or reason.startswith('saturation_exit_'))
+    # Operator decision (2026-10-17): only native exits individually proven discretionary
+    # may be deferred to R7. GOVERNOR_Z_EXIT is the mean-reversion release that the native
+    # authority itself documents as discretionary (revision5/governor_authority.py: it ranks
+    # below every hard, protective and Mark V limiter and is deferred inside minimum hold).
+    # Everything else, including FSRN/FSRT limiter exits, stressed-regime, saturation,
+    # governor path-error, controller-path and final-controller exits, and any unknown
+    # reason, keeps native execution authority.
+    R7_DISCRETIONARY_NATIVE_EXITS = frozenset({'governor_exit:GOVERNOR_Z_EXIT'})
+
+    @classmethod
+    def _r7_normal_reason(cls, reason):
+        """Exact-match allowlist of discretionary native exits; no prefix matching."""
+        return reason in cls.R7_DISCRETIONARY_NATIVE_EXITS
 
     def _execute_exit(self, symbol, timestamp, trade, exit_price, reason):
         if self._r7_exit_scope and self._r7_normal_reason(str(reason)):
@@ -245,8 +247,9 @@ class R7EngineMixin:
 
     def _r7_remove_normal_pending(self, trade):
         pending = trade.get('controller_exit_pending')
-        if pending and (self._r7_normal_reason(pending.get('exit_reason', '')) or
-                        pending.get('reason') == 'behind_reference_path'):
+        # Only a pending native exit with an allowlisted discretionary reason may be
+        # withdrawn; protective and unknown pending exits keep native authority.
+        if pending and self._r7_normal_reason(str(pending.get('exit_reason', ''))):
             trade.pop('controller_exit_pending')
 
     def _maybe_exit(self, symbol, timestamp, bar, signal, held_bars, session_last_bar,

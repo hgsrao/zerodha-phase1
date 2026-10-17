@@ -92,11 +92,44 @@ def test_hard_limits_outrank_same_direction_pulse(config, hard):
     assert e.completed_trades[-1]['reason'] == hard
 
 
-def test_old_normal_advisor_cannot_override_r7_but_protection_can(config):
+PROTECTIVE_NATIVE_EXITS = [
+    'governor_exit:FSRN_SUSTAINED_DETERIORATION', 'governor_exit:FSR_BELOW_EXIT:FSRN',
+    'governor_exit:FSR_BELOW_EXIT:FSRT', 'governor_exit:FSR_BELOW_EXIT:FSRD',
+    'regime_stressed_exit', 'saturation_exit_pa', 'saturation_exit_studies',
+    'governor_exit:GOVERNOR_PATH_ERROR', 'governor_exit:EXHAUST_SPREAD_TRIP',
+    'controller_path_exit', 'final_controller_exit:STUDIES_PID_SUSTAINED_LOW_CONFIDENCE',
+    'final_controller_exit:BEHIND_REFERENCE_PATH', 'some_unknown_future_reason']
+
+
+@pytest.mark.parametrize('reason', PROTECTIVE_NATIVE_EXITS)
+def test_protective_and_unknown_native_exits_execute_inside_r7_scope(config, reason):
     e, trade = opened(config, 'BUY')
     e._r7_exit_scope = True
-    e._execute_exit('INFY', make_bar(30).timestamp, trade, 100, 'governor_exit:FSR_BELOW_EXIT:FSRN')
-    assert 'INFY' in e.open_trades
-    e._execute_exit('INFY', make_bar(30).timestamp, trade, 100, 'governor_exit:FSR_BELOW_EXIT:FSRT')
+    e._execute_exit('INFY', make_bar(30).timestamp, trade, 100, reason)
     assert 'INFY' not in e.open_trades
-    assert e.completed_trades[-1]['reason'] == 'governor_exit:FSR_BELOW_EXIT:FSRT'
+    assert e.completed_trades[-1]['reason'] == reason
+    assert e.r7_gate_counts['NATIVE_NORMAL_EXIT_ADVISORY'] == 0
+
+
+def test_only_governor_z_exit_is_discretionary(config):
+    e, trade = opened(config, 'BUY')
+    e._r7_exit_scope = True
+    e._execute_exit('INFY', make_bar(30).timestamp, trade, 100, 'governor_exit:GOVERNOR_Z_EXIT')
+    assert 'INFY' in e.open_trades
+    assert e.r7_gate_counts['NATIVE_NORMAL_EXIT_ADVISORY'] == 1
+    assert type(e).R7_DISCRETIONARY_NATIVE_EXITS == frozenset({'governor_exit:GOVERNOR_Z_EXIT'})
+
+
+@pytest.mark.parametrize('pulse', ['BUY', 'HOLD'])
+def test_protective_pending_exit_not_withdrawn_by_pulse_hold(config, pulse):
+    # A native protective exit armed for the next open must survive R7 evaluation,
+    # whatever the pulse, hold or cooldown state.
+    e, trade = opened(config, 'BUY')
+    trade['controller_exit_pending'] = {'armed_timestamp': make_bar(29).timestamp, 'reason': 'behind_reference_path',
+                                        'exit_reason': 'final_controller_exit:BEHIND_REFERENCE_PATH',
+                                        'event': 'NATIVE'}
+    e._r7_remove_normal_pending(trade)
+    assert trade['controller_exit_pending']['exit_reason'] == 'final_controller_exit:BEHIND_REFERENCE_PATH'
+    trade['controller_exit_pending']['exit_reason'] = 'governor_exit:GOVERNOR_Z_EXIT'
+    e._r7_remove_normal_pending(trade)
+    assert 'controller_exit_pending' not in trade
