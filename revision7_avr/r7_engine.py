@@ -3,10 +3,11 @@
 The default class is the engine, not a harness. No live client is constructed.
 The native entry/exit, safety, sizing and order/position ledger remain authoritative.
 """
-from collections import Counter
+from collections import Counter, deque
 from dataclasses import asdict
 from copy import deepcopy
 import json
+from hashlib import sha256
 import math
 
 from revision5.topology import SYMBOL_TO_BAY, BAY_IDS
@@ -36,7 +37,8 @@ class _StudiesTap:
 
 class R7EngineMixin:
     def __init__(self, *args, r7_configs, r7_dispatch_scale=0.01,
-                 r7_allow_native_shorts=True, **kwargs):
+                 r7_allow_native_shorts=True, r7_decision_log_path=None,
+                 r7_decision_memory=5000, **kwargs):
         # Configs are explicit: selecting one symbol must not reallocate its entire bay.
         configs = {c.symbol: c for c in r7_configs}
         if len(configs) != len(r7_configs) or not configs or sum(c.budget_fraction for c in configs.values()) > 1 + 1e-12:
@@ -59,7 +61,16 @@ class R7EngineMixin:
         self.r7_physical_units = {b: TurbineGovernorUnit(c, p_mech_pu=c.power_min_pu)
                                   for b, c in repository_defaults().items()}
         self.r7_gate_counts = Counter()
-        self.r7_decisions = []
+        # Complete decision telemetry goes to an external append-only JSONL log.
+        # Memory keeps only a bounded recent window; checkpoints hold a count and a
+        # rolling SHA-256 chain, so their size does not grow with replay length.
+        if type(r7_decision_memory) is not int or r7_decision_memory < 1:
+            raise ValueError('decision memory must be a positive integer')
+        self.r7_decisions = deque(maxlen=r7_decision_memory)
+        self.r7_decision_log_path = r7_decision_log_path
+        self._r7_decision_log = None
+        self.r7_decision_count = 0
+        self.r7_decision_digest = '0' * 64
         self._r7_observed = {}
         self._r7_current_timestamp = None
         self._r7_exit_scope = False
@@ -177,9 +188,25 @@ class R7EngineMixin:
                                     'measurement_error': self._r7_utilization_error,
                                     'share': self.r7_headroom_shares[symbol], 'increase_capacity_pu': capacity,
                                     'execution_blocked': context.execution_blocked}
-            self.r7_decisions.append(record)
+            self._r7_emit_decision(record)
             self._record_controller_event('R7_COMPLETED_BAR', bar.timestamp, symbol, record)
         return decision
+
+    def _r7_emit_decision(self, record):
+        line = json.dumps(record, sort_keys=True, allow_nan=False, default=str)
+        self.r7_decision_digest = sha256((self.r7_decision_digest + line).encode()).hexdigest()
+        self.r7_decision_count += 1
+        self.r7_decisions.append(record)
+        if self.r7_decision_log_path is not None:
+            if self._r7_decision_log is None:
+                self._r7_decision_log = open(self.r7_decision_log_path, 'a', encoding='utf-8')
+            self._r7_decision_log.write(line + '\n')
+            self._r7_decision_log.flush()
+
+    def r7_close_decision_log(self):
+        if self._r7_decision_log is not None:
+            self._r7_decision_log.close()
+            self._r7_decision_log = None
 
     def _observe_conviction(self, symbol, signal, composite_result):
         super()._observe_conviction(symbol, signal, composite_result)
@@ -355,7 +382,8 @@ class R7EngineMixin:
             'physical': {b: x.snapshot() for b, x in self.r7_physical_units.items()},
             'bay_state': {b: x.symbols for b, x in self.r7_bay_state.items()},
             'normal_exit_state': self.r7_normal_exit_state,
-            'counts': dict(self.r7_gate_counts), 'decisions': self.r7_decisions})
+            'counts': dict(self.r7_gate_counts),
+            'decision_count': self.r7_decision_count, 'decision_digest': self.r7_decision_digest})
 
     def r7_restore(self, payload):
         """Restore R7 control state only, alongside a separately restored native ledger."""
@@ -384,7 +412,12 @@ class R7EngineMixin:
             if s not in new or set(state) != {'position_id', 'last_bar', 'count'} or type(state['count']) is not int or state['count'] < 0 or type(state['last_bar']) is not int or state['last_bar'] < 0:
                 raise ValueError('invalid normal-exit checkpoint')
         self.r7_symbol_controllers, self.r7_physical_units, self.r7_bay_state = new, physical, bays
-        self.r7_gate_counts, self.r7_decisions = Counter(payload['counts']), deepcopy(payload['decisions'])
+        if type(payload['decision_count']) is not int or payload['decision_count'] < 0 or not (
+                isinstance(payload['decision_digest'], str) and len(payload['decision_digest']) == 64):
+            raise ValueError('invalid decision telemetry checkpoint')
+        self.r7_gate_counts = Counter(payload['counts'])
+        self.r7_decisions.clear()
+        self.r7_decision_count, self.r7_decision_digest = payload['decision_count'], payload['decision_digest']
         self.r7_normal_exit_state = deepcopy(payload['normal_exit_state'])
 
 

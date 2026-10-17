@@ -310,3 +310,41 @@ def test_fail_closed_still_allows_reduction(config):
     rec = e.r7_decisions[-1]
     assert rec['allocation']['increase_capacity_pu'] == 0
     assert abs(rec['target']) <= abs(rec['actual']) + 1e-12
+
+
+def test_checkpoint_size_bounded_and_external_log_complete(config, tmp_path):
+    from hashlib import sha256
+    from .test_r7_engine_integration import TestEngine
+    log = tmp_path / 'decisions.jsonl'
+    e = TestEngine(['INFY'], r7_configs=[config], r7_decision_log_path=str(log), r7_decision_memory=50)
+    sizes = []
+    for i in range(300):
+        e._r7_step('INFY', i, asdict(make_bar(i)), 0.6, True)
+        if i in (100, 299):
+            sizes.append(len(json.dumps(e.r7_snapshot())))
+    e.r7_close_decision_log()
+    assert len(e.r7_decisions) == 50
+    assert abs(sizes[1] - sizes[0]) < 200          # snapshot does not grow with bars
+    lines = log.read_text().splitlines()
+    assert len(lines) == 300 == e.r7_decision_count
+    digest = '0' * 64
+    for line in lines:
+        digest = sha256((digest + line).encode()).hexdigest()
+    assert digest == e.r7_decision_digest
+
+
+def test_restore_continues_decision_chain(config, tmp_path):
+    from .test_r7_engine_integration import TestEngine
+    a = TestEngine(['INFY'], r7_configs=[config])
+    for i in range(20):
+        a._r7_step('INFY', i, asdict(make_bar(i)), 0.6, True)
+    snap = json.loads(json.dumps(a.r7_snapshot()))
+    b = TestEngine(['INFY'], r7_configs=[config])
+    b.r7_restore(snap)
+    for e in (a, b):
+        for i in range(20, 30):
+            e._r7_step('INFY', i, asdict(make_bar(i)), 0.6, True)
+    assert (a.r7_decision_count, a.r7_decision_digest) == (b.r7_decision_count, b.r7_decision_digest)
+    bad = dict(snap, decision_count=-1)
+    with pytest.raises(ValueError):
+        TestEngine(['INFY'], r7_configs=[config]).r7_restore(bad)
