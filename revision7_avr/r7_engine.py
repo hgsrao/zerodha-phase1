@@ -188,6 +188,10 @@ class R7EngineMixin:
                                     'measurement_error': self._r7_utilization_error,
                                     'share': self.r7_headroom_shares[symbol], 'increase_capacity_pu': capacity,
                                     'execution_blocked': context.execution_blocked}
+            # Causal inputs as consumed this bar, for alignment audits.
+            record['inputs'] = {'study': context.study, 'dispatch': context.dispatch,
+                                'grid_deviation': None if grid is None else float(grid),
+                                'study_available': study_available, 'dispatch_available': available}
             self._r7_emit_decision(record)
             self._record_controller_event('R7_COMPLETED_BAR', bar.timestamp, symbol, record)
         return decision
