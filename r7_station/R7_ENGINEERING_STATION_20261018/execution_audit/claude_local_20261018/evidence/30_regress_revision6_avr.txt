@@ -1,0 +1,64 @@
+................................x....................................... [ 59%]
+..................................................                       [100%]
+=============================== warnings summary ===============================
+engine_c/bt_market.py:12
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/engine_c/bt_market.py:12: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    BAR_SPAN = pd.Timedelta(minutes=1)
+
+engine_c/orchestrator.py:39
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/engine_c/orchestrator.py:39: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    BAR_SPAN = pd.Timedelta(minutes=1)
+
+revision6_avr/test_r6_fsr_single_application.py: 10 warnings
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/revision6_avr/test_r6_fsr_single_application.py:34: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    return o, times[-1] + pd.Timedelta("1min")
+
+revision6_avr/test_r6_native_active_lifecycle.py::test_unacknowledged_order_blocks_the_bay_next_bar_and_acceptance_settles
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/revision6_avr/test_r6_native_active_lifecycle.py:102: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    nxt = T0 + pd.Timedelta("1min")
+
+revision6_avr/test_r6_native_active_lifecycle.py::test_unacknowledged_order_blocks_the_bay_next_bar_and_acceptance_settles
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/revision6_avr/test_r6_native_active_lifecycle.py:107: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    later = admit(e, "TCS", nxt + pd.Timedelta("1min"))
+
+revision6_avr/test_r6_native_active_lifecycle.py::test_fill_is_not_double_counted_with_its_working_order
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/revision6_avr/test_r6_native_active_lifecycle.py:120: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    d = admit(e, "TCS", T0 + pd.Timedelta("1min"))
+
+revision6_avr/test_r6_native_active_lifecycle.py::test_replayed_bar_fails_closed
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/revision6_avr/test_r6_native_active_lifecycle.py:129: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    d = admit(e, "TCS", T0 - pd.Timedelta("1min"))
+
+revision6_avr/test_r6_native_active_lifecycle.py: 12 warnings
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/revision6_avr/test_r6_native_active_lifecycle.py:172: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    t = T0 + pd.Timedelta(minutes=k)
+
+revision6_avr/test_r6_venue_events_engine_c.py::test_partial_fill_is_settled_by_venue_events_and_counted_once
+revision6_avr/test_r6_venue_events_engine_c.py::test_partial_fill_is_settled_by_venue_events_and_counted_once
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/scripts/run_engine_b_nautilus.py:61: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    day += pd.Timedelta(days=1)
+
+revision6_avr/test_r6_venue_events_engine_c.py::test_partial_fill_is_settled_by_venue_events_and_counted_once
+revision6_avr/test_r6_venue_events_engine_c.py::test_partial_fill_is_settled_by_venue_events_and_counted_once
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/scripts/run_engine_b_nautilus.py:78: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    grid_t = pd.date_range(start - pd.Timedelta(days=12), stamps[-1] + pd.Timedelta(hours=1), freq="15min")
+
+revision6_avr/test_r6_venue_events_engine_c.py::test_partial_fill_is_settled_by_venue_events_and_counted_once
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/engine_b/orchestrator.py:32: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    BAR_SPAN = pd.Timedelta(minutes=1)
+
+revision6_avr/test_r6_venue_events_engine_c.py: 1803 warnings
+  /home/srinivas/.venvs/zerodha-phase1-r5/lib/python3.12/site-packages/backtrader/cerebro.py:1543: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    qstart = datetime.datetime.utcnow()
+
+revision6_avr/test_r6_venue_events_engine_c.py: 1803 warnings
+  /home/srinivas/.venvs/zerodha-phase1-r5/lib/python3.12/site-packages/backtrader/cerebro.py:1545: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    qlapse = datetime.datetime.utcnow() - qstart
+
+revision6_avr/test_r6_venue_events_engine_c.py: 561 warnings
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/revision2_external/grid_context.py:176: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    age = pd.Timedelta(seconds=grid.age_seconds)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+121 passed, 1 xfailed, 4200 warnings in 49.54s
+exit=0

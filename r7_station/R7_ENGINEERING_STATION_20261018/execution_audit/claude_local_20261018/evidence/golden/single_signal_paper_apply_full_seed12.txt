@@ -1,0 +1,4 @@
+single_signal_paper_apply_full_seed12        7e2e562b6519699e  orders=0 fills=0 exits=0 trades=0 net=0
+MISMATCH single_signal_paper_apply_full_seed12: sections ['controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations']
+GOLDEN MASTER: FAIL (1/1)
+exit=1

@@ -1,0 +1,59 @@
+{
+  "reference": "fa9edd98c79ffc6a3bb57575c8d18fd6a01253a1",
+  "fixture": "90 synthetic bars, one canonical symbol per bay; full report and trace rows",
+  "before": {
+    "BPSTG_HEALTHCARE": {
+      "position_rows": 16,
+      "sha256": "1cff6e77e2523c05abd37c4fa02130bef6d8b8bf13165cf8bda4c54cd5d04412",
+      "trades": 2
+    },
+    "CSTG1_BFSI": {
+      "position_rows": 16,
+      "sha256": "61b1539c5409dcc230c9ccc5d96a54003872ea794ef395813a51a6c8524e6336",
+      "trades": 2
+    },
+    "CSTG2_CONSUMER_AUTO": {
+      "position_rows": 16,
+      "sha256": "f3e2db1f65e7a62f29da00e26af2e79ddb3cb1485d66517af2db2cae9e0e1c31",
+      "trades": 2
+    },
+    "GTG1_HEAVY_INDUSTRY": {
+      "position_rows": 16,
+      "sha256": "fea2ba454cef687cdcc75c0b6b3e7421f80989ef3609e7672fdffed24c1703b7",
+      "trades": 2
+    },
+    "GTG2_TECH_TELECOM": {
+      "position_rows": 16,
+      "sha256": "7f0c6b0de0750c37fddf5eb3b27d68585178242cd9e5515faf2febfd7377ce83",
+      "trades": 2
+    }
+  },
+  "after": {
+    "BPSTG_HEALTHCARE": {
+      "position_rows": 16,
+      "sha256": "1cff6e77e2523c05abd37c4fa02130bef6d8b8bf13165cf8bda4c54cd5d04412",
+      "trades": 2
+    },
+    "CSTG1_BFSI": {
+      "position_rows": 16,
+      "sha256": "61b1539c5409dcc230c9ccc5d96a54003872ea794ef395813a51a6c8524e6336",
+      "trades": 2
+    },
+    "CSTG2_CONSUMER_AUTO": {
+      "position_rows": 16,
+      "sha256": "f3e2db1f65e7a62f29da00e26af2e79ddb3cb1485d66517af2db2cae9e0e1c31",
+      "trades": 2
+    },
+    "GTG1_HEAVY_INDUSTRY": {
+      "position_rows": 16,
+      "sha256": "fea2ba454cef687cdcc75c0b6b3e7421f80989ef3609e7672fdffed24c1703b7",
+      "trades": 2
+    },
+    "GTG2_TECH_TELECOM": {
+      "position_rows": 16,
+      "sha256": "7f0c6b0de0750c37fddf5eb3b27d68585178242cd9e5515faf2febfd7377ce83",
+      "trades": 2
+    }
+  },
+  "match": true
+}

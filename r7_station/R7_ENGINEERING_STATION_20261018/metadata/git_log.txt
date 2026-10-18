@@ -1,0 +1,12 @@
+7c08ad5 R7 replay runner: baseline evidence from in-memory decisions
+380d6b7 R7 replay runner: record trade list and data-window audit
+a7aa9d3 R7 replay runner: acceptance evidence in every summary
+c88e164 R7 allocation: demand-aware simultaneous batch allocation
+a6fb85e R7 replay runner and causal input telemetry
+1eed963 R7 README: document installed governor, allocator, exits and checkpoints
+5da03f9 R7 checkpoints: bounded snapshot with complete external decision telemetry
+da970b7 R7 allocation: conservative pending-entry pricing and fail-closed authorization
+fbc044f R7 exits: protective and unknown native exits keep native authority
+e5ac567 R7 governor: settable bay droop, utilization-based capacity allocation, PID corrections
+f0ad7af Baseline: R6 and R7 packages exactly as installed before governor corrections
+459a085 Revert "Implement full shared R5 operating adaptation; regression testing deferred"

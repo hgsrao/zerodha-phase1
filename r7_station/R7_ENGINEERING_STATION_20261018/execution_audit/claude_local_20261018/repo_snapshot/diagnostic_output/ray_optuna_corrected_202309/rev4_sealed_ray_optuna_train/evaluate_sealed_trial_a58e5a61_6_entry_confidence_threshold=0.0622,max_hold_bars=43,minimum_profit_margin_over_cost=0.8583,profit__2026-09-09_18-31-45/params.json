@@ -1,0 +1,7 @@
+{
+  "entry_confidence_threshold": 0.06223135211430697,
+  "max_hold_bars": 43,
+  "minimum_profit_margin_over_cost": 0.858255742723945,
+  "profit_target_atr_mult": 1.1969400052258385,
+  "stop_loss_atr_mult": 0.6052774713473197
+}

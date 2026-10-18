@@ -1,0 +1,1 @@
+telemetry_mode= full | r7_decision_count= 389 | r7_decisions window= 5 | R7_COMPLETED_BAR events retained in native controller_telemetry= 389

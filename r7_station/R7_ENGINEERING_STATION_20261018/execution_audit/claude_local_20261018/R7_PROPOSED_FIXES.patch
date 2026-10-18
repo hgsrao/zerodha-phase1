@@ -1,0 +1,42 @@
+--- a/revision7_avr/r7_coordinated_controller.py	2026-10-17 18:02:05.107830652 +0530
++++ b/revision7_avr/r7_coordinated_controller.py	2026-10-18 11:17:13.258392959 +0530
+@@ -19,8 +19,11 @@
+     * hold_age is the number of completed HOLD bars since a release, including the
+       release bar, capped at cooldown_bars. A new pulse may enter only when
+       hold_age >= cooldown_bars. An ineligible bar resets hold_age to 0.
+-    * An emergency reversal flips the pulse immediately. It is a pulse state only:
+-      positions still change only through the native admission and exit paths.
++    * An emergency reversal needs two consecutive opposing emergency samples
++      (emergency_age >= 2); one sample never flips the pulse. Once a pulse has been shown
++      for hold_bars, the first emergency sample releases to HOLD instead, and the opposite
++      pulse can enter after the cooldown. It is a pulse state only: positions still change
++      only through the native admission and exit paths.
+     """
+     def __init__(self, config):
+         self.config = config
+--- a/revision7_avr/test_r7_engine_integration.py	2026-10-18 08:51:17.220432248 +0530
++++ b/revision7_avr/test_r7_engine_integration.py	2026-10-18 10:43:20.272920147 +0530
+@@ -175,6 +175,11 @@
+     assert e._admit_entry_candidate(p, make_bar(0).timestamp) is None
+     assert e.native_calls == 0
+     assert disposed[-1][-1] == 'r7_pulse_rejected'
++    for i in range(30):
++        e._r7_step('INFY', i, asdict(make_bar(i)), 0.8, True)
++    p['bar_idx'] = 29
++    assert e._admit_entry_candidate(p, make_bar(29).timestamp) == 'native-candidate-path'
++    assert e.native_calls == 1
+ 
+ 
+ def test_native_engine_class_factory_installs_r7_mixin():
+@@ -195,11 +200,6 @@
+     for reason in ('FSRN_EXIT', 'FSRT_LIMITER_EXIT', 'regime_stressed_exit',
+                    'saturation_exit_positive', 'controller_path_exit', 'unknown'):
+         assert not R7EngineMixin._r7_normal_reason(reason)
+-    for i in range(30):
+-        e._r7_step('INFY', i, asdict(make_bar(i)), 0.8, True)
+-    p['bar_idx'] = 29
+-    assert e._admit_entry_candidate(p, make_bar(29).timestamp) == 'native-candidate-path'
+-    assert e.native_calls == 1
+ 
+ 
+ def test_normal_exit_confirmation_checkpoint_is_retained(config):

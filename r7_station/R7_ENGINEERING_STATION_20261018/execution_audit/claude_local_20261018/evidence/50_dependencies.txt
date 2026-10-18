@@ -1,0 +1,20 @@
+python 3.12.14
+arcticdb         pinned=6.24.0     installed=6.24.0  OK
+clarabel         pinned=0.11.1     installed=0.11.1  OK
+cvxpy            pinned=1.9.2      installed=1.9.2  OK
+kiteconnect      pinned=5.2.1      installed=5.2.1  OK
+numpy            pinned=2.5.2      installed=2.5.2  OK
+optuna           pinned=5.0.0      installed=5.0.0  OK
+osqp             pinned=1.1.3      installed=1.1.3  OK
+pandas           pinned=2.3.3      installed=2.3.3  OK
+pandera          pinned=0.33.1     installed=0.33.1  OK
+pydantic         pinned=2.13.5     installed=2.13.5  OK
+pydantic_core    pinned=2.46.5     installed=2.46.5  OK
+pyportfolioopt   pinned=1.6.0      installed=1.6.0  OK
+scs              pinned=3.2.11     installed=3.2.11  OK
+simple-pid       pinned=2.0.1      installed=2.0.1  OK
+TA-Lib           pinned=0.7.1      installed=0.7.1  OK
+tenacity         pinned=9.1.4      installed=9.1.4  OK
+pytest 9.1.1 (not in requirements_external_engine.txt)
+backtrader 1.9.78.123 (not in requirements_external_engine.txt)
+nautilus_trader 1.231.0 (not in requirements_external_engine.txt)

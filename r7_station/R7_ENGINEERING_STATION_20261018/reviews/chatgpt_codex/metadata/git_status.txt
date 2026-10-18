@@ -1,0 +1,5 @@
+## r7-governor-corrections
+ M revision7_avr/r7_coordinated_controller.py
+ M revision7_avr/r7_engine.py
+ M revision7_avr/test_r7_engine_integration.py
+ M revision7_avr/test_r7_pulse_fsm.py

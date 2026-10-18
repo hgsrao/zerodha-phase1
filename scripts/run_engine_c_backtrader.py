@@ -24,6 +24,8 @@ sys.path.insert(0, str(ROOT))
 
 
 def main() -> int:
+    from runtime.live_trading_guard import require_live_trading_disabled
+    require_live_trading_disabled()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--symbols", default="INFY", help="comma list, or ALL for the 48-symbol frozen universe")
     parser.add_argument("--bars", type=int, default=1200, help="last N bars per symbol (warm-up included)")

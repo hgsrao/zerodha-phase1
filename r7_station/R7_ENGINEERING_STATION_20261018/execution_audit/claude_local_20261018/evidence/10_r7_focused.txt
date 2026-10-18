@@ -1,0 +1,21 @@
+..................................F..................................... [ 52%]
+.................................................................        [100%]
+=================================== FAILURES ===================================
+___________ test_only_explicit_discretionary_native_exit_is_advisory ___________
+revision7_avr/test_r7_engine_integration.py:199: in test_only_explicit_discretionary_native_exit_is_advisory
+    e._r7_step('INFY', i, asdict(make_bar(i)), 0.8, True)
+    ^
+E   NameError: name 'e' is not defined
+=============================== warnings summary ===============================
+revision7_avr/test_r7_engine_integration.py::test_native_engine_class_factory_installs_r7_mixin
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/engine_b/orchestrator.py:32: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    BAR_SPAN = pd.Timedelta(minutes=1)
+
+revision7_avr/test_r7_engine_integration.py::test_native_engine_class_factory_installs_r7_mixin
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/engine_c/orchestrator.py:39: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    BAR_SPAN = pd.Timedelta(minutes=1)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED revision7_avr/test_r7_engine_integration.py::test_only_explicit_discretionary_native_exit_is_advisory
+1 failed, 136 passed, 2 warnings in 12.00s

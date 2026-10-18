@@ -1,0 +1,2 @@
+$ git diff --name-only HEAD -- revision2 revision2_external/paper_execution.py revision5/ccpp_unified_plant.py runtime/operating_mode.py
+exit=0 (empty output above == protected files unchanged)

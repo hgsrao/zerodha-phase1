@@ -1,0 +1,4 @@
+probe_paper_apply_full_seed12                3730d49937d503bd  orders=3 fills=3 exits=3 trades=3 net=733.7752767399038
+MISMATCH probe_paper_apply_full_seed12: sections ['trades', 'controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events']
+GOLDEN MASTER: FAIL (1/1)
+exit=1

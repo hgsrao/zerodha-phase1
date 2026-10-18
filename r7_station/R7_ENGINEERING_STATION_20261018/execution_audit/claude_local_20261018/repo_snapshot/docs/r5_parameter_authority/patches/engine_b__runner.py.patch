@@ -1,0 +1,12 @@
+diff --git a/engine_b/runner.py b/engine_b/runner.py
+index 05821c6..90d7355 100644
+--- a/engine_b/runner.py
++++ b/engine_b/runner.py
+@@ -69,6 +69,7 @@ def build_report(engine, strategy, r5: EngineBOrchestrator, outcome: Dict[str, A
+     open_positions = {s: strategy.net_position(s) for s in strategy.symbols if strategy.net_position(s) != 0}
+     return {
+         "engine": "ENGINE_B_NAUTILUS_NATIVE",
++        "r5_authority": r5.authority_report_section(r5_report),
+         "execution": "nautilus SimulatedExchange (BacktestEngine), offline; no live venue, no Kite",
+         "symbols": list(strategy.symbols),
+         "bars_received": strategy.bars_received,

@@ -1,0 +1,131 @@
+{
+  "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V2",
+  "params": {
+    "entry_confidence_threshold": 0.15,
+    "max_hold_bars": 60,
+    "minimum_profit_margin_over_cost": 0.5,
+    "profit_target_atr_mult": 1.5,
+    "stop_loss_atr_mult": 1.2
+  },
+  "runs": [
+    {
+      "block": 1,
+      "bay": "CSTG1_BFSI",
+      "authority": "full",
+      "symbols": [
+        "AXISBANK",
+        "BAJAJFINSV",
+        "BAJFINANCE",
+        "HDFCBANK",
+        "HDFCLIFE",
+        "ICICIBANK",
+        "JIOFIN",
+        "KOTAKBANK",
+        "SBILIFE",
+        "SBIN",
+        "SHRIRAMFIN"
+      ],
+      "sessions": [
+        "2024-02-13",
+        "2024-02-14",
+        "2024-02-15",
+        "2024-02-16",
+        "2024-02-19"
+      ],
+      "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+      "trades": 1,
+      "net_pnl": 32.67,
+      "gross_pnl": 64.46,
+      "profit_factor": Infinity,
+      "gain_verdict": {
+        "CSTG1_BFSI": "FIXED"
+      },
+      "exit_reasons": {
+        "stop": 1
+      },
+      "sides": {
+        "SELL": 1
+      },
+      "trace_dir": "/home/srinivas/Documents/Codex/2026-09-29/continue-the-r5-governor-investigation-in-3/outputs/steam/after/block1/CSTG1_BFSI/full"
+    },
+    {
+      "block": 1,
+      "bay": "CSTG2_CONSUMER_AUTO",
+      "authority": "full",
+      "symbols": [
+        "ASIANPAINT",
+        "BAJAJ-AUTO",
+        "EICHERMOT",
+        "ETERNAL",
+        "HINDUNILVR",
+        "INDIGO",
+        "ITC",
+        "M&M",
+        "MARUTI",
+        "TATACONSUM",
+        "TITAN",
+        "TRENT"
+      ],
+      "sessions": [
+        "2024-02-13",
+        "2024-02-14",
+        "2024-02-15",
+        "2024-02-16",
+        "2024-02-19"
+      ],
+      "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+      "trades": 8,
+      "net_pnl": -1195.63,
+      "gross_pnl": -785.49,
+      "profit_factor": 0.08576179606580304,
+      "gain_verdict": {
+        "CSTG2_CONSUMER_AUTO": "FIXED"
+      },
+      "exit_reasons": {
+        "governor_exit": 5,
+        "force_close_time": 2,
+        "stop": 1
+      },
+      "sides": {
+        "SELL": 6,
+        "BUY": 2
+      },
+      "trace_dir": "/home/srinivas/Documents/Codex/2026-09-29/continue-the-r5-governor-investigation-in-3/outputs/steam/after/block1/CSTG2_CONSUMER_AUTO/full"
+    },
+    {
+      "block": 1,
+      "bay": "BPSTG_HEALTHCARE",
+      "authority": "full",
+      "symbols": [
+        "APOLLOHOSP",
+        "CIPLA",
+        "DRREDDY",
+        "MAXHEALTH",
+        "SUNPHARMA"
+      ],
+      "sessions": [
+        "2024-02-13",
+        "2024-02-14",
+        "2024-02-15",
+        "2024-02-16",
+        "2024-02-19"
+      ],
+      "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+      "trades": 2,
+      "net_pnl": -403.32,
+      "gross_pnl": -289.56,
+      "profit_factor": 0.0,
+      "gain_verdict": {
+        "BPSTG_HEALTHCARE": "FIXED"
+      },
+      "exit_reasons": {
+        "governor_exit": 2
+      },
+      "sides": {
+        "SELL": 1,
+        "BUY": 1
+      },
+      "trace_dir": "/home/srinivas/Documents/Codex/2026-09-29/continue-the-r5-governor-investigation-in-3/outputs/steam/after/block1/BPSTG_HEALTHCARE/full"
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "branch": "r7-governor-corrections",
+  "commit": "7c08ad586dd2854e36a0a80ddde6605e3a8b136a",
+  "timestamp": "20261017-175715",
+  "live_trading_enabled": false,
+  "diagnostic_type": "isolated_controller_stress",
+  "fsm": {
+    "direct_opposing_flips": 11,
+    "trace": [
+      {
+        "bar": 1,
+        "signal": 0.35,
+        "previous": "HOLD",
+        "pulse": "BUY",
+        "reason": "HOLD_TO_BUY"
+      },
+      {
+        "bar": 2,
+        "signal": -0.35,
+        "previous": "BUY",
+        "pulse": "SELL",
+        "reason": "BUY_TO_SELL"
+      },
+      {
+        "bar": 3,
+        "signal": 0.35,
+        "previous": "SELL",
+        "pulse": "BUY",
+        "reason": "SELL_TO_BUY"
+      },
+      {
+        "bar": 4,
+        "signal": -0.35,
+        "previous": "BUY",
+        "pulse": "SELL",
+        "reason": "BUY_TO_SELL"
+      },
+      {
+        "bar": 5,
+        "signal": 0.35,
+        "previous": "SELL",
+        "pulse": "BUY",
+        "reason": "SELL_TO_BUY"
+      },
+      {
+        "bar": 6,
+        "signal": -0.35,
+        "previous": "BUY",
+        "pulse": "SELL",
+        "reason": "BUY_TO_SELL"
+      },
+      {
+        "bar": 7,
+        "signal": 0.35,
+        "previous": "SELL",
+        "pulse": "BUY",
+        "reason": "SELL_TO_BUY"
+      },
+      {
+        "bar": 8,
+        "signal": -0.35,
+        "previous": "BUY",
+        "pulse": "SELL",
+        "reason": "BUY_TO_SELL"
+      },
+      {
+        "bar": 9,
+        "signal": 0.35,
+        "previous": "SELL",
+        "pulse": "BUY",
+        "reason": "SELL_TO_BUY"
+      },
+      {
+        "bar": 10,
+        "signal": -0.35,
+        "previous": "BUY",
+        "pulse": "SELL",
+        "reason": "BUY_TO_SELL"
+      },
+      {
+        "bar": 11,
+        "signal": 0.35,
+        "previous": "SELL",
+        "pulse": "BUY",
+        "reason": "SELL_TO_BUY"
+      },
+      {
+        "bar": 12,
+        "signal": -0.35,
+        "previous": "BUY",
+        "pulse": "SELL",
+        "reason": "BUY_TO_SELL"
+      }
+    ]
+  },
+  "governor": {
+    "target": 0.6,
+    "actual": 0.0,
+    "kp": 0.8,
+    "raw_feedforward_plus_p": 1.08,
+    "output": {
+      "target": 0.6,
+      "actual": 0.0,
+      "error": 0.6,
+      "p": 0.48,
+      "i": 0.0,
+      "d": 0.0,
+      "requested": 1.0,
+      "applied": 0.23608160417241994,
+      "integration_frozen": false
+    }
+  }
+}

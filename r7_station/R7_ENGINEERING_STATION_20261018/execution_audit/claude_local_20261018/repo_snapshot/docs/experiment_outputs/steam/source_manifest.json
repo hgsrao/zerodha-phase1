@@ -1,0 +1,15 @@
+{
+  "base_commit": "fa9edd98c79ffc6a3bb57575c8d18fd6a01253a1",
+  "patch_sha256": "52428aa8b7d905311316c86714234010d0f3effa52546cb5b1d9f7e15eab2a19",
+  "files": {
+    "docs/R5_AUXILIARY_PID_AUDIT.md": "e66419c707831a7d465ec75a1388b6a7412bf336ad25225d39327ad74613b353",
+    "docs/R5_STEAM_REPLAY_RUNBOOK.md": "ed39a0b08e3d3984bc2b8455d4745e058ca425989e13bd32251b74f9be1a60f9",
+    "experiments/governor_position_policy.json": "1dd262bd0f958d2f2fd1a574e9fb6a2e25be067726fa61a5526c9b78036dd2e7",
+    "revision5/governor_position_policy.py": "d0eb6e1a6b0b564e054458b4638418a7fd9a7824f3bebac797759c5f12e6c223",
+    "scripts/r5_compare_governor_trace.py": "ca0db5c8c1af1190f03556701a62e5ae26149bdcd072e4731f3d53433a2197be",
+    "scripts/r5_governor_trace.py": "9d637376beadef54f872f37f24373143138528a183a3fabd77041ddf26199f58",
+    "scripts/r5_pid_audit.py": "8ff613885d8bf626a8de04a68d976ae3c299712fbe13ad1cac2c9f8ff1edba13",
+    "scripts/r5_verify_default_parity.py": "2a92bc9ee59a975ec74742f7a8ac8af83c64f6ab23418971e61ce08cf19e9433",
+    "tests/test_r5_steam_policy.py": "399595ebea7e4e8cd4047b914fb3a28dbe43b863dcb848574fe73b5c244554c3"
+  }
+}

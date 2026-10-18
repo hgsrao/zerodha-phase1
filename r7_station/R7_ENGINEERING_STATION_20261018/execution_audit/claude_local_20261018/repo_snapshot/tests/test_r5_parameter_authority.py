@@ -1,0 +1,597 @@
+"""R5 controller parameter authority: registry ownership, runtime wiring and sensitivity proofs.
+
+Engine-level (A) proofs live here; Engines B and C have their own end-to-end proofs in
+tests_engine_b/test_engine_b_parameter_authority.py and
+tests_engine_c/test_engine_c_parameter_authority.py.
+"""
+from __future__ import annotations
+
+import ast
+import copy
+import math
+from dataclasses import replace
+from pathlib import Path
+
+import pytest
+
+from canonical_parameter_registry import CanonicalParameterRegistry
+from revision2.contracts import EffectiveConfig
+from revision5.ccpp_protection_cubicles import BayExcitationAVR
+from revision5.ccpp_unified_plant import CentralPlantMasterDCS, DynamicBayLoadDispatcher
+from revision5.controller_parameters import (
+    ADVISORY,
+    BAY_TOKENS,
+    CONTROLLER_PARAMETER_SPECS,
+    CONTROLLER_PARAMETERS,
+    FIXED_SAFETY,
+    INACTIVE,
+    TUNABLE,
+    ControllerParameterError,
+    R5ControllerParameters,
+    controller_parameter_defaults,
+    governor_parameter_name,
+)
+from revision5.governor import BAY_GOVERNOR_SPECS, BayTurbineClosedLoopGovernor
+from revision5.topology import BAY_IDS
+from tests.r5_authority_harness import plant_trace
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def params_with(**changes) -> R5ControllerParameters:
+    values = controller_parameter_defaults()
+    values.update(changes)
+    return R5ControllerParameters.from_values(values)
+
+
+# ------------------------------------------------------------------ registry ownership
+
+def test_every_controller_parameter_is_registered_with_full_metadata():
+    registry = CanonicalParameterRegistry()
+    registry.verify_frozen_identity()
+    payload = {row["name"]: row for row in registry.identity_payload()["controller_authority"]}
+    assert set(payload) == set(CONTROLLER_PARAMETERS)
+    for spec in CONTROLLER_PARAMETER_SPECS:
+        target = registry.params[spec.name]
+        assert target.default == spec.default and target.minimum == spec.minimum and target.maximum == spec.maximum
+        assert target.applicable_engines == "EXTERNAL"
+        assert target.calibratable == (spec.safety_class == TUNABLE)
+        assert spec.minimum <= spec.default <= spec.maximum
+        for field in ("owner", "consumer", "safety_class", "calibration_status", "applicability", "param_type"):
+            assert payload[spec.name][field]
+
+
+def test_governor_parameters_are_per_bay_and_distinct_values_are_not_collapsed():
+    for bay in BAY_IDS:
+        for field in ("kp", "ki", "kd", "base_z", "droop_r", "target_r", "outcome_window", "integral_clamp",
+                      "dynamic_offset_min", "dynamic_offset_max", "grid_droop_gain", "grid_droop_max", "feedback_gain"):
+            assert governor_parameter_name(bay, field) in CONTROLLER_PARAMETERS
+    kps = {CONTROLLER_PARAMETERS[governor_parameter_name(bay, "kp")].default for bay in BAY_IDS}
+    assert len(kps) == 5
+
+
+def test_registry_defaults_equal_the_former_literals():
+    spec = BAY_GOVERNOR_SPECS["GTG2_TECH_TELECOM"]
+    assert (spec.kp, spec.ki, spec.kd, spec.base_z, spec.droop_r, spec.capital_weight) == (1.5, 0.08, 0.6, -2.0, 0.04, 0.2)
+    assert (spec.target_r, spec.outcome_window, spec.integral_clamp, spec.feedback_gain) == (0.30, 6, 3.0, 0.25)
+    d = CONTROLLER_PARAMETERS
+    assert (d["disp_ema_retention"].default, d["disp_ema_update"].default, d["disp_allocation_floor"].default,
+            d["disp_allocation_ceiling"].default, d["disp_merit_window"].default, d["disp_min_samples"].default) == (
+        0.85, 0.15, 0.08, 0.35, 20, 3)
+    assert (d["hrsg_pressure_time_constant_bars"].default, d["hrsg_min_steam_pressure_pu"].default) == (5.0, 0.35)
+    assert (d["plant_loss_cooldown_base_bars"].default, d["plant_target_cooldown_base_bars"].default) == (15, 3)
+    assert (d["gsch_kp_scale_min"].default, d["gsch_kp_scale_max"].default, d["gsch_ki_divisor_max"].default,
+            d["gsch_kd_scale_max"].default) == (0.60, 2.20, 3.50, 2.00)
+
+
+def test_runtime_read_path_requires_every_name_and_has_no_fallback():
+    values = controller_parameter_defaults()
+    del values["gov_gtg1_kp"]
+    with pytest.raises(ControllerParameterError, match="missing controller parameter gov_gtg1_kp"):
+        R5ControllerParameters.from_values(values)
+    config = EffectiveConfig.build({k: v for k, v in controller_parameter_defaults().items() if k != "avr_kp_base"}, "x")
+    with pytest.raises(Exception):
+        R5ControllerParameters.from_config(config)
+
+
+@pytest.mark.parametrize("changes, message", [
+    ({"disp_ema_retention": 0.9}, "alpha \\+ beta|disp_ema_retention \\+ disp_ema_update"),
+    ({"gov_gtg1_capital_weight": 0.30}, "capital weights must sum"),
+    ({"disp_allocation_floor": 0.2, "disp_allocation_ceiling": 0.2}, "floor < ceiling"),
+    ({"avr_voltage_reference_pu": 0.95}, "strictly inside"),
+    ({"gsch_window_min": 12, "gsch_window_max": 5}, "window_min <= window_max"),
+    ({"hrsg_min_correlation_samples": 40, "hrsg_correlation_window": 30}, "min samples <= window"),
+    ({"gov_gtg1_kp": 9.0}, "outside"),
+])
+def test_bounds_and_relationships_are_validated(changes, message):
+    with pytest.raises(ControllerParameterError, match=message):
+        params_with(**changes)
+
+
+def test_orchestrator_startup_report_and_engine_values_come_from_effective_config():
+    from revision2_external.grid_context import SealedGridContextProvider
+    from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
+    import pandas as pd
+    registry = registry_with(gov_gtg1_kp=1.7, avr_kp_base=0.9)
+    plant = CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:")
+    empty = pd.DataFrame({"timestamp": pd.to_datetime([]), "close": []})
+    engine = Revision2ExternalEngineOrchestrator(
+        ["INFY"], registry=registry, real_plant_dcs=plant, plant_control_mode="PAPER_APPLY",
+        grid_context_provider=SealedGridContextProvider(empty, empty), authority_telemetry=True)
+    report = engine.controller_parameter_startup_report()
+    assert report["non_default"] == {"avr_kp_base": 0.9, "gov_gtg1_kp": 1.7}
+    assert report["effective_values"]["gov_gtg1_kp"] == 1.7
+    assert plant.bays["GTG1_HEAVY_INDUSTRY"].governor.spec.kp == 1.7
+    assert plant.bays["GTG1_HEAVY_INDUSTRY"].governor.runtime_kp == 1.7
+    assert plant.bays["GTG2_TECH_TELECOM"].avr.runtime_kp == 0.9
+    assert engine._bay_governors["GTG1_HEAVY_INDUSTRY"] is plant.bays["GTG1_HEAVY_INDUSTRY"].governor
+    assert engine.controller_telemetry[0]["event_type"] == "CONTROLLER_PARAMETER_STARTUP"
+
+
+def registry_with(**changes) -> CanonicalParameterRegistry:
+    """A registry whose controller-parameter DEFAULTS are changed (as a sealed protocol would)."""
+    registry = copy.deepcopy(CanonicalParameterRegistry())
+    for name, value in changes.items():
+        registry.params[name] = replace(registry.params[name], default=value)
+    registry.FROZEN_IDENTITY_SHA256 = registry.identity_sha256()
+    return registry
+
+
+# ------------------------------------------------------------------ sensitivity sweep
+
+_COUPLED = {"disp_ema_retention": "disp_ema_update", "disp_ema_update": "disp_ema_retention"}
+
+
+_RELATION_LIMITS = {"avr_oel_fraction_min": ("avr_oel_capital_fraction",),
+                    "plant_target_cooldown_max_bars": ("plant_target_cooldown_min_bars",),
+                    "plant_loss_cooldown_max_bars": ("plant_loss_cooldown_min_bars",),
+                    "sel_vol_surge_min_mult": ("sel_vol_surge_mult",)}
+# Parameters owned by the orchestrator rather than the native plant (proved by their own tests).
+from revision5.controller_parameters import TIER_ENVELOPE_PARAMETERS  # noqa: E402
+# Parameters owned outside the native plant (proved by their own tests: the orchestrator symbol
+# latches in tests/test_r5_parameter_authority_engines.py, the Box 6 Tier envelopes below).
+from revision5.controller_parameters import PROFILE_SCHEDULE_PARAMETERS  # noqa: E402
+# (the psch_* runtime-profile coefficients are swept at their orchestrator consumers in tests/test_r5_dynamization.py)
+# Closure parameters whose actuator is not in the plant trace: the closed-loop / studies envelopes (their
+# consumers are swept in tests/test_r5_dynamization_closure.py), gov_<bay>_z_exit (the shared governor exit
+# decision) and the MVAR limiter (live only with a supplied MVAR measurement), each with its own sweep there.
+from revision5.controller_parameters import ENVELOPE_PARAMETER_NAMES  # noqa: E402
+_CLOSURE_SWEPT_ELSEWHERE = {*ENVELOPE_PARAMETER_NAMES, *(f"gov_{t}_z_exit" for t in BAY_TOKENS.values()),
+                            "avr_mvar_limit_base_pu", "avr_mvar_limit_stress_gain", "avr_mvar_limit_min_pu"}
+_ORCHESTRATOR_ONLY = {"symbol_loss_cooldown_bars", "symbol_trip_consecutive_losses", *TIER_ENVELOPE_PARAMETERS,
+                      *PROFILE_SCHEDULE_PARAMETERS, *_CLOSURE_SWEPT_ELSEWHERE}
+
+
+def _candidates(spec):
+    d, lo, hi = spec.default, spec.minimum, spec.maximum
+    fractions = (0.01, 0.02, 0.03, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0)
+    raw = [d + (hi - d) * f for f in fractions] + [d - (d - lo) * f for f in fractions]
+    # Relationship limits: the largest value a lower clip may take is its paired base value.
+    raw += [CONTROLLER_PARAMETERS[p].default for p in _RELATION_LIMITS.get(spec.name, ())]
+    out = []
+    for value in raw:
+        value = int(round(value)) if spec.param_type == "int" else float(value)
+        if value != d and lo <= value <= hi and value not in out:
+            out.append(value)
+    return out
+
+
+def _variants(spec):
+    for value in _candidates(spec):
+        changes = {spec.name: value}
+        if spec.name in _COUPLED:
+            changes[_COUPLED[spec.name]] = 1.0 - value
+        if spec.name.endswith("_capital_weight"):
+            bay = next(b for b, t in BAY_TOKENS.items() if spec.name == f"gov_{t}_capital_weight")
+            partner = governor_parameter_name(BAY_IDS[(BAY_IDS.index(bay) + 1) % 5], "capital_weight")
+            changes[partner] = CONTROLLER_PARAMETERS[partner].default + (spec.default - value)
+        try:
+            yield value, params_with(**changes)
+        except ControllerParameterError:
+            continue
+
+
+_BASE_TRACE = {}
+
+
+def _base():
+    if not _BASE_TRACE:
+        _BASE_TRACE["traces"] = plant_trace(R5ControllerParameters.defaults())
+    return _BASE_TRACE["traces"]
+
+
+@pytest.mark.parametrize("name", sorted(set(CONTROLLER_PARAMETERS) - _ORCHESTRATOR_ONLY))
+def test_every_parameter_sensitivity_matches_its_class(name):
+    """TUNABLE / FIXED_SAFETY: some in-bounds perturbation changes an ACTUATOR output.
+    ADVISORY: perturbations change only the advisory plant stop/target, never an actuator.
+    INACTIVE: no perturbation changes anything."""
+    spec = CONTROLLER_PARAMETERS[name]
+    base_actuator, base_advisory = _base()
+    tried, actuator_changed, advisory_changed = [], False, False
+    for value, params in _variants(spec):
+        actuator, advisory = plant_trace(params)
+        tried.append(value)
+        actuator_changed |= actuator != base_actuator
+        advisory_changed |= advisory != base_advisory
+        if spec.safety_class in (TUNABLE, FIXED_SAFETY) and actuator_changed:
+            break
+    assert tried, f"no valid perturbation for {name}"
+    if spec.safety_class in (TUNABLE, FIXED_SAFETY):
+        assert actuator_changed, f"{name} ({spec.safety_class}) moved no actuator for any of {tried}"
+    elif spec.safety_class == ADVISORY:
+        assert advisory_changed and not actuator_changed, name
+    else:
+        assert spec.safety_class == INACTIVE
+        assert not actuator_changed and not advisory_changed, f"{name} is classified INACTIVE but changed output"
+
+
+# ------------------------------------------------------------------ governor proofs (1-6)
+
+def _gov(**spec_changes):
+    return BayTurbineClosedLoopGovernor(replace(BAY_GOVERNOR_SPECS["GTG1_HEAVY_INDUSTRY"], **spec_changes))
+
+
+def test_governor_kp_moves_the_entry_threshold_and_admission():
+    low, high = _gov(kp=0.6), _gov(kp=2.4)
+    for g in (low, high):
+        g.register_trade(-1.0)                      # error = 0.30 - (-1.0) = 1.30
+    assert high.dynamic_z() < low.dynamic_z()       # stronger feedback, stricter entry
+    z = (low.dynamic_z() + high.dynamic_z()) / 2.0
+    assert low.evaluate_entry_request(z_score=z)["action"] == "ENTRY"
+    assert high.evaluate_entry_request(z_score=z)["action"] == "NO_ACTION"
+
+
+def test_governor_ki_accumulates_and_kd_responds_to_change():
+    a, b = _gov(ki=0.01, kd=0.0, feedback_gain=1.0), _gov(ki=0.4, kd=0.0, feedback_gain=1.0)
+    for g in (a, b):
+        for _ in range(4):
+            g.register_trade(-0.2)
+    assert b.integral_error == a.integral_error and b.last_control_u > a.last_control_u
+    c, d = _gov(kd=0.0), _gov(kd=1.5)
+    for g in (c, d):
+        g.register_trade(1.0)
+        g.register_trade(-1.0)                      # error step -> derivative term
+    assert d.last_control_u - c.last_control_u == pytest.approx(1.5 * (c.last_error - (0.30 - 1.0)))
+
+
+def test_governor_target_and_window_change_decisions():
+    t1, t2 = _gov(target_r=0.1), _gov(target_r=0.9)
+    for g in (t1, t2):
+        g.register_trade(0.3)
+    assert t1.dynamic_z() != t2.dynamic_z()
+    w1, w2 = _gov(outcome_window=2), _gov(outcome_window=8)
+    for g in (w1, w2):
+        for r in (-1.0, -1.0, 1.0, 1.0):
+            g.register_trade(r)
+    assert w1.history_r != w2.history_r and w1.last_control_u != w2.last_control_u
+
+
+def test_governor_offsets_and_droop_change_entry_behaviour():
+    base = _gov()
+    narrow = _gov(dynamic_offset_min=-0.05)
+    for g in (base, narrow):
+        g.register_trade(-1.0)
+    assert narrow.dynamic_z() > base.dynamic_z()
+    weak, strong = _gov(grid_droop_gain=0.01), _gov(grid_droop_gain=0.4, grid_droop_max=1.0)
+    assert strong.dynamic_z(-0.02) < weak.dynamic_z(-0.02)
+    droop_small, droop_large = _gov(droop_r=0.02), _gov(droop_r=0.15)
+    assert droop_small.dynamic_z(-0.02) < droop_large.dynamic_z(-0.02)
+
+
+# ------------------------------------------------------------------ V3 (7)
+
+@pytest.mark.parametrize("name", ["gov_v3_kappa", "gov_v3_gamma_fast", "gov_v3_gamma_slow", "gov_v3_tau_error_multiplier",
+                                  "gov_v3_base_gap_r", "gov_v3_minimum_gap_r", "gov_v3_grace_bars",
+                                  "gov_v3_mfe_activation_r", "gov_v3_noise_floor_mult"])
+def test_each_v3_parameter_changes_the_inner_loop_floor(name):
+    def run(pc):
+        g = _gov()
+        out = []
+        for k, (m, mfe, noise) in enumerate([(-0.05, 0.12, 0.3), (0.2, 0.25, 0.3), (0.24, 0.25, 0.06),
+                                             (0.5, 0.6, 0.4), (0.2, 0.6, 0.06), (0.7, 0.9, 0.02), (0.05, 0.9, 0.3)]):
+            r = g.evaluate_position_control(measured_r=m, reference_r=0.4, max_favorable_r=mfe, elapsed_bars=k,
+                                            min_hold_bars=1, max_hold_bars=60, hard_stop_r=-1.0, trade_target_r=3.0,
+                                            position_id="p", path_noise_r=noise, position_control=pc)
+            out.append((r["action"], r["protected_r_floor"], r["integral_error"]))
+        return out
+    base = run(R5ControllerParameters.defaults().position_control_v3())
+    changed = any(run(p.position_control_v3()) != base for _, p in _variants(CONTROLLER_PARAMETERS[name]))
+    assert changed, name
+
+
+# ------------------------------------------------------------------ AVR (8-11)
+
+def _avr(**changes):
+    return BayExcitationAVR("GTG1_HEAVY_INDUSTRY", 250_000.0, parameters=params_with(**changes).avr)
+
+
+def _drive(avr, voltages):
+    return [avr.evaluate_control(mode="BUS_VOLTAGE", bus_voltage_reference_pu=1.0, terminal_voltage_pu=v)["excitation_command"]
+            for v in voltages]
+
+
+def test_avr_kp_ki_kd_change_excitation_and_limits_clamp_the_command():
+    sag = [0.97, 0.97, 0.98, 1.02, 1.04]
+    base = _drive(_avr(), sag)
+    assert _drive(_avr(avr_kp_base=1.4, avr_kp_max=2.0), sag) != base
+    assert _drive(_avr(avr_ki_base=0.5), sag) != base
+    assert _drive(_avr(avr_kd_base=0.6, avr_kd_max=0.8), sag) != base
+    limited = _drive(_avr(avr_excitation_max_base=0.8, avr_excitation_max_min=0.75), [1.08] * 3 + [0.92] * 6)
+    assert max(limited) <= 0.8 + 1e-12 and min(limited) >= 0.10 - 1e-12
+    # Ki accumulates: identical error sequences give a growing command.
+    rising = _drive(_avr(avr_kp_base=0.0, avr_kp_stress_gain=0.0, avr_kp_max=0.0, avr_kd_base=0.0,
+                         avr_kd_stress_gain=0.0, avr_kd_max=0.0), [1.04] * 5)
+    assert rising == sorted(rising, reverse=True) and len(set(rising)) == 5
+
+
+def test_nonzero_measured_voltage_error_changes_excitation_and_reaches_order_quantity():
+    plant = CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:")
+    plant.apply_controller_parameters(R5ControllerParameters.defaults(), avr_voltage_mode="measured")
+    from datetime import datetime
+    from revision5.engine_state import ENGINE_B
+    def entry(bar, bus):
+        plant.begin_bar(datetime(2024, 1, 2, 10, bar), bar)
+        regulation = plant.regulate_bay_voltages(bar_index=bar, bus_voltage_pu=bus)["GTG2_TECH_TELECOM"]
+        result = plant.evaluate_entry(engine_mode=ENGINE_B, symbol="INFY", bar_dt=datetime(2024, 1, 2, 10, bar),
+                                      bar_index=bar, z_score=-1.5, price=1500.0, atr=7.5, bid=1499.6, ask=1500.4,
+                                      tick_age_s=0.0, bar_range=6.0, side="BUY", entry_mode="trend_overspeed")
+        return regulation, result
+    first, q1 = entry(0, 1.0)
+    assert first["error"] == 0.0 and q1["admitted"]
+    second, q2 = entry(1, 1.06)                    # bus above reference: negative error lowers excitation
+    assert second["error"] < 0.0 and second["excitation_command"] < first["excitation_command"]
+    assert second["p_term"] < 0.0 and second["command_after_limits"] == second["excitation_command"]
+    assert q2["admitted"] and q2["quantity"] < q1["quantity"]
+
+
+def test_measured_avr_fails_closed_on_missing_or_invalid_voltage_and_trips_on_undervoltage():
+    from datetime import datetime
+    from revision5.engine_state import ENGINE_B
+    plant = CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:")
+    plant.apply_controller_parameters(R5ControllerParameters.defaults(), avr_voltage_mode="measured")
+    kwargs = dict(engine_mode=ENGINE_B, symbol="INFY", z_score=-3.0, price=1500.0, atr=7.5, bid=1499.6,
+                  ask=1500.4, tick_age_s=0.0, bar_range=6.0, side="BUY", entry_mode="trend_overspeed")
+    plant.begin_bar(datetime(2024, 1, 2, 10, 0), 0)
+    assert plant.evaluate_entry(bar_dt=datetime(2024, 1, 2, 10, 0), bar_index=0, **kwargs)["reason"] == \
+        "AVR_TRIP:AVR_VOLTAGE_NOT_MEASURED_THIS_BAR"
+    for bar, bus, reason in ((1, None, "AVR_VOLTAGE_MEASUREMENT_INVALID"), (2, math.nan, "AVR_VOLTAGE_MEASUREMENT_INVALID"),
+                             (3, 0.85, "ANSI_27_UNDERVOLTAGE"), (4, 1.2, "ANSI_59_OVERVOLTAGE")):
+        plant.begin_bar(datetime(2024, 1, 2, 10, bar), bar)
+        plant.regulate_bay_voltages(bar_index=bar, bus_voltage_pu=bus)
+        out = plant.evaluate_entry(bar_dt=datetime(2024, 1, 2, 10, bar), bar_index=bar, **kwargs)
+        assert not out["admitted"] and out["reason"] == f"AVR_TRIP:{reason}"
+
+
+# ------------------------------------------------------------------ dispatcher (12-14)
+
+def _dispatch(mode="legacy", **changes):
+    d = DynamicBayLoadDispatcher(parameters=params_with(**changes).dispatcher, allocation_mode=mode)
+    trail = []
+    for k in range(40):
+        bay = BAY_IDS[k % 5]
+        d.register_trade(bay, 2.5 if bay == "GTG2_TECH_TELECOM" else round(1.2 * math.sin(1.3 * k) + 0.15 * (k % 5), 3))
+        trail.append(tuple(d.weights[b] for b in BAY_IDS))
+    return d, trail
+
+
+def test_dispatcher_ema_floor_ceiling_and_merit_parameters_change_allocation():
+    _, base = _dispatch()
+    assert _dispatch(disp_ema_retention=0.5, disp_ema_update=0.5)[1] != base
+    assert _dispatch(disp_score_base=3.0)[1] != base
+    assert _dispatch(disp_downside_dev_floor=1.0)[1] != base
+    assert _dispatch(disp_merit_window=5)[1] != base
+    assert _dispatch(disp_allocation_ceiling=0.25)[1] != base
+
+
+def test_legacy_dispatcher_can_exceed_the_ceiling_and_bounded_mode_never_does():
+    legacy, trail = _dispatch()
+    assert max(max(row) for row in trail) > legacy.max_ceiling      # the documented legacy defect
+    bounded, trail = _dispatch("bounded")
+    for row in trail:
+        assert sum(row) == pytest.approx(1.0)
+        assert all(bounded.min_floor - 1e-12 <= w <= bounded.max_ceiling + 1e-12 for w in row)
+    last = bounded.last_update
+    assert last["mode"] == "bounded" and all(b["final_within_bounds"] for b in last["bays"].values())
+    assert {"raw_merit", "downside_risk", "previous_ema", "new_ema", "raw_allocation", "floor_clamped",
+            "ceiling_clamped", "normalized_allocation", "final_allocation"} <= set(last["bays"]["GTG1_HEAVY_INDUSTRY"])
+
+
+def test_bounded_dispatch_reaches_the_bay_capital_actuator():
+    plant_l = CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:")
+    plant_b = CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:")
+    plant_b.apply_controller_parameters(R5ControllerParameters.defaults(), dispatcher_allocation_mode="bounded")
+    for plant in (plant_l, plant_b):
+        for k in range(30):
+            plant.dispatcher.register_trade("GTG2_TECH_TELECOM", 3.0)
+            plant.dispatcher.register_trade(BAY_IDS[k % 5], -0.5)
+        plant.apply_hrsg_balance(bar_index=0)
+    assert plant_l.bays["GTG2_TECH_TELECOM"].effective_allocation > 0.35 * 1_000_000
+    assert plant_b.bays["GTG2_TECH_TELECOM"].effective_allocation <= 0.35 * 1_000_000 + 1e-6
+
+
+# ------------------------------------------------------------------ HRSG (15)
+
+def test_hrsg_lag_and_collapse_threshold_change_pressure_allocation_and_exit():
+    from revision5.hrsg import HeatRecoverySteamGenerator
+    def run(**changes):
+        h = HeatRecoverySteamGenerator(parameters=params_with(**changes).hrsg)
+        out = []
+        for k in range(12):
+            state = h.step_bar(bar_index=k, gtg_inputs={"GTG1_HEAVY_INDUSTRY": {"mass_flow_pu": 0.1, "exhaust_temp_pu": 1.0}},
+                               gtg_available={"GTG1_HEAVY_INDUSTRY": True})
+            out.append((state.steam_pressure_pu, state.steam_capacity_factor, state.pressure_collapsed))
+        return out
+    base = run()
+    fast = run(hrsg_pressure_time_constant_bars=2.0)
+    assert fast[2][0] < base[2][0]
+    assert any(c for *_, c in fast[:4]) and not any(c for *_, c in base[:4])
+    assert run(hrsg_min_steam_pressure_pu=0.6)[2][2] and not base[2][2]
+
+
+# ------------------------------------------------------------------ state (18-19)
+
+def test_parameter_refresh_preserves_controller_state_and_identical_refresh_is_a_no_op():
+    params = R5ControllerParameters.defaults()
+    a = plant_trace(params, bars=40)
+    plant = CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:")
+    g = plant.bays["GTG1_HEAVY_INDUSTRY"].governor
+    for r in (-1.0, 0.4, -0.2):
+        plant.on_trade_closed(symbol="ADANIENT", pnl_r=r, reason="X", closed_at=__import__("datetime").datetime(2024, 1, 2, 10), bar_index=1)
+    g.begin_position(position_id="open")
+    g.evaluate_position_control(measured_r=-0.2, reference_r=0.3, max_favorable_r=0.1, elapsed_bars=3, min_hold_bars=1,
+                                max_hold_bars=20, hard_stop_r=-1.0, trade_target_r=2.0, position_id="open")
+    plant.hrsg.steam_pressure_pu = 0.7
+    avr = plant.bays["GTG1_HEAVY_INDUSTRY"].avr
+    avr.evaluate_control(terminal_voltage_pu=0.96)
+    before = (list(g.history_r), g.integral_error, g.last_error, g.inner_state("open"), dict(plant.dispatcher.weights),
+              list(plant.dispatcher.trade_history_r["GTG1_HEAVY_INDUSTRY"]), plant.hrsg.steam_pressure_pu,
+              avr.avr_integral_error, avr.excitation_command, plant.bays["GTG1_HEAVY_INDUSTRY"].cooldown_until_bar_exclusive)
+    plant.apply_controller_parameters(params_with(gov_gtg1_kp=2.0, avr_kp_base=1.0, avr_kp_max=1.5, disp_score_floor=0.2,
+                                                  hrsg_pressure_time_constant_bars=8.0))
+    after = (list(g.history_r), g.integral_error, g.last_error, g.inner_state("open"), dict(plant.dispatcher.weights),
+             list(plant.dispatcher.trade_history_r["GTG1_HEAVY_INDUSTRY"]), plant.hrsg.steam_pressure_pu,
+             avr.avr_integral_error, avr.excitation_command, plant.bays["GTG1_HEAVY_INDUSTRY"].cooldown_until_bar_exclusive)
+    assert after == before
+    assert g.spec.kp == 2.0 and plant.hrsg.pressure_time_constant_bars == 8.0
+    assert plant_trace(params, bars=40) == a
+
+
+def test_state_resets_between_positions_symbols_and_sessions():
+    from datetime import datetime
+    g = _gov()
+    for pid in ("A", "B"):
+        g.evaluate_position_control(measured_r=-0.5, reference_r=0.5, max_favorable_r=0.2, elapsed_bars=2,
+                                    min_hold_bars=1, max_hold_bars=20, hard_stop_r=-1.0, trade_target_r=2.0, position_id=pid)
+    assert g.inner_state("A").integral_error == g.inner_state("B").integral_error != 0.0
+    g.confirm_position_closed("A")
+    assert not g.inner_state("A").active and g.inner_state("B").active
+    plant = CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:")
+    plant.begin_bar(datetime(2024, 1, 2, 10), 5)
+    bay = plant.bays["CSTG1_BFSI"]
+    for _ in range(2):
+        bay.register_outcome(realized_r=-1.0, reason="STOP", bar_index=5)
+    assert bay.tripped_offline and bay.cooldown_remaining(6) > 0
+    history = list(bay.governor.history_r)
+    plant.begin_bar(datetime(2024, 1, 3, 9, 15), 0)                 # new session
+    assert not bay.tripped_offline and bay.cooldown_remaining(0) == 0
+    assert bay.governor.history_r == history                       # outer-loop R history survives by design
+
+
+# ------------------------------------------------------------------ hardcoded literals (21)
+
+_CONTROLLER_FILES = ("revision5/governor.py", "revision5/dynamic_parameters.py", "revision5/ccpp_protection_cubicles.py",
+                     "revision5/hrsg.py", "revision5/ccpp_unified_plant.py")
+
+
+def _numeric_literals(path):
+    tree = ast.parse((ROOT / path).read_text())
+    found = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool)
+                and node.value not in (0, 1)):
+            found.append((node.lineno, node.value))
+    return found
+
+
+def test_no_active_controller_consumes_an_unregistered_tuning_literal():
+    """Every numeric literal left in the native controller modules is structural or belongs to a
+    documented dead/simulation-only path; the allowlist is the remaining-hardcoded register."""
+    from tests.r5_remaining_literals import ALLOWED_LITERALS
+    unexpected = {}
+    for path in _CONTROLLER_FILES:
+        allowed = ALLOWED_LITERALS[path]
+        counts = {}
+        for _, value in _numeric_literals(path):
+            counts[value] = counts.get(value, 0) + 1
+        extra = {v: n for v, n in counts.items() if n > allowed.get(v, 0)}
+        if extra:
+            unexpected[path] = extra
+    assert not unexpected, f"new numeric literals in controller code (register them or justify them): {unexpected}"
+
+
+# ------------------------------------------------------------------ studies PID (16) and Box 6 (17)
+
+def _config(**overrides):
+    registry = CanonicalParameterRegistry()
+    values = {name: spec.default for name, spec in registry.params.items()}
+    values.update(overrides)
+    return EffectiveConfig.build(values, registry.FROZEN_IDENTITY_SHA256)
+
+
+def _bars(n=160, seed=5):
+    import numpy as np
+    import pandas as pd
+    rng = np.random.default_rng(seed)
+    close = 1000 * np.exp(np.cumsum(rng.normal(0, 0.002, n)))
+    ts = pd.date_range("2024-01-02 09:15", periods=n, freq="1min", tz="Asia/Kolkata")
+    return pd.DataFrame({"timestamp": ts, "open": close, "high": close * 1.001, "low": close * 0.999,
+                         "close": close, "volume": rng.integers(1000, 5000, n).astype(float)})
+
+
+def test_studies_pid_gains_change_study_weights():
+    from revision2_external.composite_study_signal import CompositeStudySignal
+    bars = _bars()
+    def weights(**overrides):
+        studies = CompositeStudySignal(config=_config(**overrides))
+        return [studies.evaluate("INFY", bars.iloc[:k])["weights"] for k in range(60, len(bars))]
+    base = weights()
+    for change in ({"studies_pid_kp": 0.3}, {"studies_pid_ki": 0.15}, {"studies_pid_kd": 0.15}):
+        assert weights(**change) != base, change
+
+
+def test_box6_gains_change_plan_stop_target_and_reference():
+    from revision2.contracts import IDDecision, PASignal
+    from revision2_external.pid_controller import SimplePIDModelPredictiveControlBox
+    def plans(**overrides):
+        config, box, out = _config(**overrides), SimplePIDModelPredictiveControlBox(), []
+        for k, conf in enumerate([0.55, 0.62, 0.48, 0.71, 0.66, 0.52, 0.80, 0.58]):
+            signal = PASignal("INFY", str(k), 1, conf, 0.1, 0.004, 0.0, 1.0, exit_confidence=conf)
+            plan, info, _ = box.build_plan(signal, IDDecision(True, "ok", conf, 2.0, conf), 1000.0, 4.0, config)
+            out.append((plan.entry_price, plan.stop_price, plan.target_price, info["execution_market_price"]))
+        return out
+    base = plans()
+    for change in ({"pid_kp_entry": 0.3}, {"pid_ki_entry": 0.2}, {"pid_kd_entry": 0.2},
+                   {"pid_kp_exit": 0.25}, {"pid_ki_exit": 0.15}, {"pid_kd_exit": 0.15}):
+        changed = plans(**change)
+        assert changed != base, change
+        if "exit" in next(iter(change)):
+            assert [p[1:3] for p in changed] != [p[1:3] for p in base], change   # stop / target distances
+        else:
+            assert [p[3] for p in changed] != [p[3] for p in base], change       # submitted market reference
+
+
+
+# ------------------------------------------------------------------ Box 6 Tier-1 / Tier-3 envelopes
+
+@pytest.mark.parametrize("name", TIER_ENVELOPE_PARAMETERS)
+def test_box6_tier_envelopes_change_the_schedule_or_are_proved_unreachable(name):
+    from revision2_external.dynamic_parameter_controller import DynamicParameterController, MarketEnvironmentState
+    spec = CONTROLLER_PARAMETERS[name]
+
+    def outputs(config):
+        rows = []
+        for err in (0.0, 0.3, 0.8, 1.6, 3.0, 8.0):
+            rows.append(DynamicParameterController.get_tier3_pid_schedule(0.15, 0.05, 0.08, err, config=config))
+        import pandas as pd
+        calm_then_wild, wild_then_calm = _bars(n=120), _bars(n=120)
+        for frame, spike in ((calm_then_wild, slice(100, 120)), (wild_then_calm, slice(60, 90))):
+            width = pd.Series(0.0005, index=frame.index)
+            width.iloc[spike] = 0.03
+            frame["high"], frame["low"] = frame["close"] * (1 + width), frame["close"] * (1 - width)
+        for bars, k in ((_bars(n=120), 60), (calm_then_wild, 119), (wild_then_calm, 119), (wild_then_calm, 95)):
+            env = MarketEnvironmentState.from_bars("INFY", bars, k, config=config)
+            rows.append(float(env.normalized_vol))          # clipped by tier1_normalized_vol_*
+            for nv in (0.2, 0.5, 1.0, 1.8, 4.0):
+                env.normalized_vol = nv
+                rows.append(tuple(DynamicParameterController.get_tier1_vol_parameters(env, config=config).values()))
+        return rows
+
+    base = outputs(_config())
+    changed = []
+    for value in _candidates(spec):
+        try:
+            changed.append(outputs(_config(**{name: value})) != base)
+        except ValueError:
+            continue
+    assert changed
+    assert any(changed) == (spec.safety_class != INACTIVE), name

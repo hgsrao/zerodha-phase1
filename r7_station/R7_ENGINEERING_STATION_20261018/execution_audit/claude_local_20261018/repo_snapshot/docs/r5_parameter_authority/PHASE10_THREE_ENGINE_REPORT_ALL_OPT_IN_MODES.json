@@ -1,0 +1,5280 @@
+{
+  "scope_note": "SCOPE: as PHASE10_THREE_ENGINE_REPORT.md (48 symbols, last 1,200 bars, real data, full authority, full telemetry, final_exit_authority, authority_telemetry) WITH EVERY OPT-IN BEHAVIOUR CHANGE ON: governor_position_mode=v3, avr_voltage_mode=measured, dispatcher_allocation_mode=bounded, hrsg_correlation_mode=causal_bay_returns.  Evidence for the behaviour-change approval; not sealed.",
+  "engines": {
+    "A": {
+      "engine": "ENGINE_A_PAPER_BROKER",
+      "data_source": {
+        "kind": "FROZEN_NSE_48_1MIN",
+        "manifest_hash": "f724074ca45eb9380ba6e7cf18ae1da4d9c9d48be0cf78ca51b0faa8d8d8ff16",
+        "data_dir_name": "frozen_48_1min_20230703_20260824",
+        "grid_manifest": "grid-manifest-local.json",
+        "latest_common_grid_date": "2026-08-13",
+        "bars_per_symbol": 1200,
+        "warmup": 60
+      },
+      "bars_received": 57600,
+      "totals": {
+        "entries_filled": 11,
+        "exits": 11,
+        "gross_pnl": -380.7021000000006,
+        "costs": 226.01871161484996,
+        "net_pnl": -606.7208116148506,
+        "mean_hold_bars": 4.2727272727272725,
+        "closed_trade_drawdown_rupees": 606.7208116148506
+      },
+      "by_symbol": {
+        "ADANIENT": {
+          "exits": 1,
+          "gross_pnl": 3.839999999999236,
+          "costs": 16.3406720112,
+          "net_pnl": -12.500672011200763,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 12.500672011200763
+        },
+        "ADANIPORTS": {
+          "exits": 1,
+          "gross_pnl": -52.24270000000115,
+          "costs": 25.900980420349995,
+          "net_pnl": -78.14368042035115,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 78.14368042035115
+        },
+        "APOLLOHOSP": {
+          "exits": 2,
+          "gross_pnl": -3.3156999999991967,
+          "costs": 15.98976137305,
+          "net_pnl": -19.305461373049198,
+          "mean_hold_bars": 3.5,
+          "closed_trade_drawdown_rupees": 19.305461373049198
+        },
+        "BEL": {
+          "exits": 1,
+          "gross_pnl": -65.79839999999962,
+          "costs": 25.484538087299995,
+          "net_pnl": -91.28293808729961,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 91.28293808729961
+        },
+        "BHARTIARTL": {
+          "exits": 1,
+          "gross_pnl": -62.71300000000201,
+          "costs": 24.7067349641,
+          "net_pnl": -87.41973496410202,
+          "mean_hold_bars": 2.0,
+          "closed_trade_drawdown_rupees": 87.41973496410202
+        },
+        "INDIGO": {
+          "exits": 1,
+          "gross_pnl": -37.736299999995936,
+          "costs": 33.690845159649996,
+          "net_pnl": -71.42714515964593,
+          "mean_hold_bars": 5.0,
+          "closed_trade_drawdown_rupees": 71.42714515964593
+        },
+        "INFY": {
+          "exits": 1,
+          "gross_pnl": -41.63879999999995,
+          "costs": 22.501132628099995,
+          "net_pnl": -64.13993262809994,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 64.13993262809994
+        },
+        "JIOFIN": {
+          "exits": 1,
+          "gross_pnl": -66.1200000000008,
+          "costs": 23.554683629999996,
+          "net_pnl": -89.6746836300008,
+          "mean_hold_bars": 9.0,
+          "closed_trade_drawdown_rupees": 89.6746836300008
+        },
+        "SBIN": {
+          "exits": 1,
+          "gross_pnl": -45.457200000000284,
+          "costs": 22.7874271644,
+          "net_pnl": -68.24462716440028,
+          "mean_hold_bars": 4.0,
+          "closed_trade_drawdown_rupees": 68.24462716440028
+        },
+        "TCS": {
+          "exits": 1,
+          "gross_pnl": -9.520000000000891,
+          "costs": 15.0619361767,
+          "net_pnl": -24.581936176700893,
+          "mean_hold_bars": 8.0,
+          "closed_trade_drawdown_rupees": 24.581936176700893
+        }
+      },
+      "by_sector": {
+        "Aviation": {
+          "exits": 1,
+          "gross_pnl": -37.736299999995936,
+          "costs": 33.690845159649996,
+          "net_pnl": -71.42714515964593,
+          "mean_hold_bars": 5.0,
+          "closed_trade_drawdown_rupees": 71.42714515964593
+        },
+        "CapitalGoods&Defense": {
+          "exits": 1,
+          "gross_pnl": -65.79839999999962,
+          "costs": 25.484538087299995,
+          "net_pnl": -91.28293808729961,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 91.28293808729961
+        },
+        "Financials": {
+          "exits": 2,
+          "gross_pnl": -111.57720000000108,
+          "costs": 46.3421107944,
+          "net_pnl": -157.9193107944011,
+          "mean_hold_bars": 6.5,
+          "closed_trade_drawdown_rupees": 157.9193107944011
+        },
+        "Healthcare": {
+          "exits": 2,
+          "gross_pnl": -3.3156999999991967,
+          "costs": 15.98976137305,
+          "net_pnl": -19.305461373049198,
+          "mean_hold_bars": 3.5,
+          "closed_trade_drawdown_rupees": 19.305461373049198
+        },
+        "IT": {
+          "exits": 2,
+          "gross_pnl": -51.15880000000084,
+          "costs": 37.5630688048,
+          "net_pnl": -88.72186880480083,
+          "mean_hold_bars": 5.5,
+          "closed_trade_drawdown_rupees": 88.72186880480083
+        },
+        "Infra&Cement": {
+          "exits": 1,
+          "gross_pnl": -52.24270000000115,
+          "costs": 25.900980420349995,
+          "net_pnl": -78.14368042035115,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 78.14368042035115
+        },
+        "Metals&Mining": {
+          "exits": 1,
+          "gross_pnl": 3.839999999999236,
+          "costs": 16.3406720112,
+          "net_pnl": -12.500672011200763,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 12.500672011200763
+        },
+        "Telecom": {
+          "exits": 1,
+          "gross_pnl": -62.71300000000201,
+          "costs": 24.7067349641,
+          "net_pnl": -87.41973496410202,
+          "mean_hold_bars": 2.0,
+          "closed_trade_drawdown_rupees": 87.41973496410202
+        }
+      },
+      "by_bay": {
+        "BPSTG_HEALTHCARE": {
+          "exits": 2,
+          "gross_pnl": -3.3156999999991967,
+          "costs": 15.98976137305,
+          "net_pnl": -19.305461373049198,
+          "mean_hold_bars": 3.5,
+          "closed_trade_drawdown_rupees": 19.305461373049198
+        },
+        "CSTG1_BFSI": {
+          "exits": 2,
+          "gross_pnl": -111.57720000000108,
+          "costs": 46.3421107944,
+          "net_pnl": -157.9193107944011,
+          "mean_hold_bars": 6.5,
+          "closed_trade_drawdown_rupees": 157.9193107944011
+        },
+        "CSTG2_CONSUMER_AUTO": {
+          "exits": 1,
+          "gross_pnl": -37.736299999995936,
+          "costs": 33.690845159649996,
+          "net_pnl": -71.42714515964593,
+          "mean_hold_bars": 5.0,
+          "closed_trade_drawdown_rupees": 71.42714515964593
+        },
+        "GTG1_HEAVY_INDUSTRY": {
+          "exits": 3,
+          "gross_pnl": -114.20110000000153,
+          "costs": 67.72619051884999,
+          "net_pnl": -181.92729051885152,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 181.92729051885152
+        },
+        "GTG2_TECH_TELECOM": {
+          "exits": 3,
+          "gross_pnl": -113.87180000000285,
+          "costs": 62.2698037689,
+          "net_pnl": -176.14160376890285,
+          "mean_hold_bars": 4.333333333333333,
+          "closed_trade_drawdown_rupees": 176.14160376890283
+        }
+      },
+      "by_holding_duration_bars": {
+        "0-2": {
+          "exits": 1,
+          "gross_pnl": -62.71300000000201,
+          "costs": 24.7067349641,
+          "net_pnl": -87.41973496410202,
+          "mean_hold_bars": 2.0,
+          "closed_trade_drawdown_rupees": 87.41973496410202
+        },
+        "3-5": {
+          "exits": 8,
+          "gross_pnl": -242.3490999999969,
+          "costs": 162.69535684404997,
+          "net_pnl": -405.04445684404686,
+          "mean_hold_bars": 3.5,
+          "closed_trade_drawdown_rupees": 405.04445684404686
+        },
+        "6-10": {
+          "exits": 2,
+          "gross_pnl": -75.64000000000169,
+          "costs": 38.616619806699994,
+          "net_pnl": -114.25661980670169,
+          "mean_hold_bars": 8.5,
+          "closed_trade_drawdown_rupees": 114.25661980670169
+        }
+      },
+      "by_exit_authority": {
+        "FINAL_EXECUTION_CONTROLLER": {
+          "exits": 3,
+          "gross_pnl": -41.05199999999513,
+          "costs": 49.6806065327,
+          "net_pnl": -90.73260653269513,
+          "mean_hold_bars": 4.0,
+          "closed_trade_drawdown_rupees": 90.73260653269512
+        },
+        "GOVERNOR": {
+          "exits": 6,
+          "gross_pnl": -267.41710000000256,
+          "costs": 136.56943394134998,
+          "net_pnl": -403.98653394135255,
+          "mean_hold_bars": 4.166666666666667,
+          "closed_trade_drawdown_rupees": 403.98653394135255
+        },
+        "PLANT_PROTECTION": {
+          "exits": 1,
+          "gross_pnl": -62.71300000000201,
+          "costs": 24.7067349641,
+          "net_pnl": -87.41973496410202,
+          "mean_hold_bars": 2.0,
+          "closed_trade_drawdown_rupees": 87.41973496410202
+        },
+        "PROTECTIVE_STOP": {
+          "exits": 1,
+          "gross_pnl": -9.520000000000891,
+          "costs": 15.0619361767,
+          "net_pnl": -24.581936176700893,
+          "mean_hold_bars": 8.0,
+          "closed_trade_drawdown_rupees": 24.581936176700893
+        }
+      },
+      "entry_authority": {
+        "governor_entry_decisions": {
+          "NO_ACTION:FSR_BELOW_ENTRY_HURDLE:FSRN": 2225,
+          "NO_ACTION:GOVERNOR_OVERSPEED_LIMIT": 957,
+          "ENTRY:GOVERNOR_ENTRY": 877,
+          "NO_ACTION:GRID_REFERENCE_UNAVAILABLE": 160,
+          "NO_ACTION:EXHAUST_SPREAD_HOLD": 5
+        },
+        "plant_entry_rejections": {
+          "ENGINE_A_ENTRY_CUTOFF_14_30_IST": 97,
+          "AVR_CLAMP": 171,
+          "ENGINE_A_DAILY_BAY_FILL_ALREADY_USED": 343,
+          "PLANT_BAY_HEADROOM_EXHAUSTED": 12,
+          "HRSG_NO_BAY_CAPACITY": 9
+        },
+        "plant_paper_admission": {
+          "mode": "PAPER_APPLY",
+          "applied": true,
+          "plant_protection_connected": true,
+          "bay_availability_source": "CENTRAL_PLANT_MASTER_DCS",
+          "evaluations": 1139,
+          "paper_admission_evaluations": 888,
+          "paper_admission_rejections": 133,
+          "paper_admission_caps": 697,
+          "grid_state_counts": {
+            "SYNCHRONIZED": 1091,
+            "ISLANDED_SAFE": 48
+          },
+          "transitions": 83,
+          "observer_failures": 0
+        }
+      },
+      "hold_authority": {
+        "governor_hold_decisions": {
+          "HOLD:GOVERNOR_TRACKING": 18,
+          "HOLD:GOVERNOR_LOAD_SHED": 22
+        },
+        "governor_hold_bar_count": 40
+      },
+      "trades": [
+        {
+          "symbol": "BEL",
+          "side": "SELL",
+          "quantity": 69,
+          "entry_timestamp": "2026-08-11 09:49:00+05:30",
+          "entry_price": 401.5475,
+          "exit_timestamp": "2026-08-11 09:52:00+05:30",
+          "exit_price": 402.5011,
+          "bars_held": 3,
+          "pnl": -65.79839999999962,
+          "costs": 25.484538087299995,
+          "net_pnl": -91.28293808729961,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "BHARTIARTL",
+          "side": "SELL",
+          "quantity": 14,
+          "entry_timestamp": "2026-08-11 09:54:00+05:30",
+          "entry_price": 1918.6816,
+          "exit_timestamp": "2026-08-11 09:56:00+05:30",
+          "exit_price": 1923.1611,
+          "bars_held": 2,
+          "pnl": -62.71300000000201,
+          "costs": 24.7067349641,
+          "net_pnl": -87.41973496410202,
+          "reason": "plant_trip:SEL300G_TRIP:ANSI 24:V/Hz Overfluxing: Bar range 3.2x ATR > 3.1423993891979976x"
+        },
+        {
+          "symbol": "APOLLOHOSP",
+          "side": "SELL",
+          "quantity": 1,
+          "entry_timestamp": "2026-08-11 11:01:00+05:30",
+          "entry_price": 8803.4339,
+          "exit_timestamp": "2026-08-11 11:04:00+05:30",
+          "exit_price": 8804.9003,
+          "bars_held": 3,
+          "pnl": -1.4663999999993393,
+          "costs": 8.0908462649,
+          "net_pnl": -9.557246264899339,
+          "reason": "final_controller_exit:STUDIES_PID_SUSTAINED_LOW_CONFIDENCE"
+        },
+        {
+          "symbol": "INDIGO",
+          "side": "SELL",
+          "quantity": 7,
+          "entry_timestamp": "2026-08-11 11:27:00+05:30",
+          "entry_price": 5235.2281,
+          "exit_timestamp": "2026-08-11 11:32:00+05:30",
+          "exit_price": 5240.619,
+          "bars_held": 5,
+          "pnl": -37.736299999995936,
+          "costs": 33.690845159649996,
+          "net_pnl": -71.42714515964593,
+          "reason": "final_controller_exit:STUDIES_PID_SUSTAINED_LOW_CONFIDENCE"
+        },
+        {
+          "symbol": "ADANIPORTS",
+          "side": "SELL",
+          "quantity": 17,
+          "entry_timestamp": "2026-08-12 09:40:00+05:30",
+          "entry_price": 1656.7564,
+          "exit_timestamp": "2026-08-12 09:43:00+05:30",
+          "exit_price": 1659.8295,
+          "bars_held": 3,
+          "pnl": -52.24270000000115,
+          "costs": 25.900980420349995,
+          "net_pnl": -78.14368042035115,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "APOLLOHOSP",
+          "side": "SELL",
+          "quantity": 1,
+          "entry_timestamp": "2026-08-12 10:42:00+05:30",
+          "entry_price": 8594.4467,
+          "exit_timestamp": "2026-08-12 10:46:00+05:30",
+          "exit_price": 8596.296,
+          "bars_held": 4,
+          "pnl": -1.8492999999998574,
+          "costs": 7.89891510815,
+          "net_pnl": -9.748215108149857,
+          "reason": "final_controller_exit:STUDIES_PID_SUSTAINED_LOW_CONFIDENCE"
+        },
+        {
+          "symbol": "SBIN",
+          "side": "SELL",
+          "quantity": 23,
+          "entry_timestamp": "2026-08-12 10:47:00+05:30",
+          "entry_price": 1077.363,
+          "exit_timestamp": "2026-08-12 10:51:00+05:30",
+          "exit_price": 1079.3394,
+          "bars_held": 4,
+          "pnl": -45.457200000000284,
+          "costs": 22.7874271644,
+          "net_pnl": -68.24462716440028,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "INFY",
+          "side": "SELL",
+          "quantity": 21,
+          "entry_timestamp": "2026-08-12 12:10:00+05:30",
+          "entry_price": 1165.2005,
+          "exit_timestamp": "2026-08-12 12:13:00+05:30",
+          "exit_price": 1167.1833,
+          "bars_held": 3,
+          "pnl": -41.63879999999995,
+          "costs": 22.501132628099995,
+          "net_pnl": -64.13993262809994,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "ADANIENT",
+          "side": "SELL",
+          "quantity": 6,
+          "entry_timestamp": "2026-08-13 09:48:00+05:30",
+          "entry_price": 2963.7208,
+          "exit_timestamp": "2026-08-13 09:51:00+05:30",
+          "exit_price": 2963.0808,
+          "bars_held": 3,
+          "pnl": 3.839999999999236,
+          "costs": 16.3406720112,
+          "net_pnl": -12.500672011200763,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "TCS",
+          "side": "SELL",
+          "quantity": 7,
+          "entry_timestamp": "2026-08-13 09:57:00+05:30",
+          "entry_price": 2340.8599,
+          "exit_timestamp": "2026-08-13 10:05:00+05:30",
+          "exit_price": 2342.2199,
+          "bars_held": 8,
+          "pnl": -9.520000000000891,
+          "costs": 15.0619361767,
+          "net_pnl": -24.581936176700893,
+          "reason": "stop"
+        },
+        {
+          "symbol": "JIOFIN",
+          "side": "SELL",
+          "quantity": 100,
+          "entry_timestamp": "2026-08-13 11:55:00+05:30",
+          "entry_price": 256.0671,
+          "exit_timestamp": "2026-08-13 12:04:00+05:30",
+          "exit_price": 256.7283,
+          "bars_held": 9,
+          "pnl": -66.1200000000008,
+          "costs": 23.554683629999996,
+          "net_pnl": -89.6746836300008,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        }
+      ],
+      "events": {
+        "governor": {
+          "GOVERNOR_ENTRY_DECISION": 4224,
+          "GOVERNOR_POSITION_DECISION": 46,
+          "GOVERNOR_STOP_UPDATE": 40,
+          "GOVERNOR_EXIT_ARMED": 6,
+          "GOVERNOR_EXIT": 6
+        },
+        "avr": {
+          "AVR_VOLTAGE_REGULATION": 1139
+        },
+        "dispatcher": {
+          "PLANT_CONTROL_PAPER_ADMISSION": 888,
+          "DISPATCHER_UPDATE": 11
+        },
+        "hrsg": {
+          "HRSG_RETURN_SNAPSHOT": 1139,
+          "PLANT_BAR_STEP": 1139
+        },
+        "final_execution": {
+          "FINAL_EXECUTION_ENTRY_DECISION": 877,
+          "FINAL_EXECUTION_EXIT_DECISION": 48,
+          "FINAL_EXECUTION_EXIT_ARMED": 10
+        },
+        "all": {
+          "CONTROLLER_PARAMETER_STARTUP": 1,
+          "NATIVE_PLANT_STATE": 1139,
+          "AVR_VOLTAGE_REGULATION": 1139,
+          "HRSG_RETURN_SNAPSHOT": 1139,
+          "CONTROLLER_APPLIED_VALUES": 4,
+          "PLANT_BAR_STEP": 1139,
+          "HMM_REGIME_RISK_SHADOW": 54481,
+          "ENTRY_QUALITY_COMPARATOR": 4224,
+          "ENTRY_CONFIDENCE_THROTTLE": 4224,
+          "GOVERNOR_ENTRY_DECISION": 4224,
+          "FINAL_EXECUTION_ENTRY_DECISION": 877,
+          "PORTFOLIO_RISK_COMPARATOR": 877,
+          "DYNAMIC_SIZE_ACTUATION": 877,
+          "POSITION_SIZING": 877,
+          "PLANT_CONTROL_PAPER_ADMISSION": 888,
+          "PLANT_DCS_ENTRY": 744,
+          "MICOM_GRID_TRIP": 7,
+          "MICOM_GRID_RECLOSE": 5,
+          "ENTRY_EXPECTANCY_CANDIDATE": 11,
+          "CLOSED_LOOP_ENTRY_SNAPSHOT": 11,
+          "PLANT_FILL_BOUND": 11,
+          "TRADE_PATH_COMPARATOR": 48,
+          "EXIT_PROTECTION_UPDATE": 48,
+          "FINAL_EXECUTION_EXIT_DECISION": 48,
+          "PLANT_POSITION_CONTROL": 47,
+          "GOVERNOR_POSITION_DECISION": 46,
+          "GOVERNOR_STOP_UPDATE": 40,
+          "SHADOW_R_TRAJECTORY_UPDATE": 40,
+          "GOVERNOR_EXIT_ARMED": 6,
+          "GOVERNOR_EXIT": 6,
+          "CONTROLLER_OUTCOME": 11,
+          "DISPATCHER_UPDATE": 11,
+          "ENTRY_EXPECTANCY_OUTCOME": 11,
+          "OUTCOME_LEDGER_UPDATE": 11,
+          "PLANT_TRIP_ARMED": 1,
+          "PLANT_TRIP_EXIT": 1,
+          "FINAL_EXECUTION_EXIT_ARMED": 10
+        }
+      },
+      "plant_trips": {
+        "SEL300G_TRIP": 1
+      },
+      "micom": {
+        "trip_bar_counts": {
+          "MICOM_INPUT_UNAVAILABLE": 48,
+          "ANSI 21": 60
+        },
+        "vol_z_window": 20
+      },
+      "reconciliation": {
+        "breaks": [],
+        "note": "Engine A has no independent broker; _finalize_run asserts paper broker gross == trade-ledger gross"
+      },
+      "controller_parameters": {
+        "parameter_count": 245,
+        "values_sha256": "840f0027166ebc82970b692ad82102c90adddf6cf59afea8a3ed917f48ebe009",
+        "non_default": {},
+        "effective_values": {
+          "avr_excitation_max_base": 1.0,
+          "avr_excitation_max_min": 0.75,
+          "avr_excitation_max_stress_gain": 0.25,
+          "avr_excitation_min_base": 0.1,
+          "avr_excitation_min_max": 0.2,
+          "avr_excitation_min_stress_gain": 0.1,
+          "avr_integral_clamp_base": 0.5,
+          "avr_integral_clamp_min": 0.3,
+          "avr_integral_clamp_stress_gain": 0.2,
+          "avr_kd_base": 0.1,
+          "avr_kd_max": 0.2,
+          "avr_kd_stress_gain": 0.1,
+          "avr_ki_base": 0.15,
+          "avr_ki_min": 0.075,
+          "avr_ki_stress_gain": 1.0,
+          "avr_kp_base": 0.8,
+          "avr_kp_max": 1.4,
+          "avr_kp_stress_gain": 0.6,
+          "avr_loading_fraction_base": 0.15,
+          "avr_loading_fraction_min": 0.05,
+          "avr_mvar_limit_base_pu": 0.9,
+          "avr_mvar_limit_min_pu": 0.6,
+          "avr_mvar_limit_stress_gain": 0.3,
+          "avr_oel_capital_fraction": 0.4,
+          "avr_oel_fraction_min": 0.15,
+          "avr_overvoltage_trip_base_pu": 1.1,
+          "avr_overvoltage_trip_min_pu": 1.05,
+          "avr_overvoltage_trip_stress_gain": 0.05,
+          "avr_synchronous_reactance_pu": 0.05,
+          "avr_uel_min_notional_inr": 15000.0,
+          "avr_uel_multiplier_max": 1.75,
+          "avr_uel_multiplier_stress_gain": 0.75,
+          "avr_undervoltage_trip_base_pu": 0.9,
+          "avr_undervoltage_trip_max_pu": 0.95,
+          "avr_undervoltage_trip_stress_gain": 0.05,
+          "avr_vol_scalar_max_base": 2.0,
+          "avr_vol_scalar_max_min": 0.75,
+          "avr_vol_scalar_min": 0.2,
+          "avr_voltage_filter_alpha": 1.0,
+          "avr_voltage_reference_pu": 1.0,
+          "avr_z_strength_cap_base": 1.5,
+          "avr_z_strength_cap_min": 0.75,
+          "avr_z_strength_denominator_base": 1.8,
+          "avr_z_strength_denominator_max": 2.7,
+          "avr_z_strength_denominator_stress_gain": 0.5,
+          "disp_allocation_ceiling": 0.35,
+          "disp_allocation_floor": 0.08,
+          "disp_downside_dev_default": 0.5,
+          "disp_downside_dev_floor": 0.2,
+          "disp_downside_min_count": 2,
+          "disp_ema_retention": 0.85,
+          "disp_ema_update": 0.15,
+          "disp_merit_window": 20,
+          "disp_min_samples": 3,
+          "disp_neutral_score": 1.0,
+          "disp_score_base": 1.0,
+          "disp_score_floor": 0.1,
+          "dyn_risk_derate_drawdown_gain": 0.25,
+          "dyn_risk_derate_lower_bound": 0.4,
+          "dyn_risk_derate_stress_gain": 0.45,
+          "dyn_stress_chop_weight": 0.25,
+          "dyn_stress_excess_vol_weight": 0.2,
+          "dyn_stress_turbulent_weight": 0.55,
+          "dyn_vol_max": 2.5,
+          "dyn_vol_min": 0.5,
+          "gov_bpstg_atr_barrier": 1.4,
+          "gov_bpstg_base_z": -1.8,
+          "gov_bpstg_capital_weight": 0.12,
+          "gov_bpstg_droop_r": 0.075,
+          "gov_bpstg_dynamic_offset_max": 0.15,
+          "gov_bpstg_dynamic_offset_min": -0.45,
+          "gov_bpstg_feedback_gain": 0.25,
+          "gov_bpstg_grid_droop_gain": 0.05,
+          "gov_bpstg_grid_droop_max": 0.25,
+          "gov_bpstg_integral_clamp": 3.0,
+          "gov_bpstg_kd": 0.2,
+          "gov_bpstg_ki": 0.04,
+          "gov_bpstg_kp": 0.8,
+          "gov_bpstg_outcome_window": 6,
+          "gov_bpstg_target_m": 2.5,
+          "gov_bpstg_target_r": 0.3,
+          "gov_bpstg_z_exit": 0.4,
+          "gov_cstg1_atr_barrier": 1.5,
+          "gov_cstg1_base_z": -1.85,
+          "gov_cstg1_capital_weight": 0.25,
+          "gov_cstg1_droop_r": 0.055,
+          "gov_cstg1_dynamic_offset_max": 0.15,
+          "gov_cstg1_dynamic_offset_min": -0.45,
+          "gov_cstg1_feedback_gain": 0.25,
+          "gov_cstg1_grid_droop_gain": 0.05,
+          "gov_cstg1_grid_droop_max": 0.25,
+          "gov_cstg1_integral_clamp": 3.0,
+          "gov_cstg1_kd": 0.15,
+          "gov_cstg1_ki": 0.12,
+          "gov_cstg1_kp": 0.9,
+          "gov_cstg1_outcome_window": 6,
+          "gov_cstg1_target_m": 2.8,
+          "gov_cstg1_target_r": 0.3,
+          "gov_cstg1_z_exit": 0.3,
+          "gov_cstg2_atr_barrier": 1.65,
+          "gov_cstg2_base_z": -1.95,
+          "gov_cstg2_capital_weight": 0.18,
+          "gov_cstg2_droop_r": 0.055,
+          "gov_cstg2_dynamic_offset_max": 0.15,
+          "gov_cstg2_dynamic_offset_min": -0.45,
+          "gov_cstg2_feedback_gain": 0.25,
+          "gov_cstg2_grid_droop_gain": 0.05,
+          "gov_cstg2_grid_droop_max": 0.25,
+          "gov_cstg2_integral_clamp": 3.0,
+          "gov_cstg2_kd": 0.25,
+          "gov_cstg2_ki": 0.07,
+          "gov_cstg2_kp": 1.0,
+          "gov_cstg2_outcome_window": 6,
+          "gov_cstg2_target_m": 2.9,
+          "gov_cstg2_target_r": 0.3,
+          "gov_cstg2_z_exit": 0.4,
+          "gov_gtg1_atr_barrier": 1.8,
+          "gov_gtg1_base_z": -1.9,
+          "gov_gtg1_capital_weight": 0.25,
+          "gov_gtg1_droop_r": 0.04,
+          "gov_gtg1_dynamic_offset_max": 0.15,
+          "gov_gtg1_dynamic_offset_min": -0.45,
+          "gov_gtg1_feedback_gain": 0.25,
+          "gov_gtg1_grid_droop_gain": 0.05,
+          "gov_gtg1_grid_droop_max": 0.25,
+          "gov_gtg1_integral_clamp": 3.0,
+          "gov_gtg1_kd": 0.3,
+          "gov_gtg1_ki": 0.05,
+          "gov_gtg1_kp": 1.2,
+          "gov_gtg1_outcome_window": 6,
+          "gov_gtg1_target_m": 3.0,
+          "gov_gtg1_target_r": 0.3,
+          "gov_gtg1_z_exit": 0.35,
+          "gov_gtg2_atr_barrier": 2.1,
+          "gov_gtg2_base_z": -2.0,
+          "gov_gtg2_capital_weight": 0.2,
+          "gov_gtg2_droop_r": 0.04,
+          "gov_gtg2_dynamic_offset_max": 0.15,
+          "gov_gtg2_dynamic_offset_min": -0.45,
+          "gov_gtg2_feedback_gain": 0.25,
+          "gov_gtg2_grid_droop_gain": 0.05,
+          "gov_gtg2_grid_droop_max": 0.25,
+          "gov_gtg2_integral_clamp": 3.0,
+          "gov_gtg2_kd": 0.6,
+          "gov_gtg2_ki": 0.08,
+          "gov_gtg2_kp": 1.5,
+          "gov_gtg2_outcome_window": 6,
+          "gov_gtg2_target_m": 3.2,
+          "gov_gtg2_target_r": 0.3,
+          "gov_gtg2_z_exit": 0.5,
+          "gov_v3_base_gap_r": 0.45,
+          "gov_v3_gamma_fast": 0.85,
+          "gov_v3_gamma_slow": 0.98,
+          "gov_v3_grace_bars": 2,
+          "gov_v3_kappa": 0.25,
+          "gov_v3_mfe_activation_r": 0.3,
+          "gov_v3_minimum_gap_r": 0.15,
+          "gov_v3_noise_floor_mult": 1.0,
+          "gov_v3_tau_error_multiplier": 1.0,
+          "gsch_base_z_lower_offset": 0.5,
+          "gsch_base_z_stress_gain": 0.25,
+          "gsch_base_z_trend_gain": 0.1,
+          "gsch_base_z_upper_offset": 0.1,
+          "gsch_droop_gain_max_scale": 2.0,
+          "gsch_droop_gain_min_scale": 0.5,
+          "gsch_droop_gain_stress_gain": 0.5,
+          "gsch_droop_max_max_scale": 1.6,
+          "gsch_droop_max_min_scale": 0.8,
+          "gsch_droop_max_stress_gain": 0.6,
+          "gsch_droop_r_min_scale": 0.6,
+          "gsch_droop_r_stress_gain": 0.25,
+          "gsch_integral_error_gain": 0.5,
+          "gsch_integral_max_scale": 1.25,
+          "gsch_integral_min_scale": 0.5,
+          "gsch_integral_stress_gain": 0.8,
+          "gsch_kd_error_gain": 0.7,
+          "gsch_kd_scale_max": 2.0,
+          "gsch_kd_scale_min": 0.6,
+          "gsch_kd_stress_gain": 0.5,
+          "gsch_ki_divisor_max": 3.5,
+          "gsch_ki_divisor_min": 1.0,
+          "gsch_ki_error_gain": 1.5,
+          "gsch_ki_stress_gain": 1.0,
+          "gsch_kp_error_gain": 1.0,
+          "gsch_kp_scale_max": 2.2,
+          "gsch_kp_scale_min": 0.6,
+          "gsch_kp_stress_gain": 0.25,
+          "gsch_offset_min_lower_scale": 1.5,
+          "gsch_offset_min_stress_gain": 0.25,
+          "gsch_offset_min_upper_scale": 0.75,
+          "gsch_target_max_scale": 1.25,
+          "gsch_target_min_scale": 0.7,
+          "gsch_target_stress_gain": 0.15,
+          "gsch_target_trend_gain": 0.15,
+          "gsch_window_max": 12,
+          "gsch_window_min": 3,
+          "gsch_window_stress_gain": 0.8,
+          "hrsg_correlation_window": 30,
+          "hrsg_max_steam_pressure_pu": 1.5,
+          "hrsg_min_correlation_samples": 6,
+          "hrsg_min_penalty_factor": 0.7,
+          "hrsg_min_steam_pressure_pu": 0.35,
+          "hrsg_pressure_time_constant_bars": 5.0,
+          "hrsg_recovery_fraction": 0.6,
+          "hrsg_rho_crit": 0.65,
+          "micom_crash_min_pct": 0.008,
+          "micom_crash_stress_gain": 0.25,
+          "micom_drawdown_min_pct": 0.01,
+          "micom_drawdown_stress_gain": 0.35,
+          "micom_max_daily_fleet_drawdown_pct": 0.02,
+          "micom_max_regime_vol_z": 3.0,
+          "micom_nifty_crash_rate_pct": 0.015,
+          "micom_overfrequency_ratio": 1.5,
+          "micom_vol_z_min": 1.8,
+          "micom_vol_z_stress_gain": 0.3,
+          "plant_bay_lockout_consecutive_stops": 2,
+          "plant_loss_cooldown_base_bars": 15,
+          "plant_loss_cooldown_max_bars": 30,
+          "plant_loss_cooldown_min_bars": 8,
+          "plant_loss_cooldown_stress_gain": 0.9,
+          "plant_loss_cooldown_stress_offset": 0.8,
+          "plant_stop_floor_price_fraction": 0.0065,
+          "plant_target_cooldown_base_bars": 3,
+          "plant_target_cooldown_max_bars": 8,
+          "plant_target_cooldown_min_bars": 2,
+          "plant_target_cooldown_stress_gain": 0.7,
+          "plant_target_cooldown_stress_offset": 0.8,
+          "plant_target_min_reward_risk": 1.5,
+          "sel_adverse_min_bars": 2,
+          "sel_adverse_stress_gain": 0.5,
+          "sel_max_adverse_bars": 4,
+          "sel_max_slippage_fraction": 0.0035,
+          "sel_max_spread_fraction": 0.005,
+          "sel_slippage_min_fraction": 0.002,
+          "sel_slippage_stress_gain": 0.3,
+          "sel_spread_min_fraction": 0.0025,
+          "sel_spread_stress_gain": 0.4,
+          "sel_stale_tick_limit_seconds": 120.0,
+          "sel_stale_tick_min_seconds": 45.0,
+          "sel_stale_tick_stress_gain": 0.5,
+          "sel_vol_surge_min_mult": 2.0,
+          "sel_vol_surge_mult": 3.5,
+          "sel_vol_surge_stress_gain": 0.3,
+          "symbol_loss_cooldown_bars": 15,
+          "symbol_trip_consecutive_losses": 2
+        },
+        "registry_identity_sha256": "a4bdda2d7df63f838be49fc7e1ad08525e768eaedfec2af537c6abd764371f46",
+        "config_hash": "bc08dcd11df338c3da28e2bbbb922ab1c154d6eb9a6b7967f9a67f1aaa95e49a",
+        "modes": {
+          "governor_authority": "full",
+          "governor_position_mode": "v3",
+          "avr_voltage_mode": "measured",
+          "dispatcher_allocation_mode": "bounded",
+          "hrsg_correlation_mode": "causal_bay_returns",
+          "final_exit_authority": true,
+          "closed_loop_mode": "active_paper",
+          "plant_control_mode": "PAPER_APPLY"
+        }
+      },
+      "applied_value_summary": {
+        "GTG1_HEAVY_INDUSTRY.governor.kp": {
+          "min": 1.2984217969709042,
+          "max": 2.087356665724768,
+          "last": 1.968612971704093,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.ki": {
+          "min": 0.019882297898838566,
+          "max": 0.03764854260997024,
+          "last": 0.02224916394251594,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.kd": {
+          "min": 0.3492108984854521,
+          "max": 0.5185616450614509,
+          "last": 0.47920271138965215,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.2574721979327842,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.integral_clamp": {
+          "min": 1.6552367218728246,
+          "max": 2.3763164416976363,
+          "last": 1.8408461108926097,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.base_z": {
+          "min": -2.173282529864696,
+          "max": -1.8794817277796332,
+          "last": -2.063268444264398,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.droop_r": {
+          "min": 0.03298975707741335,
+          "max": 0.03873615409516221,
+          "last": 0.03541585217010914,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5015716630862722,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.dynamic_offset_max": {
+          "min": 0.10267112200762225,
+          "max": 0.1414462881119094,
+          "last": 0.11903425011780111,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.07760858191272603,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.31876221744836297,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_kp": {
+          "min": 0.8342148475523624,
+          "max": 0.989315511969511,
+          "last": 0.9238629995287956,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_ki": {
+          "min": 0.11402284464856234,
+          "max": 0.14190774679485782,
+          "last": 0.12433291943169664,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_kd": {
+          "min": 0.10570247459206039,
+          "max": 0.13155258532825184,
+          "last": 0.12064383325479927,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_integral_clamp": {
+          "min": 0.4368948293434963,
+          "max": 0.48859505081587923,
+          "last": 0.45871233349040147,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.excitation_command": {
+          "min": 0.9211185366793704,
+          "max": 0.9857438135198491,
+          "last": 0.9483904168630019,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.excitation_min": {
+          "min": 0.10570247459206039,
+          "max": 0.13155258532825184,
+          "last": 0.12064383325479927,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.excitation_max": {
+          "min": 0.9211185366793704,
+          "max": 0.9857438135198491,
+          "last": 0.9483904168630019,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.loading_fraction": {
+          "min": 0.10267112200762225,
+          "max": 0.1414462881119094,
+          "last": 0.11903425011780111,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.undervoltage_trip_pu": {
+          "min": 0.9028512372960302,
+          "max": 0.915776292664126,
+          "last": 0.9103219166273997,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.overvoltage_trip_pu": {
+          "min": 1.0842237073358743,
+          "max": 1.09714876270397,
+          "last": 1.0896780833726005,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.oel_max": {
+          "min": 40945.54844901623,
+          "max": 87790.86074726241,
+          "last": 45008.90227044734,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20157.16630862722,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.dispatcher.weight": {
+          "min": 0.14250732986740752,
+          "max": 0.25,
+          "last": 0.14250732986740752,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.effective_allocation": {
+          "min": 0.0,
+          "max": 250000.0,
+          "last": 141793.96547392255,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 18.0,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1139
+        },
+        "GTG1_HEAVY_INDUSTRY.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 3.018664477861459,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.kp": {
+          "min": 1.6230272462136304,
+          "max": 2.6091958321559603,
+          "last": 2.4607662146301164,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.ki": {
+          "min": 0.0318116766381417,
+          "max": 0.060237668175952386,
+          "last": 0.0355986623080255,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.kd": {
+          "min": 0.6984217969709042,
+          "max": 1.0371232901229017,
+          "last": 0.9584054227793043,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.2574721979327842,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.integral_clamp": {
+          "min": 1.6552367218728246,
+          "max": 2.3763164416976363,
+          "last": 1.8408461108926097,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.base_z": {
+          "min": -2.2732825298646957,
+          "max": -1.9794817277796333,
+          "last": -2.163268444264398,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.droop_r": {
+          "min": 0.03298975707741335,
+          "max": 0.03873615409516221,
+          "last": 0.03541585217010914,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5015716630862722,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.dynamic_offset_max": {
+          "min": 0.10267112200762225,
+          "max": 0.1414462881119094,
+          "last": 0.11903425011780111,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.07760858191272603,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.31876221744836297,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_kp": {
+          "min": 0.8342148475523624,
+          "max": 0.989315511969511,
+          "last": 0.9238629995287956,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_ki": {
+          "min": 0.11402284464856234,
+          "max": 0.14190774679485782,
+          "last": 0.12433291943169664,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_kd": {
+          "min": 0.10570247459206039,
+          "max": 0.13155258532825184,
+          "last": 0.12064383325479927,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_integral_clamp": {
+          "min": 0.4368948293434963,
+          "max": 0.48859505081587923,
+          "last": 0.45871233349040147,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.excitation_command": {
+          "min": 0.9211185366793704,
+          "max": 0.9857438135198491,
+          "last": 0.9483904168630019,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.excitation_min": {
+          "min": 0.10570247459206039,
+          "max": 0.13155258532825184,
+          "last": 0.12064383325479927,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.excitation_max": {
+          "min": 0.9211185366793704,
+          "max": 0.9857438135198491,
+          "last": 0.9483904168630019,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.loading_fraction": {
+          "min": 0.10267112200762225,
+          "max": 0.1414462881119094,
+          "last": 0.11903425011780111,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.undervoltage_trip_pu": {
+          "min": 0.9028512372960302,
+          "max": 0.915776292664126,
+          "last": 0.9103219166273997,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.overvoltage_trip_pu": {
+          "min": 1.0842237073358743,
+          "max": 1.09714876270397,
+          "last": 1.0896780833726005,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.oel_max": {
+          "min": 43988.65962386165,
+          "max": 75436.90561471536,
+          "last": 43988.65962386165,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20157.16630862722,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.dispatcher.weight": {
+          "min": 0.15792980182926836,
+          "max": 0.20658536585365858,
+          "last": 0.15792980182926836,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.effective_allocation": {
+          "min": 0.0,
+          "max": 206585.3658536586,
+          "last": 138579.84019408916,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 18.0,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1139
+        },
+        "GTG2_TECH_TELECOM.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 3.018664477861459,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.kp": {
+          "min": 0.9738163477281783,
+          "max": 1.565517499293576,
+          "last": 1.4764597287780699,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.ki": {
+          "min": 0.047717514957212555,
+          "max": 0.09035650226392858,
+          "last": 0.053397993462038246,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.kd": {
+          "min": 0.17460544924272606,
+          "max": 0.25928082253072543,
+          "last": 0.23960135569482607,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.2574721979327842,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.integral_clamp": {
+          "min": 1.6552367218728246,
+          "max": 2.3763164416976363,
+          "last": 1.8408461108926097,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.base_z": {
+          "min": -2.1232825298646962,
+          "max": -1.8294817277796334,
+          "last": -2.013268444264398,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.droop_r": {
+          "min": 0.04536091598144335,
+          "max": 0.053262211880848044,
+          "last": 0.048696796733900066,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5015716630862722,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.dynamic_offset_max": {
+          "min": 0.10267112200762225,
+          "max": 0.1414462881119094,
+          "last": 0.11903425011780111,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.07760858191272603,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.31876221744836297,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.runtime_kp": {
+          "min": 0.8342148475523624,
+          "max": 0.989315511969511,
+          "last": 0.9238629995287956,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.runtime_ki": {
+          "min": 0.11402284464856234,
+          "max": 0.14190774679485782,
+          "last": 0.12433291943169664,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.runtime_kd": {
+          "min": 0.10570247459206039,
+          "max": 0.13155258532825184,
+          "last": 0.12064383325479927,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.runtime_integral_clamp": {
+          "min": 0.4368948293434963,
+          "max": 0.48859505081587923,
+          "last": 0.45871233349040147,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.excitation_command": {
+          "min": 0.9211185366793704,
+          "max": 0.9857438135198491,
+          "last": 0.9483904168630019,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.excitation_min": {
+          "min": 0.10570247459206039,
+          "max": 0.13155258532825184,
+          "last": 0.12064383325479927,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.excitation_max": {
+          "min": 0.9211185366793704,
+          "max": 0.9857438135198491,
+          "last": 0.9483904168630019,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.loading_fraction": {
+          "min": 0.10267112200762225,
+          "max": 0.1414462881119094,
+          "last": 0.11903425011780111,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.undervoltage_trip_pu": {
+          "min": 0.9028512372960302,
+          "max": 0.915776292664126,
+          "last": 0.9103219166273997,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.overvoltage_trip_pu": {
+          "min": 1.0842237073358743,
+          "max": 1.09714876270397,
+          "last": 1.0896780833726005,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.oel_max": {
+          "min": 410.74576152796436,
+          "max": 89473.23600624801,
+          "last": 71208.82235853715,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20157.16630862722,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.dispatcher.weight": {
+          "min": 0.2136245262519531,
+          "max": 0.25,
+          "last": 0.24434383901374898,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.effective_allocation": {
+          "min": 0.0,
+          "max": 250000.0,
+          "last": 224332.98280137652,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 18.0,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1139
+        },
+        "CSTG1_BFSI.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 3.018664477861459,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.kp": {
+          "min": 1.0820181641424202,
+          "max": 1.7394638881039735,
+          "last": 1.640510809753411,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.ki": {
+          "min": 0.027835217058373996,
+          "max": 0.052707959653958344,
+          "last": 0.031148829519522313,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.kd": {
+          "min": 0.2910090820712101,
+          "max": 0.4321347042178757,
+          "last": 0.39933559282471015,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.2574721979327842,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.integral_clamp": {
+          "min": 1.6552367218728246,
+          "max": 2.3763164416976363,
+          "last": 1.8408461108926097,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.base_z": {
+          "min": -2.223282529864696,
+          "max": -1.9294817277796332,
+          "last": -2.113268444264398,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.droop_r": {
+          "min": 0.04536091598144335,
+          "max": 0.053262211880848044,
+          "last": 0.048696796733900066,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5015716630862722,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.dynamic_offset_max": {
+          "min": 0.10267112200762225,
+          "max": 0.1414462881119094,
+          "last": 0.11903425011780111,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.07760858191272603,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.31876221744836297,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_kp": {
+          "min": 0.8342148475523624,
+          "max": 0.989315511969511,
+          "last": 0.9238629995287956,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_ki": {
+          "min": 0.11402284464856234,
+          "max": 0.14190774679485782,
+          "last": 0.12433291943169664,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_kd": {
+          "min": 0.10570247459206039,
+          "max": 0.13155258532825184,
+          "last": 0.12064383325479927,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_integral_clamp": {
+          "min": 0.4368948293434963,
+          "max": 0.48859505081587923,
+          "last": 0.45871233349040147,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.excitation_command": {
+          "min": 0.9211185366793704,
+          "max": 0.9857438135198491,
+          "last": 0.9483904168630019,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.excitation_min": {
+          "min": 0.10570247459206039,
+          "max": 0.13155258532825184,
+          "last": 0.12064383325479927,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.excitation_max": {
+          "min": 0.9211185366793704,
+          "max": 0.9857438135198491,
+          "last": 0.9483904168630019,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.loading_fraction": {
+          "min": 0.10267112200762225,
+          "max": 0.1414462881119094,
+          "last": 0.11903425011780111,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.undervoltage_trip_pu": {
+          "min": 0.9028512372960302,
+          "max": 0.915776292664126,
+          "last": 0.9103219166273997,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.overvoltage_trip_pu": {
+          "min": 1.0842237073358743,
+          "max": 1.09714876270397,
+          "last": 1.0896780833726005,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.oel_max": {
+          "min": 353.3274385014996,
+          "max": 85183.82190929813,
+          "last": 64795.07666029333,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20157.16630862722,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.dispatcher.weight": {
+          "min": 0.18,
+          "max": 0.23262981195547602,
+          "last": 0.23262981195547602,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.effective_allocation": {
+          "min": 0.0,
+          "max": 232629.81195547603,
+          "last": 204127.41478661445,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 18.0,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1139
+        },
+        "CSTG2_CONSUMER_AUTO.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 3.018664477861459,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.kp": {
+          "min": 0.8656145313139363,
+          "max": 1.391571110483179,
+          "last": 1.3124086478027288,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.ki": {
+          "min": 0.01590583831907085,
+          "max": 0.030118834087976193,
+          "last": 0.01779933115401275,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.kd": {
+          "min": 0.2328072656569681,
+          "max": 0.3457077633743006,
+          "last": 0.31946847425976815,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.2574721979327842,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.integral_clamp": {
+          "min": 1.6552367218728246,
+          "max": 2.3763164416976363,
+          "last": 1.8408461108926097,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.base_z": {
+          "min": -2.073282529864696,
+          "max": -1.7794817277796333,
+          "last": -1.963268444264398,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.droop_r": {
+          "min": 0.061855794520150026,
+          "max": 0.07263028892842915,
+          "last": 0.06640472281895463,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5015716630862722,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.dynamic_offset_max": {
+          "min": 0.10267112200762225,
+          "max": 0.1414462881119094,
+          "last": 0.11903425011780111,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.07760858191272603,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.31876221744836297,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_kp": {
+          "min": 0.8342148475523624,
+          "max": 0.989315511969511,
+          "last": 0.9238629995287956,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_ki": {
+          "min": 0.11402284464856234,
+          "max": 0.14190774679485782,
+          "last": 0.12433291943169664,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_kd": {
+          "min": 0.10570247459206039,
+          "max": 0.13155258532825184,
+          "last": 0.12064383325479927,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_integral_clamp": {
+          "min": 0.4368948293434963,
+          "max": 0.48859505081587923,
+          "last": 0.45871233349040147,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.excitation_command": {
+          "min": 0.9211185366793704,
+          "max": 0.9857438135198491,
+          "last": 0.9483904168630019,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.excitation_min": {
+          "min": 0.10570247459206039,
+          "max": 0.13155258532825184,
+          "last": 0.12064383325479927,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.excitation_max": {
+          "min": 0.9211185366793704,
+          "max": 0.9857438135198491,
+          "last": 0.9483904168630019,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.loading_fraction": {
+          "min": 0.10267112200762225,
+          "max": 0.1414462881119094,
+          "last": 0.11903425011780111,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.undervoltage_trip_pu": {
+          "min": 0.9028512372960302,
+          "max": 0.915776292664126,
+          "last": 0.9103219166273997,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.overvoltage_trip_pu": {
+          "min": 1.0842237073358743,
+          "max": 1.09714876270397,
+          "last": 1.0896780833726005,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.oel_max": {
+          "min": 304.1117330502442,
+          "max": 82824.02982999414,
+          "last": 70655.308185794,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20157.16630862722,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.dispatcher.weight": {
+          "min": 0.12,
+          "max": 0.22258921733409914,
+          "last": 0.22258921733409914,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.effective_allocation": {
+          "min": 0.0,
+          "max": 222589.21733409914,
+          "last": 222589.21733409914,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 18.0,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1139
+        },
+        "BPSTG_HEALTHCARE.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 3.018664477861459,
+          "bars": 1139
+        },
+        "hrsg.steam_pressure_pu": {
+          "min": 0.029934748889386166,
+          "max": 1.4459299251957403,
+          "last": 1.3560966976508129,
+          "bars": 1139
+        },
+        "hrsg.pressure_time_constant_bars": {
+          "min": 5.0,
+          "max": 5.0,
+          "last": 5.0,
+          "bars": 1139
+        },
+        "micom.max_dd_pct": {
+          "min": 0.015092829954189344,
+          "max": 0.019115307866613553,
+          "last": 0.016791096519076395,
+          "bars": 1139
+        }
+      }
+    },
+    "B": {
+      "engine": "ENGINE_B_NAUTILUS_NATIVE",
+      "data_source": "frozen dataset f724074ca45e at /home/srinivas/projects/zerodha-phase1/data/frozen_48_1min_20230703_20260824, grid grid-manifest-local.json, through 2026-08-13",
+      "bars_received": 57600,
+      "totals": {
+        "entries_filled": 11,
+        "exits": 11,
+        "gross_pnl": -108.15000000000555,
+        "costs": 227.021594425,
+        "net_pnl": -335.17159442500554,
+        "mean_hold_bars": 4.454545454545454,
+        "closed_trade_drawdown_rupees": 335.17159442500554
+      },
+      "by_symbol": {
+        "ADANIENT": {
+          "exits": 1,
+          "gross_pnl": 31.799999999995634,
+          "costs": 16.3389243,
+          "net_pnl": 15.461075699995636,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 0.0
+        },
+        "ADANIPORTS": {
+          "exits": 1,
+          "gross_pnl": -27.20000000000232,
+          "costs": 25.9057832,
+          "net_pnl": -53.10578320000232,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 53.10578320000232
+        },
+        "APOLLOHOSP": {
+          "exits": 2,
+          "gross_pnl": 25.0,
+          "costs": 15.987751499999998,
+          "net_pnl": 9.012248500000002,
+          "mean_hold_bars": 6.0,
+          "closed_trade_drawdown_rupees": 1.0922104999999984
+        },
+        "BEL": {
+          "exits": 1,
+          "gross_pnl": -17.25,
+          "costs": 25.474798274999998,
+          "net_pnl": -42.724798275,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 42.724798275
+        },
+        "BHARTIARTL": {
+          "exits": 1,
+          "gross_pnl": -47.60000000000127,
+          "costs": 24.718642199999998,
+          "net_pnl": -72.31864220000128,
+          "mean_hold_bars": 2.0,
+          "closed_trade_drawdown_rupees": 72.31864220000128
+        },
+        "INDIGO": {
+          "exits": 1,
+          "gross_pnl": -10.5,
+          "costs": 33.699566250000004,
+          "net_pnl": -44.199566250000004,
+          "mean_hold_bars": 5.0,
+          "closed_trade_drawdown_rupees": 44.199566250000004
+        },
+        "INFY": {
+          "exits": 1,
+          "gross_pnl": -31.5,
+          "costs": 22.50545115,
+          "net_pnl": -54.00545115,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 54.00545115
+        },
+        "JIOFIN": {
+          "exits": 1,
+          "gross_pnl": 5.000000000001137,
+          "costs": 23.543107499999998,
+          "net_pnl": -18.54310749999886,
+          "mean_hold_bars": 6.0,
+          "closed_trade_drawdown_rupees": 18.54310749999886
+        },
+        "SBIN": {
+          "exits": 1,
+          "gross_pnl": -24.0,
+          "costs": 23.775573599999994,
+          "net_pnl": -47.775573599999994,
+          "mean_hold_bars": 4.0,
+          "closed_trade_drawdown_rupees": 47.775573599999994
+        },
+        "TCS": {
+          "exits": 1,
+          "gross_pnl": -11.899999999998727,
+          "costs": 15.07199645,
+          "net_pnl": -26.971996449998727,
+          "mean_hold_bars": 8.0,
+          "closed_trade_drawdown_rupees": 26.971996449998727
+        }
+      },
+      "by_sector": {
+        "Aviation": {
+          "exits": 1,
+          "gross_pnl": -10.5,
+          "costs": 33.699566250000004,
+          "net_pnl": -44.199566250000004,
+          "mean_hold_bars": 5.0,
+          "closed_trade_drawdown_rupees": 44.199566250000004
+        },
+        "CapitalGoods&Defense": {
+          "exits": 1,
+          "gross_pnl": -17.25,
+          "costs": 25.474798274999998,
+          "net_pnl": -42.724798275,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 42.724798275
+        },
+        "Financials": {
+          "exits": 2,
+          "gross_pnl": -18.999999999998863,
+          "costs": 47.31868109999999,
+          "net_pnl": -66.31868109999886,
+          "mean_hold_bars": 5.0,
+          "closed_trade_drawdown_rupees": 66.31868109999886
+        },
+        "Healthcare": {
+          "exits": 2,
+          "gross_pnl": 25.0,
+          "costs": 15.987751499999998,
+          "net_pnl": 9.012248500000002,
+          "mean_hold_bars": 6.0,
+          "closed_trade_drawdown_rupees": 1.0922104999999984
+        },
+        "IT": {
+          "exits": 2,
+          "gross_pnl": -43.39999999999873,
+          "costs": 37.5774476,
+          "net_pnl": -80.97744759999873,
+          "mean_hold_bars": 5.5,
+          "closed_trade_drawdown_rupees": 80.97744759999873
+        },
+        "Infra&Cement": {
+          "exits": 1,
+          "gross_pnl": -27.20000000000232,
+          "costs": 25.9057832,
+          "net_pnl": -53.10578320000232,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 53.10578320000232
+        },
+        "Metals&Mining": {
+          "exits": 1,
+          "gross_pnl": 31.799999999995634,
+          "costs": 16.3389243,
+          "net_pnl": 15.461075699995636,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 0.0
+        },
+        "Telecom": {
+          "exits": 1,
+          "gross_pnl": -47.60000000000127,
+          "costs": 24.718642199999998,
+          "net_pnl": -72.31864220000128,
+          "mean_hold_bars": 2.0,
+          "closed_trade_drawdown_rupees": 72.31864220000128
+        }
+      },
+      "by_bay": {
+        "BPSTG_HEALTHCARE": {
+          "exits": 2,
+          "gross_pnl": 25.0,
+          "costs": 15.987751499999998,
+          "net_pnl": 9.012248500000002,
+          "mean_hold_bars": 6.0,
+          "closed_trade_drawdown_rupees": 1.0922104999999984
+        },
+        "CSTG1_BFSI": {
+          "exits": 2,
+          "gross_pnl": -18.999999999998863,
+          "costs": 47.31868109999999,
+          "net_pnl": -66.31868109999886,
+          "mean_hold_bars": 5.0,
+          "closed_trade_drawdown_rupees": 66.31868109999886
+        },
+        "CSTG2_CONSUMER_AUTO": {
+          "exits": 1,
+          "gross_pnl": -10.5,
+          "costs": 33.699566250000004,
+          "net_pnl": -44.199566250000004,
+          "mean_hold_bars": 5.0,
+          "closed_trade_drawdown_rupees": 44.199566250000004
+        },
+        "GTG1_HEAVY_INDUSTRY": {
+          "exits": 3,
+          "gross_pnl": -12.650000000006685,
+          "costs": 67.71950577499999,
+          "net_pnl": -80.36950577500669,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 95.83058147500232
+        },
+        "GTG2_TECH_TELECOM": {
+          "exits": 3,
+          "gross_pnl": -91.0,
+          "costs": 62.2960898,
+          "net_pnl": -153.2960898,
+          "mean_hold_bars": 4.333333333333333,
+          "closed_trade_drawdown_rupees": 153.2960898
+        }
+      },
+      "by_holding_duration_bars": {
+        "0-2": {
+          "exits": 1,
+          "gross_pnl": -47.60000000000127,
+          "costs": 24.718642199999998,
+          "net_pnl": -72.31864220000128,
+          "mean_hold_bars": 2.0,
+          "closed_trade_drawdown_rupees": 72.31864220000128
+        },
+        "3-5": {
+          "exits": 7,
+          "gross_pnl": -71.65000000000668,
+          "costs": 155.79230727499998,
+          "net_pnl": -227.44230727500667,
+          "mean_hold_bars": 3.4285714285714284,
+          "closed_trade_drawdown_rupees": 242.90338297500233
+        },
+        "6-10": {
+          "exits": 3,
+          "gross_pnl": 11.10000000000241,
+          "costs": 46.51064495,
+          "net_pnl": -35.41064494999759,
+          "mean_hold_bars": 7.666666666666667,
+          "closed_trade_drawdown_rupees": 45.51510394999759
+        }
+      },
+      "by_exit_authority": {
+        "FINAL_EXECUTION_CONTROLLER": {
+          "exits": 2,
+          "gross_pnl": -3.5,
+          "costs": 41.791776750000004,
+          "net_pnl": -45.291776750000004,
+          "mean_hold_bars": 4.0,
+          "closed_trade_drawdown_rupees": 45.291776750000004
+        },
+        "GOVERNOR": {
+          "exits": 5,
+          "gross_pnl": -68.15000000000668,
+          "costs": 114.00053052499999,
+          "net_pnl": -182.15053052500667,
+          "mean_hold_bars": 3.2,
+          "closed_trade_drawdown_rupees": 197.6116062250023
+        },
+        "PLANT_PROTECTION": {
+          "exits": 1,
+          "gross_pnl": -47.60000000000127,
+          "costs": 24.718642199999998,
+          "net_pnl": -72.31864220000128,
+          "mean_hold_bars": 2.0,
+          "closed_trade_drawdown_rupees": 72.31864220000128
+        },
+        "PROTECTIVE_STOP": {
+          "exits": 3,
+          "gross_pnl": 11.10000000000241,
+          "costs": 46.51064495,
+          "net_pnl": -35.41064494999759,
+          "mean_hold_bars": 7.666666666666667,
+          "closed_trade_drawdown_rupees": 45.51510394999759
+        }
+      },
+      "entry_authority": {
+        "governor_entry_decisions": {
+          "NO_ACTION:FSR_BELOW_ENTRY_HURDLE:FSRN": 2343,
+          "NO_ACTION:GOVERNOR_OVERSPEED_LIMIT": 793,
+          "ENTRY:GOVERNOR_ENTRY": 948,
+          "NO_ACTION:GRID_REFERENCE_UNAVAILABLE": 160,
+          "NO_ACTION:EXHAUST_SPREAD_HOLD": 5
+        },
+        "plant_entry_rejections": {
+          "ENGINE_A_ENTRY_CUTOFF_14_30_IST": 105,
+          "AVR_CLAMP": 176,
+          "ENGINE_A_DAILY_BAY_FILL_ALREADY_USED": 394,
+          "PLANT_BAY_HEADROOM_EXHAUSTED": 12,
+          "HRSG_NO_BAY_CAPACITY": 10
+        },
+        "plant_paper_admission": {
+          "mode": "PAPER_APPLY",
+          "applied": true,
+          "plant_protection_connected": true,
+          "bay_availability_source": "CENTRAL_PLANT_MASTER_DCS",
+          "evaluations": 1140,
+          "paper_admission_evaluations": 959,
+          "paper_admission_rejections": 132,
+          "paper_admission_caps": 790,
+          "grid_state_counts": {
+            "SYNCHRONIZED": 1092,
+            "ISLANDED_SAFE": 48
+          },
+          "transitions": 82,
+          "observer_failures": 0
+        }
+      },
+      "hold_authority": {
+        "governor_hold_decisions": {
+          "HOLD:GOVERNOR_TRACKING": 20,
+          "HOLD:GOVERNOR_LOAD_SHED": 23
+        },
+        "governor_hold_bar_count": 43
+      },
+      "trades": [
+        {
+          "symbol": "BEL",
+          "side": "SELL",
+          "quantity": 69,
+          "entry_timestamp": "2026-08-11 09:49:00+05:30",
+          "entry_price": 401.65,
+          "exit_timestamp": "2026-08-11 09:53:00+05:30",
+          "exit_price": 401.9,
+          "bars_held": 3,
+          "pnl": -17.25,
+          "costs": 25.474798274999998,
+          "net_pnl": -42.724798275,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "BHARTIARTL",
+          "side": "SELL",
+          "quantity": 14,
+          "entry_timestamp": "2026-08-11 09:54:00+05:30",
+          "entry_price": 1920.0,
+          "exit_timestamp": "2026-08-11 09:57:00+05:30",
+          "exit_price": 1923.4,
+          "bars_held": 2,
+          "pnl": -47.60000000000127,
+          "costs": 24.718642199999998,
+          "net_pnl": -72.31864220000128,
+          "reason": "plant_trip:SEL300G_TRIP:ANSI 24:V/Hz Overfluxing: Bar range 3.2x ATR > 3.1423993891979976x"
+        },
+        {
+          "symbol": "APOLLOHOSP",
+          "side": "SELL",
+          "quantity": 1,
+          "entry_timestamp": "2026-08-11 11:01:00+05:30",
+          "entry_price": 8808.0,
+          "exit_timestamp": "2026-08-11 11:05:00+05:30",
+          "exit_price": 8801.0,
+          "bars_held": 3,
+          "pnl": 7.0,
+          "costs": 8.092210499999998,
+          "net_pnl": -1.0922104999999984,
+          "reason": "final_controller_exit:STUDIES_PID_SUSTAINED_LOW_CONFIDENCE"
+        },
+        {
+          "symbol": "INDIGO",
+          "side": "SELL",
+          "quantity": 7,
+          "entry_timestamp": "2026-08-11 11:27:00+05:30",
+          "entry_price": 5238.0,
+          "exit_timestamp": "2026-08-11 11:33:00+05:30",
+          "exit_price": 5239.5,
+          "bars_held": 5,
+          "pnl": -10.5,
+          "costs": 33.699566250000004,
+          "net_pnl": -44.199566250000004,
+          "reason": "final_controller_exit:STUDIES_PID_SUSTAINED_LOW_CONFIDENCE"
+        },
+        {
+          "symbol": "ADANIPORTS",
+          "side": "SELL",
+          "quantity": 17,
+          "entry_timestamp": "2026-08-12 09:40:00+05:30",
+          "entry_price": 1657.6,
+          "exit_timestamp": "2026-08-12 09:44:00+05:30",
+          "exit_price": 1659.2,
+          "bars_held": 3,
+          "pnl": -27.20000000000232,
+          "costs": 25.9057832,
+          "net_pnl": -53.10578320000232,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "APOLLOHOSP",
+          "side": "SELL",
+          "quantity": 1,
+          "entry_timestamp": "2026-08-12 10:42:00+05:30",
+          "entry_price": 8598.0,
+          "exit_timestamp": "2026-08-12 10:52:00+05:30",
+          "exit_price": 8580.0,
+          "bars_held": 9,
+          "pnl": 18.0,
+          "costs": 7.895541,
+          "net_pnl": 10.104459,
+          "reason": "stop"
+        },
+        {
+          "symbol": "SBIN",
+          "side": "SELL",
+          "quantity": 24,
+          "entry_timestamp": "2026-08-12 10:47:00+05:30",
+          "entry_price": 1077.6,
+          "exit_timestamp": "2026-08-12 10:52:00+05:30",
+          "exit_price": 1078.6,
+          "bars_held": 4,
+          "pnl": -24.0,
+          "costs": 23.775573599999994,
+          "net_pnl": -47.775573599999994,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "INFY",
+          "side": "SELL",
+          "quantity": 21,
+          "entry_timestamp": "2026-08-12 12:10:00+05:30",
+          "entry_price": 1165.6,
+          "exit_timestamp": "2026-08-12 12:14:00+05:30",
+          "exit_price": 1167.1,
+          "bars_held": 3,
+          "pnl": -31.5,
+          "costs": 22.50545115,
+          "net_pnl": -54.00545115,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "ADANIENT",
+          "side": "SELL",
+          "quantity": 6,
+          "entry_timestamp": "2026-08-13 09:48:00+05:30",
+          "entry_price": 2965.1,
+          "exit_timestamp": "2026-08-13 09:52:00+05:30",
+          "exit_price": 2959.8000000000006,
+          "bars_held": 3,
+          "pnl": 31.799999999995634,
+          "costs": 16.3389243,
+          "net_pnl": 15.461075699995636,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "TCS",
+          "side": "SELL",
+          "quantity": 7,
+          "entry_timestamp": "2026-08-13 09:57:00+05:30",
+          "entry_price": 2342.3,
+          "exit_timestamp": "2026-08-13 10:06:00+05:30",
+          "exit_price": 2344.0,
+          "bars_held": 8,
+          "pnl": -11.899999999998727,
+          "costs": 15.07199645,
+          "net_pnl": -26.971996449998727,
+          "reason": "stop"
+        },
+        {
+          "symbol": "JIOFIN",
+          "side": "SELL",
+          "quantity": 100,
+          "entry_timestamp": "2026-08-13 11:55:00+05:30",
+          "entry_price": 256.2,
+          "exit_timestamp": "2026-08-13 12:02:00+05:30",
+          "exit_price": 256.15,
+          "bars_held": 6,
+          "pnl": 5.000000000001137,
+          "costs": 23.543107499999998,
+          "net_pnl": -18.54310749999886,
+          "reason": "stop"
+        }
+      ],
+      "events": {
+        "governor": {
+          "GOVERNOR_ENTRY_DECISION": 4249,
+          "GOVERNOR_POSITION_DECISION": 48,
+          "GOVERNOR_STOP_UPDATE": 43,
+          "GOVERNOR_EXIT_ARMED": 5,
+          "GOVERNOR_EXIT": 5
+        },
+        "avr": {
+          "AVR_VOLTAGE_REGULATION": 1140
+        },
+        "dispatcher": {
+          "PLANT_CONTROL_PAPER_ADMISSION": 959,
+          "DISPATCHER_UPDATE": 11
+        },
+        "hrsg": {
+          "HRSG_RETURN_SNAPSHOT": 1140,
+          "PLANT_BAR_STEP": 1140
+        },
+        "final_execution": {
+          "FINAL_EXECUTION_ENTRY_DECISION": 948,
+          "FINAL_EXECUTION_EXIT_DECISION": 52,
+          "FINAL_EXECUTION_EXIT_ARMED": 6
+        },
+        "all": {
+          "CONTROLLER_PARAMETER_STARTUP": 1,
+          "NATIVE_PLANT_STATE": 1140,
+          "AVR_VOLTAGE_REGULATION": 1140,
+          "HRSG_RETURN_SNAPSHOT": 1140,
+          "CONTROLLER_APPLIED_VALUES": 4,
+          "PLANT_BAR_STEP": 1140,
+          "HMM_REGIME_RISK_SHADOW": 54671,
+          "ENTRY_QUALITY_COMPARATOR": 4249,
+          "ENTRY_CONFIDENCE_THROTTLE": 4249,
+          "GOVERNOR_ENTRY_DECISION": 4249,
+          "FINAL_EXECUTION_ENTRY_DECISION": 948,
+          "PORTFOLIO_RISK_COMPARATOR": 948,
+          "DYNAMIC_SIZE_ACTUATION": 948,
+          "POSITION_SIZING": 948,
+          "PLANT_CONTROL_PAPER_ADMISSION": 959,
+          "PLANT_DCS_ENTRY": 816,
+          "MICOM_GRID_TRIP": 7,
+          "MICOM_GRID_RECLOSE": 5,
+          "ENTRY_EXPECTANCY_CANDIDATE": 11,
+          "CLOSED_LOOP_ENTRY_SNAPSHOT": 11,
+          "PLANT_FILL_BOUND": 11,
+          "ENGINE_B_OPTION_A_FILL": 11,
+          "TRADE_PATH_COMPARATOR": 52,
+          "EXIT_PROTECTION_UPDATE": 52,
+          "FINAL_EXECUTION_EXIT_DECISION": 52,
+          "PLANT_POSITION_CONTROL": 49,
+          "GOVERNOR_POSITION_DECISION": 48,
+          "GOVERNOR_STOP_UPDATE": 43,
+          "SHADOW_R_TRAJECTORY_UPDATE": 43,
+          "GOVERNOR_EXIT_ARMED": 5,
+          "GOVERNOR_EXIT": 5,
+          "CONTROLLER_OUTCOME": 11,
+          "DISPATCHER_UPDATE": 11,
+          "ENTRY_EXPECTANCY_OUTCOME": 11,
+          "OUTCOME_LEDGER_UPDATE": 11,
+          "PLANT_TRIP_ARMED": 1,
+          "PLANT_TRIP_EXIT": 1,
+          "FINAL_EXECUTION_EXIT_ARMED": 6
+        }
+      },
+      "plant_trips": {
+        "SEL300G_TRIP": 1
+      },
+      "micom": {
+        "trip_bar_counts": {
+          "MICOM_INPUT_UNAVAILABLE": 48,
+          "ANSI 21": 60
+        },
+        "vol_z_window": 20
+      },
+      "reconciliation": {
+        "checks": 54790,
+        "breaks": [],
+        "ledger_gross_error": null,
+        "chronology_errors": []
+      },
+      "controller_parameters": {
+        "parameter_count": 245,
+        "values_sha256": "840f0027166ebc82970b692ad82102c90adddf6cf59afea8a3ed917f48ebe009",
+        "non_default": {},
+        "effective_values": {
+          "avr_excitation_max_base": 1.0,
+          "avr_excitation_max_min": 0.75,
+          "avr_excitation_max_stress_gain": 0.25,
+          "avr_excitation_min_base": 0.1,
+          "avr_excitation_min_max": 0.2,
+          "avr_excitation_min_stress_gain": 0.1,
+          "avr_integral_clamp_base": 0.5,
+          "avr_integral_clamp_min": 0.3,
+          "avr_integral_clamp_stress_gain": 0.2,
+          "avr_kd_base": 0.1,
+          "avr_kd_max": 0.2,
+          "avr_kd_stress_gain": 0.1,
+          "avr_ki_base": 0.15,
+          "avr_ki_min": 0.075,
+          "avr_ki_stress_gain": 1.0,
+          "avr_kp_base": 0.8,
+          "avr_kp_max": 1.4,
+          "avr_kp_stress_gain": 0.6,
+          "avr_loading_fraction_base": 0.15,
+          "avr_loading_fraction_min": 0.05,
+          "avr_mvar_limit_base_pu": 0.9,
+          "avr_mvar_limit_min_pu": 0.6,
+          "avr_mvar_limit_stress_gain": 0.3,
+          "avr_oel_capital_fraction": 0.4,
+          "avr_oel_fraction_min": 0.15,
+          "avr_overvoltage_trip_base_pu": 1.1,
+          "avr_overvoltage_trip_min_pu": 1.05,
+          "avr_overvoltage_trip_stress_gain": 0.05,
+          "avr_synchronous_reactance_pu": 0.05,
+          "avr_uel_min_notional_inr": 15000.0,
+          "avr_uel_multiplier_max": 1.75,
+          "avr_uel_multiplier_stress_gain": 0.75,
+          "avr_undervoltage_trip_base_pu": 0.9,
+          "avr_undervoltage_trip_max_pu": 0.95,
+          "avr_undervoltage_trip_stress_gain": 0.05,
+          "avr_vol_scalar_max_base": 2.0,
+          "avr_vol_scalar_max_min": 0.75,
+          "avr_vol_scalar_min": 0.2,
+          "avr_voltage_filter_alpha": 1.0,
+          "avr_voltage_reference_pu": 1.0,
+          "avr_z_strength_cap_base": 1.5,
+          "avr_z_strength_cap_min": 0.75,
+          "avr_z_strength_denominator_base": 1.8,
+          "avr_z_strength_denominator_max": 2.7,
+          "avr_z_strength_denominator_stress_gain": 0.5,
+          "disp_allocation_ceiling": 0.35,
+          "disp_allocation_floor": 0.08,
+          "disp_downside_dev_default": 0.5,
+          "disp_downside_dev_floor": 0.2,
+          "disp_downside_min_count": 2,
+          "disp_ema_retention": 0.85,
+          "disp_ema_update": 0.15,
+          "disp_merit_window": 20,
+          "disp_min_samples": 3,
+          "disp_neutral_score": 1.0,
+          "disp_score_base": 1.0,
+          "disp_score_floor": 0.1,
+          "dyn_risk_derate_drawdown_gain": 0.25,
+          "dyn_risk_derate_lower_bound": 0.4,
+          "dyn_risk_derate_stress_gain": 0.45,
+          "dyn_stress_chop_weight": 0.25,
+          "dyn_stress_excess_vol_weight": 0.2,
+          "dyn_stress_turbulent_weight": 0.55,
+          "dyn_vol_max": 2.5,
+          "dyn_vol_min": 0.5,
+          "gov_bpstg_atr_barrier": 1.4,
+          "gov_bpstg_base_z": -1.8,
+          "gov_bpstg_capital_weight": 0.12,
+          "gov_bpstg_droop_r": 0.075,
+          "gov_bpstg_dynamic_offset_max": 0.15,
+          "gov_bpstg_dynamic_offset_min": -0.45,
+          "gov_bpstg_feedback_gain": 0.25,
+          "gov_bpstg_grid_droop_gain": 0.05,
+          "gov_bpstg_grid_droop_max": 0.25,
+          "gov_bpstg_integral_clamp": 3.0,
+          "gov_bpstg_kd": 0.2,
+          "gov_bpstg_ki": 0.04,
+          "gov_bpstg_kp": 0.8,
+          "gov_bpstg_outcome_window": 6,
+          "gov_bpstg_target_m": 2.5,
+          "gov_bpstg_target_r": 0.3,
+          "gov_bpstg_z_exit": 0.4,
+          "gov_cstg1_atr_barrier": 1.5,
+          "gov_cstg1_base_z": -1.85,
+          "gov_cstg1_capital_weight": 0.25,
+          "gov_cstg1_droop_r": 0.055,
+          "gov_cstg1_dynamic_offset_max": 0.15,
+          "gov_cstg1_dynamic_offset_min": -0.45,
+          "gov_cstg1_feedback_gain": 0.25,
+          "gov_cstg1_grid_droop_gain": 0.05,
+          "gov_cstg1_grid_droop_max": 0.25,
+          "gov_cstg1_integral_clamp": 3.0,
+          "gov_cstg1_kd": 0.15,
+          "gov_cstg1_ki": 0.12,
+          "gov_cstg1_kp": 0.9,
+          "gov_cstg1_outcome_window": 6,
+          "gov_cstg1_target_m": 2.8,
+          "gov_cstg1_target_r": 0.3,
+          "gov_cstg1_z_exit": 0.3,
+          "gov_cstg2_atr_barrier": 1.65,
+          "gov_cstg2_base_z": -1.95,
+          "gov_cstg2_capital_weight": 0.18,
+          "gov_cstg2_droop_r": 0.055,
+          "gov_cstg2_dynamic_offset_max": 0.15,
+          "gov_cstg2_dynamic_offset_min": -0.45,
+          "gov_cstg2_feedback_gain": 0.25,
+          "gov_cstg2_grid_droop_gain": 0.05,
+          "gov_cstg2_grid_droop_max": 0.25,
+          "gov_cstg2_integral_clamp": 3.0,
+          "gov_cstg2_kd": 0.25,
+          "gov_cstg2_ki": 0.07,
+          "gov_cstg2_kp": 1.0,
+          "gov_cstg2_outcome_window": 6,
+          "gov_cstg2_target_m": 2.9,
+          "gov_cstg2_target_r": 0.3,
+          "gov_cstg2_z_exit": 0.4,
+          "gov_gtg1_atr_barrier": 1.8,
+          "gov_gtg1_base_z": -1.9,
+          "gov_gtg1_capital_weight": 0.25,
+          "gov_gtg1_droop_r": 0.04,
+          "gov_gtg1_dynamic_offset_max": 0.15,
+          "gov_gtg1_dynamic_offset_min": -0.45,
+          "gov_gtg1_feedback_gain": 0.25,
+          "gov_gtg1_grid_droop_gain": 0.05,
+          "gov_gtg1_grid_droop_max": 0.25,
+          "gov_gtg1_integral_clamp": 3.0,
+          "gov_gtg1_kd": 0.3,
+          "gov_gtg1_ki": 0.05,
+          "gov_gtg1_kp": 1.2,
+          "gov_gtg1_outcome_window": 6,
+          "gov_gtg1_target_m": 3.0,
+          "gov_gtg1_target_r": 0.3,
+          "gov_gtg1_z_exit": 0.35,
+          "gov_gtg2_atr_barrier": 2.1,
+          "gov_gtg2_base_z": -2.0,
+          "gov_gtg2_capital_weight": 0.2,
+          "gov_gtg2_droop_r": 0.04,
+          "gov_gtg2_dynamic_offset_max": 0.15,
+          "gov_gtg2_dynamic_offset_min": -0.45,
+          "gov_gtg2_feedback_gain": 0.25,
+          "gov_gtg2_grid_droop_gain": 0.05,
+          "gov_gtg2_grid_droop_max": 0.25,
+          "gov_gtg2_integral_clamp": 3.0,
+          "gov_gtg2_kd": 0.6,
+          "gov_gtg2_ki": 0.08,
+          "gov_gtg2_kp": 1.5,
+          "gov_gtg2_outcome_window": 6,
+          "gov_gtg2_target_m": 3.2,
+          "gov_gtg2_target_r": 0.3,
+          "gov_gtg2_z_exit": 0.5,
+          "gov_v3_base_gap_r": 0.45,
+          "gov_v3_gamma_fast": 0.85,
+          "gov_v3_gamma_slow": 0.98,
+          "gov_v3_grace_bars": 2,
+          "gov_v3_kappa": 0.25,
+          "gov_v3_mfe_activation_r": 0.3,
+          "gov_v3_minimum_gap_r": 0.15,
+          "gov_v3_noise_floor_mult": 1.0,
+          "gov_v3_tau_error_multiplier": 1.0,
+          "gsch_base_z_lower_offset": 0.5,
+          "gsch_base_z_stress_gain": 0.25,
+          "gsch_base_z_trend_gain": 0.1,
+          "gsch_base_z_upper_offset": 0.1,
+          "gsch_droop_gain_max_scale": 2.0,
+          "gsch_droop_gain_min_scale": 0.5,
+          "gsch_droop_gain_stress_gain": 0.5,
+          "gsch_droop_max_max_scale": 1.6,
+          "gsch_droop_max_min_scale": 0.8,
+          "gsch_droop_max_stress_gain": 0.6,
+          "gsch_droop_r_min_scale": 0.6,
+          "gsch_droop_r_stress_gain": 0.25,
+          "gsch_integral_error_gain": 0.5,
+          "gsch_integral_max_scale": 1.25,
+          "gsch_integral_min_scale": 0.5,
+          "gsch_integral_stress_gain": 0.8,
+          "gsch_kd_error_gain": 0.7,
+          "gsch_kd_scale_max": 2.0,
+          "gsch_kd_scale_min": 0.6,
+          "gsch_kd_stress_gain": 0.5,
+          "gsch_ki_divisor_max": 3.5,
+          "gsch_ki_divisor_min": 1.0,
+          "gsch_ki_error_gain": 1.5,
+          "gsch_ki_stress_gain": 1.0,
+          "gsch_kp_error_gain": 1.0,
+          "gsch_kp_scale_max": 2.2,
+          "gsch_kp_scale_min": 0.6,
+          "gsch_kp_stress_gain": 0.25,
+          "gsch_offset_min_lower_scale": 1.5,
+          "gsch_offset_min_stress_gain": 0.25,
+          "gsch_offset_min_upper_scale": 0.75,
+          "gsch_target_max_scale": 1.25,
+          "gsch_target_min_scale": 0.7,
+          "gsch_target_stress_gain": 0.15,
+          "gsch_target_trend_gain": 0.15,
+          "gsch_window_max": 12,
+          "gsch_window_min": 3,
+          "gsch_window_stress_gain": 0.8,
+          "hrsg_correlation_window": 30,
+          "hrsg_max_steam_pressure_pu": 1.5,
+          "hrsg_min_correlation_samples": 6,
+          "hrsg_min_penalty_factor": 0.7,
+          "hrsg_min_steam_pressure_pu": 0.35,
+          "hrsg_pressure_time_constant_bars": 5.0,
+          "hrsg_recovery_fraction": 0.6,
+          "hrsg_rho_crit": 0.65,
+          "micom_crash_min_pct": 0.008,
+          "micom_crash_stress_gain": 0.25,
+          "micom_drawdown_min_pct": 0.01,
+          "micom_drawdown_stress_gain": 0.35,
+          "micom_max_daily_fleet_drawdown_pct": 0.02,
+          "micom_max_regime_vol_z": 3.0,
+          "micom_nifty_crash_rate_pct": 0.015,
+          "micom_overfrequency_ratio": 1.5,
+          "micom_vol_z_min": 1.8,
+          "micom_vol_z_stress_gain": 0.3,
+          "plant_bay_lockout_consecutive_stops": 2,
+          "plant_loss_cooldown_base_bars": 15,
+          "plant_loss_cooldown_max_bars": 30,
+          "plant_loss_cooldown_min_bars": 8,
+          "plant_loss_cooldown_stress_gain": 0.9,
+          "plant_loss_cooldown_stress_offset": 0.8,
+          "plant_stop_floor_price_fraction": 0.0065,
+          "plant_target_cooldown_base_bars": 3,
+          "plant_target_cooldown_max_bars": 8,
+          "plant_target_cooldown_min_bars": 2,
+          "plant_target_cooldown_stress_gain": 0.7,
+          "plant_target_cooldown_stress_offset": 0.8,
+          "plant_target_min_reward_risk": 1.5,
+          "sel_adverse_min_bars": 2,
+          "sel_adverse_stress_gain": 0.5,
+          "sel_max_adverse_bars": 4,
+          "sel_max_slippage_fraction": 0.0035,
+          "sel_max_spread_fraction": 0.005,
+          "sel_slippage_min_fraction": 0.002,
+          "sel_slippage_stress_gain": 0.3,
+          "sel_spread_min_fraction": 0.0025,
+          "sel_spread_stress_gain": 0.4,
+          "sel_stale_tick_limit_seconds": 120.0,
+          "sel_stale_tick_min_seconds": 45.0,
+          "sel_stale_tick_stress_gain": 0.5,
+          "sel_vol_surge_min_mult": 2.0,
+          "sel_vol_surge_mult": 3.5,
+          "sel_vol_surge_stress_gain": 0.3,
+          "symbol_loss_cooldown_bars": 15,
+          "symbol_trip_consecutive_losses": 2
+        },
+        "registry_identity_sha256": "a4bdda2d7df63f838be49fc7e1ad08525e768eaedfec2af537c6abd764371f46",
+        "config_hash": "bc08dcd11df338c3da28e2bbbb922ab1c154d6eb9a6b7967f9a67f1aaa95e49a",
+        "modes": {
+          "governor_authority": "full",
+          "governor_position_mode": "v3",
+          "avr_voltage_mode": "measured",
+          "dispatcher_allocation_mode": "bounded",
+          "hrsg_correlation_mode": "causal_bay_returns",
+          "final_exit_authority": true,
+          "closed_loop_mode": "active_paper",
+          "plant_control_mode": "PAPER_APPLY"
+        }
+      },
+      "applied_value_summary": {
+        "GTG1_HEAVY_INDUSTRY.governor.kp": {
+          "min": 1.2984217969709042,
+          "max": 1.824604050215516,
+          "last": 1.7003327978184681,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.ki": {
+          "min": 0.02284933650006751,
+          "max": 0.03764854260997024,
+          "last": 0.025734917745224063,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.kd": {
+          "min": 0.3492108984854521,
+          "max": 0.47336487164361396,
+          "last": 0.4370834909490949,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.25004902507968746,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.integral_clamp": {
+          "min": 1.740919677286982,
+          "max": 2.4236702823549696,
+          "last": 1.9338131516115977,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.base_z": {
+          "min": -2.173282529864696,
+          "max": -1.8794817277796332,
+          "last": -2.087194860844757,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.droop_r": {
+          "min": 0.03298975707741335,
+          "max": 0.03873615409516221,
+          "last": 0.03492048704298842,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5071445207663804,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.dynamic_offset_max": {
+          "min": 0.10267484752254011,
+          "max": 0.14145647051734495,
+          "last": 0.11570071791517178,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.08504297759057389,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.3261926943551738,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_kp": {
+          "min": 0.8341741179306202,
+          "max": 0.9893006099098396,
+          "last": 0.9371971283393129,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_ki": {
+          "min": 0.11402499740913737,
+          "max": 0.14191686077268476,
+          "last": 0.12208403497547987,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_kd": {
+          "min": 0.10569568632177004,
+          "max": 0.13155010165163994,
+          "last": 0.12286618805655214,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_integral_clamp": {
+          "min": 0.43689979669672013,
+          "max": 0.48860862735645993,
+          "last": 0.45426762388689573,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.excitation_command": {
+          "min": 0.9211247458709002,
+          "max": 0.9857607841955749,
+          "last": 0.9428345298586196,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.excitation_min": {
+          "min": 0.10569568632177004,
+          "max": 0.13155010165163994,
+          "last": 0.12286618805655214,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.excitation_max": {
+          "min": 0.9211247458709002,
+          "max": 0.9857607841955749,
+          "last": 0.9428345298586196,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.loading_fraction": {
+          "min": 0.10267484752254011,
+          "max": 0.14145647051734495,
+          "last": 0.11570071791517178,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.undervoltage_trip_pu": {
+          "min": 0.9028478431608851,
+          "max": 0.91577505082582,
+          "last": 0.9114330940282761,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.overvoltage_trip_pu": {
+          "min": 1.0842249491741802,
+          "max": 1.0971521568391152,
+          "last": 1.088566905971724,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.oel_max": {
+          "min": 55918.54949423065,
+          "max": 87792.4520640887,
+          "last": 65947.87278624838,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20714.452076638034,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.dispatcher.weight": {
+          "min": 0.2136245262519531,
+          "max": 0.25,
+          "last": 0.22838048497633484,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.effective_allocation": {
+          "min": 0.0,
+          "max": 250000.0,
+          "last": 213745.02025972513,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 19.0,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 2.9666511395137833,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.kp": {
+          "min": 1.6230272462136304,
+          "max": 2.280755062769395,
+          "last": 2.1254159972730853,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.ki": {
+          "min": 0.036558938400108015,
+          "max": 0.060237668175952386,
+          "last": 0.0411758683923585,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.kd": {
+          "min": 0.6984217969709042,
+          "max": 0.9467297432872279,
+          "last": 0.8741669818981898,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.25004902507968746,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.integral_clamp": {
+          "min": 1.740919677286982,
+          "max": 2.4236702823549696,
+          "last": 1.9338131516115977,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.base_z": {
+          "min": -2.2732825298646957,
+          "max": -1.9794817277796333,
+          "last": -2.187194860844757,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.droop_r": {
+          "min": 0.03298975707741335,
+          "max": 0.03873615409516221,
+          "last": 0.03492048704298842,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5071445207663804,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.dynamic_offset_max": {
+          "min": 0.10267484752254011,
+          "max": 0.14145647051734495,
+          "last": 0.11570071791517178,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.08504297759057389,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.3261926943551738,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_kp": {
+          "min": 0.8341741179306202,
+          "max": 0.9893006099098396,
+          "last": 0.9371971283393129,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_ki": {
+          "min": 0.11402499740913737,
+          "max": 0.14191686077268476,
+          "last": 0.12208403497547987,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_kd": {
+          "min": 0.10569568632177004,
+          "max": 0.13155010165163994,
+          "last": 0.12286618805655214,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_integral_clamp": {
+          "min": 0.43689979669672013,
+          "max": 0.48860862735645993,
+          "last": 0.45426762388689573,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.excitation_command": {
+          "min": 0.9211247458709002,
+          "max": 0.9857607841955749,
+          "last": 0.9428345298586196,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.excitation_min": {
+          "min": 0.10569568632177004,
+          "max": 0.13155010165163994,
+          "last": 0.12286618805655214,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.excitation_max": {
+          "min": 0.9211247458709002,
+          "max": 0.9857607841955749,
+          "last": 0.9428345298586196,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.loading_fraction": {
+          "min": 0.10267484752254011,
+          "max": 0.14145647051734495,
+          "last": 0.11570071791517178,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.undervoltage_trip_pu": {
+          "min": 0.9028478431608851,
+          "max": 0.91577505082582,
+          "last": 0.9114330940282761,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.overvoltage_trip_pu": {
+          "min": 1.0842249491741802,
+          "max": 1.0971521568391152,
+          "last": 1.088566905971724,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.oel_max": {
+          "min": 41945.800742785046,
+          "max": 75438.89255600488,
+          "last": 43912.45795868559,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20714.452076638034,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.dispatcher.weight": {
+          "min": 0.15058256907437487,
+          "max": 0.20000000000000004,
+          "last": 0.15058256907437487,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.effective_allocation": {
+          "min": 0.0,
+          "max": 200000.00000000003,
+          "last": 142325.5795748849,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 19.0,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 2.9666511395137833,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.kp": {
+          "min": 0.9738163477281783,
+          "max": 1.3684530376616373,
+          "last": 1.2752495983638512,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.ki": {
+          "min": 0.05483840760016202,
+          "max": 0.09035650226392858,
+          "last": 0.06176380258853774,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.kd": {
+          "min": 0.17460544924272606,
+          "max": 0.23668243582180698,
+          "last": 0.21854174547454744,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.25004902507968746,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.integral_clamp": {
+          "min": 1.740919677286982,
+          "max": 2.4236702823549696,
+          "last": 1.9338131516115977,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.base_z": {
+          "min": -2.1232825298646962,
+          "max": -1.8294817277796334,
+          "last": -2.037194860844757,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.droop_r": {
+          "min": 0.04536091598144335,
+          "max": 0.053262211880848044,
+          "last": 0.04801566968410907,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5071445207663804,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.dynamic_offset_max": {
+          "min": 0.10267484752254011,
+          "max": 0.14145647051734495,
+          "last": 0.11570071791517178,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.08504297759057389,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.3261926943551738,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.runtime_kp": {
+          "min": 0.8341741179306202,
+          "max": 0.9893006099098396,
+          "last": 0.9371971283393129,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.runtime_ki": {
+          "min": 0.11402499740913737,
+          "max": 0.14191686077268476,
+          "last": 0.12208403497547987,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.runtime_kd": {
+          "min": 0.10569568632177004,
+          "max": 0.13155010165163994,
+          "last": 0.12286618805655214,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.runtime_integral_clamp": {
+          "min": 0.43689979669672013,
+          "max": 0.48860862735645993,
+          "last": 0.45426762388689573,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.excitation_command": {
+          "min": 0.9211247458709002,
+          "max": 0.9857607841955749,
+          "last": 0.9428345298586196,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.excitation_min": {
+          "min": 0.10569568632177004,
+          "max": 0.13155010165163994,
+          "last": 0.12286618805655214,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.excitation_max": {
+          "min": 0.9211247458709002,
+          "max": 0.9857607841955749,
+          "last": 0.9428345298586196,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.loading_fraction": {
+          "min": 0.10267484752254011,
+          "max": 0.14145647051734495,
+          "last": 0.11570071791517178,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.undervoltage_trip_pu": {
+          "min": 0.9028478431608851,
+          "max": 0.91577505082582,
+          "last": 0.9114330940282761,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.overvoltage_trip_pu": {
+          "min": 1.0842249491741802,
+          "max": 1.0971521568391152,
+          "last": 1.088566905971724,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.oel_max": {
+          "min": 410.7606079078868,
+          "max": 86568.94730635818,
+          "last": 57243.149214926816,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20714.452076638034,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.dispatcher.weight": {
+          "min": 0.21089254610167643,
+          "max": 0.25,
+          "last": 0.21816853156240437,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.effective_allocation": {
+          "min": 0.0,
+          "max": 250000.0,
+          "last": 185531.95989099995,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 19.0,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 2.9666511395137833,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.kp": {
+          "min": 1.0820181641424202,
+          "max": 1.5205033751795969,
+          "last": 1.4169439981820569,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.ki": {
+          "min": 0.03198907110009452,
+          "max": 0.052707959653958344,
+          "last": 0.03602888484331369,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.kd": {
+          "min": 0.2910090820712101,
+          "max": 0.39447072636967834,
+          "last": 0.3642362424575791,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.25004902507968746,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.integral_clamp": {
+          "min": 1.740919677286982,
+          "max": 2.4236702823549696,
+          "last": 1.9338131516115977,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.base_z": {
+          "min": -2.223282529864696,
+          "max": -1.9294817277796332,
+          "last": -2.137194860844757,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.droop_r": {
+          "min": 0.04536091598144335,
+          "max": 0.053262211880848044,
+          "last": 0.04801566968410907,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5071445207663804,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.dynamic_offset_max": {
+          "min": 0.10267484752254011,
+          "max": 0.14145647051734495,
+          "last": 0.11570071791517178,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.08504297759057389,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.3261926943551738,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_kp": {
+          "min": 0.8341741179306202,
+          "max": 0.9893006099098396,
+          "last": 0.9371971283393129,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_ki": {
+          "min": 0.11402499740913737,
+          "max": 0.14191686077268476,
+          "last": 0.12208403497547987,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_kd": {
+          "min": 0.10569568632177004,
+          "max": 0.13155010165163994,
+          "last": 0.12286618805655214,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_integral_clamp": {
+          "min": 0.43689979669672013,
+          "max": 0.48860862735645993,
+          "last": 0.45426762388689573,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.excitation_command": {
+          "min": 0.9211247458709002,
+          "max": 0.9857607841955749,
+          "last": 0.9428345298586196,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.excitation_min": {
+          "min": 0.10569568632177004,
+          "max": 0.13155010165163994,
+          "last": 0.12286618805655214,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.excitation_max": {
+          "min": 0.9211247458709002,
+          "max": 0.9857607841955749,
+          "last": 0.9428345298586196,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.loading_fraction": {
+          "min": 0.10267484752254011,
+          "max": 0.14145647051734495,
+          "last": 0.11570071791517178,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.undervoltage_trip_pu": {
+          "min": 0.9028478431608851,
+          "max": 0.91577505082582,
+          "last": 0.9114330940282761,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.overvoltage_trip_pu": {
+          "min": 1.0842249491741802,
+          "max": 1.0971521568391152,
+          "last": 1.088566905971724,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.oel_max": {
+          "min": 353.34020949971887,
+          "max": 75604.61700961586,
+          "last": 54169.61796822358,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20714.452076638034,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.dispatcher.weight": {
+          "min": 0.18,
+          "max": 0.2064545045041314,
+          "last": 0.2064545045041314,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.effective_allocation": {
+          "min": 0.0,
+          "max": 206454.5045041314,
+          "last": 175570.27392843968,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 19.0,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 2.9666511395137833,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.kp": {
+          "min": 0.8656145313139363,
+          "max": 1.2164027001436777,
+          "last": 1.1335551985456456,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.ki": {
+          "min": 0.018279469200054008,
+          "max": 0.030118834087976193,
+          "last": 0.02058793419617925,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.kd": {
+          "min": 0.2328072656569681,
+          "max": 0.3155765810957427,
+          "last": 0.29138899396606327,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.25004902507968746,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.integral_clamp": {
+          "min": 1.740919677286982,
+          "max": 2.4236702823549696,
+          "last": 1.9338131516115977,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.base_z": {
+          "min": -2.073282529864696,
+          "max": -1.7794817277796333,
+          "last": -1.9871948608447572,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.droop_r": {
+          "min": 0.061855794520150026,
+          "max": 0.07263028892842915,
+          "last": 0.06547591320560328,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5071445207663804,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.dynamic_offset_max": {
+          "min": 0.10267484752254011,
+          "max": 0.14145647051734495,
+          "last": 0.11570071791517178,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.08504297759057389,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.3261926943551738,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_kp": {
+          "min": 0.8341741179306202,
+          "max": 0.9893006099098396,
+          "last": 0.9371971283393129,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_ki": {
+          "min": 0.11402499740913737,
+          "max": 0.14191686077268476,
+          "last": 0.12208403497547987,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_kd": {
+          "min": 0.10569568632177004,
+          "max": 0.13155010165163994,
+          "last": 0.12286618805655214,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_integral_clamp": {
+          "min": 0.43689979669672013,
+          "max": 0.48860862735645993,
+          "last": 0.45426762388689573,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.excitation_command": {
+          "min": 0.9211247458709002,
+          "max": 0.9857607841955749,
+          "last": 0.9428345298586196,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.excitation_min": {
+          "min": 0.10569568632177004,
+          "max": 0.13155010165163994,
+          "last": 0.12286618805655214,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.excitation_max": {
+          "min": 0.9211247458709002,
+          "max": 0.9857607841955749,
+          "last": 0.9428345298586196,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.loading_fraction": {
+          "min": 0.10267484752254011,
+          "max": 0.14145647051734495,
+          "last": 0.11570071791517178,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.undervoltage_trip_pu": {
+          "min": 0.9028478431608851,
+          "max": 0.91577505082582,
+          "last": 0.9114330940282761,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.overvoltage_trip_pu": {
+          "min": 1.0842249491741802,
+          "max": 1.0971521568391152,
+          "last": 1.088566905971724,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.oel_max": {
+          "min": 304.1227251498606,
+          "max": 73089.69791238637,
+          "last": 60600.61435189482,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20714.452076638034,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.dispatcher.weight": {
+          "min": 0.12,
+          "max": 0.19641390988275453,
+          "last": 0.19641390988275453,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.effective_allocation": {
+          "min": 0.0,
+          "max": 196413.90988275452,
+          "last": 196413.90988275452,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 19.0,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 2.9666511395137833,
+          "bars": 1140
+        },
+        "hrsg.steam_pressure_pu": {
+          "min": 0.029934748889386166,
+          "max": 1.4459299251957403,
+          "last": 1.2729305874962817,
+          "bars": 1140
+        },
+        "hrsg.pressure_time_constant_bars": {
+          "min": 5.0,
+          "max": 5.0,
+          "last": 5.0,
+          "bars": 1140
+        },
+        "micom.max_dd_pct": {
+          "min": 0.015092829954189344,
+          "max": 0.019115307866613553,
+          "last": 0.01644434093009189,
+          "bars": 1140
+        }
+      }
+    },
+    "C": {
+      "engine": "ENGINE_C_BACKTRADER_NATIVE",
+      "data_source": {
+        "kind": "FROZEN_NSE_48_1MIN",
+        "manifest_hash": "f724074ca45eb9380ba6e7cf18ae1da4d9c9d48be0cf78ca51b0faa8d8d8ff16",
+        "data_dir_name": "frozen_48_1min_20230703_20260824",
+        "grid_manifest": "grid-manifest-local.json",
+        "latest_common_grid_date": "2026-08-13",
+        "bars_per_symbol": 1200,
+        "warmup": 60
+      },
+      "bars_received": 57600,
+      "totals": {
+        "entries_filled": 11,
+        "exits": 11,
+        "gross_pnl": -236.15844999999155,
+        "costs": 222.714460511975,
+        "net_pnl": -458.87291051196655,
+        "mean_hold_bars": 3.4545454545454546,
+        "closed_trade_drawdown_rupees": 458.87291051196655
+      },
+      "by_symbol": {
+        "ADANIENT": {
+          "exits": 1,
+          "gross_pnl": 22.19999999999891,
+          "costs": 16.3366215,
+          "net_pnl": 5.863378499998909,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 0.0
+        },
+        "ADANIPORTS": {
+          "exits": 1,
+          "gross_pnl": -37.40000000000077,
+          "costs": 25.909195099999998,
+          "net_pnl": -63.30919510000077,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 63.30919510000077
+        },
+        "APOLLOHOSP": {
+          "exits": 2,
+          "gross_pnl": 15.596000000001368,
+          "costs": 15.986849862,
+          "net_pnl": -0.3908498619986318,
+          "mean_hold_bars": 3.5,
+          "closed_trade_drawdown_rupees": 5.493636361998632
+        },
+        "BEL": {
+          "exits": 1,
+          "gross_pnl": -41.39999999999765,
+          "costs": 25.47653535,
+          "net_pnl": -66.87653534999765,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 66.87653534999765
+        },
+        "BHARTIARTL": {
+          "exits": 1,
+          "gross_pnl": -68.03789999999753,
+          "costs": 24.709269447449998,
+          "net_pnl": -92.74716944744753,
+          "mean_hold_bars": 2.0,
+          "closed_trade_drawdown_rupees": 92.74716944744753
+        },
+        "INDIGO": {
+          "exits": 1,
+          "gross_pnl": -31.5,
+          "costs": 33.703374249999996,
+          "net_pnl": -65.20337425,
+          "mean_hold_bars": 5.0,
+          "closed_trade_drawdown_rupees": 65.20337425
+        },
+        "INFY": {
+          "exits": 2,
+          "gross_pnl": -44.6125499999946,
+          "costs": 41.739716964525,
+          "net_pnl": -86.3522669645196,
+          "mean_hold_bars": 1.5,
+          "closed_trade_drawdown_rupees": 86.3522669645196
+        },
+        "SBIN": {
+          "exits": 1,
+          "gross_pnl": -28.80000000000109,
+          "costs": 23.779384800000003,
+          "net_pnl": -52.579384800001094,
+          "mean_hold_bars": 4.0,
+          "closed_trade_drawdown_rupees": 52.579384800001094
+        },
+        "TCS": {
+          "exits": 1,
+          "gross_pnl": -22.20400000000018,
+          "costs": 15.073513238,
+          "net_pnl": -37.27751323800018,
+          "mean_hold_bars": 8.0,
+          "closed_trade_drawdown_rupees": 37.27751323800018
+        }
+      },
+      "by_sector": {
+        "Aviation": {
+          "exits": 1,
+          "gross_pnl": -31.5,
+          "costs": 33.703374249999996,
+          "net_pnl": -65.20337425,
+          "mean_hold_bars": 5.0,
+          "closed_trade_drawdown_rupees": 65.20337425
+        },
+        "CapitalGoods&Defense": {
+          "exits": 1,
+          "gross_pnl": -41.39999999999765,
+          "costs": 25.47653535,
+          "net_pnl": -66.87653534999765,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 66.87653534999765
+        },
+        "Financials": {
+          "exits": 1,
+          "gross_pnl": -28.80000000000109,
+          "costs": 23.779384800000003,
+          "net_pnl": -52.579384800001094,
+          "mean_hold_bars": 4.0,
+          "closed_trade_drawdown_rupees": 52.579384800001094
+        },
+        "Healthcare": {
+          "exits": 2,
+          "gross_pnl": 15.596000000001368,
+          "costs": 15.986849862,
+          "net_pnl": -0.3908498619986318,
+          "mean_hold_bars": 3.5,
+          "closed_trade_drawdown_rupees": 5.493636361998632
+        },
+        "IT": {
+          "exits": 3,
+          "gross_pnl": -66.81654999999478,
+          "costs": 56.813230202525006,
+          "net_pnl": -123.62978020251978,
+          "mean_hold_bars": 3.6666666666666665,
+          "closed_trade_drawdown_rupees": 123.62978020251978
+        },
+        "Infra&Cement": {
+          "exits": 1,
+          "gross_pnl": -37.40000000000077,
+          "costs": 25.909195099999998,
+          "net_pnl": -63.30919510000077,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 63.30919510000077
+        },
+        "Metals&Mining": {
+          "exits": 1,
+          "gross_pnl": 22.19999999999891,
+          "costs": 16.3366215,
+          "net_pnl": 5.863378499998909,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 0.0
+        },
+        "Telecom": {
+          "exits": 1,
+          "gross_pnl": -68.03789999999753,
+          "costs": 24.709269447449998,
+          "net_pnl": -92.74716944744753,
+          "mean_hold_bars": 2.0,
+          "closed_trade_drawdown_rupees": 92.74716944744753
+        }
+      },
+      "by_bay": {
+        "BPSTG_HEALTHCARE": {
+          "exits": 2,
+          "gross_pnl": 15.596000000001368,
+          "costs": 15.986849862,
+          "net_pnl": -0.3908498619986318,
+          "mean_hold_bars": 3.5,
+          "closed_trade_drawdown_rupees": 5.493636361998632
+        },
+        "CSTG1_BFSI": {
+          "exits": 1,
+          "gross_pnl": -28.80000000000109,
+          "costs": 23.779384800000003,
+          "net_pnl": -52.579384800001094,
+          "mean_hold_bars": 4.0,
+          "closed_trade_drawdown_rupees": 52.579384800001094
+        },
+        "CSTG2_CONSUMER_AUTO": {
+          "exits": 1,
+          "gross_pnl": -31.5,
+          "costs": 33.703374249999996,
+          "net_pnl": -65.20337425,
+          "mean_hold_bars": 5.0,
+          "closed_trade_drawdown_rupees": 65.20337425
+        },
+        "GTG1_HEAVY_INDUSTRY": {
+          "exits": 3,
+          "gross_pnl": -56.59999999999951,
+          "costs": 67.72235194999999,
+          "net_pnl": -124.32235194999951,
+          "mean_hold_bars": 3.0,
+          "closed_trade_drawdown_rupees": 130.18573044999843
+        },
+        "GTG2_TECH_TELECOM": {
+          "exits": 4,
+          "gross_pnl": -134.8544499999923,
+          "costs": 81.522499649975,
+          "net_pnl": -216.37694964996732,
+          "mean_hold_bars": 3.25,
+          "closed_trade_drawdown_rupees": 216.37694964996732
+        }
+      },
+      "by_holding_duration_bars": {
+        "0-2": {
+          "exits": 2,
+          "gross_pnl": -73.10849999999346,
+          "costs": 43.94630588175,
+          "net_pnl": -117.05480588174345,
+          "mean_hold_bars": 1.0,
+          "closed_trade_drawdown_rupees": 117.05480588174345
+        },
+        "3-5": {
+          "exits": 8,
+          "gross_pnl": -140.8459499999979,
+          "costs": 163.69464139222498,
+          "net_pnl": -304.5405913922229,
+          "mean_hold_bars": 3.5,
+          "closed_trade_drawdown_rupees": 310.4039698922218
+        },
+        "6-10": {
+          "exits": 1,
+          "gross_pnl": -22.20400000000018,
+          "costs": 15.073513238,
+          "net_pnl": -37.27751323800018,
+          "mean_hold_bars": 8.0,
+          "closed_trade_drawdown_rupees": 37.27751323800018
+        }
+      },
+      "by_exit_authority": {
+        "FINAL_EXECUTION_CONTROLLER": {
+          "exits": 3,
+          "gross_pnl": -15.903999999998632,
+          "costs": 49.690224111999996,
+          "net_pnl": -65.59422411199863,
+          "mean_hold_bars": 4.0,
+          "closed_trade_drawdown_rupees": 70.69701061199862
+        },
+        "GOVERNOR": {
+          "exits": 5,
+          "gross_pnl": -124.94194999999928,
+          "costs": 114.004417280225,
+          "net_pnl": -238.94636728022428,
+          "mean_hold_bars": 3.2,
+          "closed_trade_drawdown_rupees": 244.8097457802232
+        },
+        "PLANT_PROTECTION": {
+          "exits": 2,
+          "gross_pnl": -73.10849999999346,
+          "costs": 43.94630588175,
+          "net_pnl": -117.05480588174345,
+          "mean_hold_bars": 1.0,
+          "closed_trade_drawdown_rupees": 117.05480588174345
+        },
+        "PROTECTIVE_STOP": {
+          "exits": 1,
+          "gross_pnl": -22.20400000000018,
+          "costs": 15.073513238,
+          "net_pnl": -37.27751323800018,
+          "mean_hold_bars": 8.0,
+          "closed_trade_drawdown_rupees": 37.27751323800018
+        }
+      },
+      "entry_authority": {
+        "governor_entry_decisions": {
+          "NO_ACTION:FSR_BELOW_ENTRY_HURDLE:FSRN": 2301,
+          "NO_ACTION:GOVERNOR_OVERSPEED_LIMIT": 879,
+          "ENTRY:GOVERNOR_ENTRY": 908,
+          "NO_ACTION:GRID_REFERENCE_UNAVAILABLE": 160,
+          "NO_ACTION:EXHAUST_SPREAD_HOLD": 5
+        },
+        "plant_entry_rejections": {
+          "ENGINE_A_ENTRY_CUTOFF_14_30_IST": 83,
+          "AVR_CLAMP": 154,
+          "ENGINE_A_DAILY_BAY_FILL_ALREADY_USED": 317,
+          "PLANT_BAY_HEADROOM_EXHAUSTED": 6,
+          "HRSG_NO_BAY_CAPACITY": 97
+        },
+        "plant_paper_admission": {
+          "mode": "PAPER_APPLY",
+          "applied": true,
+          "plant_protection_connected": true,
+          "bay_availability_source": "CENTRAL_PLANT_MASTER_DCS",
+          "evaluations": 1140,
+          "paper_admission_evaluations": 919,
+          "paper_admission_rejections": 174,
+          "paper_admission_caps": 618,
+          "grid_state_counts": {
+            "SYNCHRONIZED": 1092,
+            "ISLANDED_SAFE": 48
+          },
+          "transitions": 82,
+          "observer_failures": 0
+        }
+      },
+      "hold_authority": {
+        "governor_hold_decisions": {
+          "HOLD:GOVERNOR_TRACKING": 15,
+          "HOLD:GOVERNOR_LOAD_SHED": 17
+        },
+        "governor_hold_bar_count": 32
+      },
+      "trades": [
+        {
+          "symbol": "BEL",
+          "side": "SELL",
+          "quantity": 69,
+          "entry_timestamp": "2026-08-11 09:49:00+05:30",
+          "entry_price": 401.55,
+          "exit_timestamp": "2026-08-11 09:53:00+05:30",
+          "exit_price": 402.15,
+          "bars_held": 3,
+          "pnl": -41.39999999999765,
+          "costs": 25.47653535,
+          "net_pnl": -66.87653534999765,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "BHARTIARTL",
+          "side": "SELL",
+          "quantity": 14,
+          "entry_timestamp": "2026-08-11 09:54:00+05:30",
+          "entry_price": 1918.74015,
+          "exit_timestamp": "2026-08-11 09:57:00+05:30",
+          "exit_price": 1923.6,
+          "bars_held": 2,
+          "pnl": -68.03789999999753,
+          "costs": 24.709269447449998,
+          "net_pnl": -92.74716944744753,
+          "reason": "plant_trip:SEL300G_TRIP:ANSI 24:V/Hz Overfluxing: Bar range 3.2x ATR > 3.1423993891979976x"
+        },
+        {
+          "symbol": "APOLLOHOSP",
+          "side": "SELL",
+          "quantity": 1,
+          "entry_timestamp": "2026-08-11 11:01:00+05:30",
+          "entry_price": 8803.596000000001,
+          "exit_timestamp": "2026-08-11 11:05:00+05:30",
+          "exit_price": 8801.0,
+          "bars_held": 3,
+          "pnl": 2.596000000001368,
+          "costs": 8.089636362,
+          "net_pnl": -5.493636361998632,
+          "reason": "final_controller_exit:STUDIES_PID_SUSTAINED_LOW_CONFIDENCE"
+        },
+        {
+          "symbol": "INDIGO",
+          "side": "SELL",
+          "quantity": 7,
+          "entry_timestamp": "2026-08-11 11:27:00+05:30",
+          "entry_price": 5237.5,
+          "exit_timestamp": "2026-08-11 11:33:00+05:30",
+          "exit_price": 5242.0,
+          "bars_held": 5,
+          "pnl": -31.5,
+          "costs": 33.703374249999996,
+          "net_pnl": -65.20337425,
+          "reason": "final_controller_exit:STUDIES_PID_SUSTAINED_LOW_CONFIDENCE"
+        },
+        {
+          "symbol": "ADANIPORTS",
+          "side": "SELL",
+          "quantity": 17,
+          "entry_timestamp": "2026-08-12 09:40:00+05:30",
+          "entry_price": 1657.6,
+          "exit_timestamp": "2026-08-12 09:44:00+05:30",
+          "exit_price": 1659.8,
+          "bars_held": 3,
+          "pnl": -37.40000000000077,
+          "costs": 25.909195099999998,
+          "net_pnl": -63.30919510000077,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "APOLLOHOSP",
+          "side": "SELL",
+          "quantity": 1,
+          "entry_timestamp": "2026-08-12 10:42:00+05:30",
+          "entry_price": 8598.0,
+          "exit_timestamp": "2026-08-12 10:47:00+05:30",
+          "exit_price": 8585.0,
+          "bars_held": 4,
+          "pnl": 13.0,
+          "costs": 7.897213499999999,
+          "net_pnl": 5.102786500000001,
+          "reason": "final_controller_exit:STUDIES_PID_SUSTAINED_LOW_CONFIDENCE"
+        },
+        {
+          "symbol": "SBIN",
+          "side": "SELL",
+          "quantity": 24,
+          "entry_timestamp": "2026-08-12 10:47:00+05:30",
+          "entry_price": 1077.7,
+          "exit_timestamp": "2026-08-12 10:52:00+05:30",
+          "exit_price": 1078.9,
+          "bars_held": 4,
+          "pnl": -28.80000000000109,
+          "costs": 23.779384800000003,
+          "net_pnl": -52.579384800001094,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "INFY",
+          "side": "SELL",
+          "quantity": 21,
+          "entry_timestamp": "2026-08-12 12:10:00+05:30",
+          "entry_price": 1165.31705,
+          "exit_timestamp": "2026-08-12 12:14:00+05:30",
+          "exit_price": 1167.2,
+          "bars_held": 3,
+          "pnl": -39.54194999999868,
+          "costs": 22.502680530225,
+          "net_pnl": -62.04463053022368,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "ADANIENT",
+          "side": "SELL",
+          "quantity": 6,
+          "entry_timestamp": "2026-08-13 09:48:00+05:30",
+          "entry_price": 2964.1,
+          "exit_timestamp": "2026-08-13 09:52:00+05:30",
+          "exit_price": 2960.4,
+          "bars_held": 3,
+          "pnl": 22.19999999999891,
+          "costs": 16.3366215,
+          "net_pnl": 5.863378499998909,
+          "reason": "governor_exit:FSR_BELOW_EXIT:FSRN"
+        },
+        {
+          "symbol": "INFY",
+          "side": "SELL",
+          "quantity": 18,
+          "entry_timestamp": "2026-08-13 09:57:00+05:30",
+          "entry_price": 1162.8183000000001,
+          "exit_timestamp": "2026-08-13 09:58:00+05:30",
+          "exit_price": 1163.1,
+          "bars_held": 0,
+          "pnl": -5.07059999999592,
+          "costs": 19.237036434300002,
+          "net_pnl": -24.307636434295922,
+          "reason": "plant_trip:ENGINE_A_FILL_LATCH_REJECTED"
+        },
+        {
+          "symbol": "TCS",
+          "side": "SELL",
+          "quantity": 7,
+          "entry_timestamp": "2026-08-13 09:57:00+05:30",
+          "entry_price": 2342.0,
+          "exit_timestamp": "2026-08-13 10:06:00+05:30",
+          "exit_price": 2345.172,
+          "bars_held": 8,
+          "pnl": -22.20400000000018,
+          "costs": 15.073513238,
+          "net_pnl": -37.27751323800018,
+          "reason": "stop"
+        }
+      ],
+      "events": {
+        "governor": {
+          "GOVERNOR_ENTRY_DECISION": 4253,
+          "GOVERNOR_POSITION_DECISION": 37,
+          "GOVERNOR_STOP_UPDATE": 32,
+          "GOVERNOR_EXIT_ARMED": 5,
+          "GOVERNOR_EXIT": 5
+        },
+        "avr": {
+          "AVR_VOLTAGE_REGULATION": 1140
+        },
+        "dispatcher": {
+          "PLANT_CONTROL_PAPER_ADMISSION": 919,
+          "DISPATCHER_UPDATE": 11
+        },
+        "hrsg": {
+          "HRSG_RETURN_SNAPSHOT": 1140,
+          "PLANT_BAR_STEP": 1140
+        },
+        "final_execution": {
+          "FINAL_EXECUTION_ENTRY_DECISION": 908,
+          "FINAL_EXECUTION_EXIT_DECISION": 39,
+          "FINAL_EXECUTION_EXIT_ARMED": 9
+        },
+        "all": {
+          "CONTROLLER_PARAMETER_STARTUP": 1,
+          "NATIVE_PLANT_STATE": 1140,
+          "AVR_VOLTAGE_REGULATION": 1140,
+          "HRSG_RETURN_SNAPSHOT": 1140,
+          "CONTROLLER_APPLIED_VALUES": 4,
+          "PLANT_BAR_STEP": 1140,
+          "HMM_REGIME_RISK_SHADOW": 54671,
+          "ENTRY_QUALITY_COMPARATOR": 4253,
+          "ENTRY_CONFIDENCE_THROTTLE": 4253,
+          "GOVERNOR_ENTRY_DECISION": 4253,
+          "FINAL_EXECUTION_ENTRY_DECISION": 908,
+          "PORTFOLIO_RISK_COMPARATOR": 908,
+          "DYNAMIC_SIZE_ACTUATION": 908,
+          "POSITION_SIZING": 908,
+          "PLANT_CONTROL_PAPER_ADMISSION": 919,
+          "PLANT_DCS_ENTRY": 734,
+          "MICOM_GRID_TRIP": 7,
+          "MICOM_GRID_RECLOSE": 5,
+          "ENTRY_EXPECTANCY_CANDIDATE": 11,
+          "CLOSED_LOOP_ENTRY_SNAPSHOT": 11,
+          "PLANT_FILL_BOUND": 11,
+          "ENGINE_C_NEXT_OPEN_FILL": 11,
+          "TRADE_PATH_COMPARATOR": 39,
+          "EXIT_PROTECTION_UPDATE": 39,
+          "FINAL_EXECUTION_EXIT_DECISION": 39,
+          "PLANT_POSITION_CONTROL": 38,
+          "GOVERNOR_POSITION_DECISION": 37,
+          "GOVERNOR_STOP_UPDATE": 32,
+          "SHADOW_R_TRAJECTORY_UPDATE": 32,
+          "GOVERNOR_EXIT_ARMED": 5,
+          "GOVERNOR_EXIT": 5,
+          "CONTROLLER_OUTCOME": 11,
+          "DISPATCHER_UPDATE": 11,
+          "ENTRY_EXPECTANCY_OUTCOME": 11,
+          "OUTCOME_LEDGER_UPDATE": 11,
+          "PLANT_TRIP_ARMED": 2,
+          "PLANT_TRIP_EXIT": 2,
+          "FINAL_EXECUTION_EXIT_ARMED": 9
+        }
+      },
+      "plant_trips": {
+        "SEL300G_TRIP": 1,
+        "ENGINE_A_FILL_LATCH_REJECTED": 1
+      },
+      "micom": {
+        "trip_bar_counts": {
+          "MICOM_INPUT_UNAVAILABLE": 48,
+          "ANSI 21": 60
+        },
+        "vol_z_window": 20
+      },
+      "reconciliation": {
+        "checks": 55953,
+        "checks_by_context": {
+          "tick_start": 55860,
+          "entry_execution": 11,
+          "entry_booked": 11,
+          "exit_execution": 11,
+          "exit_booked": 11,
+          "finish": 49
+        },
+        "breaks": [],
+        "ledger_gross_error": null,
+        "final": {
+          "rows": {
+            "realized_gross_vs_r5_trades": {
+              "backtrader": -236.15844999999155,
+              "r5": -236.15844999999155,
+              "note": "Backtrader execution-bit P&L vs R5 trade-ledger gross (+ realized P&L of exits still working)",
+              "tolerance": 0.0001,
+              "difference": 0.0,
+              "status": "PASS"
+            },
+            "commission_vs_r5_fill_model": {
+              "backtrader": 222.714460511975,
+              "r5": 222.714460511975,
+              "note": "Backtrader commission scheme vs R5 leg_cost, both per fill",
+              "tolerance": 0.0001,
+              "difference": 0.0,
+              "status": "PASS"
+            },
+            "commission_vs_r5_trade_ledger": {
+              "backtrader": 222.714460511975,
+              "r5": 222.714460511975,
+              "explained": 0.0,
+              "note": "R5 trade ledger charges leg_cost on each aggregated leg; a partially filled order is charged per fill (Rs 20 brokerage cap per fill).  Explained = per-fill minus per-leg charges.",
+              "tolerance": 0.0001,
+              "difference": 0.0,
+              "status": "PASS"
+            },
+            "unrealized": {
+              "backtrader": 0.0,
+              "r5": 0,
+              "tolerance": 0.0001,
+              "difference": 0.0,
+              "status": "PASS"
+            },
+            "cash": {
+              "backtrader": 999541.127089488,
+              "r5": 999541.127089488,
+              "tolerance": 0.0001,
+              "difference": 0.0,
+              "status": "PASS"
+            },
+            "value": {
+              "backtrader": 999541.127089488,
+              "r5": 999541.127089488,
+              "tolerance": 0.0001,
+              "difference": 0.0,
+              "status": "PASS"
+            },
+            "equity_identity": {
+              "backtrader": 999541.127089488,
+              "r5": 999541.1270894881,
+              "note": "value == start + realized - commission + unrealized",
+              "tolerance": 0.0001,
+              "difference": -1.1641532182693481e-10,
+              "status": "PASS"
+            },
+            "closed_trade_count": {
+              "backtrader": 11,
+              "r5": 11,
+              "tolerance": 0,
+              "difference": 0,
+              "status": "PASS"
+            },
+            "closed_trade_gross": {
+              "backtrader": -236.15844999999155,
+              "r5": -236.15844999999155,
+              "tolerance": 0.0001,
+              "difference": 0.0,
+              "status": "PASS"
+            },
+            "closed_trade_net": {
+              "backtrader": -458.87291051196655,
+              "r5": -458.87291051196655,
+              "explained": -0.0,
+              "note": "Backtrader pnlcomm carries per-fill commissions",
+              "tolerance": 0.0001,
+              "difference": 0.0,
+              "status": "PASS"
+            }
+          },
+          "open_positions": {},
+          "outstanding_orders_at_end": [],
+          "tolerances": {
+            "quantity": 0,
+            "price": 1e-06,
+            "money": 0.0001
+          },
+          "status": "PASS"
+        },
+        "chronology_errors": []
+      },
+      "controller_parameters": {
+        "parameter_count": 245,
+        "values_sha256": "840f0027166ebc82970b692ad82102c90adddf6cf59afea8a3ed917f48ebe009",
+        "non_default": {},
+        "effective_values": {
+          "avr_excitation_max_base": 1.0,
+          "avr_excitation_max_min": 0.75,
+          "avr_excitation_max_stress_gain": 0.25,
+          "avr_excitation_min_base": 0.1,
+          "avr_excitation_min_max": 0.2,
+          "avr_excitation_min_stress_gain": 0.1,
+          "avr_integral_clamp_base": 0.5,
+          "avr_integral_clamp_min": 0.3,
+          "avr_integral_clamp_stress_gain": 0.2,
+          "avr_kd_base": 0.1,
+          "avr_kd_max": 0.2,
+          "avr_kd_stress_gain": 0.1,
+          "avr_ki_base": 0.15,
+          "avr_ki_min": 0.075,
+          "avr_ki_stress_gain": 1.0,
+          "avr_kp_base": 0.8,
+          "avr_kp_max": 1.4,
+          "avr_kp_stress_gain": 0.6,
+          "avr_loading_fraction_base": 0.15,
+          "avr_loading_fraction_min": 0.05,
+          "avr_mvar_limit_base_pu": 0.9,
+          "avr_mvar_limit_min_pu": 0.6,
+          "avr_mvar_limit_stress_gain": 0.3,
+          "avr_oel_capital_fraction": 0.4,
+          "avr_oel_fraction_min": 0.15,
+          "avr_overvoltage_trip_base_pu": 1.1,
+          "avr_overvoltage_trip_min_pu": 1.05,
+          "avr_overvoltage_trip_stress_gain": 0.05,
+          "avr_synchronous_reactance_pu": 0.05,
+          "avr_uel_min_notional_inr": 15000.0,
+          "avr_uel_multiplier_max": 1.75,
+          "avr_uel_multiplier_stress_gain": 0.75,
+          "avr_undervoltage_trip_base_pu": 0.9,
+          "avr_undervoltage_trip_max_pu": 0.95,
+          "avr_undervoltage_trip_stress_gain": 0.05,
+          "avr_vol_scalar_max_base": 2.0,
+          "avr_vol_scalar_max_min": 0.75,
+          "avr_vol_scalar_min": 0.2,
+          "avr_voltage_filter_alpha": 1.0,
+          "avr_voltage_reference_pu": 1.0,
+          "avr_z_strength_cap_base": 1.5,
+          "avr_z_strength_cap_min": 0.75,
+          "avr_z_strength_denominator_base": 1.8,
+          "avr_z_strength_denominator_max": 2.7,
+          "avr_z_strength_denominator_stress_gain": 0.5,
+          "disp_allocation_ceiling": 0.35,
+          "disp_allocation_floor": 0.08,
+          "disp_downside_dev_default": 0.5,
+          "disp_downside_dev_floor": 0.2,
+          "disp_downside_min_count": 2,
+          "disp_ema_retention": 0.85,
+          "disp_ema_update": 0.15,
+          "disp_merit_window": 20,
+          "disp_min_samples": 3,
+          "disp_neutral_score": 1.0,
+          "disp_score_base": 1.0,
+          "disp_score_floor": 0.1,
+          "dyn_risk_derate_drawdown_gain": 0.25,
+          "dyn_risk_derate_lower_bound": 0.4,
+          "dyn_risk_derate_stress_gain": 0.45,
+          "dyn_stress_chop_weight": 0.25,
+          "dyn_stress_excess_vol_weight": 0.2,
+          "dyn_stress_turbulent_weight": 0.55,
+          "dyn_vol_max": 2.5,
+          "dyn_vol_min": 0.5,
+          "gov_bpstg_atr_barrier": 1.4,
+          "gov_bpstg_base_z": -1.8,
+          "gov_bpstg_capital_weight": 0.12,
+          "gov_bpstg_droop_r": 0.075,
+          "gov_bpstg_dynamic_offset_max": 0.15,
+          "gov_bpstg_dynamic_offset_min": -0.45,
+          "gov_bpstg_feedback_gain": 0.25,
+          "gov_bpstg_grid_droop_gain": 0.05,
+          "gov_bpstg_grid_droop_max": 0.25,
+          "gov_bpstg_integral_clamp": 3.0,
+          "gov_bpstg_kd": 0.2,
+          "gov_bpstg_ki": 0.04,
+          "gov_bpstg_kp": 0.8,
+          "gov_bpstg_outcome_window": 6,
+          "gov_bpstg_target_m": 2.5,
+          "gov_bpstg_target_r": 0.3,
+          "gov_bpstg_z_exit": 0.4,
+          "gov_cstg1_atr_barrier": 1.5,
+          "gov_cstg1_base_z": -1.85,
+          "gov_cstg1_capital_weight": 0.25,
+          "gov_cstg1_droop_r": 0.055,
+          "gov_cstg1_dynamic_offset_max": 0.15,
+          "gov_cstg1_dynamic_offset_min": -0.45,
+          "gov_cstg1_feedback_gain": 0.25,
+          "gov_cstg1_grid_droop_gain": 0.05,
+          "gov_cstg1_grid_droop_max": 0.25,
+          "gov_cstg1_integral_clamp": 3.0,
+          "gov_cstg1_kd": 0.15,
+          "gov_cstg1_ki": 0.12,
+          "gov_cstg1_kp": 0.9,
+          "gov_cstg1_outcome_window": 6,
+          "gov_cstg1_target_m": 2.8,
+          "gov_cstg1_target_r": 0.3,
+          "gov_cstg1_z_exit": 0.3,
+          "gov_cstg2_atr_barrier": 1.65,
+          "gov_cstg2_base_z": -1.95,
+          "gov_cstg2_capital_weight": 0.18,
+          "gov_cstg2_droop_r": 0.055,
+          "gov_cstg2_dynamic_offset_max": 0.15,
+          "gov_cstg2_dynamic_offset_min": -0.45,
+          "gov_cstg2_feedback_gain": 0.25,
+          "gov_cstg2_grid_droop_gain": 0.05,
+          "gov_cstg2_grid_droop_max": 0.25,
+          "gov_cstg2_integral_clamp": 3.0,
+          "gov_cstg2_kd": 0.25,
+          "gov_cstg2_ki": 0.07,
+          "gov_cstg2_kp": 1.0,
+          "gov_cstg2_outcome_window": 6,
+          "gov_cstg2_target_m": 2.9,
+          "gov_cstg2_target_r": 0.3,
+          "gov_cstg2_z_exit": 0.4,
+          "gov_gtg1_atr_barrier": 1.8,
+          "gov_gtg1_base_z": -1.9,
+          "gov_gtg1_capital_weight": 0.25,
+          "gov_gtg1_droop_r": 0.04,
+          "gov_gtg1_dynamic_offset_max": 0.15,
+          "gov_gtg1_dynamic_offset_min": -0.45,
+          "gov_gtg1_feedback_gain": 0.25,
+          "gov_gtg1_grid_droop_gain": 0.05,
+          "gov_gtg1_grid_droop_max": 0.25,
+          "gov_gtg1_integral_clamp": 3.0,
+          "gov_gtg1_kd": 0.3,
+          "gov_gtg1_ki": 0.05,
+          "gov_gtg1_kp": 1.2,
+          "gov_gtg1_outcome_window": 6,
+          "gov_gtg1_target_m": 3.0,
+          "gov_gtg1_target_r": 0.3,
+          "gov_gtg1_z_exit": 0.35,
+          "gov_gtg2_atr_barrier": 2.1,
+          "gov_gtg2_base_z": -2.0,
+          "gov_gtg2_capital_weight": 0.2,
+          "gov_gtg2_droop_r": 0.04,
+          "gov_gtg2_dynamic_offset_max": 0.15,
+          "gov_gtg2_dynamic_offset_min": -0.45,
+          "gov_gtg2_feedback_gain": 0.25,
+          "gov_gtg2_grid_droop_gain": 0.05,
+          "gov_gtg2_grid_droop_max": 0.25,
+          "gov_gtg2_integral_clamp": 3.0,
+          "gov_gtg2_kd": 0.6,
+          "gov_gtg2_ki": 0.08,
+          "gov_gtg2_kp": 1.5,
+          "gov_gtg2_outcome_window": 6,
+          "gov_gtg2_target_m": 3.2,
+          "gov_gtg2_target_r": 0.3,
+          "gov_gtg2_z_exit": 0.5,
+          "gov_v3_base_gap_r": 0.45,
+          "gov_v3_gamma_fast": 0.85,
+          "gov_v3_gamma_slow": 0.98,
+          "gov_v3_grace_bars": 2,
+          "gov_v3_kappa": 0.25,
+          "gov_v3_mfe_activation_r": 0.3,
+          "gov_v3_minimum_gap_r": 0.15,
+          "gov_v3_noise_floor_mult": 1.0,
+          "gov_v3_tau_error_multiplier": 1.0,
+          "gsch_base_z_lower_offset": 0.5,
+          "gsch_base_z_stress_gain": 0.25,
+          "gsch_base_z_trend_gain": 0.1,
+          "gsch_base_z_upper_offset": 0.1,
+          "gsch_droop_gain_max_scale": 2.0,
+          "gsch_droop_gain_min_scale": 0.5,
+          "gsch_droop_gain_stress_gain": 0.5,
+          "gsch_droop_max_max_scale": 1.6,
+          "gsch_droop_max_min_scale": 0.8,
+          "gsch_droop_max_stress_gain": 0.6,
+          "gsch_droop_r_min_scale": 0.6,
+          "gsch_droop_r_stress_gain": 0.25,
+          "gsch_integral_error_gain": 0.5,
+          "gsch_integral_max_scale": 1.25,
+          "gsch_integral_min_scale": 0.5,
+          "gsch_integral_stress_gain": 0.8,
+          "gsch_kd_error_gain": 0.7,
+          "gsch_kd_scale_max": 2.0,
+          "gsch_kd_scale_min": 0.6,
+          "gsch_kd_stress_gain": 0.5,
+          "gsch_ki_divisor_max": 3.5,
+          "gsch_ki_divisor_min": 1.0,
+          "gsch_ki_error_gain": 1.5,
+          "gsch_ki_stress_gain": 1.0,
+          "gsch_kp_error_gain": 1.0,
+          "gsch_kp_scale_max": 2.2,
+          "gsch_kp_scale_min": 0.6,
+          "gsch_kp_stress_gain": 0.25,
+          "gsch_offset_min_lower_scale": 1.5,
+          "gsch_offset_min_stress_gain": 0.25,
+          "gsch_offset_min_upper_scale": 0.75,
+          "gsch_target_max_scale": 1.25,
+          "gsch_target_min_scale": 0.7,
+          "gsch_target_stress_gain": 0.15,
+          "gsch_target_trend_gain": 0.15,
+          "gsch_window_max": 12,
+          "gsch_window_min": 3,
+          "gsch_window_stress_gain": 0.8,
+          "hrsg_correlation_window": 30,
+          "hrsg_max_steam_pressure_pu": 1.5,
+          "hrsg_min_correlation_samples": 6,
+          "hrsg_min_penalty_factor": 0.7,
+          "hrsg_min_steam_pressure_pu": 0.35,
+          "hrsg_pressure_time_constant_bars": 5.0,
+          "hrsg_recovery_fraction": 0.6,
+          "hrsg_rho_crit": 0.65,
+          "micom_crash_min_pct": 0.008,
+          "micom_crash_stress_gain": 0.25,
+          "micom_drawdown_min_pct": 0.01,
+          "micom_drawdown_stress_gain": 0.35,
+          "micom_max_daily_fleet_drawdown_pct": 0.02,
+          "micom_max_regime_vol_z": 3.0,
+          "micom_nifty_crash_rate_pct": 0.015,
+          "micom_overfrequency_ratio": 1.5,
+          "micom_vol_z_min": 1.8,
+          "micom_vol_z_stress_gain": 0.3,
+          "plant_bay_lockout_consecutive_stops": 2,
+          "plant_loss_cooldown_base_bars": 15,
+          "plant_loss_cooldown_max_bars": 30,
+          "plant_loss_cooldown_min_bars": 8,
+          "plant_loss_cooldown_stress_gain": 0.9,
+          "plant_loss_cooldown_stress_offset": 0.8,
+          "plant_stop_floor_price_fraction": 0.0065,
+          "plant_target_cooldown_base_bars": 3,
+          "plant_target_cooldown_max_bars": 8,
+          "plant_target_cooldown_min_bars": 2,
+          "plant_target_cooldown_stress_gain": 0.7,
+          "plant_target_cooldown_stress_offset": 0.8,
+          "plant_target_min_reward_risk": 1.5,
+          "sel_adverse_min_bars": 2,
+          "sel_adverse_stress_gain": 0.5,
+          "sel_max_adverse_bars": 4,
+          "sel_max_slippage_fraction": 0.0035,
+          "sel_max_spread_fraction": 0.005,
+          "sel_slippage_min_fraction": 0.002,
+          "sel_slippage_stress_gain": 0.3,
+          "sel_spread_min_fraction": 0.0025,
+          "sel_spread_stress_gain": 0.4,
+          "sel_stale_tick_limit_seconds": 120.0,
+          "sel_stale_tick_min_seconds": 45.0,
+          "sel_stale_tick_stress_gain": 0.5,
+          "sel_vol_surge_min_mult": 2.0,
+          "sel_vol_surge_mult": 3.5,
+          "sel_vol_surge_stress_gain": 0.3,
+          "symbol_loss_cooldown_bars": 15,
+          "symbol_trip_consecutive_losses": 2
+        },
+        "registry_identity_sha256": "a4bdda2d7df63f838be49fc7e1ad08525e768eaedfec2af537c6abd764371f46",
+        "config_hash": "bc08dcd11df338c3da28e2bbbb922ab1c154d6eb9a6b7967f9a67f1aaa95e49a",
+        "modes": {
+          "governor_authority": "full",
+          "governor_position_mode": "v3",
+          "avr_voltage_mode": "measured",
+          "dispatcher_allocation_mode": "bounded",
+          "hrsg_correlation_mode": "causal_bay_returns",
+          "final_exit_authority": true,
+          "closed_loop_mode": "active_paper",
+          "plant_control_mode": "PAPER_APPLY"
+        }
+      },
+      "applied_value_summary": {
+        "GTG1_HEAVY_INDUSTRY.governor.kp": {
+          "min": 1.2984217969709042,
+          "max": 1.9498676500862144,
+          "last": 1.8278543253097839,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.ki": {
+          "min": 0.021087923233075827,
+          "max": 0.03764854260997024,
+          "last": 0.02378361703521976,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.kd": {
+          "min": 0.3492108984854521,
+          "max": 0.4989537881750984,
+          "last": 0.45939975826007506,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.25004902507968746,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.integral_clamp": {
+          "min": 1.6814700385540264,
+          "max": 2.3763164416976363,
+          "last": 1.8697727074363895,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.base_z": {
+          "min": -2.173282529864696,
+          "max": -1.8794817277796332,
+          "last": -2.087194860844757,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.droop_r": {
+          "min": 0.03298975707741335,
+          "max": 0.03873615409516221,
+          "last": 0.03492048704298842,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5071445207663804,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.dynamic_offset_max": {
+          "min": 0.10267222324571225,
+          "max": 0.14145183240820075,
+          "last": 0.11569607980602759,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.08504297759057389,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.3261926943551738,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_kp": {
+          "min": 0.834192670367197,
+          "max": 0.9893111070171511,
+          "last": 0.9372156807758897,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_ki": {
+          "min": 0.11402348098218815,
+          "max": 0.1419127091896065,
+          "last": 0.12208096266384168,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_kd": {
+          "min": 0.10569877839453284,
+          "max": 0.13155185116952517,
+          "last": 0.12286928012931495,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.runtime_integral_clamp": {
+          "min": 0.4368962976609497,
+          "max": 0.4886024432109343,
+          "last": 0.4542614397413701,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.excitation_command": {
+          "min": 0.9211203720761871,
+          "max": 0.9857530540136679,
+          "last": 0.9428267996767127,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.excitation_min": {
+          "min": 0.10569877839453284,
+          "max": 0.13155185116952517,
+          "last": 0.12286928012931495,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.excitation_max": {
+          "min": 0.9211203720761871,
+          "max": 0.9857530540136679,
+          "last": 0.9428267996767127,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.loading_fraction": {
+          "min": 0.10267222324571225,
+          "max": 0.14145183240820075,
+          "last": 0.11569607980602759,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.undervoltage_trip_pu": {
+          "min": 0.9028493891972664,
+          "max": 0.9157759255847626,
+          "last": 0.9114346400646575,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.overvoltage_trip_pu": {
+          "min": 1.0842240744152376,
+          "max": 1.0971506108027336,
+          "last": 1.0885653599353426,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.oel_max": {
+          "min": 50671.4994204998,
+          "max": 87791.33772146875,
+          "last": 50921.397589971944,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20714.452076638034,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.dispatcher.weight": {
+          "min": 0.17635018683635484,
+          "max": 0.25,
+          "last": 0.17635018683635484,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.effective_allocation": {
+          "min": 0.0,
+          "max": 250000.0,
+          "last": 165049.01573376067,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 19.0,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1140
+        },
+        "GTG1_HEAVY_INDUSTRY.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 2.9666511395137833,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.kp": {
+          "min": 1.6230272462136304,
+          "max": 2.4373345626077683,
+          "last": 2.2848179066372296,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.ki": {
+          "min": 0.03374067717292132,
+          "max": 0.060237668175952386,
+          "last": 0.03805378725635161,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.kd": {
+          "min": 0.6984217969709042,
+          "max": 0.9979075763501968,
+          "last": 0.9187995165201501,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.25004902507968746,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.integral_clamp": {
+          "min": 1.6814700385540264,
+          "max": 2.3763164416976363,
+          "last": 1.8697727074363895,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.base_z": {
+          "min": -2.2732825298646957,
+          "max": -1.9794817277796333,
+          "last": -2.187194860844757,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.droop_r": {
+          "min": 0.03298975707741335,
+          "max": 0.03873615409516221,
+          "last": 0.03492048704298842,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5071445207663804,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.dynamic_offset_max": {
+          "min": 0.10267222324571225,
+          "max": 0.14145183240820075,
+          "last": 0.11569607980602759,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.08504297759057389,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.3261926943551738,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_kp": {
+          "min": 0.834192670367197,
+          "max": 0.9893111070171511,
+          "last": 0.9372156807758897,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_ki": {
+          "min": 0.11402348098218815,
+          "max": 0.1419127091896065,
+          "last": 0.12208096266384168,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_kd": {
+          "min": 0.10569877839453284,
+          "max": 0.13155185116952517,
+          "last": 0.12286928012931495,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.runtime_integral_clamp": {
+          "min": 0.4368962976609497,
+          "max": 0.4886024432109343,
+          "last": 0.4542614397413701,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.excitation_command": {
+          "min": 0.9211203720761871,
+          "max": 0.9857530540136679,
+          "last": 0.9428267996767127,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.excitation_min": {
+          "min": 0.10569877839453284,
+          "max": 0.13155185116952517,
+          "last": 0.12286928012931495,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.excitation_max": {
+          "min": 0.9211203720761871,
+          "max": 0.9857530540136679,
+          "last": 0.9428267996767127,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.loading_fraction": {
+          "min": 0.10267222324571225,
+          "max": 0.14145183240820075,
+          "last": 0.11569607980602759,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.undervoltage_trip_pu": {
+          "min": 0.9028493891972664,
+          "max": 0.9157759255847626,
+          "last": 0.9114346400646575,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.overvoltage_trip_pu": {
+          "min": 1.0842240744152376,
+          "max": 1.0971506108027336,
+          "last": 1.0885653599353426,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.oel_max": {
+          "min": 44734.83959538452,
+          "max": 76870.56216881756,
+          "last": 62873.85991404173,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20714.452076638034,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.dispatcher.weight": {
+          "min": 0.15507900907965003,
+          "max": 0.20378994264365113,
+          "last": 0.15507900907965003,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.effective_allocation": {
+          "min": 0.0,
+          "max": 203789.94264365113,
+          "last": 0.0,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 19.0,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1140
+        },
+        "GTG2_TECH_TELECOM.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 2.9666511395137833,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.kp": {
+          "min": 0.9738163477281783,
+          "max": 1.4624007375646608,
+          "last": 1.370890743982338,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.ki": {
+          "min": 0.050611015759381976,
+          "max": 0.09035650226392858,
+          "last": 0.05708068088452742,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.kd": {
+          "min": 0.17460544924272606,
+          "max": 0.2494768940875492,
+          "last": 0.22969987913003753,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.25004902507968746,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.integral_clamp": {
+          "min": 1.6814700385540264,
+          "max": 2.3763164416976363,
+          "last": 1.8697727074363895,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.base_z": {
+          "min": -2.1232825298646962,
+          "max": -1.8294817277796334,
+          "last": -2.037194860844757,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.droop_r": {
+          "min": 0.04536091598144335,
+          "max": 0.053262211880848044,
+          "last": 0.04801566968410907,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5071445207663804,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.dynamic_offset_max": {
+          "min": 0.10267222324571225,
+          "max": 0.14145183240820075,
+          "last": 0.11569607980602759,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.08504297759057389,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.3261926943551738,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.runtime_kp": {
+          "min": 0.834192670367197,
+          "max": 0.9893111070171511,
+          "last": 0.9372156807758897,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.runtime_ki": {
+          "min": 0.11402348098218815,
+          "max": 0.1419127091896065,
+          "last": 0.12208096266384168,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.runtime_kd": {
+          "min": 0.10569877839453284,
+          "max": 0.13155185116952517,
+          "last": 0.12286928012931495,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.runtime_integral_clamp": {
+          "min": 0.4368962976609497,
+          "max": 0.4886024432109343,
+          "last": 0.4542614397413701,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.excitation_command": {
+          "min": 0.9211203720761871,
+          "max": 0.9857530540136679,
+          "last": 0.9428267996767127,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.excitation_min": {
+          "min": 0.10569877839453284,
+          "max": 0.13155185116952517,
+          "last": 0.12286928012931495,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.excitation_max": {
+          "min": 0.9211203720761871,
+          "max": 0.9857530540136679,
+          "last": 0.9428267996767127,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.loading_fraction": {
+          "min": 0.10267222324571225,
+          "max": 0.14145183240820075,
+          "last": 0.11569607980602759,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.undervoltage_trip_pu": {
+          "min": 0.9028493891972664,
+          "max": 0.9157759255847626,
+          "last": 0.9114346400646575,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.overvoltage_trip_pu": {
+          "min": 1.0842240744152376,
+          "max": 1.0971506108027336,
+          "last": 1.0885653599353426,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.oel_max": {
+          "min": 156.0196394249659,
+          "max": 86567.8173684868,
+          "last": 42499.76335911532,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20714.452076638034,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.dispatcher.weight": {
+          "min": 0.2136245262519531,
+          "max": 0.25,
+          "last": 0.23401315094063932,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.effective_allocation": {
+          "min": 0.0,
+          "max": 250000.0,
+          "last": 137752.38786299765,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 19.0,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1140
+        },
+        "CSTG1_BFSI.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 2.9666511395137833,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.kp": {
+          "min": 1.0820181641424202,
+          "max": 1.6248897084051788,
+          "last": 1.5232119377581532,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.ki": {
+          "min": 0.02952309252630616,
+          "max": 0.052707959653958344,
+          "last": 0.03329706384930767,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.kd": {
+          "min": 0.2910090820712101,
+          "max": 0.4157948234792487,
+          "last": 0.3828331318833959,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.25004902507968746,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.integral_clamp": {
+          "min": 1.6814700385540264,
+          "max": 2.3763164416976363,
+          "last": 1.8697727074363895,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.base_z": {
+          "min": -2.223282529864696,
+          "max": -1.9294817277796332,
+          "last": -2.137194860844757,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.droop_r": {
+          "min": 0.04536091598144335,
+          "max": 0.053262211880848044,
+          "last": 0.04801566968410907,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5071445207663804,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.dynamic_offset_max": {
+          "min": 0.10267222324571225,
+          "max": 0.14145183240820075,
+          "last": 0.11569607980602759,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.08504297759057389,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.3261926943551738,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_kp": {
+          "min": 0.834192670367197,
+          "max": 0.9893111070171511,
+          "last": 0.9372156807758897,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_ki": {
+          "min": 0.11402348098218815,
+          "max": 0.1419127091896065,
+          "last": 0.12208096266384168,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_kd": {
+          "min": 0.10569877839453284,
+          "max": 0.13155185116952517,
+          "last": 0.12286928012931495,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.runtime_integral_clamp": {
+          "min": 0.4368962976609497,
+          "max": 0.4886024432109343,
+          "last": 0.4542614397413701,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.excitation_command": {
+          "min": 0.9211203720761871,
+          "max": 0.9857530540136679,
+          "last": 0.9428267996767127,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.excitation_min": {
+          "min": 0.10569877839453284,
+          "max": 0.13155185116952517,
+          "last": 0.12286928012931495,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.excitation_max": {
+          "min": 0.9211203720761871,
+          "max": 0.9857530540136679,
+          "last": 0.9428267996767127,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.loading_fraction": {
+          "min": 0.10267222324571225,
+          "max": 0.14145183240820075,
+          "last": 0.11569607980602759,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.undervoltage_trip_pu": {
+          "min": 0.9028493891972664,
+          "max": 0.9157759255847626,
+          "last": 0.9114346400646575,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.overvoltage_trip_pu": {
+          "min": 1.0842240744152376,
+          "max": 1.0971506108027336,
+          "last": 1.0885653599353426,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.oel_max": {
+          "min": 130.64148564840517,
+          "max": 72127.07386352903,
+          "last": 40372.34711794365,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20714.452076638034,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.dispatcher.weight": {
+          "min": 0.18,
+          "max": 0.2222991238823664,
+          "last": 0.2222991238823664,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.effective_allocation": {
+          "min": 0.0,
+          "max": 202398.35264749677,
+          "last": 130856.89847582992,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 19.0,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1140
+        },
+        "CSTG2_CONSUMER_AUTO.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 2.9666511395137833,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.kp": {
+          "min": 0.8656145313139363,
+          "max": 1.299911766724143,
+          "last": 1.2185695502065226,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.ki": {
+          "min": 0.01687033858646066,
+          "max": 0.030118834087976193,
+          "last": 0.019026893628175806,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.kd": {
+          "min": 0.2328072656569681,
+          "max": 0.33263585878339896,
+          "last": 0.30626650550671675,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.target_r": {
+          "min": 0.22381612022828662,
+          "max": 0.3177792862066559,
+          "last": 0.25004902507968746,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.outcome_window": {
+          "min": 7.0,
+          "max": 9.0,
+          "last": 8.0,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.integral_clamp": {
+          "min": 1.6814700385540264,
+          "max": 2.3763164416976363,
+          "last": 1.8697727074363895,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.base_z": {
+          "min": -2.073282529864696,
+          "max": -1.7794817277796333,
+          "last": -1.9871948608447572,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.droop_r": {
+          "min": 0.061855794520150026,
+          "max": 0.07263028892842915,
+          "last": 0.06547591320560328,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.dynamic_offset_min": {
+          "min": -0.5288652328790999,
+          "max": -0.46421826642942504,
+          "last": -0.5071445207663804,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.dynamic_offset_max": {
+          "min": 0.10267222324571225,
+          "max": 0.14145183240820075,
+          "last": 0.11569607980602759,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.grid_droop_gain": {
+          "min": 0.043847361919347363,
+          "max": 0.1,
+          "last": 0.08504297759057389,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.grid_droop_max": {
+          "min": 0.26895768857256674,
+          "max": 0.35515364383879977,
+          "last": 0.3261926943551738,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.governor.feedback_gain": {
+          "min": 0.25,
+          "max": 0.25,
+          "last": 0.25,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_kp": {
+          "min": 0.834192670367197,
+          "max": 0.9893111070171511,
+          "last": 0.9372156807758897,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_ki": {
+          "min": 0.11402348098218815,
+          "max": 0.1419127091896065,
+          "last": 0.12208096266384168,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_kd": {
+          "min": 0.10569877839453284,
+          "max": 0.13155185116952517,
+          "last": 0.12286928012931495,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.runtime_integral_clamp": {
+          "min": 0.4368962976609497,
+          "max": 0.4886024432109343,
+          "last": 0.4542614397413701,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.excitation_command": {
+          "min": 0.9211203720761871,
+          "max": 0.9857530540136679,
+          "last": 0.9428267996767127,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.excitation_min": {
+          "min": 0.10569877839453284,
+          "max": 0.13155185116952517,
+          "last": 0.12286928012931495,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.excitation_max": {
+          "min": 0.9211203720761871,
+          "max": 0.9857530540136679,
+          "last": 0.9428267996767127,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.loading_fraction": {
+          "min": 0.10267222324571225,
+          "max": 0.14145183240820075,
+          "last": 0.11569607980602759,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.undervoltage_trip_pu": {
+          "min": 0.9028493891972664,
+          "max": 0.9157759255847626,
+          "last": 0.9114346400646575,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.overvoltage_trip_pu": {
+          "min": 1.0842240744152376,
+          "max": 1.0971506108027336,
+          "last": 1.0885653599353426,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.oel_max": {
+          "min": 151.3584939930642,
+          "max": 74384.26443450745,
+          "last": 45329.901401648494,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.avr.uel_min": {
+          "min": 16421.826642942506,
+          "max": 22886.523287909982,
+          "last": 20714.452076638034,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.dispatcher.weight": {
+          "min": 0.12,
+          "max": 0.21225852926098948,
+          "last": 0.21225852926098948,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.effective_allocation": {
+          "min": 0.0,
+          "max": 215935.6455018054,
+          "last": 146925.5747828076,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.loss_cooldown_bars": {
+          "min": 14.0,
+          "max": 21.0,
+          "last": 19.0,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.target_cooldown_bars": {
+          "min": 3.0,
+          "max": 4.0,
+          "last": 3.0,
+          "bars": 1140
+        },
+        "BPSTG_HEALTHCARE.relay.vol_surge_mult": {
+          "min": 2.7639244931284015,
+          "max": 3.367296179992033,
+          "last": 2.9666511395137833,
+          "bars": 1140
+        },
+        "hrsg.steam_pressure_pu": {
+          "min": 0.029934748889386166,
+          "max": 1.4459299251957403,
+          "last": 0.7449623449563108,
+          "bars": 1140
+        },
+        "hrsg.pressure_time_constant_bars": {
+          "min": 5.0,
+          "max": 5.0,
+          "last": 5.0,
+          "bars": 1140
+        },
+        "micom.max_dd_pct": {
+          "min": 0.015092829954189344,
+          "max": 0.019115307866613553,
+          "last": 0.01644434093009189,
+          "bars": 1140
+        }
+      }
+    }
+  }
+}

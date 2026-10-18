@@ -44,7 +44,21 @@ def test_max_pulse_age_release_when_unsupported(config):
 def test_emergency_reversal_symmetric(config, sign):
     f = PulseFSM(config)
     assert f.step(sign * 0.2)[0] == ('BUY' if sign == 1 else 'SELL')
+    assert f.step(-sign * 0.3)[0] == ('BUY' if sign == 1 else 'SELL')
     assert f.step(-sign * 0.3)[0] == ('SELL' if sign == 1 else 'BUY')
+
+
+def test_alternating_emergency_inputs_do_not_churn(config):
+    f = PulseFSM(config)
+    pulses = [f.step(0.35 if i % 2 == 0 else -0.35)[0] for i in range(12)]
+    assert not any(a in ('BUY', 'SELL') and b == ('SELL' if a == 'BUY' else 'BUY') for a, b in zip(pulses, pulses[1:]))
+
+
+def test_sustained_emergency_reversal_still_reverses(config):
+    f = PulseFSM(config)
+    assert f.step(0.35)[0] == 'BUY'
+    assert f.step(-0.35)[0] == 'BUY'
+    assert f.step(-0.35)[0] == 'SELL'
 
 
 def test_hysteresis_and_invalid_input(config):

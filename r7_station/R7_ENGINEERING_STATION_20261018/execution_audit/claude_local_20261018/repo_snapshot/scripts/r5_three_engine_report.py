@@ -1,0 +1,154 @@
+"""Phase 10: three-engine real-data validation report (Engines A, B and C).
+
+Reads the runner reports written by scripts/run_engine_a_reference.py, run_engine_b_nautilus.py and
+run_engine_c_backtrader.py (run with --governor-authority full, telemetry full,
+--final-exit-authority and --authority-telemetry) and reports, per engine and broken down by symbol,
+sector, bay, holding duration, entry / hold / exit authority:
+
+entries, holds, exits, entry and exit timestamps/prices, hold duration, gross P&L, costs, net P&L,
+closed-trade drawdown, governor / AVR / dispatcher / HRSG events, plant trips, reconciliation breaks
+and the controller parameter values used.
+
+    python scripts/r5_three_engine_report.py --a A.json --b B.json --c C.json --out OUT.json --md OUT.md
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from collections import Counter, defaultdict
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from revision2.portfolio_orchestrator import SECTOR_MAP  # noqa: E402
+from revision5.topology import SYMBOL_TO_BAY  # noqa: E402
+
+HOLD_BUCKETS = ((0, 2, "0-2"), (3, 5, "3-5"), (6, 10, "6-10"), (11, 20, "11-20"), (21, 60, "21-60"), (61, 10 ** 9, "61+"))
+
+
+def exit_authority(reason: str) -> str:
+    reason = str(reason)
+    for prefix, label in (("governor_exit:", "GOVERNOR"), ("plant_trip:", "PLANT_PROTECTION"),
+                          ("final_controller_exit:", "FINAL_EXECUTION_CONTROLLER"),
+                          ("controller_path_exit", "PATH_LOOP"), ("saturation_exit", "EXIT_PID")):
+        if reason.startswith(prefix):
+            return label
+    return {"stop": "PROTECTIVE_STOP", "stop_gap": "PROTECTIVE_STOP", "target": "TARGET", "target_gap": "TARGET",
+            "mis_session_close": "SESSION_CLOSE", "max_hold": "MAX_HOLD", "regime_stressed_exit": "HMM_REGIME",
+            "end_of_run_reconciliation": "END_OF_DATA"}.get(reason, f"OTHER:{reason}")
+
+
+def hold_bucket(bars: int) -> str:
+    return next(label for lo, hi, label in HOLD_BUCKETS if lo <= int(bars) <= hi)
+
+
+def drawdown(trades) -> float:
+    equity, peak, worst = 0.0, 0.0, 0.0
+    for t in sorted(trades, key=lambda t: str(t.get("exit_timestamp"))):
+        equity += float(t.get("net_pnl", 0.0))
+        peak = max(peak, equity)
+        worst = max(worst, peak - equity)
+    return worst
+
+
+def summarize(trades):
+    return {"exits": len(trades), "gross_pnl": sum(float(t.get("pnl", 0.0)) for t in trades),
+            "costs": sum(float(t.get("costs", 0.0)) for t in trades),
+            "net_pnl": sum(float(t.get("net_pnl", 0.0)) for t in trades),
+            "mean_hold_bars": (sum(int(t.get("bars_held", 0)) for t in trades) / len(trades)) if trades else None,
+            "closed_trade_drawdown_rupees": drawdown(trades)}
+
+
+def by(trades, key):
+    groups = defaultdict(list)
+    for t in trades:
+        groups[key(t)].append(t)
+    return {k: summarize(v) for k, v in sorted(groups.items())}
+
+
+def engine_section(report):
+    trades = report.get("trades") or []
+    authority = report.get("r5_authority") or {}
+    events = Counter(authority.get("controller_event_counts") or {})
+    gov = authority.get("governor_authority") or {}
+    wiring = authority.get("plant_dcs_wiring") or {}
+    holds = {k: v for k, v in (gov.get("position_decisions") or {}).items() if k.startswith("HOLD")}
+    entries = {k: v for k, v in (gov.get("entry_decisions") or {}).items()}
+    return {
+        "engine": report.get("engine"),
+        "data_source": report.get("source"),
+        "bars_received": report.get("bars_received"),
+        "totals": {"entries_filled": len(trades), **summarize(trades)},
+        "by_symbol": by(trades, lambda t: t["symbol"]),
+        "by_sector": by(trades, lambda t: SECTOR_MAP.get(t["symbol"], "UNKNOWN")),
+        "by_bay": by(trades, lambda t: SYMBOL_TO_BAY.get(t["symbol"], "UNMAPPED")),
+        "by_holding_duration_bars": by(trades, lambda t: hold_bucket(t.get("bars_held", 0))),
+        "by_exit_authority": by(trades, lambda t: exit_authority(t.get("reason"))),
+        "entry_authority": {"governor_entry_decisions": entries,
+                            "plant_entry_rejections": wiring.get("entry_rejection_reasons"),
+                            "plant_paper_admission": authority.get("plant_control")},
+        "hold_authority": {"governor_hold_decisions": holds, "governor_hold_bar_count": sum(holds.values())},
+        "trades": [{k: t.get(k) for k in ("symbol", "side", "quantity", "entry_timestamp", "entry_price",
+                                           "exit_timestamp", "exit_price", "bars_held", "pnl", "costs", "net_pnl", "reason")}
+                   for t in trades],
+        "events": {
+            "governor": {k: v for k, v in events.items() if k.startswith("GOVERNOR")},
+            "avr": {k: v for k, v in events.items() if k.startswith("AVR")},
+            "dispatcher": {k: v for k, v in events.items() if k.startswith(("DISPATCHER", "PLANT_CONTROL_PAPER"))},
+            "hrsg": {k: v for k, v in events.items() if k.startswith(("HRSG", "PLANT_BAR_STEP"))},
+            "final_execution": {k: v for k, v in events.items() if k.startswith("FINAL_EXECUTION")},
+            "all": dict(events),
+        },
+        "plant_trips": wiring.get("trip_exits_armed"),
+        "micom": authority.get("micom"),
+        "reconciliation": report.get("reconciliation"),
+        "controller_parameters": (authority.get("startup") or {}),
+        "applied_value_summary": authority.get("applied_value_summary"),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    for engine in ("a", "b", "c"):
+        parser.add_argument(f"--{engine}", type=Path, required=True)
+    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--md", type=Path, required=True)
+    parser.add_argument("--scope-note", default="")
+    args = parser.parse_args()
+    sections = {name: engine_section(json.loads(getattr(args, name.lower()).read_text())) for name in ("A", "B", "C")}
+    args.out.write_text(json.dumps({"scope_note": args.scope_note, "engines": sections}, indent=2, default=str) + "\n")
+    lines = ["# R5 three-engine real-data validation", "", args.scope_note, "",
+             "| Engine | Entries | Exits | Gross P&L | Costs | Net P&L | Closed-trade DD | Mean hold (bars) | Plant trips | Reconciliation breaks |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
+    for name, s in sections.items():
+        t = s["totals"]
+        breaks = (s["reconciliation"] or {}).get("breaks") if isinstance(s["reconciliation"], dict) else None
+        lines.append(f"| {name} | {t['entries_filled']} | {t['exits']} | {t['gross_pnl']:.2f} | {t['costs']:.2f} | {t['net_pnl']:.2f} | "
+                     f"{t['closed_trade_drawdown_rupees']:.2f} | {t['mean_hold_bars'] if t['mean_hold_bars'] is None else round(t['mean_hold_bars'], 2)} | "
+                     f"{sum((s['plant_trips'] or {}).values())} | {len(breaks) if breaks is not None else 'n/a'} |")
+    for title, key in (("Exit authority", "by_exit_authority"), ("Bay", "by_bay"), ("Sector", "by_sector"),
+                       ("Holding duration (bars)", "by_holding_duration_bars")):
+        lines += ["", f"## {title}", "", "| Engine | Group | Exits | Gross | Costs | Net |", "|---|---|---|---|---|---|"]
+        for name, s in sections.items():
+            for group, row in s[key].items():
+                lines.append(f"| {name} | {group} | {row['exits']} | {row['gross_pnl']:.2f} | {row['costs']:.2f} | {row['net_pnl']:.2f} |")
+    lines += ["", "## Controller events", ""]
+    for name, s in sections.items():
+        lines.append(f"- **{name}**: governor {s['events']['governor']}; AVR {s['events']['avr']}; dispatcher "
+                     f"{s['events']['dispatcher']}; HRSG {s['events']['hrsg']}; final execution {s['events']['final_execution']}; "
+                     f"plant trips {s['plant_trips']}")
+    lines += ["", "## Entry and hold authority", ""]
+    for name, s in sections.items():
+        lines.append(f"- **{name}**: entry decisions {s['entry_authority']['governor_entry_decisions']}; "
+                     f"governor HOLD bar-decisions {s['hold_authority']['governor_hold_bar_count']}")
+    lines += ["", "Per-symbol tables, every trade (entry/exit timestamps and prices) and the controller parameter "
+              "values (startup report + applied-value min/max/last) are in the JSON report."]
+    args.md.write_text("\n".join(lines) + "\n")
+    print(f"wrote {args.out} and {args.md}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

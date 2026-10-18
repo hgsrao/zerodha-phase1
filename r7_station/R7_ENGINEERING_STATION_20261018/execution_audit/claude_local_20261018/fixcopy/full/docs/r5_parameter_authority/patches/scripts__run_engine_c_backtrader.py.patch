@@ -1,0 +1,22 @@
+diff --git a/scripts/run_engine_c_backtrader.py b/scripts/run_engine_c_backtrader.py
+index 5f057e5..57abed5 100644
+--- a/scripts/run_engine_c_backtrader.py
++++ b/scripts/run_engine_c_backtrader.py
+@@ -38,6 +38,8 @@ def main() -> int:
+     parser.add_argument("--volume-fill-perc", type=float, default=None,
+                         help="Backtrader FixedBarPerc filler: max %% of bar volume filled per bar")
+     parser.add_argument("--report", type=Path, default=ROOT / "local_workspace/validation/engine_c/engine_c_report.json")
++    from r5_authority_cli import add_authority_arguments, authority_kwargs
++    add_authority_arguments(parser)
+     args = parser.parse_args()
+     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
+     if args.bars <= args.warmup:
+@@ -62,7 +64,7 @@ def main() -> int:
+     if args.volume_fill_perc is not None:
+         config = replace(config, volume_fill_perc=args.volume_fill_perc)
+     report = run_engine_c(data, nifty, vix, warmup=args.warmup, config=config,
+-                          orchestrator_kwargs={"governor_authority": args.governor_authority,
++                          orchestrator_kwargs={**authority_kwargs(args), "governor_authority": args.governor_authority,
+                                                "telemetry_mode": args.telemetry})
+     report["source"] = inputs["source"]
+     report["data_audit"] = inputs["audit"]

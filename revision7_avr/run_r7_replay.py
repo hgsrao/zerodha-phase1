@@ -24,7 +24,6 @@ import warnings
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
-os.environ["LIVE_TRADING_ENABLED"] = "False"
 os.environ.setdefault("EA1_SHADOW_MODE", "True")
 GRID = Path("/home/srinivas/projects/zerodha-phase1/local_workspace/records/grid-manifest-local.json")
 
@@ -162,6 +161,9 @@ def _extended(o, a, trades, tel, log_path):
 
 
 def main() -> int:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from runtime.live_trading_guard import require_live_trading_disabled
+    require_live_trading_disabled()
     p = argparse.ArgumentParser()
     p.add_argument("engine", choices=["B", "C"])
     p.add_argument("mode", choices=["native", "r7"])

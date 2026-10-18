@@ -16,6 +16,8 @@ from .r7_state import Bar, Context, ControlConfig, BayAggregateState, number, cl
 from .r7_coordinated_controller import SymbolController
 from .r7_allocator import Utilization, droop_weights, increase_demand_pu, allocate_headroom
 
+R7_DECISION_MEMORY_LIMIT = 1000
+
 
 class _StudiesTap:
     """Forward studies calls unchanged and retain only their current causal bar."""
@@ -72,7 +74,10 @@ class R7EngineMixin:
         # rolling SHA-256 chain, so their size does not grow with replay length.
         if type(r7_decision_memory) is not int or r7_decision_memory < 1:
             raise ValueError('decision memory must be a positive integer')
-        self.r7_decisions = deque(maxlen=r7_decision_memory)
+        # Keep the in-memory audit window bounded even if a caller requests a larger
+        # value. The complete decision stream remains in the append-only log and is
+        # represented in checkpoints by count plus rolling digest.
+        self.r7_decisions = deque(maxlen=min(r7_decision_memory, R7_DECISION_MEMORY_LIMIT))
         self.r7_decision_log_path = r7_decision_log_path
         self._r7_decision_log = None
         self.r7_decision_count = 0
@@ -531,10 +536,12 @@ class R7EngineMixin:
         for s, state in payload['normal_exit_state'].items():
             if s not in new or set(state) != {'position_id', 'last_bar', 'count'} or type(state['count']) is not int or state['count'] < 0 or type(state['last_bar']) is not int or state['last_bar'] < 0:
                 raise ValueError('invalid normal-exit checkpoint')
-        self.r7_symbol_controllers, self.r7_physical_units, self.r7_bay_state = new, physical, bays
+        # Validate every remaining field before the first assignment so a rejected payload
+        # leaves the engine untouched.
         if type(payload['decision_count']) is not int or payload['decision_count'] < 0 or not (
                 isinstance(payload['decision_digest'], str) and len(payload['decision_digest']) == 64):
             raise ValueError('invalid decision telemetry checkpoint')
+        self.r7_symbol_controllers, self.r7_physical_units, self.r7_bay_state = new, physical, bays
         self.r7_gate_counts = Counter(payload['counts'])
         self.r7_decisions.clear()
         self.r7_decision_count, self.r7_decision_digest = payload['decision_count'], payload['decision_digest']
@@ -547,6 +554,25 @@ def engine_class(base=None):
         from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
         base = Revision2ExternalEngineOrchestrator
     return type('Revision7Engine', (R7EngineMixin, base), {'__module__': __name__})
+
+
+def r7_classes():
+    """Return R7-enabled Engine B and Engine C classes for the native runners.
+
+    The factory keeps the integration process-local: callers explicitly replace the
+    runner's orchestrator class for an offline run, while the native classes and live
+    order paths remain unchanged on disk.
+    """
+    from engine_b.orchestrator import EngineBOrchestrator
+    from engine_c.orchestrator import EngineCOrchestrator
+
+    class R7EngineBOrchestrator(R7EngineMixin, EngineBOrchestrator):
+        r7_variant = 'B'
+
+    class R7EngineCOrchestrator(R7EngineMixin, EngineCOrchestrator):
+        r7_variant = 'C'
+
+    return R7EngineBOrchestrator, R7EngineCOrchestrator
 
 
 # Lazy construction avoids importing native analytics during isolated component tests.

@@ -1,0 +1,57 @@
+........................................................................ [ 45%]
+........................................................................ [ 91%]
+..............                                                           [100%]
+=============================== warnings summary ===============================
+tests/test_r5_governor_refactor.py: 82 warnings
+tests/test_r5_governor_trace.py: 86 warnings
+tests/test_r5_governor_authority.py: 135 warnings
+tests/test_revision5_plant_control.py: 51 warnings
+  /home/srinivas/projects/zerodha-r5-governor-refactor/revision2_external/grid_context.py:176: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    age = pd.Timedelta(seconds=grid.age_seconds)
+
+tests/test_r5_governor_refactor.py: 2 warnings
+tests/test_r5_governor_authority.py: 9 warnings
+  /home/srinivas/projects/zerodha-r5-governor-refactor/tests/test_r5_governor_authority.py:297: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    ts = times[-1] + pd.Timedelta("1min")
+
+tests/test_r5_governor_authority.py::test_full_authority_governor_no_action_blocks_every_entry
+tests/test_r5_governor_authority.py::test_advisory_governor_records_but_does_not_block
+tests/test_r5_governor_authority.py::test_full_authority_size_multiplier_only_derates
+tests/test_r5_governor_authority.py::test_full_authority_size_multiplier_only_derates
+tests/test_r5_governor_authority.py::test_full_authority_governor_exit_executes_at_the_next_open
+tests/test_r5_governor_authority.py::test_full_authority_hold_moves_the_protective_stop_one_way
+  /home/srinivas/projects/zerodha-r5-governor-refactor/tests/test_r5_governor_authority.py:315: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    frame["timestamp"] = pd.date_range(ts - pd.Timedelta("30min"), periods=len(frame), freq="min")
+
+tests/test_r5_governor_authority.py::test_micom_recloses_when_healthy_and_daily_latch_resets_next_session
+  /home/srinivas/projects/zerodha-r5-governor-refactor/tests/test_r5_governor_authority.py:435: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    orch.real_plant_dcs.begin_bar((ts + pd.Timedelta(days=3)).to_pydatetime(), 0)
+
+tests/test_revision5_plant_control.py: 53 warnings
+  /home/srinivas/projects/zerodha-r5-governor-refactor/tests/test_revision5_plant_control.py:56: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    return nifty["timestamp"].iloc[-1] + pd.Timedelta(seconds=seconds)
+
+tests/test_revision5_plant_control.py::test_stale_grid_fails_closed
+  /home/srinivas/projects/zerodha-r5-governor-refactor/tests/test_revision5_plant_control.py:129: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    snap = c.evaluate(nifty["timestamp"].iloc[-1] + pd.Timedelta(hours=3), all_available(),
+
+tests/test_revision5_plant_control.py::test_misaligned_grid_fails_closed
+  /home/srinivas/projects/zerodha-r5-governor-refactor/tests/test_revision5_plant_control.py:150: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    vix["timestamp"] = vix["timestamp"] - pd.Timedelta(minutes=15)      # VIX lags Nifty by one bar
+
+tests/test_revision5_plant_control.py::test_dst_transition_cannot_move_a_future_bar_into_the_causal_prefix
+tests/test_revision5_plant_control.py::test_dst_transition_cannot_move_a_future_bar_into_the_causal_prefix
+tests/test_revision5_plant_control.py::test_dst_transition_cannot_move_a_future_bar_into_the_causal_prefix
+  /home/srinivas/projects/zerodha-r5-governor-refactor/tests/test_revision5_plant_control.py:690: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    decision = jump + pd.Timedelta(seconds=offset)
+
+tests/test_revision5_plant_control.py::test_dst_transition_cannot_move_a_future_bar_into_the_causal_prefix
+  /home/srinivas/projects/zerodha-r5-governor-refactor/tests/test_revision5_plant_control.py:694: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    late = idx[-1] + pd.Timedelta(seconds=1)
+
+tests/test_revision5_plant_control.py::test_a_future_bar_one_second_after_the_decision_is_excluded_in_every_zone
+  /home/srinivas/projects/zerodha-r5-governor-refactor/tests/test_revision5_plant_control.py:702: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    decision = nifty["timestamp"].iloc[-1] - pd.Timedelta(seconds=1)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+158 passed, 432 warnings in 67.93s (0:01:07)

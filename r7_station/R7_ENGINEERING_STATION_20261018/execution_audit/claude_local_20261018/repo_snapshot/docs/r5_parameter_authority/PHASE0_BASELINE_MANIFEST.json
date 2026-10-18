@@ -1,0 +1,186 @@
+{
+  "manifest": "R5_PARAMETER_AUTHORITY_PHASE0_BASELINE",
+  "recorded_at": "2026-10-15T22:30:00+05:30",
+  "machine": "operator desktop (Linux 7.0.0-38-generic, 32 cores), venv ~/.venvs/zerodha-phase1-r5 (Python 3.12.14, numpy 2.5.2, pandas 2.3.3)",
+  "source_worktree": {
+    "path": "~/projects/zerodha-engine-c",
+    "branch": "local/engine-c-validation",
+    "commit": "cb10fac5be123f450ede9bb3e8c11ce2ec27817b",
+    "remote_equivalent": "origin/feature/r5-backtrader-engine-c",
+    "dirty_files": {
+      "revision2_external/orchestrator.py": "uncommitted opt-in final_exit_authority flag (+20 lines), patch sha256 99a6fe60fd3c933568a93870e51e07c9c0739701872d7c6f0614afe962ced737; left untouched in that worktree; carried into this branch as commit c55bc65"
+    }
+  },
+  "implementation_branch": {
+    "name": "feature/r5-parameter-authority",
+    "worktree": "~/projects/zerodha-r5-parameter-authority",
+    "created_from": "cb10fac5be123f450ede9bb3e8c11ce2ec27817b",
+    "pushed": false
+  },
+  "stale_parent_check": {
+    "protocol_v2_frozen_parent": {
+      "commit": "c0b4672fa45498d628f1646d60c75fd206803755",
+      "tag": "r5-step5-v2-engine-20260928"
+    },
+    "implementation_base": "cb10fac (current Engine C)",
+    "is_cb10fac_descendant_of_c0b4672": true,
+    "note": "Implementation is based on cb10fac, not on the stale protocol parent c0b4672."
+  },
+  "registry_identity": {
+    "FROZEN_IDENTITY_SHA256": "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d",
+    "computed": "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d",
+    "total_targets": 170,
+    "external_eligible": 122,
+    "safety_params": 22
+  },
+  "protocol_identity": {
+    "file": "revision5/step5_sealed_calibration_protocol_v2.json",
+    "sha256": "6861cdd27d7666fc6a1bf94c21e90c330052e8137973f7f07eda538566eb1ca7",
+    "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V2",
+    "registry_identity_sha256": "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d",
+    "frozen_parent": {
+      "commit": "c0b4672fa45498d628f1646d60c75fd206803755",
+      "tag": "r5-step5-v2-engine-20260928"
+    },
+    "search_space": [
+      "entry_confidence_threshold",
+      "max_hold_bars",
+      "minimum_profit_margin_over_cost",
+      "profit_target_atr_mult",
+      "stop_loss_atr_mult"
+    ]
+  },
+  "protocol_v1": {
+    "file": "revision5/step5_sealed_calibration_protocol.json",
+    "sha256": "ed56abd0761f76df6748448461348fc321eddaaf3c4cc536f921ee1d0080d7af"
+  },
+  "test_baseline": {
+    "tests+tests_external (ignore tests/legacy_quarantine: 3 modules import removed packages)": [
+      "896 passed, 7 skipped, 1105 warnings, 146 subtests passed in 531.13s (0:08:51)",
+      "EXIT 0"
+    ],
+    "tests_engine_b": [
+      "9 passed, 641 warnings in 34.36s",
+      "EXIT 0"
+    ],
+    "tests_engine_c (ENGINE_C_SKIP_GOLDEN_MASTER=1)": [
+      "38 passed, 1 skipped, 14463 warnings in 122.97s (0:02:02)",
+      "EXIT 0"
+    ],
+    "stored golden master --check (byte level)": [
+      "GOLDEN MASTER: FAIL (17/17)",
+      "EXIT 1"
+    ],
+    "golden_master_note": "Byte-level FAIL at untouched cb10fac on this machine: last-digit floating-point drift in the HMM EM fit (e.g. state_occupancy 0.06727620511806083 vs 0.0672762051180661). All 17 scenarios match the stored decisions exactly (orders, fills, trades, gross and net P&L, exit reasons). Regression gates used instead: scripts/r5_golden_master_local.py --check-decisions (stored baseline) and --check-local local_workspace/golden_local/cb10fac (byte-level reference captured from a pristine cb10fac checkout on this machine)."
+  },
+  "stored_golden_master_decisions": {
+    "multiday_paper_apply_full": {
+      "orders": 0,
+      "trades": 0,
+      "net_pnl": 0
+    },
+    "probe_no_plant_seed14": {
+      "orders": 8,
+      "trades": 8,
+      "net_pnl": 6129.986667224971
+    },
+    "probe_paper_apply_default_governor_seed11": {
+      "orders": 4,
+      "trades": 4,
+      "net_pnl": 1181.0675385209984
+    },
+    "probe_paper_apply_full_seed11": {
+      "orders": 4,
+      "trades": 4,
+      "net_pnl": 791.6317636901001
+    },
+    "probe_paper_apply_full_seed12": {
+      "orders": 3,
+      "trades": 3,
+      "net_pnl": 733.7752767399038
+    },
+    "probe_paper_apply_full_seed13": {
+      "orders": 4,
+      "trades": 4,
+      "net_pnl": 651.548570892596
+    },
+    "probe_paper_apply_full_seed14": {
+      "orders": 2,
+      "trades": 2,
+      "net_pnl": 500.35197645654773
+    },
+    "probe_plant_shadow_seed13": {
+      "orders": 12,
+      "trades": 12,
+      "net_pnl": 9628.23318620601
+    },
+    "probe_shadow_closed_loop_seed12": {
+      "orders": 3,
+      "trades": 3,
+      "net_pnl": 804.0296120588523
+    },
+    "regime_multiday_no_plant": {
+      "orders": 61,
+      "trades": 61,
+      "net_pnl": 36242.058071489446
+    },
+    "regime_multiday_paper_apply_default_governor": {
+      "orders": 1,
+      "trades": 1,
+      "net_pnl": 42.792686784399905
+    },
+    "regime_multiday_paper_apply_full": {
+      "orders": 1,
+      "trades": 1,
+      "net_pnl": 22.357328036949767
+    },
+    "regime_multiday_plant_shadow": {
+      "orders": 61,
+      "trades": 61,
+      "net_pnl": 36242.058071489446
+    },
+    "single_signal_paper_apply_full_seed11": {
+      "orders": 2,
+      "trades": 2,
+      "net_pnl": 306.6054954837027
+    },
+    "single_signal_paper_apply_full_seed12": {
+      "orders": 0,
+      "trades": 0,
+      "net_pnl": 0
+    },
+    "single_signal_paper_apply_full_seed13": {
+      "orders": 2,
+      "trades": 2,
+      "net_pnl": 230.33764364159987
+    },
+    "single_signal_paper_apply_full_seed14": {
+      "orders": 0,
+      "trades": 0,
+      "net_pnl": 0
+    }
+  },
+  "local_only_branches_preserved": {
+    "codex/r5-causal-expectancy": "812fbea",
+    "codex/r5-parameter-closure-campaign": "242ae94",
+    "codex/r5-step5-sealed-calibration-oos": "ece5600",
+    "codex/r5-upgrades-integrated": "e5a7119",
+    "diagnostic/pid-controller-authority": "fb2673a",
+    "feature/engine-ab-handoff-lifecycle": "1b49e29",
+    "feature/ir02a-parameter-closure": "59371ff",
+    "fix/studies-flat-grading": "f1c7d63"
+  },
+  "running_processes_not_touched": [
+    "run_engine_a_reference.py --symbols ALL --bars 1000000 (pid 722744)",
+    "run_engine_b_nautilus.py --symbols ALL --bars 1000000 (pid 723099)",
+    "run_engine_c_backtrader.py --symbols ALL --bars 1000000 (pid 723914)"
+  ],
+  "frozen_dataset": {
+    "manifest": "revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json",
+    "manifest_hash": "f724074ca45eb9380ba6e7cf18ae1da4d9c9d48be0cf78ca51b0faa8d8d8ff16",
+    "data_dir": "/home/srinivas/projects/zerodha-phase1/data/frozen_48_1min_20230703_20260824",
+    "symbols": 48,
+    "span": "2023-07-03 to 2026-08-24",
+    "present": true
+  }
+}

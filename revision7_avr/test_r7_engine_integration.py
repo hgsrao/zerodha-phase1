@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import json
 import pandas as pd
 import pytest
-from .r7_engine import R7EngineMixin, Revision7Engine
+from .r7_engine import R7EngineMixin, Revision7Engine, r7_classes
 from .r7_state import ControlConfig, Context
 from .conftest import make_bar
 from revision5.topology import SYMBOL_TO_BAY, BAY_IDS
@@ -180,6 +180,26 @@ def test_core_without_native_plant_cannot_bypass_r7_candidate_admission(config):
     p['bar_idx'] = 29
     assert e._admit_entry_candidate(p, make_bar(29).timestamp) == 'native-candidate-path'
     assert e.native_calls == 1
+
+
+def test_native_engine_class_factory_installs_r7_mixin():
+    b, c = r7_classes()
+    assert issubclass(b, R7EngineMixin)
+    assert issubclass(c, R7EngineMixin)
+    assert b.r7_variant == 'B'
+    assert c.r7_variant == 'C'
+
+
+def test_r7_decision_memory_is_hard_bounded(config):
+    e = TestEngine(['INFY'], r7_configs=[config], r7_decision_memory=5000)
+    assert e.r7_decisions.maxlen == 1000
+
+
+def test_only_explicit_discretionary_native_exit_is_advisory():
+    assert R7EngineMixin._r7_normal_reason('governor_exit:GOVERNOR_Z_EXIT')
+    for reason in ('FSRN_EXIT', 'FSRT_LIMITER_EXIT', 'regime_stressed_exit',
+                   'saturation_exit_positive', 'controller_path_exit', 'unknown'):
+        assert not R7EngineMixin._r7_normal_reason(reason)
 
 
 def test_normal_exit_confirmation_checkpoint_is_retained(config):

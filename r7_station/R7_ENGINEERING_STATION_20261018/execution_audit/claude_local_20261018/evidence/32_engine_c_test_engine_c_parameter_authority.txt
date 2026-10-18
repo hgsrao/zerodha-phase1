@@ -1,0 +1,9 @@
+............                                                             [100%]
+============================= slowest 5 durations ==============================
+52.54s call     tests_engine_c/test_engine_c_parameter_authority.py::test_box6_levels_mode_carries_the_entry_pid_into_the_booked_position
+39.80s call     tests_engine_c/test_engine_c_parameter_authority.py::test_box6_entry_pid_has_no_actuator_in_this_engine
+13.38s call     tests_engine_c/test_engine_c_parameter_authority.py::test_authority_telemetry_does_not_change_engine_c_orders
+13.26s call     tests_engine_c/test_engine_c_parameter_authority.py::test_parameter_and_mode_changes_reach_backtrader_orders[{'avr_voltage_mode': 'measured'}]
+13.23s call     tests_engine_c/test_engine_c_parameter_authority.py::test_startup_report_carries_the_effective_controller_values
+12 passed in 224.50s (0:03:44)
+exit=0

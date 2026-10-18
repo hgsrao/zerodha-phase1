@@ -1,0 +1,4 @@
+regime_multiday_no_plant                     6b7dbbc451d912d8  orders=61 fills=61 exits=61 trades=61 net=36242.058071489446
+MISMATCH regime_multiday_no_plant: sections ['trades', 'controller_telemetry', 'entry_candidate_observations', 'position_sizing_events', 'grid_shadow']
+GOLDEN MASTER: FAIL (1/1)
+exit=1

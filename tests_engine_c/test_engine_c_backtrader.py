@@ -569,8 +569,20 @@ def test_engine_c_is_independent_of_engine_a_and_b_execution_code():
         engine._assert_paper_plant_broker()
 
 
+GOLDEN_BASELINE = ROOT / "golden_master/r5_shared_orchestrator/baseline.json"
+GOLDEN_SCENARIOS = sorted(json.loads(GOLDEN_BASELINE.read_text())["scenarios"])
+GOLDEN_TIMEOUT_SECONDS = 420      # each scenario is its own bounded command (the combined check exceeded 8 minutes)
+
+
 @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
-def test_engine_a_golden_master_still_passes():
-    result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check"], cwd=ROOT,
-                            capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(ROOT)})
+@pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+def test_engine_a_golden_master_scenario_still_passes(scenario):
+    """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+    result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                            cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                            env={**os.environ, "PYTHONPATH": str(ROOT)})
     assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+
+
+def test_golden_master_split_covers_every_baseline_scenario():
+    assert len(GOLDEN_SCENARIOS) == 17 and len(set(GOLDEN_SCENARIOS)) == 17

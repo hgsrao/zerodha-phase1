@@ -1,0 +1,4 @@
+A) fresh BUY then 2 emergency: ['BUY', 'BUY', 'SELL']
+B) fresh BUY, emergency, non-emergency strong buy, emergency: ['BUY', 'BUY', 'BUY', 'HOLD']
+C) aged BUY (age>=hold_bars), then 2 emergency: [('BUY', 0), ('BUY', 0), ('BUY', 0), ('HOLD', 0), ('SELL', 0), ('SELL', 0)]
+D) alternating after entry: ['BUY', 'BUY', 'BUY', 'HOLD', 'BUY', 'BUY', 'BUY', 'HOLD', 'BUY']

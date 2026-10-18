@@ -1,0 +1,118 @@
+{
+  "method": "completed decision-bar only; ATR(20) and session VWAP; no future prices used as features",
+  "candidate_count": 5905,
+  "v3_breach_count": 23,
+  "feature_rows_path": "diagnostic_output/pre_entry_proxy_features.csv",
+  "population_percentiles": {
+    "range_atr": {
+      "p50": 1.0714285714286076,
+      "p90": 2.5274652131286035,
+      "p95": 3.9476583153411546,
+      "p99": 6.913826140625717
+    },
+    "volume_ratio": {
+      "p50": 0.9897882228246468,
+      "p90": 3.2082340260308,
+      "p95": 4.325161957003631,
+      "p99": 7.577678426759115
+    },
+    "vwap_range_deviation": {
+      "p50": 2.5530919407133297,
+      "p90": 9.210900795766742,
+      "p95": 12.367255637129688,
+      "p99": 24.942099659258254
+    }
+  },
+  "v3_breach_percentiles": {
+    "range_atr": {
+      "p50": 4.895833333333427,
+      "p90": 6.8042352840920834,
+      "p95": 7.562014566981264,
+      "p99": 7.73221387538663
+    },
+    "volume_ratio": {
+      "p50": 2.5226554738883085,
+      "p90": 6.506268134600915,
+      "p95": 8.369089829148182,
+      "p99": 8.957291584816325
+    },
+    "vwap_range_deviation": {
+      "p50": 0.0,
+      "p90": 1.6110863574801355,
+      "p95": 2.151640989797337,
+      "p99": 3.76888632655918
+    }
+  },
+  "range_atr_tradeoffs": {
+    "range_atr_gt_3.0": {
+      "flagged_candidates": 446,
+      "flagged_rate_pct": 7.5529,
+      "v3_slippage_breaches_caught": 19,
+      "v3_slippage_breach_recall_pct": 82.6087,
+      "non_breach_candidates_rejected": 427
+    },
+    "range_atr_gt_4.0": {
+      "flagged_candidates": 289,
+      "flagged_rate_pct": 4.8942,
+      "v3_slippage_breaches_caught": 14,
+      "v3_slippage_breach_recall_pct": 60.8696,
+      "non_breach_candidates_rejected": 275
+    },
+    "range_atr_gt_5.0": {
+      "flagged_candidates": 188,
+      "flagged_rate_pct": 3.1837,
+      "v3_slippage_breaches_caught": 11,
+      "v3_slippage_breach_recall_pct": 47.8261,
+      "non_breach_candidates_rejected": 177
+    },
+    "range_atr_gt_6.0": {
+      "flagged_candidates": 109,
+      "flagged_rate_pct": 1.8459,
+      "v3_slippage_breaches_caught": 4,
+      "v3_slippage_breach_recall_pct": 17.3913,
+      "non_breach_candidates_rejected": 105
+    }
+  },
+  "maxhealth_rows": [
+    {
+      "symbol": "MAXHEALTH",
+      "decision_timestamp": "2024-08-07T03:45:00+00:00",
+      "slippage_pct": 0.2886,
+      "range_atr": 2.6715462031107,
+      "volume_ratio": 1.3976682903457638,
+      "vwap_range_deviation": 0.0
+    },
+    {
+      "symbol": "MAXHEALTH",
+      "decision_timestamp": "2024-08-21T03:45:00+00:00",
+      "slippage_pct": 0.213109,
+      "range_atr": 6.027397260273964,
+      "volume_ratio": 2.2678649219897062,
+      "vwap_range_deviation": 0.0
+    },
+    {
+      "symbol": "MAXHEALTH",
+      "decision_timestamp": "2024-08-19T03:45:00+00:00",
+      "slippage_pct": 0.210311,
+      "range_atr": 6.998444790046612,
+      "volume_ratio": 1.7619163794943735,
+      "vwap_range_deviation": 0.0
+    },
+    {
+      "symbol": "MAXHEALTH",
+      "decision_timestamp": "2024-08-06T09:58:00+00:00",
+      "slippage_pct": 0.162309,
+      "range_atr": 1.9211822660098508,
+      "volume_ratio": 0.7572848158993807,
+      "vwap_range_deviation": 1.6089281105411968
+    },
+    {
+      "symbol": "MAXHEALTH",
+      "decision_timestamp": "2024-08-08T03:45:00+00:00",
+      "slippage_pct": 0.138536,
+      "range_atr": 6.494565217391297,
+      "volume_ratio": 0.4208752813799008,
+      "vwap_range_deviation": 0.0
+    }
+  ]
+}

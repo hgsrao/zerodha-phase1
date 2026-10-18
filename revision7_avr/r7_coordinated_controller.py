@@ -19,38 +19,48 @@ class PulseFSM:
     * hold_age is the number of completed HOLD bars since a release, including the
       release bar, capped at cooldown_bars. A new pulse may enter only when
       hold_age >= cooldown_bars. An ineligible bar resets hold_age to 0.
-    * An emergency reversal flips the pulse immediately. It is a pulse state only:
-      positions still change only through the native admission and exit paths.
+    * An emergency reversal needs two consecutive opposing emergency samples
+      (emergency_age >= 2); one sample never flips the pulse. Once a pulse has been shown
+      for hold_bars, the first emergency sample releases to HOLD instead, and the opposite
+      pulse can enter after the cooldown. It is a pulse state only: positions still change
+      only through the native admission and exit paths.
     """
     def __init__(self, config):
         self.config = config
         self.pulse = 'HOLD'
         self.active_age = 0
         self.hold_age = config.cooldown_bars
+        # A single opposing emergency sample is not enough to reverse a pulse.
+        # Native protective exits are evaluated outside this FSM and remain immediate.
+        self.emergency_age = 0
 
     def step(self, signal, eligible=True):
         c = self.config
         previous = self.pulse
         if not eligible:
-            self.pulse, self.active_age, self.hold_age = 'HOLD', 0, 0
+            self.pulse, self.active_age, self.hold_age, self.emergency_age = 'HOLD', 0, 0, 0
             return self.pulse, 'INPUT_NOT_ELIGIBLE'
         if previous == 'HOLD':
             if self.hold_age >= c.cooldown_bars:
                 self.pulse = 'BUY' if signal >= c.buy_enter else 'SELL' if signal <= c.sell_enter else 'HOLD'
             if self.pulse != 'HOLD':
-                self.active_age, self.hold_age = 1, 0
+                self.active_age, self.hold_age, self.emergency_age = 1, 0, 0
             else:
                 self.hold_age = min(c.cooldown_bars, self.hold_age + 1)
         else:
             emergency = signal <= -c.emergency if previous == 'BUY' else signal >= c.emergency
+            if emergency:
+                self.emergency_age += 1
+            else:
+                self.emergency_age = 0
             release = signal < c.buy_release if previous == 'BUY' else signal > c.sell_release
             unsupported = signal < c.buy_enter if previous == 'BUY' else signal > c.sell_enter
-            if emergency:
+            if emergency and self.emergency_age >= 2:
                 self.pulse = 'SELL' if previous == 'BUY' else 'BUY'
-                self.active_age, self.hold_age = 1, 0
+                self.active_age, self.hold_age, self.emergency_age = 1, 0, 0
             elif (release and self.active_age >= c.hold_bars) or (unsupported and self.active_age >= c.max_pulse_age):
                 # The release bar is the first completed HOLD bar of the cooldown.
-                self.pulse, self.active_age, self.hold_age = 'HOLD', 0, min(1, c.cooldown_bars)
+                self.pulse, self.active_age, self.hold_age, self.emergency_age = 'HOLD', 0, min(1, c.cooldown_bars), 0
             else:
                 self.active_age = min(c.max_pulse_age, self.active_age + 1)
         return self.pulse, f'{previous}_TO_{self.pulse}'
@@ -161,10 +171,14 @@ class SymbolController:
         if abs(new.governor.integral) > self.config.integral_limit or max(abs(new.governor.command), abs(new.governor.output)) > 1:
             raise ValueError('invalid bounded governor state')
         ps = payload['pulse']
-        if set(ps) != {'pulse', 'active_age', 'hold_age'} or ps['pulse'] not in ('BUY', 'SELL', 'HOLD'):
+        if set(ps) not in ({'pulse', 'active_age', 'hold_age'}, {'pulse', 'active_age', 'hold_age', 'emergency_age'}) or ps['pulse'] not in ('BUY', 'SELL', 'HOLD'):
             raise ValueError('invalid pulse state')
-        if any(type(ps[k]) is not int or ps[k] < 0 for k in ('active_age', 'hold_age')) or ps['active_age'] > self.config.max_pulse_age or ps['hold_age'] > self.config.cooldown_bars:
+        ps.setdefault('emergency_age', 0)
+        if any(type(ps[k]) is not int or ps[k] < 0 for k in ('active_age', 'hold_age', 'emergency_age')) or ps['active_age'] > self.config.max_pulse_age or ps['hold_age'] > self.config.cooldown_bars:
             raise ValueError('invalid pulse clock')
+        # A streak of 2 reverses and resets, so a stored streak is only ever 0 or 1.
+        if ps['emergency_age'] > 1:
+            raise ValueError('invalid emergency streak')
         if (ps['pulse'] == 'HOLD') != (ps['active_age'] == 0):
             raise ValueError('pulse clock inconsistent with pulse state')
         new.fsm.__dict__.update(ps)

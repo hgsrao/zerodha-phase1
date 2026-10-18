@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""Trace one completed external-engine paper trade with PID enabled/disabled.
+
+This is a diagnostic ablation, not a strategy run.  The only architectural
+change is that MPC's entry/exit PID transformations are identities.  The
+candidate still passes the ordinary ingestion, PA, chart-studies, ID, safety,
+portfolio sizing, paper-fill and exit paths.
+"""
+from __future__ import annotations
+
+import argparse
+import dataclasses
+import json
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+
+from canonical_parameter_registry import CanonicalParameterRegistry
+from market_data_loader import MarketDataLoader
+from revision2.dataset_manifest import DatasetManifest, verify_manifest
+from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
+from revision2_external.dynamic_target_setpoint import FrozenTargetSetpointProvider
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MANIFEST_PATH = ROOT / "revision2" / "DATASET_MANIFEST_48SYMBOL_1MIN.json"
+
+
+def _as_dict(value: Any) -> Any:
+    if dataclasses.is_dataclass(value):
+        return dataclasses.asdict(value)
+    if isinstance(value, dict):
+        return {str(key): _as_dict(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_as_dict(item) for item in value]
+    if hasattr(value, "item"):
+        return value.item()
+    return value
+
+
+def _day(frame: pd.DataFrame, date: str) -> pd.DataFrame:
+    tz = frame["timestamp"].dt.tz
+    start = pd.Timestamp(date)
+    end = start + pd.Timedelta(days=1)
+    if tz is not None:
+        start, end = start.tz_localize(tz), end.tz_localize(tz)
+    return frame[(frame["timestamp"] >= start) & (frame["timestamp"] < end)].reset_index(drop=True)
+
+
+def _interval(frame: pd.DataFrame, start_date: str, end_date: str) -> pd.DataFrame:
+    tz = frame["timestamp"].dt.tz
+    start, end = pd.Timestamp(start_date), pd.Timestamp(end_date)
+    if tz is not None:
+        start, end = start.tz_localize(tz), end.tz_localize(tz)
+    return frame[(frame["timestamp"] >= start) & (frame["timestamp"] < end)].reset_index(drop=True)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--symbol", default="INFY")
+    parser.add_argument("--date", default="2023-09-01")
+    parser.add_argument("--pid-mode", choices=("enabled", "disabled"), default="disabled")
+    parser.add_argument("--closed-loop-mode", choices=("shadow", "active_paper"), default="shadow")
+    parser.add_argument("--select-reason", default=None,
+                        help="select the first completed trade with this exit reason, e.g. target")
+    parser.add_argument("--output", default="diagnostic_output/no_pid_one_signal_trace_INFY_20230901.json")
+    parser.add_argument("--dynamic-target-seed-start", default=None,
+                        help="inclusive pre-test date for frozen dynamic-target shadow seed")
+    parser.add_argument("--dynamic-target-seed-end-exclusive", default=None,
+                        help="exclusive pre-test date for frozen dynamic-target shadow seed")
+    parser.add_argument("--dynamic-target-mode", choices=("shadow", "paper_apply"), default="shadow")
+    args = parser.parse_args()
+
+    manifest = DatasetManifest.load(str(MANIFEST_PATH))
+    verification = verify_manifest(manifest)
+    if not verification.valid:
+        raise RuntimeError(verification.message)
+    loader = MarketDataLoader(manifest.data_dir, synthetic_if_missing=False)
+    all_bars = loader._load_symbol_csv(args.symbol)
+    bars = _day(all_bars, args.date)
+    if len(bars) <= 60:
+        raise RuntimeError(f"{args.symbol} has insufficient bars on {args.date}")
+
+    provider = None
+    if bool(args.dynamic_target_seed_start) != bool(args.dynamic_target_seed_end_exclusive):
+        raise ValueError("both dynamic-target seed dates are required together")
+    if args.dynamic_target_seed_start:
+        seed_bars = _interval(all_bars, args.dynamic_target_seed_start, args.dynamic_target_seed_end_exclusive)
+        if len(seed_bars) <= 60:
+            raise RuntimeError("dynamic-target seed has insufficient bars")
+        print(
+            f"[SEED] {args.symbol}: {args.dynamic_target_seed_start} through "
+            f"{args.dynamic_target_seed_end_exclusive} ({len(seed_bars):,} bars)",
+            flush=True,
+        )
+        seed_engine = Revision2ExternalEngineOrchestrator(
+            [args.symbol], CanonicalParameterRegistry(), starting_equity=1_000_000.0,
+            closed_loop_mode="shadow", telemetry_mode="compact", pid_mode=args.pid_mode,
+        )
+        seed_report = seed_engine.run({args.symbol: seed_bars}, warmup=60)
+        provider = FrozenTargetSetpointProvider.fit(
+            seed_report["trades"], seed_start=args.dynamic_target_seed_start,
+            seed_end_exclusive=args.dynamic_target_seed_end_exclusive,
+        )
+        print(
+            f"[SEED] completed={seed_report['completed_trades']} "
+            f"usable_cost_positive_paths={provider.usable_samples}/" f"{provider.minimum_samples}",
+            flush=True,
+        )
+    engine = Revision2ExternalEngineOrchestrator(
+        [args.symbol], CanonicalParameterRegistry(), starting_equity=1_000_000.0,
+        closed_loop_mode=args.closed_loop_mode, telemetry_mode="full", pid_mode=args.pid_mode,
+        dynamic_target_setpoint_provider=provider,
+        dynamic_target_setpoint_mode=args.dynamic_target_mode,
+    )
+    candidates: list[dict[str, Any]] = []
+    latest: dict[str, Any] = {}
+
+    pa_evaluate = engine.pa.evaluate
+    def traced_pa(snapshot, config):
+        signal, trace = pa_evaluate(snapshot, config)
+        latest["signal"] = _as_dict(signal)
+        latest["pa_input_last_bar"] = _as_dict(snapshot.bars.iloc[-1].to_dict())
+        return signal, trace
+    engine.pa.evaluate = traced_pa
+
+    studies_evaluate = engine.chart_studies.evaluate
+    def traced_studies(symbol, snapshot_bars):
+        result = studies_evaluate(symbol, snapshot_bars)
+        latest["chart_studies"] = _as_dict(result)
+        return result
+    engine.chart_studies.evaluate = traced_studies
+
+    id_evaluate = engine.id_box.evaluate
+    def traced_id(signal, config, latest_close):
+        decision, trace = id_evaluate(signal, config, latest_close)
+        latest["id_decision"] = _as_dict(decision)
+        return decision, trace
+    engine.id_box.evaluate = traced_id
+
+    plan_build = engine.mpc.build_plan
+    def traced_plan(signal, decision, entry_price, atr, config):
+        plan, pid_info, trace = plan_build(signal, decision, entry_price, atr, config)
+        if plan is not None:
+            candidates.append({
+                "candidate_id": f"candidate-{len(candidates) + 1}",
+                "signal_timestamp": signal.timestamp,
+                "pa_input_last_bar": latest.get("pa_input_last_bar"),
+                "pa_signal": latest.get("signal"),
+                "chart_studies": latest.get("chart_studies"),
+                "id_decision": latest.get("id_decision"),
+                "mpc_inputs": {"next_open": entry_price, "atr": atr, "pid_mode": args.pid_mode},
+                "mpc_plan": _as_dict(plan),
+                "pid_output": _as_dict(pid_info),
+            })
+        return plan, pid_info, trace
+    engine.mpc.build_plan = traced_plan
+
+    safety_evaluate = engine.safety_gates_target.evaluate_pre_sizing
+    def traced_safety(equity_curve, config):
+        approved, reason, multiplier, trace = safety_evaluate(equity_curve, config)
+        if candidates:
+            candidates[-1]["pre_sizing_safety"] = {
+                "approved": approved, "reason": reason, "size_multiplier_before_position_manager": multiplier,
+            }
+        return approved, reason, multiplier, trace
+    engine.safety_gates_target.evaluate_pre_sizing = traced_safety
+
+    size = engine.position_manager.size
+    def traced_size(*call_args, **call_kwargs):
+        quantity, trace = size(*call_args, **call_kwargs)
+        if candidates:
+            candidates[-1]["position_sizing"] = {
+                "quantity": quantity,
+                "telemetry": _as_dict(engine.position_manager.last_sizing_telemetry),
+            }
+        return quantity, trace
+    engine.position_manager.size = traced_size
+
+    report = engine.run({args.symbol: bars}, warmup=60)
+    if not report["trades"]:
+        # A no-trade day is a legitimate outcome for a frozen validation.
+        # Preserve the provider state and every candidate decision instead
+        # of disguising it as a runner failure.
+        artifact = {
+            "run_type": "one_signal_external_paper_trace",
+            "status": "NO_COMPLETED_TRADE",
+            "research_boundary": "Diagnostic ablation only; no live trading or strategy promotion.",
+            "symbol": args.symbol, "date": args.date, "pid_mode": args.pid_mode,
+            "closed_loop_mode": args.closed_loop_mode,
+            "dynamic_target_setpoint_provider": dataclasses.asdict(provider) if provider is not None else None,
+            "dynamic_target_setpoint_mode": args.dynamic_target_mode,
+            "manifest_hash": manifest.manifest_hash, "config_hash": report["config_hash"],
+            "safety_contract_hash": report["safety_contract_hash"],
+            "candidate_traces": candidates,
+            "controller_telemetry": report["controller_telemetry"],
+            "day_summary": {key: report[key] for key in (
+                "completed_trades", "gross_pnl", "net_pnl", "ending_equity", "mtm_max_drawdown_fraction"
+            )},
+        }
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(artifact, indent=2, default=str), encoding="utf-8")
+        print(json.dumps({"output": str(output), "status": artifact["status"], **artifact["day_summary"]}, indent=2))
+        return
+    trade = next((row for row in report["trades"] if row["reason"] == args.select_reason), None) if args.select_reason else report["trades"][0]
+    if trade is None:
+        raise RuntimeError(f"No completed trade with reason={args.select_reason!r}")
+    candidate = next(
+        (row for row in candidates if row["candidate_id"] == trade.get("candidate_id")), None,
+    )
+    if candidate is None:
+        raise RuntimeError("Could not join first trade to its candidate trace")
+    candidate["paper_execution_and_outcome"] = _as_dict(trade)
+    candidate["controller_events_for_trade"] = [
+        event for event in report["controller_telemetry"]
+        if event.get("candidate_id") == trade.get("candidate_id") or event.get("trade_id") == trade.get("trade_id")
+    ]
+    artifact = {
+        "run_type": "one_signal_external_paper_trace",
+        "research_boundary": "Diagnostic ablation only; no live trading or strategy promotion.",
+        "symbol": args.symbol,
+        "date": args.date,
+        "pid_mode": args.pid_mode,
+        "closed_loop_mode": args.closed_loop_mode,
+        "dynamic_target_setpoint_provider": dataclasses.asdict(provider) if provider is not None else None,
+        "dynamic_target_setpoint_mode": args.dynamic_target_mode,
+        "manifest_hash": manifest.manifest_hash,
+        "config_hash": report["config_hash"],
+        "safety_contract_hash": report["safety_contract_hash"],
+        "first_completed_trade_trace": candidate,
+        "day_summary": {
+            key: report[key] for key in ("completed_trades", "gross_pnl", "net_pnl", "ending_equity", "mtm_max_drawdown_fraction")
+        },
+    }
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(artifact, indent=2, default=str), encoding="utf-8")
+    trace = artifact["first_completed_trade_trace"]
+    outcome = trace["paper_execution_and_outcome"]
+    print(json.dumps({
+        "output": str(output), "candidate_id": trace["candidate_id"],
+        "entry_timestamp": outcome["entry_timestamp"], "entry_price": outcome["entry_price"],
+        "exit_timestamp": outcome["exit_timestamp"], "exit_price": outcome["exit_price"],
+        "reason": outcome["reason"], "bars_held": outcome["bars_held"], "net_pnl": outcome["net_pnl"],
+    }, indent=2))
+
+
+if __name__ == "__main__":
+    main()

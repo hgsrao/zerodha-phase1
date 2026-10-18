@@ -1,0 +1,96 @@
+diff --git a/canonical_parameter_registry.py b/canonical_parameter_registry.py
+index 857cb58..2f1de2f 100644
+--- a/canonical_parameter_registry.py
++++ b/canonical_parameter_registry.py
+@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
+ from typing import Any, Dict, List, Optional
+ 
+ from calibration_config import Revision2ParameterManifest
++from revision5.controller_parameters import CONTROLLER_PARAMETER_SPECS, ControllerParameterSpec
+ 
+ 
+ @dataclass
+@@ -73,7 +74,13 @@ class CanonicalParameterRegistry:
+     # against the previous identity must be re-sealed.
+     # 2026-09-28: + gov_path_error_sigma (EXTERNAL-only eligible): the inner loop's noise-scaled
+     # path-error tolerance.  170 targets / 122 eligible.
+-    FROZEN_IDENTITY_SHA256 = "12b700d6caa88b7689daf825ff4c512e0513dcb59de1a3c96cf693a820aa277d"
++    # 2026-10-15 (feature/r5-parameter-authority): + R5 controller parameter authority
++    # (revision5/controller_parameters.py) -- every native R5 controller tuning value that was a code
++    # literal (bay governors, governor schedule, AVR, SEL-300G, MiCOM, dispatcher, HRSG, cooldown,
++    # Protocol V3).  Defaults equal the former literals.  The identity payload also carries each
++    # controller parameter's safety class, owner and consumer.  Supersedes 12b700d6...; every
++    # protocol sealed against the previous identity must be re-sealed.
++    FROZEN_IDENTITY_SHA256 = "dc8acc009e9e3c639c4652a0da3be5f15db16d37c5039f60879b96077597b47d"
+     SAFETY_ALIASES = {
+         "drawdown_halt_threshold": "safety_drawdown_halt_threshold",
+         "min_risk_reward_ratio": "safety_min_risk_reward_ratio",
+@@ -205,7 +212,11 @@ class CanonicalParameterRegistry:
+         "gov_telemetry_atr_bars",
+         "micom_nifty_vol_z_window",
+     })
+-    APPROVED_CALIBRATABLE = set(Revision2ParameterManifest.all_68()) - FIXED_TARGET_NAMES
++    # R5 controller parameter authority: TUNABLE rows are optimizer-eligible in principle
++    # (NOT_CALIBRATED); FIXED_SAFETY / INACTIVE rows are fixed.  All are EXTERNAL-only.
++    CONTROLLER_AUTHORITY: Dict[str, ControllerParameterSpec] = {s.name: s for s in CONTROLLER_PARAMETER_SPECS}
++    APPROVED_CALIBRATABLE = ((set(Revision2ParameterManifest.all_68()) - FIXED_TARGET_NAMES)
++                             | {s.name for s in CONTROLLER_PARAMETER_SPECS if s.calibratable})
+ 
+     def __init__(self):
+         self.params: Dict[str, ParameterSpec] = {}
+@@ -463,6 +474,14 @@ class CanonicalParameterRegistry:
+             self.params[item.name] = item
+         for item in safety_entries:
+             self.safety_params[item.name] = item
++        for spec in CONTROLLER_PARAMETER_SPECS:
++            if spec.name in self.params:
++                raise ValueError(f"controller parameter {spec.name} collides with a target parameter")
++            self.params[spec.name] = ParameterSpec(
++                spec.name, "PlantControl", spec.param_type, spec.default, spec.minimum, spec.maximum,
++                spec.calibratable,
++                f"{spec.calibration_status}; R5-CONTROLLER-AUTHORITY {spec.safety_class}; {spec.description}",
++                self.ENGINE_EXTERNAL)
+         self.validate_contract()
+ 
+     def base_33(self) -> List[str]:
+@@ -547,8 +566,13 @@ class CanonicalParameterRegistry:
+         # 152 + 18 = 170.
+         if len(expected) != 170 or len(set(expected)) != 170:
+             raise ValueError("Revision 2 target names must contain 170 unique values")
+-        if set(expected) != set(self.params):
+-            raise ValueError("registry does not exactly match the Revision 2 manifest")
++        controller = {s.name for s in CONTROLLER_PARAMETER_SPECS}
++        if set(expected) & controller:
++            raise ValueError("controller authority names must not overlap the Revision 2 manifest")
++        if set(expected) | controller != set(self.params):
++            raise ValueError("registry does not exactly match the Revision 2 manifest plus the R5 controller authority")
++        if any(self.params[name].applicable_engines != self.ENGINE_EXTERNAL for name in controller):
++            raise ValueError("R5 controller authority parameters are EXTERNAL-only")
+         if len(self.safety_params) != 22:
+             raise ValueError("hardcoded safety layer must contain exactly 22 values")
+         if set(self.params) & set(self.safety_params):
+@@ -569,11 +593,13 @@ class CanonicalParameterRegistry:
+         # engines.  The per-engine surfaces are the ones an optimizer may use:
+         # in-house 46, external 108 (46 shared + 62 external-only).
+         # Governor authority adds 14 EXTERNAL-only eligible parameters: 108 + 14 = 122.
+-        if len(calibratable) != 122:
+-            raise ValueError(f"optimizer surface must contain exactly 122 values; got {len(calibratable)}")
++        # The R5 controller authority adds its TUNABLE rows (EXTERNAL-only) on top of the 122.
++        tunable = sum(1 for s in CONTROLLER_PARAMETER_SPECS if s.calibratable)
++        if len(calibratable) != 122 + tunable:
++            raise ValueError(f"optimizer surface must contain exactly {122 + tunable} values; got {len(calibratable)}")
+         counts = self.surface_counts()
+         if (counts["in_house_eligible"], counts["external_eligible"], counts["shared_eligible"],
+-                counts["external_only_eligible"]) != (46, 122, 46, 76):
++                counts["external_only_eligible"]) != (46, 122 + tunable, 46, 76 + tunable):
+             raise ValueError(f"engine-scoped optimizer surfaces changed unexpectedly: {counts}")
+         for name, spec in self.params.items():
+             if spec.applicable_engines not in (self.ENGINE_IN_HOUSE, self.ENGINE_EXTERNAL, self.ENGINE_BOTH):
+@@ -590,6 +616,7 @@ class CanonicalParameterRegistry:
+             "revision2_35": self.revision2_35(),
+             "target_parameters": [asdict(self.params[name]) for name in sorted(self.params)],
+             "hardcoded_safety": [asdict(self.safety_params[name]) for name in sorted(self.safety_params)],
++            "controller_authority": [asdict(spec) for spec in sorted(CONTROLLER_PARAMETER_SPECS, key=lambda s: s.name)],
+         }
+ 
+     def identity_sha256(self) -> str:

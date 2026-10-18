@@ -1,0 +1,98 @@
+{
+ "fsm_reversal_needs_two_consecutive_emergency": {
+  "ok": true,
+  "note": "flips=1588 violations=0"
+ },
+ "fsm_ineligible_resets_emergency_age": {
+  "ok": true,
+  "note": ""
+ },
+ "fsm_non_emergency_sample_breaks_streak": {
+  "ok": false,
+  "note": "pulse=HOLD"
+ },
+ "allocator_bounds_fits_exhaust_order_independence": {
+  "ok": true,
+  "note": "3000 cases, violations=[]"
+ },
+ "approve_target_sign_flat_on_opposition_cap": {
+  "ok": true,
+  "note": "violations=0"
+ },
+ "util_reject_(-1, 0, 1)": {
+  "ok": true,
+  "note": ""
+ },
+ "util_reject_(0, -1, 1)": {
+  "ok": true,
+  "note": ""
+ },
+ "util_reject_(0, 0, 0)": {
+  "ok": true,
+  "note": ""
+ },
+ "util_reject_(nan, 0, 1)": {
+  "ok": true,
+  "note": ""
+ },
+ "util_not_clamped": {
+  "ok": true,
+  "note": ""
+ },
+ "causality_prefix_invariant": {
+  "ok": true,
+  "note": ""
+ },
+ "idempotent_same_bar": {
+  "ok": true,
+  "note": ""
+ },
+ "conflicting_same_bar_rejected": {
+  "ok": true,
+  "note": ""
+ },
+ "conflicting_ohlcv_rejected": {
+  "ok": true,
+  "note": ""
+ },
+ "restore_reproduces_future": {
+  "ok": true,
+  "note": ""
+ },
+ "restore_accepts_pre_emergency_age_checkpoint": {
+  "ok": true,
+  "note": ""
+ },
+ "restore_rejects_atomically_nan": {
+  "ok": true,
+  "note": ""
+ },
+ "restore_rejects_atomically_neg_emergency_age": {
+  "ok": true,
+  "note": ""
+ },
+ "restore_rejects_atomically_float_emergency_age": {
+  "ok": true,
+  "note": ""
+ },
+ "restore_rejects_atomically_bad_pulse": {
+  "ok": true,
+  "note": ""
+ },
+ "restore_rejects_atomically_schema": {
+  "ok": true,
+  "note": ""
+ },
+ "restore_bounds_emergency_age_upper": {
+  "ok": false,
+  "note": "accepted emergency_age=1e9 (no upper bound; harmless: only >=2 matters)"
+ },
+ "droop_reject_0.019": {
+  "ok": true,
+  "note": ""
+ },
+ "droop_reject_0.101": {
+  "ok": true,
+  "note": ""
+ }
+}

@@ -1,0 +1,4 @@
+probe_paper_apply_default_governor_seed11    22b4b7040e6ed819  orders=4 fills=4 exits=4 trades=4 net=1181.0675385209984
+MISMATCH probe_paper_apply_default_governor_seed11: sections ['trades', 'controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events']
+GOLDEN MASTER: FAIL (1/1)
+exit=1

@@ -1,0 +1,1104 @@
+"""
+Revision 5 frozen five-bay governor configuration.
+
+All closed-loop trade feedback uses R-multiples:
+    +1.0 = +1R
+    -1.0 = -1R
+
+The +0.30R target is a fixed Revision-5 design setpoint supplied for this
+architecture. It is NOT claimed to be calibrated or profitability-proven.
+
+PID coefficients never self-modify during certified replay.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from math import isfinite, sqrt, tanh
+from statistics import fmean
+from typing import Dict, Optional
+
+from revision5.controller_parameters import GOVERNOR_COMMON_DEFAULTS as _GOV_DEFAULTS
+from revision5.topology import BAY_IDS
+
+
+@dataclass(frozen=True)
+class BayGovernorSpec:
+    """Per-bay governor configuration.  Values are owned by the canonical registry
+    (``gov_<bay>_<field>`` in revision5/controller_parameters.py); runtime consumers receive them
+    from ``R5ControllerParameters.from_config``.  The field defaults below are the registry
+    defaults, not an independent source."""
+
+    bay_id: str
+    droop_r: float
+
+    kp: float
+    ki: float
+    kd: float
+
+    base_z: float
+    z_exit: float
+
+    atr_barrier: float
+    target_m: float
+    capital_weight: float
+
+    target_r: float = _GOV_DEFAULTS["target_r"]
+
+    outcome_window: int = _GOV_DEFAULTS["outcome_window"]
+    integral_clamp: float = _GOV_DEFAULTS["integral_clamp"]
+
+    dynamic_offset_min: float = _GOV_DEFAULTS["dynamic_offset_min"]
+    dynamic_offset_max: float = _GOV_DEFAULTS["dynamic_offset_max"]
+
+    grid_droop_gain: float = _GOV_DEFAULTS["grid_droop_gain"]
+    grid_droop_max: float = _GOV_DEFAULTS["grid_droop_max"]
+
+    # dynamic_z feedback offset gain: offset = clip(-feedback_gain * u, offset_min, offset_max).
+    feedback_gain: float = _GOV_DEFAULTS["feedback_gain"]
+
+
+def _registry_default_specs() -> Dict[str, BayGovernorSpec]:
+    from revision5.controller_parameters import default_controller_parameters
+    return dict(default_controller_parameters().governor_specs)
+
+
+# Registry-default view (formerly a literal table).  Runtime consumers (orchestrator, plant,
+# dispatcher, dynamic schedule) receive the EffectiveConfig specs explicitly; this mapping is the
+# documented registry default used by legacy callers and tests.
+BAY_GOVERNOR_SPECS: Dict[str, BayGovernorSpec] = _registry_default_specs()
+
+
+if set(BAY_GOVERNOR_SPECS) != set(BAY_IDS):
+    raise RuntimeError(
+        "Governor specifications do not exactly match Revision-5 bays"
+    )
+
+if abs(
+    sum(x.capital_weight for x in BAY_GOVERNOR_SPECS.values()) - 1.0
+) > 1e-12:
+    raise RuntimeError("Revision-5 initial capital weights must sum to 1.0")
+
+
+@dataclass
+class _InnerLoopState:
+    """Fast inner-loop state of ONE open position."""
+
+    active: bool = False
+    integral_error: float = 0.0
+    last_error: float = 0.0
+    last_control_u: float = 0.0
+    # Monotonic protective ratchet. It may advance only.
+    protected_r_floor: float = -1.0
+    trailing_active: bool = False
+    # Protocol V3 position control only.
+    v3_samples: int = 0
+    v3_trailing_active: bool = False
+
+
+@dataclass(frozen=True)
+class PositionControlV3:
+    """Protocol V3 closed-loop position control (opt-in engine mode ``closed_loop_v3``).
+
+    Per completed bar k of one position (all quantities in R):
+
+        e_k      = reference_r - measured_r
+        gamma_k  = gamma_fast if |e_k| > tau_error_multiplier * noise_r else gamma_slow
+        I_k      = clip(gamma_k * I_{k-1} + e_k, -I_max, +I_max)     (I_max = runtime integral clamp)
+        D_k      = 0 on the first sample and on the first trailing-active sample, else e_k - e_{k-1}
+        u_k      = Kp e_k + Ki I_k + Kd D_k                            (Ki applied once)
+        gap_k    = max(base_gap * (1 - kappa * tanh(u_k)), noise_floor_mult * noise_r, minimum_gap)
+        floor_k  = max(floor_{k-1}, hard_stop, MFE_k - gap_k)          once trailing is active
+
+    noise_r = ATR / initial risk (one bar's typical move in R).  Trailing becomes active (and
+    latches) once elapsed_bars >= grace_bars and MFE >= mfe_activation_r.  The binary path-error
+    exit is not used: the controller acts only through the one-way protective floor, which the
+    engine arms for the NEXT bar (no intrabar look-ahead).
+    """
+
+    mfe_activation_r: float
+    kappa: float
+    gamma_fast: float
+    tau_error_multiplier: float
+    gamma_slow: float
+    base_gap_r: float
+    minimum_gap_r: float
+    noise_floor_mult: float
+    grace_bars: int
+
+    def __post_init__(self):
+        values = (self.mfe_activation_r, self.kappa, self.gamma_fast, self.tau_error_multiplier,
+                  self.gamma_slow, self.base_gap_r, self.minimum_gap_r, self.noise_floor_mult)
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and isfinite(float(v))
+                   for v in values):
+            raise ValueError("V3 position control values must be finite numbers")
+        if not 0.0 <= self.mfe_activation_r:
+            raise ValueError("mfe_activation_r must be non-negative")
+        if not 0.0 < self.kappa < 1.0:
+            raise ValueError("kappa must lie in (0, 1)")
+        if not 0.0 < self.gamma_fast <= self.gamma_slow <= 1.0:
+            raise ValueError("require 0 < gamma_fast <= gamma_slow <= 1")
+        if self.tau_error_multiplier <= 0.0 or self.noise_floor_mult <= 0.0:
+            raise ValueError("tau_error_multiplier and noise_floor_mult must be positive")
+        if not 0.0 < self.minimum_gap_r <= self.base_gap_r:
+            raise ValueError("require 0 < minimum_gap_r <= base_gap_r")
+        if isinstance(self.grace_bars, bool) or int(self.grace_bars) != self.grace_bars or self.grace_bars < 0:
+            raise ValueError("grace_bars must be a non-negative integer")
+
+
+
+class BayTurbineClosedLoopGovernor:
+    """
+    Frozen Mark-V-style closed-loop governor.
+
+    Configuration remains immutable.
+    Only controller state evolves from realized R feedback.
+    """
+
+    def __init__(self, spec: BayGovernorSpec):
+        self.spec = spec
+        self.position_policy = None  # Opt-in offline experiment; legacy callers unchanged.
+
+        # Native Revision-5 runtime operating values.
+        #
+        # spec remains the immutable certified/base specification.
+        # These members are the values actually consumed by the
+        # governor PID/droop equations.
+        self.runtime_target_r = float(spec.target_r)
+        self.runtime_outcome_window = int(
+            spec.outcome_window
+        )
+        self.runtime_integral_clamp = float(
+            spec.integral_clamp
+        )
+
+        self.runtime_kp = float(spec.kp)
+        self.runtime_ki = float(spec.ki)
+        self.runtime_kd = float(spec.kd)
+
+        self.runtime_base_z = float(spec.base_z)
+        self.runtime_droop_r = float(spec.droop_r)
+
+        self.runtime_dynamic_offset_min = float(
+            spec.dynamic_offset_min
+        )
+        self.runtime_dynamic_offset_max = float(
+            spec.dynamic_offset_max
+        )
+
+        self.runtime_grid_droop_gain = float(
+            spec.grid_droop_gain
+        )
+        self.runtime_grid_droop_max = float(
+            spec.grid_droop_max
+        )
+        # Not scheduled: always the configured spec value.
+        self.runtime_feedback_gain = float(spec.feedback_gain)
+        self._runtime_profile_applied = False
+
+        self.integral_error = 0.0
+        self.last_error = 0.0
+        self.last_control_u = 0.0
+
+        self.history_r: list[float] = []
+
+        # Fast inner governor loop: one independent state per open position.  A bay
+        # trades several symbols concurrently, so one shared integrator/ratchet would
+        # mix unrelated positions.  The legacy single-position API uses the ``None`` key.
+        self._inner_states: Dict[object, _InnerLoopState] = {}
+
+    def inner_state(self, position_id=None) -> _InnerLoopState:
+        """Read-only copy of one position's inner-loop state (inactive default)."""
+        state = self._inner_states.get(position_id)
+        return _InnerLoopState(**vars(state)) if state is not None else _InnerLoopState()
+
+    @property
+    def open_position_ids(self) -> tuple:
+        return tuple(key for key, state in self._inner_states.items() if state.active)
+
+    # Legacy single-position views (position_id=None).
+    @property
+    def position_active(self) -> bool:
+        return self.inner_state().active
+
+    @property
+    def inner_integral_error(self) -> float:
+        return self.inner_state().integral_error
+
+    @property
+    def inner_last_error(self) -> float:
+        return self.inner_state().last_error
+
+    @property
+    def inner_last_control_u(self) -> float:
+        return self.inner_state().last_control_u
+
+    @property
+    def protected_r_floor(self) -> float:
+        return self.inner_state().protected_r_floor
+
+    def cap_dispatch_entry(
+        self, reference, *, requested_quantity: int, entry_price: float,
+        equity: float, gross_limit_fraction: float, bay_notional: float,
+        gross_notional: float,
+    ) -> dict:
+        """Consume a paper dispatch reference as an additional upper cap only.
+
+        The external strategy and execution governor must already approve the request.
+        This does not change native z-score admission, PID state, exits, or safety limits.
+        References are fractions of the existing total gross-exposure budget.
+        """
+        values = (entry_price, equity, gross_limit_fraction, bay_notional, gross_notional,
+                  reference.dispatch_reference_pu, reference.plant_demand_reference_pu)
+        if (reference.bay_id != self.spec.bay_id or reference.mode != "PAPER_APPLY"
+                or not all(isfinite(v) for v in values)
+                or entry_price <= 0 or equity <= 0 or gross_limit_fraction <= 0
+                or min(bay_notional, gross_notional) < 0
+                or not 0 <= reference.dispatch_reference_pu <= reference.plant_demand_reference_pu <= 1):
+            return {"quantity": 0, "reason": "INVALID_DISPATCH_REFERENCE"}
+        budget = equity * gross_limit_fraction
+        remaining = max(0.0, min(
+            budget * reference.dispatch_reference_pu - bay_notional,
+            budget * reference.plant_demand_reference_pu - gross_notional,
+        ))
+        quantity = min(max(0, int(requested_quantity)), int(remaining / entry_price))
+        return {"quantity": quantity, "reason": "PAPER_DISPATCH_CAP" if quantity else "PAPER_DISPATCH_HOLD",
+                "remaining_notional": remaining, "bay_cap_notional": budget * reference.dispatch_reference_pu,
+                "plant_cap_notional": budget * reference.plant_demand_reference_pu}
+
+    def register_trade(self, realized_r: float) -> float:
+        if not isfinite(realized_r):
+            raise ValueError("realized_r must be finite")
+
+        self.history_r.append(float(realized_r))
+
+        if len(self.history_r) > self.runtime_outcome_window:
+            self.history_r.pop(0)
+
+        process_r = fmean(self.history_r)
+        error = self.runtime_target_r - process_r
+
+        self.integral_error = max(
+            -self.runtime_integral_clamp,
+            min(
+                self.runtime_integral_clamp,
+                self.integral_error + error,
+            ),
+        )
+
+        derivative = error - self.last_error
+        self.last_error = error
+
+        self.last_control_u = (
+            self.runtime_kp * error
+            + self.runtime_ki * self.integral_error
+            + self.runtime_kd * derivative
+        )
+
+        return self.last_control_u
+
+    def apply_runtime_profile(self, profile) -> None:
+        """
+        Apply the current Revision-5 governor operating profile.
+
+        The immutable BayGovernorSpec is never mutated.
+        """
+        values = (
+            profile.target_r,
+            profile.integral_clamp,
+            profile.grid_droop_gain,
+            profile.grid_droop_max,
+            profile.kp,
+            profile.ki,
+            profile.kd,
+            profile.base_z,
+            profile.droop_r,
+            profile.dynamic_offset_min,
+            profile.dynamic_offset_max,
+        )
+
+        if not all(isfinite(float(v)) for v in values):
+            raise ValueError(
+                "governor runtime profile contains "
+                "non-finite value"
+            )
+
+        if int(profile.outcome_window) <= 0:
+            raise ValueError(
+                "outcome_window must be positive"
+            )
+
+        if float(profile.integral_clamp) <= 0.0:
+            raise ValueError(
+                "integral_clamp must be positive"
+            )
+
+        if float(profile.droop_r) <= 0.0:
+            raise ValueError(
+                "droop_r must be positive"
+            )
+
+        self.runtime_target_r = float(
+            profile.target_r
+        )
+        self.runtime_outcome_window = int(
+            profile.outcome_window
+        )
+        self.runtime_integral_clamp = float(
+            profile.integral_clamp
+        )
+
+        self.runtime_kp = float(profile.kp)
+        self.runtime_ki = float(profile.ki)
+        self.runtime_kd = float(profile.kd)
+
+        self.runtime_base_z = float(profile.base_z)
+        self.runtime_droop_r = float(profile.droop_r)
+
+        self.runtime_dynamic_offset_min = float(
+            profile.dynamic_offset_min
+        )
+        self.runtime_dynamic_offset_max = float(
+            profile.dynamic_offset_max
+        )
+
+        self.runtime_grid_droop_gain = float(
+            profile.grid_droop_gain
+        )
+        self.runtime_grid_droop_max = float(
+            profile.grid_droop_max
+        )
+
+        self._runtime_profile_applied = True
+
+        # If a new dynamic window is shorter than retained history,
+        # trim immediately rather than allowing stale outcomes to
+        # continue influencing the controller.
+        while (
+            len(self.history_r)
+            > self.runtime_outcome_window
+        ):
+            self.history_r.pop(0)
+
+        # Re-clamp existing integrator state to the new runtime limit.
+        self.integral_error = max(
+            -self.runtime_integral_clamp,
+            min(
+                self.runtime_integral_clamp,
+                self.integral_error,
+            ),
+        )
+
+    def reconfigure(self, spec: BayGovernorSpec) -> None:
+        """Install a new configured spec (parameter refresh) WITHOUT resetting controller state.
+
+        Realized-R history, the outer integrator/derivative memory and every open position's inner
+        loop are preserved.  Before the first runtime profile the operating values follow the new
+        spec; afterwards the next profile (scheduled from the new spec) replaces them.  History is
+        trimmed and the integrator re-clamped to the effective limits, exactly as on a profile.
+        """
+        if spec.bay_id != self.spec.bay_id:
+            raise ValueError("governor spec bay mismatch")
+        self.spec = spec
+        self.runtime_feedback_gain = float(spec.feedback_gain)
+        if not self._runtime_profile_applied:
+            self.runtime_target_r = float(spec.target_r)
+            self.runtime_outcome_window = int(spec.outcome_window)
+            self.runtime_integral_clamp = float(spec.integral_clamp)
+            self.runtime_kp, self.runtime_ki, self.runtime_kd = float(spec.kp), float(spec.ki), float(spec.kd)
+            self.runtime_base_z = float(spec.base_z)
+            self.runtime_droop_r = float(spec.droop_r)
+            self.runtime_dynamic_offset_min = float(spec.dynamic_offset_min)
+            self.runtime_dynamic_offset_max = float(spec.dynamic_offset_max)
+            self.runtime_grid_droop_gain = float(spec.grid_droop_gain)
+            self.runtime_grid_droop_max = float(spec.grid_droop_max)
+        while len(self.history_r) > self.runtime_outcome_window:
+            self.history_r.pop(0)
+        self.integral_error = max(-self.runtime_integral_clamp,
+                                  min(self.runtime_integral_clamp, self.integral_error))
+        for state in self._inner_states.values():
+            state.integral_error = max(-self.runtime_integral_clamp,
+                                       min(self.runtime_integral_clamp, state.integral_error))
+
+    def configure_synchronizing_speed_reference(
+        self,
+        *,
+        initial_reference_hz: float,
+        minimum_reference_hz: float,
+        maximum_reference_hz: float,
+        reference_rate_hz_per_second: float,
+    ) -> None:
+        """
+        Install the generator synchronizing speed-reference channel.
+
+        The numerical limits/rate are supplied by configuration.
+        No synchronizing operating constants live in this class.
+        """
+        from math import isfinite
+
+        values = (
+            initial_reference_hz,
+            minimum_reference_hz,
+            maximum_reference_hz,
+            reference_rate_hz_per_second,
+        )
+
+        if not all(isfinite(float(v)) for v in values):
+            raise ValueError(
+                "synchronizing governor parameters must be finite"
+            )
+
+        if not (
+            float(minimum_reference_hz)
+            < float(initial_reference_hz)
+            < float(maximum_reference_hz)
+        ):
+            raise ValueError(
+                "initial speed reference must lie inside its limits"
+            )
+
+        if float(reference_rate_hz_per_second) <= 0.0:
+            raise ValueError(
+                "speed reference rate must be positive"
+            )
+
+        self.sync_speed_reference_hz = float(
+            initial_reference_hz
+        )
+
+        self.sync_speed_reference_min_hz = float(
+            minimum_reference_hz
+        )
+
+        self.sync_speed_reference_max_hz = float(
+            maximum_reference_hz
+        )
+
+        self.sync_speed_reference_rate_hz_per_second = float(
+            reference_rate_hz_per_second
+        )
+
+    def apply_synchronizing_speed_pulse(
+        self,
+        *,
+        command,
+        pulse_width_seconds: float,
+    ) -> float:
+        """
+        Apply one physical-equivalent 25A SPEED RAISE/LOWER pulse.
+
+        Pulse width times configured reference-rate determines the
+        reference movement. The machine dynamic model will later turn
+        this reference movement into rotor acceleration through
+        governor/actuator/turbine/inertia dynamics.
+        """
+        from math import isfinite
+
+        required = (
+            "sync_speed_reference_hz",
+            "sync_speed_reference_min_hz",
+            "sync_speed_reference_max_hz",
+            "sync_speed_reference_rate_hz_per_second",
+        )
+
+        if not all(hasattr(self, name) for name in required):
+            raise RuntimeError(
+                "synchronizing governor channel not configured"
+            )
+
+        width = float(pulse_width_seconds)
+
+        if not isfinite(width) or width < 0.0:
+            raise ValueError(
+                "pulse_width_seconds must be finite and non-negative"
+            )
+
+        normalized = str(
+            getattr(command, "value", command)
+        ).upper()
+
+        delta = (
+            self.sync_speed_reference_rate_hz_per_second
+            * width
+        )
+
+        reference = self.sync_speed_reference_hz
+
+        if normalized in (
+            "RAISE",
+            "SPEED_RAISE",
+        ):
+            reference += delta
+
+        elif normalized in (
+            "LOWER",
+            "SPEED_LOWER",
+        ):
+            reference -= delta
+
+        elif normalized in (
+            "NONE",
+            "HOLD",
+            "SPEED_NONE",
+        ):
+            pass
+
+        else:
+            raise ValueError(
+                f"unsupported synchronizing speed command: "
+                f"{normalized!r}"
+            )
+
+        reference = max(
+            self.sync_speed_reference_min_hz,
+            min(
+                self.sync_speed_reference_max_hz,
+                reference,
+            ),
+        )
+
+        self.sync_speed_reference_hz = float(reference)
+
+        return self.sync_speed_reference_hz
+
+    def synchronizing_speed_error(
+        self,
+        measured_frequency_hz: float,
+    ) -> float:
+        """
+        Comparator error used by the coming machine-dynamic model.
+        """
+        if not hasattr(
+            self,
+            "sync_speed_reference_hz",
+        ):
+            raise RuntimeError(
+                "synchronizing governor channel not configured"
+            )
+
+        return (
+            float(self.sync_speed_reference_hz)
+            - float(measured_frequency_hz)
+        )
+
+    def evaluate_entry_request(
+        self,
+        *,
+        z_score: float,
+        grid_return_fraction: float = 0.0,
+        side: str = "BUY",
+        entry_mode: str = "mean_reversion",
+    ) -> dict:
+        """
+        Final bay-governor ENTRY authority.
+
+        Upstream boxes provide the requested operating condition.
+        The governor owns the final strategic ENTRY/NO_ACTION state.
+
+        ``entry_mode`` states what kind of candidate is being governed:
+
+        * ``mean_reversion`` -- the candidate buys weakness.  ENTRY when the
+          side-signed z is at or below ``dynamic_z`` (price stretched at least
+          |dynamic_z| sigma AGAINST the trade).
+        * ``trend_overspeed`` -- the candidate follows momentum (the external
+          replay engine's PA signals).  The governor is an overspeed limit:
+          ENTRY unless the side-signed z already exceeds ``-base_z`` plus the
+          same feedback offset and grid droop that move ``dynamic_z``.  Adverse
+          grid droop and poor realized R lower both limits, so both modes tighten
+          under the same stress.
+
+        Side symmetry: the threshold is defined for a BUY (z at or below
+        dynamic_z).  A SELL mirrors both the z-score and the grid return, so
+        an over-extended price (+z) with an adverse (rising) grid is the
+        short-side equivalent of an oversold price with a falling grid.
+        """
+        if not isfinite(z_score):
+            raise ValueError(
+                "z_score must be finite"
+            )
+        if side not in ("BUY", "SELL"):
+            raise ValueError("side must be BUY or SELL")
+        if entry_mode not in ("mean_reversion", "trend_overspeed"):
+            raise ValueError("entry_mode must be mean_reversion or trend_overspeed")
+        if not isfinite(grid_return_fraction):
+            raise ValueError("grid_return_fraction must be finite")
+
+        sign = 1.0 if side == "BUY" else -1.0
+        signed_z = sign * float(z_score)
+
+        threshold = self.dynamic_z(
+            sign * float(grid_return_fraction)
+        )
+
+        if entry_mode == "mean_reversion":
+            limit = threshold
+            admitted = signed_z <= limit
+            blocked_reason = "GOVERNOR_ENTRY_NOT_REACHED"
+        else:
+            # Mirror only the base setting: limit = -base_z + feedback_offset - droop_penalty.
+            # Poor realized R and an adverse grid lower the limit, exactly as they lower dynamic_z.
+            limit = threshold - 2.0 * self.runtime_base_z
+            admitted = signed_z <= limit
+            blocked_reason = "GOVERNOR_OVERSPEED_LIMIT"
+
+        return {
+            "action": (
+                "ENTRY"
+                if admitted
+                else "NO_ACTION"
+            ),
+            "reason": (
+                "GOVERNOR_ENTRY"
+                if admitted
+                else blocked_reason
+            ),
+            "z_score": float(z_score),
+            "signed_z": signed_z,
+            "side": side,
+            "entry_mode": entry_mode,
+            "dynamic_z": float(threshold),
+            "signed_z_limit": float(limit),
+        }
+
+    def evaluate_z_exit(self, *, side: str, z_score: float, entry_signed_z: float) -> dict:
+        """Mean-reversion release (``gov_<bay>_z_exit``; sigma units, causal).
+
+        z is the governor comparator's own measurement, (close - mean) / std over gov_z_window_bars of
+        completed bars.  With ``signed_z = +z`` for a BUY and ``-z`` for a SELL (the entry comparator's
+        sign convention, where the entry level ``dynamic_z`` is negative), a position that was entered
+        BELOW the release level ``-z_exit`` (``entry_signed_z < -z_exit``: price stretched against the
+        trade) is released once the price has reverted to it: ``signed_z >= -z_exit``.  A position
+        entered at or above the level is never armed (the crossing has not happened), so the rule can
+        not fire on entry.  Larger ``z_exit`` releases earlier (further from the mean).  This only
+        classifies; the shared exit decision (governor_authority.position_decision) applies the
+        protection / minimum-hold hierarchy."""
+        if side not in ("BUY", "SELL"):
+            raise ValueError("side must be BUY or SELL")
+        if not (isfinite(float(z_score)) and isfinite(float(entry_signed_z))):
+            raise ValueError("z-exit inputs must be finite")
+        signed = (1.0 if side == "BUY" else -1.0) * float(z_score)
+        level = -float(self.spec.z_exit)
+        armed = float(entry_signed_z) < level
+        return {"z_exit": float(self.spec.z_exit), "release_level": level, "signed_z": signed,
+                "entry_signed_z": float(entry_signed_z), "armed": armed, "release": armed and signed >= level}
+
+    def begin_position(
+        self,
+        *,
+        hard_stop_r: float = -1.0,
+        position_id=None,
+    ) -> None:
+        if not isfinite(hard_stop_r):
+            raise ValueError(
+                "hard_stop_r must be finite"
+            )
+
+        self._inner_states[position_id] = _InnerLoopState(
+            active=True,
+            protected_r_floor=float(hard_stop_r),
+        )
+
+    def confirm_position_closed(self, position_id=None) -> None:
+        self._inner_states.pop(position_id, None)
+
+    def evaluate_position_control(
+        self,
+        *,
+        measured_r: float,
+        reference_r: float,
+        max_favorable_r: float,
+        elapsed_bars: int,
+        min_hold_bars: int,
+        max_hold_bars: int,
+        hard_stop_r: float,
+        trade_target_r: float,
+        position_id=None,
+        path_noise_r: Optional[float] = None,
+        path_error_sigma: Optional[float] = None,
+        position_control: Optional["PositionControlV3"] = None,
+    ) -> dict:
+        """
+        Fast closed-loop governor for one position (``position_id``).
+
+        ``position_control`` (governor_position_mode="v3") selects the Protocol V3 inner loop
+        (``PositionControlV3``): the PID acts only through the one-way trailing floor and there
+        is no binary path-error exit.  ``None`` is the legacy loop, unchanged.
+
+        output -> comparator -> PID -> HOLD/EXIT -> output feedback
+
+        protected_r_floor is the one-way ratchet. PID error may change
+        sign, but the secured protective floor never moves backwards.
+
+        Path-error tolerance: with ``path_noise_r`` (one bar's typical move in R,
+        i.e. ATR / initial risk) and ``path_error_sigma``, the governor exits on
+        path error only when the lag behind the reference exceeds the noise
+        envelope sigma * path_noise_r * sqrt(elapsed_bars).  Without them the
+        legacy tolerance max(|target_r|, |dynamic_offset_max|) applies.
+        """
+        if position_control is not None:
+            if path_noise_r is None or not (isfinite(float(path_noise_r)) and float(path_noise_r) > 0.0):
+                raise ValueError("V3 position control requires a finite positive path_noise_r")
+        else:
+            if (path_noise_r is None) != (path_error_sigma is None):
+                raise ValueError("path_noise_r and path_error_sigma go together")
+            if path_noise_r is not None and not (
+                isfinite(float(path_noise_r)) and float(path_noise_r) > 0.0
+                and isfinite(float(path_error_sigma)) and float(path_error_sigma) > 0.0
+            ):
+                raise ValueError("path noise envelope inputs must be finite and positive")
+        values = (
+            measured_r,
+            reference_r,
+            max_favorable_r,
+            hard_stop_r,
+            trade_target_r,
+        )
+
+        if not all(
+            isfinite(float(v))
+            for v in values
+        ):
+            raise ValueError(
+                "governor position feedback "
+                "must be finite"
+            )
+
+        if elapsed_bars < 0:
+            raise ValueError(
+                "elapsed_bars must be non-negative"
+            )
+
+        if min_hold_bars < 0:
+            raise ValueError(
+                "min_hold_bars must be non-negative"
+            )
+
+        if max_hold_bars <= 0:
+            raise ValueError(
+                "max_hold_bars must be positive"
+            )
+
+        if max_hold_bars < min_hold_bars:
+            raise ValueError(
+                "max_hold_bars cannot be below "
+                "min_hold_bars"
+            )
+
+        state = self._inner_states.get(position_id)
+        if state is None or not state.active:
+            self.begin_position(
+                hard_stop_r=float(hard_stop_r),
+                position_id=position_id,
+            )
+            state = self._inner_states[position_id]
+
+        measured_r = float(measured_r)
+        reference_r = float(reference_r)
+        max_favorable_r = float(
+            max_favorable_r
+        )
+
+        if position_control is not None:
+            if self.position_policy is not None:
+                raise ValueError("V3 position control and the offline position policy are exclusive")
+            return self._position_control_v3(
+                state, position_control, measured_r=measured_r, reference_r=reference_r,
+                max_favorable_r=max_favorable_r, elapsed_bars=int(elapsed_bars),
+                min_hold_bars=int(min_hold_bars), max_hold_bars=int(max_hold_bars),
+                hard_stop_r=float(hard_stop_r), trade_target_r=float(trade_target_r),
+                noise_r=float(path_noise_r))
+
+        error = reference_r - measured_r
+
+        state.integral_error = max(
+            -self.runtime_integral_clamp,
+            min(
+                self.runtime_integral_clamp,
+                state.integral_error
+                + error,
+            ),
+        )
+
+        derivative = (
+            error
+            - state.last_error
+        )
+
+        state.last_error = error
+
+        control_u = (
+            self.runtime_kp * error
+            + self.runtime_ki
+            * state.integral_error
+            + self.runtime_kd * derivative
+        )
+
+        state.last_control_u = (
+            float(control_u)
+        )
+
+        #
+        # One-direction protective ratchet.
+        #
+        # Step and gap are derived from current dynamic governor values,
+        # not from a separate fixed trading constant.
+        #
+        policy = self.position_policy
+        stop_detail = {}
+        if policy is not None:
+            previous_floor = state.protected_r_floor
+            state.trailing_active = state.trailing_active or max_favorable_r >= policy.mfe_activation_r
+            bounded_u = max(0.0, min(control_u, policy.pid_u_max))
+            effective_gap = max(policy.minimum_gap_r, policy.base_gap_r - policy.pid_alpha_r * bounded_u)
+            no_pid_floor = max(previous_floor, float(hard_stop_r), max_favorable_r - policy.base_gap_r)
+            if state.trailing_active:
+                state.protected_r_floor = max(previous_floor, float(hard_stop_r), max_favorable_r - effective_gap)
+            stop_detail = {
+                "trailing_active": state.trailing_active, "bounded_control_u": bounded_u,
+                "base_gap_r": policy.base_gap_r, "effective_gap_r": effective_gap,
+                "floor_before": previous_floor,
+                "pid_incremental_floor_r": (state.protected_r_floor - no_pid_floor
+                                             if state.trailing_active else 0.0),
+            }
+        else:
+            ratchet_step = (
+                abs(self.runtime_target_r)
+                / max(
+                    self.runtime_outcome_window,
+                    1,
+                )
+            )
+
+            trailing_gap = max(
+                abs(
+                    self.runtime_dynamic_offset_min
+                ),
+                abs(self.runtime_target_r),
+            )
+
+            desired_floor = max(
+                float(hard_stop_r),
+                max_favorable_r
+                - trailing_gap,
+            )
+
+            if desired_floor > state.protected_r_floor:
+                state.protected_r_floor = min(
+                    desired_floor,
+                    state.protected_r_floor
+                    + ratchet_step,
+                )
+
+        #
+        # FSNL-equivalent target condition.
+        #
+        if measured_r >= float(trade_target_r):
+            action = "EXIT"
+            reason = "GOVERNOR_TARGET_REACHED"
+
+        elif measured_r <= float(hard_stop_r):
+            action = "EXIT"
+            reason = "GOVERNOR_HARD_STOP"
+
+        elif (
+            elapsed_bars >= min_hold_bars
+            and measured_r
+            <= state.protected_r_floor
+            and state.protected_r_floor
+            > float(hard_stop_r)
+        ):
+            action = "EXIT"
+            reason = "GOVERNOR_RATCHET_FLOOR"
+
+        elif elapsed_bars >= max_hold_bars:
+            action = "EXIT"
+            reason = "GOVERNOR_MAX_HOLD"
+
+        elif policy is not None:
+            # PID acts through the next-bar protective floor, not a separate path-error exit.
+            action = "HOLD"
+            reason = "GOVERNOR_TRACKING"
+        else:
+            #
+            # Comparator/PID path deviation protection.
+            # These thresholds are themselves derived from the active,
+            # dynamically scheduled governor parameters.
+            #
+            if path_noise_r is None:
+                exit_error = max(
+                    abs(self.runtime_target_r),
+                    abs(
+                        self.runtime_dynamic_offset_max
+                    ),
+                )
+            else:
+                exit_error = (
+                    float(path_error_sigma)
+                    * float(path_noise_r)
+                    * sqrt(max(int(elapsed_bars), 1))
+                )
+
+            exit_control = max(
+                abs(self.runtime_target_r),
+                abs(
+                    self.runtime_ki
+                    * self.runtime_integral_clamp
+                ),
+            )
+
+            if (
+                elapsed_bars >= min_hold_bars
+                and error >= exit_error
+                and control_u >= exit_control
+            ):
+                action = "EXIT"
+                reason = "GOVERNOR_PATH_ERROR"
+            else:
+                action = "HOLD"
+                reason = "GOVERNOR_TRACKING"
+
+        return {
+            "action": action,
+            "reason": reason,
+            "measured_r": measured_r,
+            "reference_r": reference_r,
+            "error": float(error),
+            "integral_error": float(
+                state.integral_error
+            ),
+            "derivative": float(derivative),
+            "control_u": float(control_u),
+            "protected_r_floor": float(
+                state.protected_r_floor
+            ),
+            **stop_detail,
+            "max_favorable_r": (
+                max_favorable_r
+            ),
+            "elapsed_bars": int(
+                elapsed_bars
+            ),
+        }
+
+    def _position_control_v3(
+        self, state: _InnerLoopState, pc: "PositionControlV3", *, measured_r: float,
+        reference_r: float, max_favorable_r: float, elapsed_bars: int, min_hold_bars: int,
+        max_hold_bars: int, hard_stop_r: float, trade_target_r: float, noise_r: float,
+    ) -> dict:
+        """One completed bar of the Protocol V3 inner loop (see ``PositionControlV3``)."""
+        error = reference_r - measured_r
+        tau_error = pc.tau_error_multiplier * noise_r
+        gamma = pc.gamma_fast if abs(error) > tau_error else pc.gamma_slow
+        state.integral_error = max(-self.runtime_integral_clamp,
+                                   min(self.runtime_integral_clamp, gamma * state.integral_error + error))
+
+        first_sample = state.v3_samples == 0
+        activating = (not state.v3_trailing_active and elapsed_bars >= pc.grace_bars
+                      and max_favorable_r >= pc.mfe_activation_r)
+        if activating:
+            state.v3_trailing_active = True
+        derivative = 0.0 if (first_sample or activating) else error - state.last_error
+        state.last_error = error
+        state.v3_samples += 1
+
+        control_u = (self.runtime_kp * error + self.runtime_ki * state.integral_error
+                     + self.runtime_kd * derivative)
+        state.last_control_u = float(control_u)
+
+        raw_gap = pc.base_gap_r * (1.0 - pc.kappa * tanh(control_u))
+        noise_floor = pc.noise_floor_mult * noise_r
+        gap = max(raw_gap, noise_floor, pc.minimum_gap_r)
+        floor_before = state.protected_r_floor
+        if state.v3_trailing_active:
+            state.protected_r_floor = max(state.protected_r_floor, float(hard_stop_r),
+                                          max_favorable_r - gap)
+
+        if measured_r >= trade_target_r:
+            action, reason = "EXIT", "GOVERNOR_TARGET_REACHED"
+        elif measured_r <= hard_stop_r:
+            action, reason = "EXIT", "GOVERNOR_HARD_STOP"
+        elif (elapsed_bars >= min_hold_bars and measured_r <= state.protected_r_floor
+              and state.protected_r_floor > hard_stop_r):
+            action, reason = "EXIT", "GOVERNOR_RATCHET_FLOOR"
+        elif elapsed_bars >= max_hold_bars:
+            action, reason = "EXIT", "GOVERNOR_MAX_HOLD"
+        else:
+            action, reason = "HOLD", "GOVERNOR_TRACKING"
+
+        return {
+            "action": action, "reason": reason, "measured_r": measured_r,
+            "reference_r": reference_r, "error": float(error),
+            "integral_error": float(state.integral_error), "derivative": float(derivative),
+            "control_u": float(control_u), "protected_r_floor": float(state.protected_r_floor),
+            "max_favorable_r": max_favorable_r, "elapsed_bars": int(elapsed_bars),
+            "v3": {
+                "gamma": gamma, "tau_error": tau_error, "raw_gap_r": raw_gap,
+                "noise_floor_r": noise_floor, "gap_r": gap, "floor_before": floor_before,
+                "trailing_active": state.v3_trailing_active, "activated_this_bar": activating,
+            },
+        }
+
+    def dynamic_z(
+        self,
+        grid_return_fraction: float = 0.0,
+    ) -> float:
+        if not isfinite(grid_return_fraction):
+            raise ValueError(
+                "grid_return_fraction must be finite"
+            )
+
+        feedback_offset = max(
+            self.runtime_dynamic_offset_min,
+            min(
+                self.runtime_dynamic_offset_max,
+                -self.runtime_feedback_gain * self.last_control_u,
+            ),
+        )
+
+        adverse_grid = max(
+            0.0,
+            -float(grid_return_fraction),
+        )
+
+        droop_penalty = (
+            adverse_grid
+            / self.runtime_droop_r
+            * self.runtime_grid_droop_gain
+        )
+
+        droop_penalty = min(
+            droop_penalty,
+            self.runtime_grid_droop_max,
+        )
+
+        return (
+            self.runtime_base_z
+            + feedback_offset
+            - droop_penalty
+        )
+
+    def snapshot(self) -> dict:
+        return {
+            "bay_id": self.spec.bay_id,
+            "target_r": self.runtime_target_r,
+            "droop_r": self.runtime_droop_r,
+            "kp": self.runtime_kp,
+            "ki": self.runtime_ki,
+            "kd": self.runtime_kd,
+            "base_z": self.runtime_base_z,
+            "integral_error": self.integral_error,
+            "last_error": self.last_error,
+            "last_control_u": self.last_control_u,
+            "history_r": tuple(self.history_r),
+            "inner_positions": {
+                str(key): dict(vars(state))
+                for key, state in sorted(self._inner_states.items(), key=lambda kv: str(kv[0]))
+            },
+        }
+
+
+def build_fleet_governors():
+    return {
+        bay_id: BayTurbineClosedLoopGovernor(spec)
+        for bay_id, spec in BAY_GOVERNOR_SPECS.items()
+    }

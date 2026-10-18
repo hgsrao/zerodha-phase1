@@ -1,0 +1,54 @@
+.........................................................F.F............ [100%]
+=================================== FAILURES ===================================
+__________ test_engine_a_and_b_code_golden_masters_and_data_untouched __________
+
+    def test_engine_a_and_b_code_golden_masters_and_data_untouched():
+        base = subprocess.run(["git", "cat-file", "-t", BASE_COMMIT], cwd=ROOT, capture_output=True, text=True)
+        if base.returncode != 0:
+            pytest.skip("Engine B base commit not in this checkout")
+        diff = subprocess.run(["git", "diff", "--name-only", BASE_COMMIT, "--", *PROTECTED], cwd=ROOT,
+                              capture_output=True, text=True, check=True)
+        changed = set(diff.stdout.split())
+        assert not {p for p in changed if p.startswith(("golden_master/", "data/"))}
+>       assert changed <= PARAMETER_AUTHORITY_SURFACE, sorted(changed - PARAMETER_AUTHORITY_SURFACE)
+E       AssertionError: ['revision2_external/closed_loop_control.py', 'revision2_external/composite_study_signal.py', 'revision5/plant_control.py', 'tests/test_r5_dynamization.py', 'tests/test_r5_dynamization_closure.py']
+E       assert {'engine_b/or...ator.py', ...} <= {'engine_b/or...lant.py', ...}
+E         
+E         Extra items in the left set:
+E         'tests/test_r5_dynamization.py'
+E         'tests/test_r5_dynamization_closure.py'
+E         'revision5/plant_control.py'
+E         'revision2_external/composite_study_signal.py'
+E         'revision2_external/closed_loop_control.py'
+
+tests_engine_c/test_engine_c_backtrader.py:546: AssertionError
+___________________ test_engine_a_golden_master_still_passes ___________________
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    def test_engine_a_golden_master_still_passes():
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check"], cwd=ROOT,
+                                capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: ull_seed12: sections ['controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations']
+E         MISMATCH single_signal_paper_apply_full_seed13: sections ['controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events']
+E         MISMATCH single_signal_paper_apply_full_seed14: sections ['controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events']
+E         MISMATCH probe_paper_apply_default_governor_seed11: sections ['trades', 'controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events']
+E         MISMATCH probe_shadow_closed_loop_seed12: sections ['trades', 'controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events']
+E         MISMATCH probe_plant_shadow_seed13: sections ['trades', 'controller_telemetry', 'mtm_equity_curve', 'entry_candidate_observations', 'position_sizing_events']
+E         MISMATCH probe_no_plant_seed14: sections ['trades', 'controller_telemetry', 'mtm_equity_curve', 'entry_candidate_observations', 'position_sizing_events']
+E         MISMATCH multiday_paper_apply_full: sections ['controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events', 'grid_shadow']
+E         MISMATCH regime_multiday_paper_apply_full: sections ['trades', 'controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events', 'grid_shadow', 'governor_authority', 'plant_control']
+E         MISMATCH regime_multiday_paper_apply_default_governor: sections ['trades', 'controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events', 'grid_shadow', 'governor_authority']
+E         MISMATCH regime_multiday_plant_shadow: sections ['trades', 'controller_telemetry', 'entry_candidate_observations', 'position_sizing_events', 'grid_shadow']
+E         MISMATCH regime_multiday_no_plant: sections ['trades', 'controller_telemetry', 'entry_candidate_observations', 'position_sizing_events', 'grid_shadow']
+E         GOLDEN MASTER: FAIL (17/17)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/home/srinivas/.venvs/zerodha-phase1-r5/bin/python', '/home/srinivas/projects/zerodha-r6-no-ad...', 'entry_candidate_observations', 'position_sizing_events', 'grid_shadow']\nGOLDEN MASTER: FAIL (17/17)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:576: AssertionError
+=========================== short test summary info ============================
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_and_b_code_golden_masters_and_data_untouched
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_still_passes
+2 failed, 70 passed, 38424 warnings in 1256.55s (0:20:56)
+EXIT 1

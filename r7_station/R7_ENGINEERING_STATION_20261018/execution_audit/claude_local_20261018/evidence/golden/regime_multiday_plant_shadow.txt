@@ -1,0 +1,4 @@
+regime_multiday_plant_shadow                 9f5d2f6ff801bdbc  orders=61 fills=61 exits=61 trades=61 net=36242.058071489446
+MISMATCH regime_multiday_plant_shadow: sections ['trades', 'controller_telemetry', 'entry_candidate_observations', 'position_sizing_events', 'grid_shadow']
+GOLDEN MASTER: FAIL (1/1)
+exit=1

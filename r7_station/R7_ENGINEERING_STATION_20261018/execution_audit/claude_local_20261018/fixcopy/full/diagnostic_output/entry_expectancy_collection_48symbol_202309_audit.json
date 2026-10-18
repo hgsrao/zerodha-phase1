@@ -1,0 +1,146 @@
+{
+  "run_type": "entry_expectancy_evidence_integrity_audit",
+  "source_period": [
+    "2023-09-01",
+    "2023-10-01"
+  ],
+  "research_boundary": "Integrity and coverage only; no threshold, model, or trading decision is produced.",
+  "source_summary": {
+    "completed_trades": 190,
+    "resolved_candidates_reported": 190,
+    "resolved_rows_written": 190,
+    "pending_candidates": 0
+  },
+  "integrity": {
+    "valid": true,
+    "error_count": 0,
+    "errors": []
+  },
+  "overall": {
+    "resolved": 190,
+    "net_pnl": -35045.56539429008,
+    "mean_net_pnl": -184.45034418047413,
+    "positive_net_outcomes": 30
+  },
+  "by_side": {
+    "BUY": {
+      "resolved": 155,
+      "net_pnl": -29255.148210496354,
+      "mean_net_pnl": -188.74289168062165,
+      "positive_net_outcomes": 21
+    },
+    "SELL": {
+      "resolved": 35,
+      "net_pnl": -5790.417183793731,
+      "mean_net_pnl": -165.44049096553516,
+      "positive_net_outcomes": 9
+    }
+  },
+  "exit_reasons": {
+    "max_hold": 1,
+    "regime_stressed_exit": 9,
+    "saturation_exit_studies": 5,
+    "stop": 130,
+    "stop_gap": 2,
+    "target": 43
+  },
+  "symbols_with_resolved_entries": 16,
+  "by_symbol": {
+    "ADANIENT": {
+      "resolved": 7,
+      "net_pnl": -1743.988612367169,
+      "mean_net_pnl": -249.141230338167,
+      "positive_net_outcomes": 1
+    },
+    "APOLLOHOSP": {
+      "resolved": 22,
+      "net_pnl": -4457.506615278481,
+      "mean_net_pnl": -202.61393705811278,
+      "positive_net_outcomes": 3
+    },
+    "ASIANPAINT": {
+      "resolved": 7,
+      "net_pnl": -1790.9590061372946,
+      "mean_net_pnl": -255.85128659104208,
+      "positive_net_outcomes": 0
+    },
+    "BAJAJ-AUTO": {
+      "resolved": 8,
+      "net_pnl": -1378.931067984333,
+      "mean_net_pnl": -172.3663834980416,
+      "positive_net_outcomes": 0
+    },
+    "BAJAJFINSV": {
+      "resolved": 8,
+      "net_pnl": -924.6159864559565,
+      "mean_net_pnl": -115.57699830699457,
+      "positive_net_outcomes": 3
+    },
+    "EICHERMOT": {
+      "resolved": 13,
+      "net_pnl": -2107.7215825276085,
+      "mean_net_pnl": -162.13242942520066,
+      "positive_net_outcomes": 3
+    },
+    "GRASIM": {
+      "resolved": 16,
+      "net_pnl": -2658.6067623505874,
+      "mean_net_pnl": -166.1629226469117,
+      "positive_net_outcomes": 5
+    },
+    "HINDUNILVR": {
+      "resolved": 9,
+      "net_pnl": -1663.0920535758287,
+      "mean_net_pnl": -184.78800595286987,
+      "positive_net_outcomes": 0
+    },
+    "INFY": {
+      "resolved": 30,
+      "net_pnl": -4254.075660684815,
+      "mean_net_pnl": -141.8025220228272,
+      "positive_net_outcomes": 4
+    },
+    "LT": {
+      "resolved": 25,
+      "net_pnl": -5658.345220763775,
+      "mean_net_pnl": -226.333808830551,
+      "positive_net_outcomes": 4
+    },
+    "M&M": {
+      "resolved": 2,
+      "net_pnl": -487.9552383410531,
+      "mean_net_pnl": -243.97761917052654,
+      "positive_net_outcomes": 0
+    },
+    "MARUTI": {
+      "resolved": 5,
+      "net_pnl": -837.4260496072577,
+      "mean_net_pnl": -167.48520992145154,
+      "positive_net_outcomes": 1
+    },
+    "SBILIFE": {
+      "resolved": 2,
+      "net_pnl": -658.9587380059124,
+      "mean_net_pnl": -329.4793690029562,
+      "positive_net_outcomes": 0
+    },
+    "TCS": {
+      "resolved": 27,
+      "net_pnl": -5021.174379111977,
+      "mean_net_pnl": -185.96942144859173,
+      "positive_net_outcomes": 4
+    },
+    "TITAN": {
+      "resolved": 5,
+      "net_pnl": -534.5012917035928,
+      "mean_net_pnl": -106.90025834071855,
+      "positive_net_outcomes": 2
+    },
+    "TRENT": {
+      "resolved": 4,
+      "net_pnl": -867.7071293944434,
+      "mean_net_pnl": -216.92678234861086,
+      "positive_net_outcomes": 0
+    }
+  }
+}

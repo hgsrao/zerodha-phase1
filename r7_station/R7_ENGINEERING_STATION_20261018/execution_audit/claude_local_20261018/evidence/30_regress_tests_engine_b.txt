@@ -1,0 +1,54 @@
+......F..............                                                    [100%]
+=================================== FAILURES ===================================
+___________________ test_protected_engine_a_files_unchanged ____________________
+tests_engine_b/test_engine_b_nautilus.py:114: in test_protected_engine_a_files_unchanged
+    diff = subprocess.run(["git", "diff", "--name-only", "HEAD", "--", *protected], cwd=ROOT,
+../../../.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/subprocess.py:571: in run
+    raise CalledProcessError(retcode, process.args,
+E   subprocess.CalledProcessError: Command '['git', 'diff', '--name-only', 'HEAD', '--', 'revision2', 'revision2_external/paper_execution.py', 'revision5/ccpp_unified_plant.py', 'runtime/operating_mode.py']' returned non-zero exit status 129.
+=============================== warnings summary ===============================
+engine_b/orchestrator.py:32
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/engine_b/orchestrator.py:32: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    BAR_SPAN = pd.Timedelta(minutes=1)
+
+../../../.venvs/zerodha-phase1-r5/lib/python3.12/site-packages/nautilus_trader/persistence/catalog/parquet.py:829
+  /home/srinivas/.venvs/zerodha-phase1-r5/lib/python3.12/site-packages/nautilus_trader/persistence/catalog/parquet.py:829: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    period: pd.Timedelta = pd.Timedelta(days=1),
+
+../../../.venvs/zerodha-phase1-r5/lib/python3.12/site-packages/nautilus_trader/persistence/catalog/parquet.py:895
+  /home/srinivas/.venvs/zerodha-phase1-r5/lib/python3.12/site-packages/nautilus_trader/persistence/catalog/parquet.py:895: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    period: pd.Timedelta = pd.Timedelta(days=1),
+
+engine_b/nautilus_market.py:21
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/engine_b/nautilus_market.py:21: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    BAR_SPAN = pd.Timedelta(minutes=1)
+
+tests_engine_b/test_engine_b_nautilus.py::test_native_order_fill_lifecycle
+tests_engine_b/test_engine_b_nautilus.py::test_native_order_fill_lifecycle
+tests_engine_b/test_engine_b_parameter_authority.py::test_base_has_filled_orders
+tests_engine_b/test_engine_b_parameter_authority.py::test_base_has_filled_orders
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/scripts/run_engine_b_nautilus.py:61: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    day += pd.Timedelta(days=1)
+
+tests_engine_b/test_engine_b_nautilus.py::test_native_order_fill_lifecycle
+tests_engine_b/test_engine_b_nautilus.py::test_native_order_fill_lifecycle
+tests_engine_b/test_engine_b_parameter_authority.py::test_base_has_filled_orders
+tests_engine_b/test_engine_b_parameter_authority.py::test_base_has_filled_orders
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/scripts/run_engine_b_nautilus.py:78: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    grid_t = pd.date_range(start - pd.Timedelta(days=12), stamps[-1] + pd.Timedelta(hours=1), freq="15min")
+
+tests_engine_b/test_engine_b_nautilus.py: 8 warnings
+tests_engine_b/test_engine_b_parameter_authority.py: 34 warnings
+  /home/srinivas/.venvs/zerodha-phase1-r5/lib/python3.12/site-packages/pandas/core/tools/timedeltas.py:233: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    result = Timedelta(r, unit)
+
+tests_engine_b/test_engine_b_nautilus.py: 625 warnings
+tests_engine_b/test_engine_b_parameter_authority.py: 3130 warnings
+  /home/srinivas/projects/r7_audit_20261018/repo_snapshot/revision2_external/grid_context.py:176: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    age = pd.Timedelta(seconds=grid.age_seconds)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests_engine_b/test_engine_b_nautilus.py::test_protected_engine_a_files_unchanged
+1 failed, 20 passed, 3809 warnings in 303.88s (0:05:03)
+exit=1

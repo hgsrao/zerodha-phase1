@@ -1,0 +1,1 @@
+{'PASS': 48, 'FAIL': 0, 'MISSING': 0} extra: ['acquisition_manifest.json', 'acquisition_manifest.json.sha256', 'acquisition_summary.json'] manifest_hash_ok: True listed 48

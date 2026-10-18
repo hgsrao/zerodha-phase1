@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "name": "Model 0 Ridge Regression",
+    "date_frozen": "2026-08-28",
+    "preregistration": "ITEM_3B_PREREGISTRATION_FROZEN_20260828",
+    "status": "FROZEN - NO CHANGES ALLOWED",
+    "phase": "2A - Harness Build"
+  },
+  "algorithm": "Ridge",
+  "regularization_type": "L2",
+  "lambda": 0.01,
+  "fit_intercept": true,
+  "normalize": false,
+  "solver": "auto",
+  "max_iter": 1000,
+  "tol": 0.001,
+  "preprocessing": {
+    "method": "StandardScaler",
+    "mean": 0,
+    "std": 1,
+    "fit_on": "training_set_only"
+  },
+  "constraints": {
+    "no_retuning": true,
+    "no_rescue_on_failure": true,
+    "nested_walk_forward_required": true,
+    "fdr_correction_required": true
+  }
+}

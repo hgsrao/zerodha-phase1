@@ -1,0 +1,47 @@
+{
+  "GTG1_HEAVY_INDUSTRY": {
+    "mfe_activation_hurdle_r": 0.3,
+    "trailing_gap_base_r": 0.45,
+    "pid_tighten_gain": 0.1,
+    "pid_clip_max": 2.0,
+    "fsrn_min_conviction": 0.2,
+    "fsrn_drop_threshold": 0.1,
+    "fsrn_persistence_bars": 2
+  },
+  "GTG2_TECH_TELECOM": {
+    "mfe_activation_hurdle_r": 0.3,
+    "trailing_gap_base_r": 0.45,
+    "pid_tighten_gain": 0.1,
+    "pid_clip_max": 2.0,
+    "fsrn_min_conviction": 0.2,
+    "fsrn_drop_threshold": 0.1,
+    "fsrn_persistence_bars": 2
+  },
+  "CSTG1_BFSI": {
+    "mfe_activation_hurdle_r": 0.3,
+    "trailing_gap_base_r": 0.45,
+    "pid_tighten_gain": 0.1,
+    "pid_clip_max": 2.0,
+    "fsrn_min_conviction": 0.2,
+    "fsrn_drop_threshold": 0.1,
+    "fsrn_persistence_bars": 2
+  },
+  "CSTG2_CONSUMER_AUTO": {
+    "mfe_activation_hurdle_r": 0.3,
+    "trailing_gap_base_r": 0.45,
+    "pid_tighten_gain": 0.1,
+    "pid_clip_max": 2.0,
+    "fsrn_min_conviction": 0.2,
+    "fsrn_drop_threshold": 0.1,
+    "fsrn_persistence_bars": 2
+  },
+  "BPSTG_HEALTHCARE": {
+    "mfe_activation_hurdle_r": 0.3,
+    "trailing_gap_base_r": 0.45,
+    "pid_tighten_gain": 0.1,
+    "pid_clip_max": 2.0,
+    "fsrn_min_conviction": 0.2,
+    "fsrn_drop_threshold": 0.1,
+    "fsrn_persistence_bars": 2
+  }
+}

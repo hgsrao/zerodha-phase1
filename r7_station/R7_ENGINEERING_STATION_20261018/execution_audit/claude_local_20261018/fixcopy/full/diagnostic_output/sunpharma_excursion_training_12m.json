@@ -1,0 +1,307 @@
+{
+  "kind": "EXTERNAL_SHADOW_R_TRAJECTORY_TRAINING_STUDY",
+  "status": "SHADOW_COMPLETE",
+  "shadow_only": true,
+  "promotion_authorized": false,
+  "scope": {
+    "period": "training",
+    "months": 12
+  },
+  "identity": {
+    "stock_manifest_hash": "f724074ca45eb9380ba6e7cf18ae1da4d9c9d48be0cf78ca51b0faa8d8d8ff16",
+    "context_manifest_hash": "a5ebf422da0408e167dda2b99804646930d7a87c6f31d7d69202b35978efc0b2",
+    "config_hash": "423d649ee9134519418ea7e29b2063382687b368cb5b7984d9e8cbd483fc38b0",
+    "safety_contract_hash": "6814e216760477a13428eb574bb5ee6edb01929ba2466c016a9360e476135dd2"
+  },
+  "monthly": [
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2023-09-01",
+        "end": "2023-09-30",
+        "engine_warmup_bars": 1000,
+        "target_bars": 7500
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 35,
+      "live_net_pnl": -1021.8299513924009,
+      "shadow_counterfactual_net_pnl": -1015.442315442648,
+      "shadow_delta_net_pnl": 6.387635949752848,
+      "shadow_exits": 29,
+      "initial_stop_only_shadow_exits": 16,
+      "nontrivial_shadow_outcomes": 2,
+      "earlier_shadow_exits": 1,
+      "targets_choked": 0,
+      "shadow_updates": 122
+    },
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2023-10-01",
+        "end": "2023-10-31",
+        "engine_warmup_bars": 1000,
+        "target_bars": 7500
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 17,
+      "live_net_pnl": -365.0704560648431,
+      "shadow_counterfactual_net_pnl": -365.0704560648431,
+      "shadow_delta_net_pnl": 0.0,
+      "shadow_exits": 10,
+      "initial_stop_only_shadow_exits": 4,
+      "nontrivial_shadow_outcomes": 0,
+      "earlier_shadow_exits": 0,
+      "targets_choked": 0,
+      "shadow_updates": 84
+    },
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2023-11-01",
+        "end": "2023-11-30",
+        "engine_warmup_bars": 1000,
+        "target_bars": 7560
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 12,
+      "live_net_pnl": -248.49057040155216,
+      "shadow_counterfactual_net_pnl": -247.49215431705056,
+      "shadow_delta_net_pnl": 0.9984160845015992,
+      "shadow_exits": 7,
+      "initial_stop_only_shadow_exits": 2,
+      "nontrivial_shadow_outcomes": 1,
+      "earlier_shadow_exits": 0,
+      "targets_choked": 0,
+      "shadow_updates": 25
+    },
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2023-12-01",
+        "end": "2023-12-31",
+        "engine_warmup_bars": 1000,
+        "target_bars": 7500
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 53,
+      "live_net_pnl": -1385.101185684155,
+      "shadow_counterfactual_net_pnl": -1387.6506381908555,
+      "shadow_delta_net_pnl": -2.5494525067003906,
+      "shadow_exits": 39,
+      "initial_stop_only_shadow_exits": 11,
+      "nontrivial_shadow_outcomes": 4,
+      "earlier_shadow_exits": 2,
+      "targets_choked": 0,
+      "shadow_updates": 244
+    },
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2024-01-01",
+        "end": "2024-01-31",
+        "engine_warmup_bars": 1000,
+        "target_bars": 8250
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 100,
+      "live_net_pnl": -2170.561422274053,
+      "shadow_counterfactual_net_pnl": -2172.3399169816034,
+      "shadow_delta_net_pnl": -1.7784947075506352,
+      "shadow_exits": 67,
+      "initial_stop_only_shadow_exits": 26,
+      "nontrivial_shadow_outcomes": 9,
+      "earlier_shadow_exits": 5,
+      "targets_choked": 1,
+      "shadow_updates": 384
+    },
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2024-02-01",
+        "end": "2024-02-29",
+        "engine_warmup_bars": 1000,
+        "target_bars": 7875
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 19,
+      "live_net_pnl": -618.1222373084515,
+      "shadow_counterfactual_net_pnl": -618.1222373084515,
+      "shadow_delta_net_pnl": 0.0,
+      "shadow_exits": 16,
+      "initial_stop_only_shadow_exits": 12,
+      "nontrivial_shadow_outcomes": 0,
+      "earlier_shadow_exits": 0,
+      "targets_choked": 0,
+      "shadow_updates": 20
+    },
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2024-03-01",
+        "end": "2024-03-31",
+        "engine_warmup_bars": 1000,
+        "target_bars": 6855
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 55,
+      "live_net_pnl": -1483.9234343148016,
+      "shadow_counterfactual_net_pnl": -1477.4188592620023,
+      "shadow_delta_net_pnl": 6.504575052799282,
+      "shadow_exits": 43,
+      "initial_stop_only_shadow_exits": 13,
+      "nontrivial_shadow_outcomes": 1,
+      "earlier_shadow_exits": 0,
+      "targets_choked": 0,
+      "shadow_updates": 246
+    },
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2024-04-01",
+        "end": "2024-04-30",
+        "engine_warmup_bars": 1000,
+        "target_bars": 7495
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 39,
+      "live_net_pnl": -906.8332982211963,
+      "shadow_counterfactual_net_pnl": -904.6005516171964,
+      "shadow_delta_net_pnl": 2.2327466039998853,
+      "shadow_exits": 27,
+      "initial_stop_only_shadow_exits": 6,
+      "nontrivial_shadow_outcomes": 3,
+      "earlier_shadow_exits": 2,
+      "targets_choked": 0,
+      "shadow_updates": 235
+    },
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2024-05-01",
+        "end": "2024-05-31",
+        "engine_warmup_bars": 1000,
+        "target_bars": 7980
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 91,
+      "live_net_pnl": -2232.64046221346,
+      "shadow_counterfactual_net_pnl": -2213.8770879635076,
+      "shadow_delta_net_pnl": 18.76337424995245,
+      "shadow_exits": 64,
+      "initial_stop_only_shadow_exits": 28,
+      "nontrivial_shadow_outcomes": 6,
+      "earlier_shadow_exits": 1,
+      "targets_choked": 0,
+      "shadow_updates": 253
+    },
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2024-06-01",
+        "end": "2024-06-30",
+        "engine_warmup_bars": 1000,
+        "target_bars": 7125
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 44,
+      "live_net_pnl": -1421.7419289252487,
+      "shadow_counterfactual_net_pnl": -1393.1303615562497,
+      "shadow_delta_net_pnl": 28.611567368998976,
+      "shadow_exits": 36,
+      "initial_stop_only_shadow_exits": 11,
+      "nontrivial_shadow_outcomes": 4,
+      "earlier_shadow_exits": 1,
+      "targets_choked": 0,
+      "shadow_updates": 203
+    },
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2024-07-01",
+        "end": "2024-07-31",
+        "engine_warmup_bars": 1000,
+        "target_bars": 8250
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 50,
+      "live_net_pnl": -1286.0512420093573,
+      "shadow_counterfactual_net_pnl": -1297.132728408655,
+      "shadow_delta_net_pnl": -11.081486399297773,
+      "shadow_exits": 39,
+      "initial_stop_only_shadow_exits": 16,
+      "nontrivial_shadow_outcomes": 5,
+      "earlier_shadow_exits": 3,
+      "targets_choked": 1,
+      "shadow_updates": 186
+    },
+    {
+      "scope": {
+        "symbol": "SUNPHARMA",
+        "start": "2024-08-01",
+        "end": "2024-08-31",
+        "engine_warmup_bars": 1000,
+        "target_bars": 7875
+      },
+      "status": "SHADOW_COMPLETE",
+      "trades": 39,
+      "live_net_pnl": -873.0750868976471,
+      "shadow_counterfactual_net_pnl": -920.9851074406478,
+      "shadow_delta_net_pnl": -47.910020543000655,
+      "shadow_exits": 28,
+      "initial_stop_only_shadow_exits": 8,
+      "nontrivial_shadow_outcomes": 4,
+      "earlier_shadow_exits": 2,
+      "targets_choked": 1,
+      "shadow_updates": 151
+    }
+  ],
+  "aggregate": {
+    "trades": 554,
+    "live_net_pnl": -14013.441275707166,
+    "shadow_counterfactual_net_pnl": -14013.26241455371,
+    "shadow_delta_net_pnl": 0.1788611534555855,
+    "shadow_exits": 405,
+    "initial_stop_only_shadow_exits": 153,
+    "nontrivial_shadow_outcomes": 39,
+    "earlier_shadow_exits": 17,
+    "targets_choked": 3,
+    "shadow_updates": 2153
+  },
+  "checkpoints": {
+    "1_months": {
+      "live_net_pnl": -1021.8299513924009,
+      "shadow_counterfactual_net_pnl": -1015.442315442648,
+      "shadow_delta_net_pnl": 6.387635949752848,
+      "nontrivial_shadow_outcomes": 2,
+      "targets_choked": 0
+    },
+    "3_months": {
+      "live_net_pnl": -1635.390977858796,
+      "shadow_counterfactual_net_pnl": -1628.0049258245417,
+      "shadow_delta_net_pnl": 7.386052034254448,
+      "nontrivial_shadow_outcomes": 3,
+      "targets_choked": 0
+    },
+    "6_months": {
+      "live_net_pnl": -5809.175823125455,
+      "shadow_counterfactual_net_pnl": -5806.117718305452,
+      "shadow_delta_net_pnl": 3.0581048200034218,
+      "nontrivial_shadow_outcomes": 16,
+      "targets_choked": 1
+    },
+    "9_months": {
+      "live_net_pnl": -10432.573017874913,
+      "shadow_counterfactual_net_pnl": -10402.014217148158,
+      "shadow_delta_net_pnl": 30.558800726755038,
+      "nontrivial_shadow_outcomes": 26,
+      "targets_choked": 1
+    },
+    "12_months": {
+      "live_net_pnl": -14013.441275707166,
+      "shadow_counterfactual_net_pnl": -14013.26241455371,
+      "shadow_delta_net_pnl": 0.1788611534555855,
+      "nontrivial_shadow_outcomes": 39,
+      "targets_choked": 3
+    }
+  }
+}

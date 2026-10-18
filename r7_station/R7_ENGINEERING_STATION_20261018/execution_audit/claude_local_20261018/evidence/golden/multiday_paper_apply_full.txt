@@ -1,0 +1,4 @@
+multiday_paper_apply_full                    11697359a347e91c  orders=0 fills=0 exits=0 trades=0 net=0
+MISMATCH multiday_paper_apply_full: sections ['controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events', 'grid_shadow']
+GOLDEN MASTER: FAIL (1/1)
+exit=1

@@ -30,6 +30,8 @@ EXECUTION_MODEL = {
 
 
 def main() -> int:
+    from runtime.live_trading_guard import require_live_trading_disabled
+    require_live_trading_disabled()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--symbols", default="INFY")
     parser.add_argument("--bars", type=int, default=1200)

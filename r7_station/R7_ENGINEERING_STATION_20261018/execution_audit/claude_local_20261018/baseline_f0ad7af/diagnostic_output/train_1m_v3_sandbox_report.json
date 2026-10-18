@@ -1,0 +1,408 @@
+{
+  "kind": "sealed_period_sandbox_replay",
+  "calibration_performed": false,
+  "duration_months": 1,
+  "periods": {
+    "train": {
+      "run_id": "portfolio-48-20230901-ea61559b37db-0aa783e666f5",
+      "timestamp": "2026-09-09T07:15:57.712700",
+      "status": "PASSED",
+      "universe": {
+        "symbol_count": 48,
+        "symbols": [
+          "ADANIENT",
+          "ADANIPORTS",
+          "APOLLOHOSP",
+          "ASIANPAINT",
+          "AXISBANK",
+          "BAJAJ-AUTO",
+          "BAJAJFINSV",
+          "BAJFINANCE",
+          "BEL",
+          "BHARTIARTL",
+          "CIPLA",
+          "COALINDIA",
+          "DRREDDY",
+          "EICHERMOT",
+          "ETERNAL",
+          "GRASIM",
+          "HCLTECH",
+          "HDFCBANK",
+          "HDFCLIFE",
+          "HINDALCO",
+          "HINDUNILVR",
+          "ICICIBANK",
+          "INDIGO",
+          "INFY",
+          "ITC",
+          "JIOFIN",
+          "JSWSTEEL",
+          "KOTAKBANK",
+          "LT",
+          "M&M",
+          "MARUTI",
+          "MAXHEALTH",
+          "NTPC",
+          "ONGC",
+          "POWERGRID",
+          "RELIANCE",
+          "SBILIFE",
+          "SBIN",
+          "SHRIRAMFIN",
+          "SUNPHARMA",
+          "TATACONSUM",
+          "TATASTEEL",
+          "TCS",
+          "TECHM",
+          "TITAN",
+          "TRENT",
+          "ULTRACEMCO",
+          "WIPRO"
+        ]
+      },
+      "period": "2023-09-01 to 2023-09-30",
+      "warmup_bars_per_symbol": 60,
+      "dataset_hash": "d7d391794f426204a1e3bb9a4dc6e8e872b341f6a1f61508d5f291ba60a7c7db",
+      "config_hash": "ea61559b37db7b7de20a78802831fcef0f52a5fb8285c04a05c3aa6f84d6a1b1",
+      "registry_contract_id": "ECS_REVISION_2_PARAMETER_SURFACE_V3",
+      "registry_hash": "26755ba69e28a81142a424fcca1a8c1b1f51a377ef70ba46fa52a97f96f28d74",
+      "metrics": {
+        "timestamps_processed": 7500,
+        "bars_processed": 360000,
+        "orders_submitted": 784,
+        "fills": 784,
+        "exits": 784,
+        "eod_flattens": 5
+      },
+      "per_symbol": {
+        "ADANIENT": {
+          "exits": 7,
+          "orders_submitted": 7,
+          "fills": 7,
+          "gate_rejections": 58
+        },
+        "ADANIPORTS": {
+          "exits": 14,
+          "orders_submitted": 14,
+          "fills": 14,
+          "gate_rejections": 51
+        },
+        "APOLLOHOSP": {
+          "exits": 11,
+          "orders_submitted": 11,
+          "fills": 11,
+          "gate_rejections": 27
+        },
+        "ASIANPAINT": {
+          "exits": 7,
+          "orders_submitted": 7,
+          "fills": 7,
+          "gate_rejections": 35
+        },
+        "AXISBANK": {
+          "exits": 4,
+          "orders_submitted": 4,
+          "fills": 4,
+          "gate_rejections": 31
+        },
+        "BAJAJ-AUTO": {
+          "exits": 11,
+          "orders_submitted": 11,
+          "fills": 11,
+          "gate_rejections": 23
+        },
+        "BAJAJFINSV": {
+          "exits": 1,
+          "orders_submitted": 1,
+          "fills": 1,
+          "gate_rejections": 47
+        },
+        "BAJFINANCE": {
+          "exits": 16,
+          "orders_submitted": 16,
+          "fills": 16,
+          "gate_rejections": 75
+        },
+        "BEL": {
+          "exits": 16,
+          "orders_submitted": 16,
+          "fills": 16,
+          "gate_rejections": 48
+        },
+        "BHARTIARTL": {
+          "exits": 62,
+          "orders_submitted": 62,
+          "fills": 62,
+          "gate_rejections": 58
+        },
+        "CIPLA": {
+          "exits": 2,
+          "orders_submitted": 2,
+          "fills": 2,
+          "gate_rejections": 38
+        },
+        "COALINDIA": {
+          "exits": 92,
+          "orders_submitted": 92,
+          "fills": 92,
+          "gate_rejections": 69
+        },
+        "DRREDDY": {
+          "exits": 37,
+          "orders_submitted": 37,
+          "fills": 37,
+          "gate_rejections": 53
+        },
+        "EICHERMOT": {
+          "exits": 22,
+          "orders_submitted": 22,
+          "fills": 22,
+          "gate_rejections": 47
+        },
+        "ETERNAL": {
+          "exits": 6,
+          "orders_submitted": 6,
+          "fills": 6,
+          "gate_rejections": 52
+        },
+        "GRASIM": {
+          "exits": 3,
+          "orders_submitted": 3,
+          "fills": 3,
+          "gate_rejections": 33
+        },
+        "HCLTECH": {
+          "exits": 12,
+          "orders_submitted": 12,
+          "fills": 12,
+          "gate_rejections": 26
+        },
+        "HDFCBANK": {
+          "gate_rejections": 27
+        },
+        "HDFCLIFE": {
+          "exits": 14,
+          "orders_submitted": 14,
+          "fills": 14,
+          "gate_rejections": 29
+        },
+        "HINDALCO": {
+          "exits": 23,
+          "orders_submitted": 23,
+          "fills": 23,
+          "gate_rejections": 74
+        },
+        "HINDUNILVR": {
+          "exits": 1,
+          "orders_submitted": 1,
+          "fills": 1,
+          "gate_rejections": 16
+        },
+        "ICICIBANK": {
+          "exits": 35,
+          "orders_submitted": 35,
+          "fills": 35,
+          "gate_rejections": 45
+        },
+        "INDIGO": {
+          "exits": 17,
+          "orders_submitted": 17,
+          "fills": 17,
+          "gate_rejections": 68
+        },
+        "INFY": {
+          "exits": 29,
+          "orders_submitted": 29,
+          "fills": 29,
+          "gate_rejections": 22
+        },
+        "ITC": {
+          "exits": 6,
+          "orders_submitted": 6,
+          "fills": 6,
+          "gate_rejections": 25
+        },
+        "JIOFIN": {
+          "exits": 1,
+          "orders_submitted": 1,
+          "fills": 1,
+          "gate_rejections": 10
+        },
+        "JSWSTEEL": {
+          "exits": 24,
+          "orders_submitted": 24,
+          "fills": 24,
+          "gate_rejections": 50
+        },
+        "KOTAKBANK": {
+          "exits": 16,
+          "orders_submitted": 16,
+          "fills": 16,
+          "gate_rejections": 88
+        },
+        "LT": {
+          "exits": 4,
+          "orders_submitted": 4,
+          "fills": 4,
+          "gate_rejections": 49
+        },
+        "M&M": {
+          "exits": 6,
+          "orders_submitted": 6,
+          "fills": 6,
+          "gate_rejections": 34
+        },
+        "MARUTI": {},
+        "MAXHEALTH": {
+          "exits": 3,
+          "orders_submitted": 3,
+          "fills": 3,
+          "gate_rejections": 16
+        },
+        "NTPC": {
+          "exits": 40,
+          "orders_submitted": 40,
+          "fills": 40,
+          "gate_rejections": 65
+        },
+        "ONGC": {
+          "exits": 7,
+          "orders_submitted": 7,
+          "fills": 7,
+          "gate_rejections": 28
+        },
+        "POWERGRID": {
+          "exits": 16,
+          "orders_submitted": 16,
+          "fills": 16,
+          "gate_rejections": 40
+        },
+        "RELIANCE": {
+          "gate_rejections": 31
+        },
+        "SBILIFE": {
+          "exits": 3,
+          "orders_submitted": 3,
+          "fills": 3,
+          "gate_rejections": 30
+        },
+        "SBIN": {
+          "exits": 10,
+          "orders_submitted": 10,
+          "fills": 10,
+          "gate_rejections": 62
+        },
+        "SHRIRAMFIN": {
+          "exits": 2,
+          "orders_submitted": 2,
+          "fills": 2,
+          "gate_rejections": 21
+        },
+        "SUNPHARMA": {
+          "exits": 20,
+          "orders_submitted": 20,
+          "fills": 20,
+          "gate_rejections": 57
+        },
+        "TATACONSUM": {
+          "exits": 16,
+          "orders_submitted": 16,
+          "fills": 16,
+          "gate_rejections": 63
+        },
+        "TATASTEEL": {
+          "exits": 27,
+          "orders_submitted": 27,
+          "fills": 27,
+          "gate_rejections": 84
+        },
+        "TCS": {
+          "exits": 8,
+          "orders_submitted": 8,
+          "fills": 8,
+          "gate_rejections": 50
+        },
+        "TECHM": {
+          "exits": 4,
+          "orders_submitted": 4,
+          "fills": 4,
+          "gate_rejections": 35
+        },
+        "TITAN": {
+          "exits": 4,
+          "orders_submitted": 4,
+          "fills": 4,
+          "gate_rejections": 29
+        },
+        "TRENT": {
+          "exits": 83,
+          "orders_submitted": 83,
+          "fills": 83,
+          "gate_rejections": 43
+        },
+        "ULTRACEMCO": {},
+        "WIPRO": {
+          "exits": 42,
+          "orders_submitted": 42,
+          "fills": 42,
+          "gate_rejections": 45
+        }
+      },
+      "rejection_breakdown": {
+        "Gate12StrategySignals": 1999,
+        "Order rejected": 8
+      },
+      "range_atr_shadow": {
+        "candidate_count": 3948,
+        "usable_count": 3909,
+        "would_reject": {
+          "3.0": 139,
+          "4.0": 57,
+          "5.0": 27,
+          "6.0": 14
+        }
+      },
+      "financials": {
+        "starting_equity": 100000.0,
+        "ending_equity": 96059.16134432184,
+        "realized_pnl": -3940.8386556781643,
+        "total_costs": 3253.1276433307357
+      },
+      "daily_pnl_series": {
+        "2023-09-01": -150.4848552073605,
+        "2023-09-04": -314.8010129422269,
+        "2023-09-05": -346.9804317539302,
+        "2023-09-06": -256.594938701044,
+        "2023-09-07": -219.5270161231898,
+        "2023-09-08": -324.0580993832455,
+        "2023-09-11": -371.38594410657345,
+        "2023-09-12": -49.91543806973607,
+        "2023-09-13": -594.0221726612854,
+        "2023-09-14": -52.32309940766193,
+        "2023-09-15": -229.80824662260673,
+        "2023-09-18": -149.42539083915415,
+        "2023-09-20": -97.39520018868895,
+        "2023-09-21": -30.263672289678823,
+        "2023-09-22": -94.69127701157186,
+        "2023-09-25": -77.77210355292623,
+        "2023-09-26": -176.4908409189542,
+        "2023-09-27": -62.566658512530985,
+        "2023-09-28": 91.05952967318188,
+        "2023-09-29": -433.3917870589784
+      },
+      "reconciliation": {
+        "pending_orders": 0,
+        "reserved_cash": 0.0,
+        "open_positions": 0,
+        "daily_pnl_matches_realized": true,
+        "exact": true
+      },
+      "gate16_remediation": {
+        "audit_log_path": "diagnostic_output/portfolio-48-20230901-ea61559b37db-0aa783e666f5_gate16_audit.jsonl",
+        "violations": [],
+        "audit_chain_valid": true,
+        "persisted_audit_chain_valid": null
+      }
+    }
+  }
+}

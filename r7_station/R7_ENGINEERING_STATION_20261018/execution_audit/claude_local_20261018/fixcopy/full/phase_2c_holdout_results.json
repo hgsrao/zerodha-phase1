@@ -1,0 +1,41 @@
+{
+  "model_0": {
+    "holdout": {
+      "rank_ic": 0.9999999983665999,
+      "pred_mean": -0.020545318300309215,
+      "pred_std": 0.12514404008060245,
+      "actual_mean": -0.020545609786130004,
+      "actual_std": 0.12514446581578084,
+      "rows": 1944
+    }
+  },
+  "model_1": {
+    "holdout": {
+      "rank_ic": 0.9986687547600146,
+      "pred_mean": -0.011111700907349586,
+      "pred_std": 0.10822091996669769,
+      "actual_mean": -0.020545609786130004,
+      "actual_std": 0.12514446581578084,
+      "rows": 1944
+    }
+  },
+  "comparison": {
+    "model_0_val_ic": 1.0,
+    "model_0_holdout_ic": 0.9999999983665999,
+    "model_0_drift_pct": 1.6334000818574168e-07,
+    "model_1_val_ic": 0.9989156222810632,
+    "model_1_holdout_ic": 0.9986687547600146,
+    "model_1_drift_pct": 0.024713550928846313
+  },
+  "metadata": {
+    "timestamp": "2026-08-28T19:39:57.041429",
+    "phase": "2C",
+    "holdout_rows": 1944,
+    "model_0_tier1_pass": true,
+    "model_1_tier1_pass": true,
+    "model_0_consistent": true,
+    "model_1_consistent": true,
+    "item_3b_recommendation": "PASS - Item 3b validated",
+    "next_phase": "Phase 4 (Universe Expansion)"
+  }
+}

@@ -1,0 +1,395 @@
+diff --git a/revision5/governor.py b/revision5/governor.py
+index 5a5c6b5..f8cd3e2 100644
+--- a/revision5/governor.py
++++ b/revision5/governor.py
+@@ -14,22 +14,21 @@ PID coefficients never self-modify during certified replay.
+ from __future__ import annotations
+ 
+ from dataclasses import dataclass
+-from math import isfinite, sqrt
++from math import isfinite, sqrt, tanh
+ from statistics import fmean
+ from typing import Dict, Optional
+ 
+-from revision5.topology import (
+-    BAY_IDS,
+-    GTG1_HEAVY_INDUSTRY,
+-    GTG2_TECH_TELECOM,
+-    CSTG1_BFSI,
+-    CSTG2_CONSUMER_AUTO,
+-    BPSTG_HEALTHCARE,
+-)
++from revision5.controller_parameters import GOVERNOR_COMMON_DEFAULTS as _GOV_DEFAULTS
++from revision5.topology import BAY_IDS
+ 
+ 
+ @dataclass(frozen=True)
+ class BayGovernorSpec:
++    """Per-bay governor configuration.  Values are owned by the canonical registry
++    (``gov_<bay>_<field>`` in revision5/controller_parameters.py); runtime consumers receive them
++    from ``R5ControllerParameters.from_config``.  The field defaults below are the registry
++    defaults, not an independent source."""
++
+     bay_id: str
+     droop_r: float
+ 
+@@ -44,85 +43,30 @@ class BayGovernorSpec:
+     target_m: float
+     capital_weight: float
+ 
+-    target_r: float = 0.30
+-
+-    outcome_window: int = 6
+-    integral_clamp: float = 3.0
+-
+-    dynamic_offset_min: float = -0.45
+-    dynamic_offset_max: float = 0.15
+-
+-    grid_droop_gain: float = 0.05
+-    grid_droop_max: float = 0.25
+-
+-
+-BAY_GOVERNOR_SPECS: Dict[str, BayGovernorSpec] = {
+-
+-    GTG1_HEAVY_INDUSTRY: BayGovernorSpec(
+-        bay_id=GTG1_HEAVY_INDUSTRY,
+-        droop_r=0.040,
+-        kp=1.20,
+-        ki=0.05,
+-        kd=0.30,
+-        base_z=-1.90,
+-        z_exit=0.35,
+-        atr_barrier=1.80,
+-        target_m=3.0,
+-        capital_weight=0.25,
+-    ),
+-
+-    GTG2_TECH_TELECOM: BayGovernorSpec(
+-        bay_id=GTG2_TECH_TELECOM,
+-        droop_r=0.040,
+-        kp=1.50,
+-        ki=0.08,
+-        kd=0.60,
+-        base_z=-2.00,
+-        z_exit=0.50,
+-        atr_barrier=2.10,
+-        target_m=3.2,
+-        capital_weight=0.20,
+-    ),
+-
+-    CSTG1_BFSI: BayGovernorSpec(
+-        bay_id=CSTG1_BFSI,
+-        droop_r=0.055,
+-        kp=0.90,
+-        ki=0.12,
+-        kd=0.15,
+-        base_z=-1.85,
+-        z_exit=0.30,
+-        atr_barrier=1.50,
+-        target_m=2.8,
+-        capital_weight=0.25,
+-    ),
+-
+-    CSTG2_CONSUMER_AUTO: BayGovernorSpec(
+-        bay_id=CSTG2_CONSUMER_AUTO,
+-        droop_r=0.055,
+-        kp=1.00,
+-        ki=0.07,
+-        kd=0.25,
+-        base_z=-1.95,
+-        z_exit=0.40,
+-        atr_barrier=1.65,
+-        target_m=2.9,
+-        capital_weight=0.18,
+-    ),
+-
+-    BPSTG_HEALTHCARE: BayGovernorSpec(
+-        bay_id=BPSTG_HEALTHCARE,
+-        droop_r=0.075,
+-        kp=0.80,
+-        ki=0.04,
+-        kd=0.20,
+-        base_z=-1.80,
+-        z_exit=0.40,
+-        atr_barrier=1.40,
+-        target_m=2.5,
+-        capital_weight=0.12,
+-    ),
+-}
++    target_r: float = _GOV_DEFAULTS["target_r"]
++
++    outcome_window: int = _GOV_DEFAULTS["outcome_window"]
++    integral_clamp: float = _GOV_DEFAULTS["integral_clamp"]
++
++    dynamic_offset_min: float = _GOV_DEFAULTS["dynamic_offset_min"]
++    dynamic_offset_max: float = _GOV_DEFAULTS["dynamic_offset_max"]
++
++    grid_droop_gain: float = _GOV_DEFAULTS["grid_droop_gain"]
++    grid_droop_max: float = _GOV_DEFAULTS["grid_droop_max"]
++
++    # dynamic_z feedback offset gain: offset = clip(-feedback_gain * u, offset_min, offset_max).
++    feedback_gain: float = _GOV_DEFAULTS["feedback_gain"]
++
++
++def _registry_default_specs() -> Dict[str, BayGovernorSpec]:
++    from revision5.controller_parameters import default_controller_parameters
++    return dict(default_controller_parameters().governor_specs)
++
++
++# Registry-default view (formerly a literal table).  Runtime consumers (orchestrator, plant,
++# dispatcher, dynamic schedule) receive the EffectiveConfig specs explicitly; this mapping is the
++# documented registry default used by legacy callers and tests.
++BAY_GOVERNOR_SPECS: Dict[str, BayGovernorSpec] = _registry_default_specs()
+ 
+ 
+ if set(BAY_GOVERNOR_SPECS) != set(BAY_IDS):
+@@ -147,6 +91,60 @@ class _InnerLoopState:
+     # Monotonic protective ratchet. It may advance only.
+     protected_r_floor: float = -1.0
+     trailing_active: bool = False
++    # Protocol V3 position control only.
++    v3_samples: int = 0
++    v3_trailing_active: bool = False
++
++
++@dataclass(frozen=True)
++class PositionControlV3:
++    """Protocol V3 closed-loop position control (opt-in engine mode ``closed_loop_v3``).
++
++    Per completed bar k of one position (all quantities in R):
++
++        e_k      = reference_r - measured_r
++        gamma_k  = gamma_fast if |e_k| > tau_error_multiplier * noise_r else gamma_slow
++        I_k      = clip(gamma_k * I_{k-1} + e_k, -I_max, +I_max)     (I_max = runtime integral clamp)
++        D_k      = 0 on the first sample and on the first trailing-active sample, else e_k - e_{k-1}
++        u_k      = Kp e_k + Ki I_k + Kd D_k                            (Ki applied once)
++        gap_k    = max(base_gap * (1 - kappa * tanh(u_k)), noise_floor_mult * noise_r, minimum_gap)
++        floor_k  = max(floor_{k-1}, hard_stop, MFE_k - gap_k)          once trailing is active
++
++    noise_r = ATR / initial risk (one bar's typical move in R).  Trailing becomes active (and
++    latches) once elapsed_bars >= grace_bars and MFE >= mfe_activation_r.  The binary path-error
++    exit is not used: the controller acts only through the one-way protective floor, which the
++    engine arms for the NEXT bar (no intrabar look-ahead).
++    """
++
++    mfe_activation_r: float
++    kappa: float
++    gamma_fast: float
++    tau_error_multiplier: float
++    gamma_slow: float
++    base_gap_r: float
++    minimum_gap_r: float
++    noise_floor_mult: float
++    grace_bars: int
++
++    def __post_init__(self):
++        values = (self.mfe_activation_r, self.kappa, self.gamma_fast, self.tau_error_multiplier,
++                  self.gamma_slow, self.base_gap_r, self.minimum_gap_r, self.noise_floor_mult)
++        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and isfinite(float(v))
++                   for v in values):
++            raise ValueError("V3 position control values must be finite numbers")
++        if not 0.0 <= self.mfe_activation_r:
++            raise ValueError("mfe_activation_r must be non-negative")
++        if not 0.0 < self.kappa < 1.0:
++            raise ValueError("kappa must lie in (0, 1)")
++        if not 0.0 < self.gamma_fast <= self.gamma_slow <= 1.0:
++            raise ValueError("require 0 < gamma_fast <= gamma_slow <= 1")
++        if self.tau_error_multiplier <= 0.0 or self.noise_floor_mult <= 0.0:
++            raise ValueError("tau_error_multiplier and noise_floor_mult must be positive")
++        if not 0.0 < self.minimum_gap_r <= self.base_gap_r:
++            raise ValueError("require 0 < minimum_gap_r <= base_gap_r")
++        if isinstance(self.grace_bars, bool) or int(self.grace_bars) != self.grace_bars or self.grace_bars < 0:
++            raise ValueError("grace_bars must be a non-negative integer")
++
+ 
+ 
+ class BayTurbineClosedLoopGovernor:
+@@ -194,6 +192,9 @@ class BayTurbineClosedLoopGovernor:
+         self.runtime_grid_droop_max = float(
+             spec.grid_droop_max
+         )
++        # Not scheduled: always the configured spec value.
++        self.runtime_feedback_gain = float(spec.feedback_gain)
++        self._runtime_profile_applied = False
+ 
+         self.integral_error = 0.0
+         self.last_error = 0.0
+@@ -368,6 +369,8 @@ class BayTurbineClosedLoopGovernor:
+             profile.grid_droop_max
+         )
+ 
++        self._runtime_profile_applied = True
++
+         # If a new dynamic window is shorter than retained history,
+         # trim immediately rather than allowing stale outcomes to
+         # continue influencing the controller.
+@@ -386,6 +389,37 @@ class BayTurbineClosedLoopGovernor:
+             ),
+         )
+ 
++    def reconfigure(self, spec: BayGovernorSpec) -> None:
++        """Install a new configured spec (parameter refresh) WITHOUT resetting controller state.
++
++        Realized-R history, the outer integrator/derivative memory and every open position's inner
++        loop are preserved.  Before the first runtime profile the operating values follow the new
++        spec; afterwards the next profile (scheduled from the new spec) replaces them.  History is
++        trimmed and the integrator re-clamped to the effective limits, exactly as on a profile.
++        """
++        if spec.bay_id != self.spec.bay_id:
++            raise ValueError("governor spec bay mismatch")
++        self.spec = spec
++        self.runtime_feedback_gain = float(spec.feedback_gain)
++        if not self._runtime_profile_applied:
++            self.runtime_target_r = float(spec.target_r)
++            self.runtime_outcome_window = int(spec.outcome_window)
++            self.runtime_integral_clamp = float(spec.integral_clamp)
++            self.runtime_kp, self.runtime_ki, self.runtime_kd = float(spec.kp), float(spec.ki), float(spec.kd)
++            self.runtime_base_z = float(spec.base_z)
++            self.runtime_droop_r = float(spec.droop_r)
++            self.runtime_dynamic_offset_min = float(spec.dynamic_offset_min)
++            self.runtime_dynamic_offset_max = float(spec.dynamic_offset_max)
++            self.runtime_grid_droop_gain = float(spec.grid_droop_gain)
++            self.runtime_grid_droop_max = float(spec.grid_droop_max)
++        while len(self.history_r) > self.runtime_outcome_window:
++            self.history_r.pop(0)
++        self.integral_error = max(-self.runtime_integral_clamp,
++                                  min(self.runtime_integral_clamp, self.integral_error))
++        for state in self._inner_states.values():
++            state.integral_error = max(-self.runtime_integral_clamp,
++                                       min(self.runtime_integral_clamp, state.integral_error))
++
+     def configure_synchronizing_speed_reference(
+         self,
+         *,
+@@ -659,10 +693,15 @@ class BayTurbineClosedLoopGovernor:
+         position_id=None,
+         path_noise_r: Optional[float] = None,
+         path_error_sigma: Optional[float] = None,
++        position_control: Optional["PositionControlV3"] = None,
+     ) -> dict:
+         """
+         Fast closed-loop governor for one position (``position_id``).
+ 
++        ``position_control`` (governor_position_mode="v3") selects the Protocol V3 inner loop
++        (``PositionControlV3``): the PID acts only through the one-way trailing floor and there
++        is no binary path-error exit.  ``None`` is the legacy loop, unchanged.
++
+         output -> comparator -> PID -> HOLD/EXIT -> output feedback
+ 
+         protected_r_floor is the one-way ratchet. PID error may change
+@@ -674,13 +713,17 @@ class BayTurbineClosedLoopGovernor:
+         envelope sigma * path_noise_r * sqrt(elapsed_bars).  Without them the
+         legacy tolerance max(|target_r|, |dynamic_offset_max|) applies.
+         """
+-        if (path_noise_r is None) != (path_error_sigma is None):
+-            raise ValueError("path_noise_r and path_error_sigma go together")
+-        if path_noise_r is not None and not (
+-            isfinite(float(path_noise_r)) and float(path_noise_r) > 0.0
+-            and isfinite(float(path_error_sigma)) and float(path_error_sigma) > 0.0
+-        ):
+-            raise ValueError("path noise envelope inputs must be finite and positive")
++        if position_control is not None:
++            if path_noise_r is None or not (isfinite(float(path_noise_r)) and float(path_noise_r) > 0.0):
++                raise ValueError("V3 position control requires a finite positive path_noise_r")
++        else:
++            if (path_noise_r is None) != (path_error_sigma is None):
++                raise ValueError("path_noise_r and path_error_sigma go together")
++            if path_noise_r is not None and not (
++                isfinite(float(path_noise_r)) and float(path_noise_r) > 0.0
++                and isfinite(float(path_error_sigma)) and float(path_error_sigma) > 0.0
++            ):
++                raise ValueError("path noise envelope inputs must be finite and positive")
+         values = (
+             measured_r,
+             reference_r,
+@@ -733,6 +776,16 @@ class BayTurbineClosedLoopGovernor:
+             max_favorable_r
+         )
+ 
++        if position_control is not None:
++            if self.position_policy is not None:
++                raise ValueError("V3 position control and the offline position policy are exclusive")
++            return self._position_control_v3(
++                state, position_control, measured_r=measured_r, reference_r=reference_r,
++                max_favorable_r=max_favorable_r, elapsed_bars=int(elapsed_bars),
++                min_hold_bars=int(min_hold_bars), max_hold_bars=int(max_hold_bars),
++                hard_stop_r=float(hard_stop_r), trade_target_r=float(trade_target_r),
++                noise_r=float(path_noise_r))
++
+         error = reference_r - measured_r
+ 
+         state.integral_error = max(
+@@ -905,6 +958,64 @@ class BayTurbineClosedLoopGovernor:
+             ),
+         }
+ 
++    def _position_control_v3(
++        self, state: _InnerLoopState, pc: "PositionControlV3", *, measured_r: float,
++        reference_r: float, max_favorable_r: float, elapsed_bars: int, min_hold_bars: int,
++        max_hold_bars: int, hard_stop_r: float, trade_target_r: float, noise_r: float,
++    ) -> dict:
++        """One completed bar of the Protocol V3 inner loop (see ``PositionControlV3``)."""
++        error = reference_r - measured_r
++        tau_error = pc.tau_error_multiplier * noise_r
++        gamma = pc.gamma_fast if abs(error) > tau_error else pc.gamma_slow
++        state.integral_error = max(-self.runtime_integral_clamp,
++                                   min(self.runtime_integral_clamp, gamma * state.integral_error + error))
++
++        first_sample = state.v3_samples == 0
++        activating = (not state.v3_trailing_active and elapsed_bars >= pc.grace_bars
++                      and max_favorable_r >= pc.mfe_activation_r)
++        if activating:
++            state.v3_trailing_active = True
++        derivative = 0.0 if (first_sample or activating) else error - state.last_error
++        state.last_error = error
++        state.v3_samples += 1
++
++        control_u = (self.runtime_kp * error + self.runtime_ki * state.integral_error
++                     + self.runtime_kd * derivative)
++        state.last_control_u = float(control_u)
++
++        raw_gap = pc.base_gap_r * (1.0 - pc.kappa * tanh(control_u))
++        noise_floor = pc.noise_floor_mult * noise_r
++        gap = max(raw_gap, noise_floor, pc.minimum_gap_r)
++        floor_before = state.protected_r_floor
++        if state.v3_trailing_active:
++            state.protected_r_floor = max(state.protected_r_floor, float(hard_stop_r),
++                                          max_favorable_r - gap)
++
++        if measured_r >= trade_target_r:
++            action, reason = "EXIT", "GOVERNOR_TARGET_REACHED"
++        elif measured_r <= hard_stop_r:
++            action, reason = "EXIT", "GOVERNOR_HARD_STOP"
++        elif (elapsed_bars >= min_hold_bars and measured_r <= state.protected_r_floor
++              and state.protected_r_floor > hard_stop_r):
++            action, reason = "EXIT", "GOVERNOR_RATCHET_FLOOR"
++        elif elapsed_bars >= max_hold_bars:
++            action, reason = "EXIT", "GOVERNOR_MAX_HOLD"
++        else:
++            action, reason = "HOLD", "GOVERNOR_TRACKING"
++
++        return {
++            "action": action, "reason": reason, "measured_r": measured_r,
++            "reference_r": reference_r, "error": float(error),
++            "integral_error": float(state.integral_error), "derivative": float(derivative),
++            "control_u": float(control_u), "protected_r_floor": float(state.protected_r_floor),
++            "max_favorable_r": max_favorable_r, "elapsed_bars": int(elapsed_bars),
++            "v3": {
++                "gamma": gamma, "tau_error": tau_error, "raw_gap_r": raw_gap,
++                "noise_floor_r": noise_floor, "gap_r": gap, "floor_before": floor_before,
++                "trailing_active": state.v3_trailing_active, "activated_this_bar": activating,
++            },
++        }
++
+     def dynamic_z(
+         self,
+         grid_return_fraction: float = 0.0,
+@@ -918,7 +1029,7 @@ class BayTurbineClosedLoopGovernor:
+             self.runtime_dynamic_offset_min,
+             min(
+                 self.runtime_dynamic_offset_max,
+-                -0.25 * self.last_control_u,
++                -self.runtime_feedback_gain * self.last_control_u,
+             ),
+         )
+ 

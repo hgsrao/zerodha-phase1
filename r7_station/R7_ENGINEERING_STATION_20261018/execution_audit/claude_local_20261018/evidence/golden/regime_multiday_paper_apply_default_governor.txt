@@ -1,0 +1,4 @@
+regime_multiday_paper_apply_default_governor 84fa03fa317407c6  orders=1 fills=1 exits=1 trades=1 net=42.792686784399905
+MISMATCH regime_multiday_paper_apply_default_governor: sections ['trades', 'controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events', 'grid_shadow', 'governor_authority']
+GOLDEN MASTER: FAIL (1/1)
+exit=1

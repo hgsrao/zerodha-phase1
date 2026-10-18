@@ -1,0 +1,12 @@
+pwd=/home/srinivas/projects/zerodha-r6-no-adaptation
+branch=r7-governor-corrections
+HEAD=7c08ad586dd2854e36a0a80ddde6605e3a8b136a
+--- status
+ M revision7_avr/r7_coordinated_controller.py
+ M revision7_avr/r7_engine.py
+ M revision7_avr/test_r7_engine_integration.py
+ M revision7_avr/test_r7_pulse_fsm.py
+--- diff sha256
+ff765ed2bd7e7577a16f60f6cdd7b494d0d67caa267b689ee9959aaac2b2882e  -
+LIVE_TRADING_ENABLED(env at audit start)=False
+2026-10-18T10:42:52+05:30

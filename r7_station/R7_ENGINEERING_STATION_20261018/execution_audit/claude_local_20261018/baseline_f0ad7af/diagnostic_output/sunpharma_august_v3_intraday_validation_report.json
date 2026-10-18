@@ -1,0 +1,74 @@
+{
+  "timestamp": "2026-09-08T15:00:47.535733",
+  "symbol": "SUNPHARMA",
+  "period": "2024-08-01 to 2024-08-31",
+  "status": "PASSED",
+  "recovery_authorization": null,
+  "gate16_remediation": {
+    "audit_log_path": "diagnostic_output/sunpharma-202408-ea61559b37db-413e25718fb7_gate16_audit.jsonl",
+    "violations": [],
+    "audit_chain_valid": true,
+    "persisted_audit_chain_valid": false,
+    "audit_events": [],
+    "quarantine_mode": false,
+    "trading_halted": false
+  },
+  "dataset_hash": "d7d391794f426204a1e3bb9a4dc6e8e872b341f6a1f61508d5f291ba60a7c7db",
+  "config_hash": "ea61559b37db7b7de20a78802831fcef0f52a5fb8285c04a05c3aa6f84d6a1b1",
+  "metrics": {
+    "timestamps_processed": 7875,
+    "bars_processed": 7875,
+    "orders_submitted": 109,
+    "fills": 109,
+    "exits": 109,
+    "eod_flattens": 0,
+    "gate_rejections": 192,
+    "cross_session_cancellations": 0
+  },
+  "rejection_breakdown": {
+    "Gate12StrategySignals": 192
+  },
+  "financials": {
+    "starting_equity": 100000.0,
+    "ending_equity": 99454.06898052212,
+    "realized_pnl": -545.9310194778391,
+    "entry_costs": 200.47,
+    "exit_costs": 149.58,
+    "total_costs": 350.04
+  },
+  "reconciliation": {
+    "pending_orders": 0,
+    "reserved_cash": 0.0,
+    "open_positions": 0,
+    "daily_pnl_matches_realized": true,
+    "exact": true
+  },
+  "ledger_identity": {
+    "starting_cash": 100000.0,
+    "cash": 99454.06898052212,
+    "realized_pnl": -545.9310194778391,
+    "final_daily_pnl": 0.0
+  },
+  "daily_pnl_series": {
+    "2024-08-01": -76.38541060680237,
+    "2024-08-02": -79.68263708295169,
+    "2024-08-05": 26.736623934355126,
+    "2024-08-06": -16.057752220342753,
+    "2024-08-07": -61.528081751197995,
+    "2024-08-08": -35.57530955412884,
+    "2024-08-09": -30.611942959654233,
+    "2024-08-12": -32.12445610940689,
+    "2024-08-13": -34.4442207455443,
+    "2024-08-14": -2.4688989500004546,
+    "2024-08-16": -35.67034411528751,
+    "2024-08-19": -33.77071188783985,
+    "2024-08-20": -0.043282550000087516,
+    "2024-08-21": -31.49220004999927,
+    "2024-08-22": -9.341239750000364,
+    "2024-08-23": -13.0050447,
+    "2024-08-26": -38.20303859275624,
+    "2024-08-28": -12.367401389820463,
+    "2024-08-29": 15.39644899468724,
+    "2024-08-30": -45.292119391148006
+  }
+}

@@ -1,0 +1,179 @@
+diff --git a/revision7_avr/r7_coordinated_controller.py b/revision7_avr/r7_coordinated_controller.py
+index 4790262..8f59aad 100644
+--- a/revision7_avr/r7_coordinated_controller.py
++++ b/revision7_avr/r7_coordinated_controller.py
+@@ -27,30 +27,37 @@ class PulseFSM:
+         self.pulse = 'HOLD'
+         self.active_age = 0
+         self.hold_age = config.cooldown_bars
++        # A single opposing emergency sample is not enough to reverse a pulse.
++        # Native protective exits are evaluated outside this FSM and remain immediate.
++        self.emergency_age = 0
+ 
+     def step(self, signal, eligible=True):
+         c = self.config
+         previous = self.pulse
+         if not eligible:
+-            self.pulse, self.active_age, self.hold_age = 'HOLD', 0, 0
++            self.pulse, self.active_age, self.hold_age, self.emergency_age = 'HOLD', 0, 0, 0
+             return self.pulse, 'INPUT_NOT_ELIGIBLE'
+         if previous == 'HOLD':
+             if self.hold_age >= c.cooldown_bars:
+                 self.pulse = 'BUY' if signal >= c.buy_enter else 'SELL' if signal <= c.sell_enter else 'HOLD'
+             if self.pulse != 'HOLD':
+-                self.active_age, self.hold_age = 1, 0
++                self.active_age, self.hold_age, self.emergency_age = 1, 0, 0
+             else:
+                 self.hold_age = min(c.cooldown_bars, self.hold_age + 1)
+         else:
+             emergency = signal <= -c.emergency if previous == 'BUY' else signal >= c.emergency
++            if emergency:
++                self.emergency_age += 1
++            else:
++                self.emergency_age = 0
+             release = signal < c.buy_release if previous == 'BUY' else signal > c.sell_release
+             unsupported = signal < c.buy_enter if previous == 'BUY' else signal > c.sell_enter
+-            if emergency:
++            if emergency and self.emergency_age >= 2:
+                 self.pulse = 'SELL' if previous == 'BUY' else 'BUY'
+-                self.active_age, self.hold_age = 1, 0
++                self.active_age, self.hold_age, self.emergency_age = 1, 0, 0
+             elif (release and self.active_age >= c.hold_bars) or (unsupported and self.active_age >= c.max_pulse_age):
+                 # The release bar is the first completed HOLD bar of the cooldown.
+-                self.pulse, self.active_age, self.hold_age = 'HOLD', 0, min(1, c.cooldown_bars)
++                self.pulse, self.active_age, self.hold_age, self.emergency_age = 'HOLD', 0, min(1, c.cooldown_bars), 0
+             else:
+                 self.active_age = min(c.max_pulse_age, self.active_age + 1)
+         return self.pulse, f'{previous}_TO_{self.pulse}'
+@@ -161,9 +168,10 @@ class SymbolController:
+         if abs(new.governor.integral) > self.config.integral_limit or max(abs(new.governor.command), abs(new.governor.output)) > 1:
+             raise ValueError('invalid bounded governor state')
+         ps = payload['pulse']
+-        if set(ps) != {'pulse', 'active_age', 'hold_age'} or ps['pulse'] not in ('BUY', 'SELL', 'HOLD'):
++        if set(ps) not in ({'pulse', 'active_age', 'hold_age'}, {'pulse', 'active_age', 'hold_age', 'emergency_age'}) or ps['pulse'] not in ('BUY', 'SELL', 'HOLD'):
+             raise ValueError('invalid pulse state')
+-        if any(type(ps[k]) is not int or ps[k] < 0 for k in ('active_age', 'hold_age')) or ps['active_age'] > self.config.max_pulse_age or ps['hold_age'] > self.config.cooldown_bars:
++        ps.setdefault('emergency_age', 0)
++        if any(type(ps[k]) is not int or ps[k] < 0 for k in ('active_age', 'hold_age', 'emergency_age')) or ps['active_age'] > self.config.max_pulse_age or ps['hold_age'] > self.config.cooldown_bars:
+             raise ValueError('invalid pulse clock')
+         if (ps['pulse'] == 'HOLD') != (ps['active_age'] == 0):
+             raise ValueError('pulse clock inconsistent with pulse state')
+diff --git a/revision7_avr/r7_engine.py b/revision7_avr/r7_engine.py
+index fc40dcc..1f54a86 100644
+--- a/revision7_avr/r7_engine.py
++++ b/revision7_avr/r7_engine.py
+@@ -16,6 +16,8 @@ from .r7_state import Bar, Context, ControlConfig, BayAggregateState, number, cl
+ from .r7_coordinated_controller import SymbolController
+ from .r7_allocator import Utilization, droop_weights, increase_demand_pu, allocate_headroom
+ 
++R7_DECISION_MEMORY_LIMIT = 1000
++
+ 
+ class _StudiesTap:
+     """Forward studies calls unchanged and retain only their current causal bar."""
+@@ -72,7 +74,10 @@ class R7EngineMixin:
+         # rolling SHA-256 chain, so their size does not grow with replay length.
+         if type(r7_decision_memory) is not int or r7_decision_memory < 1:
+             raise ValueError('decision memory must be a positive integer')
+-        self.r7_decisions = deque(maxlen=r7_decision_memory)
++        # Keep the in-memory audit window bounded even if a caller requests a larger
++        # value. The complete decision stream remains in the append-only log and is
++        # represented in checkpoints by count plus rolling digest.
++        self.r7_decisions = deque(maxlen=min(r7_decision_memory, R7_DECISION_MEMORY_LIMIT))
+         self.r7_decision_log_path = r7_decision_log_path
+         self._r7_decision_log = None
+         self.r7_decision_count = 0
+@@ -549,6 +554,25 @@ def engine_class(base=None):
+     return type('Revision7Engine', (R7EngineMixin, base), {'__module__': __name__})
+ 
+ 
++def r7_classes():
++    """Return R7-enabled Engine B and Engine C classes for the native runners.
++
++    The factory keeps the integration process-local: callers explicitly replace the
++    runner's orchestrator class for an offline run, while the native classes and live
++    order paths remain unchanged on disk.
++    """
++    from engine_b.orchestrator import EngineBOrchestrator
++    from engine_c.orchestrator import EngineCOrchestrator
++
++    class R7EngineBOrchestrator(R7EngineMixin, EngineBOrchestrator):
++        r7_variant = 'B'
++
++    class R7EngineCOrchestrator(R7EngineMixin, EngineCOrchestrator):
++        r7_variant = 'C'
++
++    return R7EngineBOrchestrator, R7EngineCOrchestrator
++
++
+ # Lazy construction avoids importing native analytics during isolated component tests.
+ def Revision7Engine(*args, **kwargs):
+     return engine_class()(*args, **kwargs)
+diff --git a/revision7_avr/test_r7_engine_integration.py b/revision7_avr/test_r7_engine_integration.py
+index 79f70e0..42a85b3 100644
+--- a/revision7_avr/test_r7_engine_integration.py
++++ b/revision7_avr/test_r7_engine_integration.py
+@@ -4,7 +4,7 @@ from types import SimpleNamespace
+ import json
+ import pandas as pd
+ import pytest
+-from .r7_engine import R7EngineMixin, Revision7Engine
++from .r7_engine import R7EngineMixin, Revision7Engine, r7_classes
+ from .r7_state import ControlConfig, Context
+ from .conftest import make_bar
+ from revision5.topology import SYMBOL_TO_BAY, BAY_IDS
+@@ -175,6 +175,26 @@ def test_core_without_native_plant_cannot_bypass_r7_candidate_admission(config):
+     assert e._admit_entry_candidate(p, make_bar(0).timestamp) is None
+     assert e.native_calls == 0
+     assert disposed[-1][-1] == 'r7_pulse_rejected'
++
++
++def test_native_engine_class_factory_installs_r7_mixin():
++    b, c = r7_classes()
++    assert issubclass(b, R7EngineMixin)
++    assert issubclass(c, R7EngineMixin)
++    assert b.r7_variant == 'B'
++    assert c.r7_variant == 'C'
++
++
++def test_r7_decision_memory_is_hard_bounded(config):
++    e = TestEngine(['INFY'], r7_configs=[config], r7_decision_memory=5000)
++    assert e.r7_decisions.maxlen == 1000
++
++
++def test_only_explicit_discretionary_native_exit_is_advisory():
++    assert R7EngineMixin._r7_normal_reason('governor_exit:GOVERNOR_Z_EXIT')
++    for reason in ('FSRN_EXIT', 'FSRT_LIMITER_EXIT', 'regime_stressed_exit',
++                   'saturation_exit_positive', 'controller_path_exit', 'unknown'):
++        assert not R7EngineMixin._r7_normal_reason(reason)
+     for i in range(30):
+         e._r7_step('INFY', i, asdict(make_bar(i)), 0.8, True)
+     p['bar_idx'] = 29
+diff --git a/revision7_avr/test_r7_pulse_fsm.py b/revision7_avr/test_r7_pulse_fsm.py
+index 2ed845e..fc75615 100644
+--- a/revision7_avr/test_r7_pulse_fsm.py
++++ b/revision7_avr/test_r7_pulse_fsm.py
+@@ -44,9 +44,23 @@ def test_max_pulse_age_release_when_unsupported(config):
+ def test_emergency_reversal_symmetric(config, sign):
+     f = PulseFSM(config)
+     assert f.step(sign * 0.2)[0] == ('BUY' if sign == 1 else 'SELL')
++    assert f.step(-sign * 0.3)[0] == ('BUY' if sign == 1 else 'SELL')
+     assert f.step(-sign * 0.3)[0] == ('SELL' if sign == 1 else 'BUY')
+ 
+ 
++def test_alternating_emergency_inputs_do_not_churn(config):
++    f = PulseFSM(config)
++    pulses = [f.step(0.35 if i % 2 == 0 else -0.35)[0] for i in range(12)]
++    assert not any(a in ('BUY', 'SELL') and b == ('SELL' if a == 'BUY' else 'BUY') for a, b in zip(pulses, pulses[1:]))
++
++
++def test_sustained_emergency_reversal_still_reverses(config):
++    f = PulseFSM(config)
++    assert f.step(0.35)[0] == 'BUY'
++    assert f.step(-0.35)[0] == 'BUY'
++    assert f.step(-0.35)[0] == 'SELL'
++
++
+ def test_hysteresis_and_invalid_input(config):
+     f = PulseFSM(config)
+     f.step(0.2)

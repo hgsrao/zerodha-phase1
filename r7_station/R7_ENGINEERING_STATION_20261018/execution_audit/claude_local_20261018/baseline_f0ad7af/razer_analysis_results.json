@@ -1,0 +1,27 @@
+{
+  "razer_regime_1": {
+    "status": "FAIL",
+    "error": "'Column not found: close'"
+  },
+  "razer_liquidity_1": {
+    "status": "COMPLETE",
+    "symbols_analyzed": 8,
+    "top_liquid_symbol": "BAJFINANCE",
+    "liquidity_metrics_computed": true
+  },
+  "razer_analysis_summary": {
+    "status": "FAIL",
+    "error": "'Column not found: close'"
+  },
+  "metadata": {
+    "timestamp": "2026-08-28T20:22:17.677625",
+    "machine": "RAZER",
+    "status": "COMPLETE",
+    "deliverables": [
+      "market_regime_classification.json",
+      "symbol_liquidity_ranking.json",
+      "symbol_correlation_matrix.json"
+    ],
+    "ready_for_phase_5_id": true
+  }
+}

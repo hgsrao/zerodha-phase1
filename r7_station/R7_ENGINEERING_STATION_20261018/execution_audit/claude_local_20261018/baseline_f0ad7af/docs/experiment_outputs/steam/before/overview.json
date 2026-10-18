@@ -1,0 +1,211 @@
+{
+  "protocol_id": "R5_STEP5_SEALED_CALIBRATION_V2",
+  "params": {
+    "entry_confidence_threshold": 0.15,
+    "max_hold_bars": 60,
+    "minimum_profit_margin_over_cost": 0.5,
+    "profit_target_atr_mult": 1.5,
+    "stop_loss_atr_mult": 1.2
+  },
+  "runs": [
+    {
+      "block": 1,
+      "bay": "GTG1_HEAVY_INDUSTRY",
+      "authority": "full",
+      "symbols": [
+        "ADANIENT",
+        "ADANIPORTS",
+        "BEL",
+        "COALINDIA",
+        "GRASIM",
+        "HINDALCO",
+        "JSWSTEEL",
+        "LT",
+        "NTPC",
+        "ONGC",
+        "POWERGRID",
+        "RELIANCE",
+        "TATASTEEL",
+        "ULTRACEMCO"
+      ],
+      "sessions": [
+        "2024-02-13",
+        "2024-02-14",
+        "2024-02-15",
+        "2024-02-16",
+        "2024-02-19"
+      ],
+      "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+      "trades": 3,
+      "net_pnl": -286.33,
+      "gross_pnl": -233.48,
+      "profit_factor": 0.0,
+      "gain_verdict": {
+        "GTG1_HEAVY_INDUSTRY": "FIXED"
+      },
+      "exit_reasons": {
+        "governor_exit": 2,
+        "stop_gap": 1
+      },
+      "sides": {
+        "SELL": 3
+      },
+      "trace_dir": "/home/srinivas/r5_governor_trace/block1/GTG1_HEAVY_INDUSTRY/full"
+    },
+    {
+      "block": 1,
+      "bay": "GTG2_TECH_TELECOM",
+      "authority": "full",
+      "symbols": [
+        "BHARTIARTL",
+        "HCLTECH",
+        "INFY",
+        "TCS",
+        "TECHM",
+        "WIPRO"
+      ],
+      "sessions": [
+        "2024-02-13",
+        "2024-02-14",
+        "2024-02-15",
+        "2024-02-16",
+        "2024-02-19"
+      ],
+      "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+      "trades": 8,
+      "net_pnl": -539.62,
+      "gross_pnl": -321.25,
+      "profit_factor": 0.0,
+      "gain_verdict": {
+        "GTG2_TECH_TELECOM": "FIXED"
+      },
+      "exit_reasons": {
+        "stop": 1,
+        "governor_exit": 7
+      },
+      "sides": {
+        "SELL": 7,
+        "BUY": 1
+      },
+      "trace_dir": "/home/srinivas/r5_governor_trace/block1/GTG2_TECH_TELECOM/full"
+    },
+    {
+      "block": 1,
+      "bay": "CSTG1_BFSI",
+      "authority": "full",
+      "symbols": [
+        "AXISBANK",
+        "BAJAJFINSV",
+        "BAJFINANCE",
+        "HDFCBANK",
+        "HDFCLIFE",
+        "ICICIBANK",
+        "JIOFIN",
+        "KOTAKBANK",
+        "SBILIFE",
+        "SBIN",
+        "SHRIRAMFIN"
+      ],
+      "sessions": [
+        "2024-02-13",
+        "2024-02-14",
+        "2024-02-15",
+        "2024-02-16",
+        "2024-02-19"
+      ],
+      "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+      "trades": 1,
+      "net_pnl": 50.17,
+      "gross_pnl": 81.96,
+      "profit_factor": Infinity,
+      "gain_verdict": {
+        "CSTG1_BFSI": "FIXED"
+      },
+      "exit_reasons": {
+        "governor_exit": 1
+      },
+      "sides": {
+        "SELL": 1
+      },
+      "trace_dir": "/home/srinivas/r5_governor_trace/block1/CSTG1_BFSI/full"
+    },
+    {
+      "block": 1,
+      "bay": "CSTG2_CONSUMER_AUTO",
+      "authority": "full",
+      "symbols": [
+        "ASIANPAINT",
+        "BAJAJ-AUTO",
+        "EICHERMOT",
+        "ETERNAL",
+        "HINDUNILVR",
+        "INDIGO",
+        "ITC",
+        "M&M",
+        "MARUTI",
+        "TATACONSUM",
+        "TITAN",
+        "TRENT"
+      ],
+      "sessions": [
+        "2024-02-13",
+        "2024-02-14",
+        "2024-02-15",
+        "2024-02-16",
+        "2024-02-19"
+      ],
+      "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+      "trades": 7,
+      "net_pnl": -1011.39,
+      "gross_pnl": -601.42,
+      "profit_factor": 0.09982443558383569,
+      "gain_verdict": {
+        "CSTG2_CONSUMER_AUTO": "FIXED"
+      },
+      "exit_reasons": {
+        "governor_exit": 6,
+        "force_close_time": 1
+      },
+      "sides": {
+        "SELL": 5,
+        "BUY": 2
+      },
+      "trace_dir": "/home/srinivas/r5_governor_trace/block1/CSTG2_CONSUMER_AUTO/full"
+    },
+    {
+      "block": 1,
+      "bay": "BPSTG_HEALTHCARE",
+      "authority": "full",
+      "symbols": [
+        "APOLLOHOSP",
+        "CIPLA",
+        "DRREDDY",
+        "MAXHEALTH",
+        "SUNPHARMA"
+      ],
+      "sessions": [
+        "2024-02-13",
+        "2024-02-14",
+        "2024-02-15",
+        "2024-02-16",
+        "2024-02-19"
+      ],
+      "slice_sha256": "c63f4f79a4f60b8a48a63bc00a303f6e9c6f99987ade08b3d6ce93403736bf50",
+      "trades": 2,
+      "net_pnl": -112.61,
+      "gross_pnl": 1.09,
+      "profit_factor": 0.0,
+      "gain_verdict": {
+        "BPSTG_HEALTHCARE": "FIXED"
+      },
+      "exit_reasons": {
+        "governor_exit": 2
+      },
+      "sides": {
+        "SELL": 1,
+        "BUY": 1
+      },
+      "trace_dir": "/home/srinivas/r5_governor_trace/block1/BPSTG_HEALTHCARE/full"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+probe_paper_apply_full_seed11                dce0112ea02498e6  orders=4 fills=4 exits=4 trades=4 net=791.6317636901001
+MISMATCH probe_paper_apply_full_seed11: sections ['trades', 'controller_telemetry', 'plant_dcs_wiring', 'entry_candidate_observations', 'position_sizing_events']
+GOLDEN MASTER: FAIL (1/1)
+exit=1

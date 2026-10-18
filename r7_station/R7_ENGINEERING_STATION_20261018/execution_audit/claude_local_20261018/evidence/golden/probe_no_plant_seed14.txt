@@ -1,0 +1,4 @@
+probe_no_plant_seed14                        e8d288ea7a348e64  orders=8 fills=8 exits=8 trades=8 net=6129.986667224971
+MISMATCH probe_no_plant_seed14: sections ['trades', 'controller_telemetry', 'mtm_equity_curve', 'entry_candidate_observations', 'position_sizing_events']
+GOLDEN MASTER: FAIL (1/1)
+exit=1

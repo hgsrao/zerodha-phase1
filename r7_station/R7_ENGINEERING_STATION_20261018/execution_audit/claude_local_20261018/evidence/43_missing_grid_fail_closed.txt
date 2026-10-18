@@ -1,0 +1,1 @@
+decisions 199 eligible 0 non-HOLD pulses 0 dispatch_available any False gate_counts {'ALLOCATION_NO_DEMAND': 199, 'BARS_PROCESSED': 199, 'UPSTREAM_CANDIDATES_RECEIVED': 139, 'REJECTED_BEFORE_NATIVE_ADMISSION': 139}

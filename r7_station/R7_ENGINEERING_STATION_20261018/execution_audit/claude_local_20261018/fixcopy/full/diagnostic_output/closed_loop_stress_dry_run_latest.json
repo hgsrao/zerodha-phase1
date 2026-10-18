@@ -1,0 +1,135 @@
+{
+  "events": [
+    {
+      "observation": {
+        "at_or_over_hard_limit": true,
+        "gross_exposure_fraction": 1.0,
+        "hard_limit_fraction": 0.5,
+        "soft_budget_fraction": 0.375,
+        "suggested_new_risk_derate": 0.0
+      },
+      "scenario": "PORTFOLIO_HARD_LIMIT"
+    },
+    {
+      "deadband_observation": {
+        "available": true,
+        "confirmation_bars": 3,
+        "enter_count": 0,
+        "enter_stress_probability": 0.75,
+        "exit_count": 0,
+        "exit_stress_probability": 0.55,
+        "filtered_stress_probability": 0.65,
+        "minimum_derate_step": 0.15,
+        "raw_hysteresis_derate": 0.35,
+        "raw_stress_probability": 0.65,
+        "reason": "LATCHED_STRESS",
+        "stressed_latched": true,
+        "suggested_hysteresis_derate": 0.0
+      },
+      "execution_affected": false,
+      "latch_trace": [
+        {
+          "available": true,
+          "confirmation_bars": 3,
+          "enter_count": 1,
+          "enter_stress_probability": 0.75,
+          "exit_count": 0,
+          "exit_stress_probability": 0.55,
+          "filtered_stress_probability": 0.76,
+          "minimum_derate_step": 0.15,
+          "raw_hysteresis_derate": 0.24,
+          "raw_stress_probability": 0.76,
+          "reason": "SMOOTH_DERATE_SHADOW",
+          "stressed_latched": false,
+          "suggested_hysteresis_derate": 0.24
+        },
+        {
+          "available": true,
+          "confirmation_bars": 3,
+          "enter_count": 2,
+          "enter_stress_probability": 0.75,
+          "exit_count": 0,
+          "exit_stress_probability": 0.55,
+          "filtered_stress_probability": 0.76,
+          "minimum_derate_step": 0.15,
+          "raw_hysteresis_derate": 0.24,
+          "raw_stress_probability": 0.76,
+          "reason": "SMOOTH_DERATE_SHADOW",
+          "stressed_latched": false,
+          "suggested_hysteresis_derate": 0.24
+        },
+        {
+          "available": true,
+          "confirmation_bars": 3,
+          "enter_count": 3,
+          "enter_stress_probability": 0.75,
+          "exit_count": 0,
+          "exit_stress_probability": 0.55,
+          "filtered_stress_probability": 0.76,
+          "minimum_derate_step": 0.15,
+          "raw_hysteresis_derate": 0.24,
+          "raw_stress_probability": 0.76,
+          "reason": "LATCHED_STRESS",
+          "stressed_latched": true,
+          "suggested_hysteresis_derate": 0.0
+        }
+      ],
+      "scenario": "HMM_HYSTERESIS_DEADBAND_SHADOW"
+    },
+    {
+      "after_two_losses": {
+        "completed_outcomes_total": 2,
+        "global_side_samples": 2,
+        "global_win_rate": 0.45454545454545453,
+        "partial_pool_weight": 0.09090909090909091,
+        "pooled_win_rate": 0.4132231404958677,
+        "suggested_confidence_offset": 0.008677685950413228,
+        "suggested_entry_derate": 0.9132231404958677,
+        "symbol_regime_samples": 2,
+        "symbol_regime_win_rate": 0.0
+      },
+      "before": {
+        "completed_outcomes_total": 0,
+        "global_side_samples": 0,
+        "global_win_rate": 0.5,
+        "partial_pool_weight": 0.0,
+        "pooled_win_rate": 0.5,
+        "suggested_confidence_offset": 0.0,
+        "suggested_entry_derate": 1.0,
+        "symbol_regime_samples": 0,
+        "symbol_regime_win_rate": 0.5
+      },
+      "execution_affected": false,
+      "scenario": "ENTRY_QUALITY_PARTIAL_POOLING"
+    },
+    {
+      "execution_affected": false,
+      "result": {
+        "shadow_exit_bars_held": 0,
+        "shadow_exit_price": 98.0,
+        "shadow_exit_reason": "shadow_r_stop_gap",
+        "shadow_exit_timestamp": "dry-run-next-bar",
+        "shadow_stop_at_trigger": 100.0
+      },
+      "scenario": "NEXT_BAR_STOP_GAP"
+    },
+    {
+      "base_quantity": 1,
+      "combined_derate": 0.4,
+      "final_quantity": 0,
+      "scenario": "MINIMUM_SIZE_REJECTION",
+      "would_submit_order": false
+    },
+    {
+      "combined_proposed_risk_multiplier": 0.0,
+      "execution_affected": false,
+      "hmm_derate": 0.0,
+      "portfolio_derate": 0.0,
+      "scenario": "CONTRADICTORY_SIGNALS",
+      "strong_entry_derate": 1.0
+    }
+  ],
+  "hmm_execution_status": "SHADOW_ONLY",
+  "purpose": "fail-closed controller-boundary proof; not market validation",
+  "status": "STRESS_DRY_RUN_COMPLETE"
+}

@@ -1,0 +1,4 @@
+probe_plant_shadow_seed13                    94144c7c4022736e  orders=12 fills=12 exits=12 trades=12 net=9628.23318620601
+MISMATCH probe_plant_shadow_seed13: sections ['trades', 'controller_telemetry', 'mtm_equity_curve', 'entry_candidate_observations', 'position_sizing_events']
+GOLDEN MASTER: FAIL (1/1)
+exit=1

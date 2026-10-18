@@ -1,0 +1,60 @@
+{
+  "kind": "sealed_revision4_ray_optuna_calibration",
+  "train_period": "2023-09-01 to 2023-09-29",
+  "validation_period": "2023-10-02 to 2023-10-06",
+  "untouched_test_period": "2023-10-09 to 2023-10-13",
+  "training_trials": [
+    {
+      "params": {
+        "entry_confidence_threshold": 0.32577422418564733,
+        "profit_target_atr_mult": 1.7618383027730382,
+        "stop_loss_atr_mult": 0.381775944731829,
+        "minimum_profit_margin_over_cost": 0.34334402196622915,
+        "max_hold_bars": 29
+      },
+      "metrics": {
+        "trial_id": "4d2a6926",
+        "date": "2026-09-09_14-20-42",
+        "timestamp": 1788943842,
+        "pid": 172876,
+        "hostname": "shrinivas-Blade",
+        "node_ip": "10.37.160.47",
+        "config": {
+          "entry_confidence_threshold": 0.32577422418564733,
+          "profit_target_atr_mult": 1.7618383027730382,
+          "stop_loss_atr_mult": 0.381775944731829,
+          "minimum_profit_margin_over_cost": 0.34334402196622915,
+          "max_hold_bars": 29
+        }
+      }
+    },
+    {
+      "params": {
+        "entry_confidence_threshold": 0.27323219067062576,
+        "profit_target_atr_mult": 2.151015537199441,
+        "stop_loss_atr_mult": 1.1709719278530035,
+        "minimum_profit_margin_over_cost": 1.3250248512945042,
+        "max_hold_bars": 67
+      },
+      "metrics": {
+        "trial_id": "cea672b1",
+        "date": "2026-09-09_14-20-42",
+        "timestamp": 1788943842,
+        "pid": 172877,
+        "hostname": "shrinivas-Blade",
+        "node_ip": "10.37.160.47",
+        "config": {
+          "entry_confidence_threshold": 0.27323219067062576,
+          "profit_target_atr_mult": 2.151015537199441,
+          "stop_loss_atr_mult": 1.1709719278530035,
+          "minimum_profit_margin_over_cost": 1.3250248512945042,
+          "max_hold_bars": 67
+        }
+      }
+    }
+  ],
+  "validation_trials": [],
+  "selected_params": null,
+  "selected_validation_report": null,
+  "artifact_path": "/home/shrinivas/ECS_Project_external_engine/diagnostic_output/ray_optuna_results_live"
+}

@@ -1,0 +1,24 @@
+PASS fsm_reversal_needs_two_consecutive_emergency flips=1588 violations=0
+PASS fsm_ineligible_resets_emergency_age 
+FAIL fsm_non_emergency_sample_breaks_streak pulse=HOLD
+PASS allocator_bounds_fits_exhaust_order_independence 3000 cases, violations=[]
+PASS approve_target_sign_flat_on_opposition_cap violations=0
+PASS util_reject_(-1, 0, 1) 
+PASS util_reject_(0, -1, 1) 
+PASS util_reject_(0, 0, 0) 
+PASS util_reject_(nan, 0, 1) 
+PASS util_not_clamped 
+PASS causality_prefix_invariant 
+PASS idempotent_same_bar 
+PASS conflicting_same_bar_rejected 
+PASS conflicting_ohlcv_rejected 
+PASS restore_reproduces_future 
+PASS restore_accepts_pre_emergency_age_checkpoint 
+PASS restore_rejects_atomically_nan 
+PASS restore_rejects_atomically_neg_emergency_age 
+PASS restore_rejects_atomically_float_emergency_age 
+PASS restore_rejects_atomically_bad_pulse 
+PASS restore_rejects_atomically_schema 
+FAIL restore_bounds_emergency_age_upper accepted emergency_age=1e9 (no upper bound; harmless: only >=2 matters)
+PASS droop_reject_0.019 
+PASS droop_reject_0.101 
