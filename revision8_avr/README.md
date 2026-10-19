@@ -1,0 +1,188 @@
+# Revision 8 rebuilt market-control engine
+
+R8 = R7 (four-way parallel consensus) + the R5/R6 code R7 depended on, copied into this package
+in full, + runtime adaptation owned by R8.
+
+## What was copied from R5 / R6 (full code, no imports of revision5 / revision6_avr)
+
+| R8 file | Copied from | Content |
+|---|---|---|
+| `r8_topology.py` | `revision5/topology.py` | 48 symbols / 5 bays |
+| `r8_controller_parameters.py` | `revision5/controller_parameters.py` | the complete parameter registry (299 values) and every schedule coefficient |
+| `r8_dynamic_parameters.py` | `revision5/dynamic_parameters.py` | **all dynamic-parameter formulas**: governor, AVR, unit/grid protection, plant, strategy, execution, safety profiles |
+| `r8_governor_spec.py` | `revision5/governor.py` (spec classes only) | `BayGovernorSpec`, `PositionControlV3` |
+| `r8_machine_dynamics.py`, `r8_machine_archetypes.py` | `revision5/` | machine archetypes used by the turbine units |
+| `r8_turbine_governor.py` | `revision6_avr/r6_turbine_governor.py` | physical turbine units |
+| `r8_avr_core.py` | `revision6_avr/r6_avr_core_fixed.py` | the R6 core **with fixes F1-F9** (transfer item T1) |
+
+Each copied file starts with its source path and SHA-256. Only imports were re-pointed.
+`test_r8_formulas_reproduce_the_r5_formulas_exactly` proves the copy field by field.
+
+R8 still runs inside the Engine B / Engine C host (`revision2_external`, `engine_b`, `engine_c`):
+the venue / broker simulation, order and position ledger, and the R5 plant safety stay there and
+stay authoritative.
+
+## Runtime adaptation: `r8_adaptation_mode`
+
+| Mode | Behaviour |
+|---|---|
+| `off` (default) | nothing evaluated; decisions identical to R7 |
+| `shadow` | every bar: environment -> R8 formulas -> snapshot; checked against the host plant's snapshot (must be identical); every change logged old -> new. Nothing applied; decisions identical to `off` |
+| `paper` | shadow + the profile applied **tighten-only**: safety / execution limits only fall, dispatch ceiling only falls, entry confidence and min reward:risk only rise, min / max hold only shorten (R5's calm-trend 60 -> 68 max-hold extension is capped at 60). A formula mismatch with the host stops the run |
+
+There is no live mode. The host engine's own `dynamic_profile_mode` must stay `off` (R8 owns
+adaptation, so nothing is applied twice or unlogged). The four evidence PIDs are not adapted.
+
+Change log: `r8_adaptation_log_path` (append-only JSONL, rolling SHA-256). Checkpoint: schema 3
+carries the full adaptive state (formula version, volatility baseline, environment, snapshot
+image, applied profile, log count and digest); restore re-derives the snapshot and refuses a
+checkpoint that does not reproduce it. Replay: `run_r8_replay.py ... --adaptation shadow|paper`.
+
+This package rebuilds the market-control layer on the existing shared native
+engine. No live client is created. The delivery manifest records installation.
+Source and tests here are executable; there are no ellipsis placeholders.
+
+## Engine construction
+
+```python
+from revision8_avr import Revision8Engine
+from revision8_avr.r8_state import default_configs
+from revision8_avr.r8_topology import SYMBOL_TO_BAY
+
+configs = default_configs(list(SYMBOL_TO_BAY))   # registry droop and budgets
+engine = Revision8Engine(list(SYMBOL_TO_BAY), r8_configs=configs,
+                         r8_decision_log_path='r8_decisions.jsonl')
+# engine.run(certified_frames, warmup=60)
+```
+
+`default_configs` takes each bay's droop R and capital weight from the R5
+parameter registry (R = 0.040, 0.040, 0.055, 0.055, 0.075) and splits the bay
+weight equally over the bay's full certified symbol list, so choosing a subset
+keeps the same per-symbol budgets. These budgets are research inputs, not adopted
+capital policy. `validation_config(c)` gives the first controlled validation
+tuning (Kd = 0) without changing the baseline default. Native safety/plant sizing can only reduce
+the admitted quantity. The wrapper never creates orders or fills itself.
+
+The engine class is constructed from the existing shared native orchestrator.
+`engine_class(base)` supports an explicitly supplied compatible native subclass.
+This architecture does not depend on test harnesses.
+
+## Signal ownership
+
+The studies tap forwards the native evaluation once, captures its current OHLCV
+row, and hands it to `_observe_conviction`. The native studies/conviction update
+runs once. R8 then advances features, AVR, exposure tracking and pulse exactly
+once. Warmup follows the same path. If upstream admission prevents studies,
+the completed tick receives a degraded observation with entry eligibility off.
+The plant gate reads the current cached pulse and calls the native gate. It
+does not update controller state or reinterpret candidate conviction as studies.
+
+Nifty context comes from the native timestamp-bound grid snapshot. Its fractional
+deviation is divided by `r8_dispatch_scale` (default 0.01, provisional strategy
+scale) then bounded. Missing grid context blocks new R8 admissions and is visible
+through `eligible=False`. The two native-engine smoke tests have no supplied
+grid feed and therefore prove lifecycle coverage, not trade fills.
+
+## Physical versus market equations
+
+Physical R6 units retain R=0.04 in all five bays, M=8 seconds gas / 5 seconds
+steam, H=M/2, distinct turbine lag and real rotor swing. Invoke
+`r8_physical_governor_step` only with explicit physical power inputs. Machine
+MVA/pole data remain unavailable, so no J is invented.
+
+Decision authority: four-way parallel consensus (`r8_coordinated_controller.py`).
+There are no weights. Four independent evidence PIDs (`r8_market_governor.py`), each
+with its own droop and vote threshold from `ControlConfig`, cast BULL / FLAT / BEAR:
+
+- Governor: price only, close against its own moving reference (0.5% = full scale).
+- AVR: participation, signed candle pressure x relative volume (capped at 2x volume).
+- Dispatch: the Nifty grid deviation / `r8_dispatch_scale`.
+- Studies: the signed studies direction*confidence, once per bar.
+
+`ConsensusInterlock` turns the four votes into BUY / HOLD / SELL with a reason code.
+BUY needs all four BULL and SELL all four BEAR on the same bar; anything else is HOLD.
+`PulseFSM.bind()` makes the pulse exactly that consensus; its only anti-churn is the
+entry cooldown after a release. A four-way BULL while long may scale in (allocator
+permitting); a four-way BEAR while flat opens a short only when `allow_shorts` is true
+(the engine sets it false when `r8_allow_native_shorts` is false). The reference sent
+to the allocator is +1 for BUY, flat (long) or -1 (flat/short) for SELL, and the held
+exposure (bounded to [-1, 1]) for HOLD. The evidence integrals are limited to
+`evidence_integral_limit` (0.25), which keeps entry and exit response symmetric.
+- Common measurement: portfolio gross utilization U = filled gross notional /
+  authorized gross limit (equity x max_gross_fraction). Projected U adds working
+  entry orders, valued conservatively; a missing price fails closed. U is never
+  clamped.
+- Demand-aware capital allocation (`r8_allocator.py`), evaluated once per market
+  timestamp against one common portfolio state, at the native pre-admission
+  arbitration point (after every symbol's exits, before any candidate admission).
+  Headroom H = max(0, G_limit - G_filled - G_pending). If total same-side increase
+  demand fits in H, every demand is approved in full. Otherwise headroom is shared by
+  demand-capped water-filling with weights w = budget/R (R settable 0.02-0.10, fixed per
+  run), redistributing unclaimed share; the total never exceeds H and the result is
+  independent of symbol order. A neutral reference approves zero; reductions are always
+  approved; an opposing reference with an open position approves flat only (a reversal
+  needs a native close first); the native per-symbol exposure cap bounds demand.
+  Features, AVR and reference advance once when a symbol's bar is observed; governor and
+  FSM advance once when the batch commits. This is capital sharing, not physical droop.
+- Execution ramp only (it no longer decides direction): the PID tracks approved target
+  minus measured exposure (never clamped). Kp is
+  independent of R. Integral uses conditional anti-windup and is frozen while a
+  native order is working. Derivative is on measurement, optionally filtered.
+  Command slew and response lag use exchange-session seconds; an overnight
+  interval counts as one bar. Target feed-forward keeps engagement at zero error.
+
+The price/EMA/relative-volume `market_speed_pu` is retained only as diagnostic
+telemetry. It is not physical speed and is never passed to the R6 speed-droop
+equation or the trading governor. The response filter is not rotor inertia; true
+physical swing remains in the R6 units described above.
+
+AVR closes a loop around an internal participation model. OHLCV relative volume
+is a liquidity proxy, not order-book liquidity or measured spread/depth. All
+tuning and decision thresholds remain provisional research values.
+
+## Recovery
+
+`r8_snapshot` (engine schema 2; per-symbol controller schema 3) includes configuration,
+symbol histories, caches, AVR, the four evidence PIDs, the execution governor
+(including derivative filter state), pulse timing, physical units, bay
+totals, R8 counters, and the decision count with its rolling SHA-256 chain. It
+does not contain the per-bar decision history, so its size is bounded. The
+complete history streams to the external JSONL decision log and can be verified
+against the checkpoint chain. `r8_restore` validates into temporary objects
+before replacing control state. This restores R8 state only. A matching native
+broker/order ledger and native strategy state must be restored separately. Native
+crash-journal persistence of this payload has not been implemented or certified.
+No claim of full engine restart is made.
+
+## Remaining integration boundaries
+
+- Existing native Mark V entry gates, plant AVR sizing and protective exits stay
+  authoritative. This proposal does not remove inherited vetoes or make market
+  pulses own the normal exit decision using the adapter described below.
+- Existing R8 factories used by the old replay command are replaced by the
+  explicit `Revision8Engine(..., r8_configs=...)` construction API. The old
+  command must not be advertised as compatible with this proposal.
+- Native reservation/acknowledgement behavior is inherited, not reimplemented.
+  Tests verify quantity delegation; no full historical order-ledger replay has
+  been executed for this proposal.
+
+## Review and installation
+
+Normal exits: opposite pulses for long/short positions, or sustained neutral
+release, request exit after the configured confirmation count (default two
+completed bars) and native minimum hold. The adapter arms a native pending exit
+with reason r8_coordinated_exit. It executes at the following open through the
+actual native broker and ledger. Re-evaluating the arming bar cannot fill it.
+Stop/target gaps, hard/ratchet stops, plant/grid trips, drawdown, force-close,
+maximum hold and reconciliation retain authority. Operator decision 2026-10-17:
+the exact-match discretionary allowlist contains only `governor_exit:GOVERNOR_Z_EXIT`.
+FSRN/FSRT limiter exits, stressed regime, saturation, governor path error,
+controller-path and final-controller exits, and any unknown reason execute
+natively and are never withdrawn by pulse, hold, cooldown or slew logic.
+R8 checkpoints include confirmation state. Native pending trade/order state is
+restored with the native ledger.
+
+The governor corrections are on branch `r8-governor-corrections` (baseline commit
+`f0ad7af` holds the trees exactly as found). R5/R6 sources are unchanged.
+Historical Engine B/C replay acceptance has not been completed; nothing here is a
+production-readiness claim.
