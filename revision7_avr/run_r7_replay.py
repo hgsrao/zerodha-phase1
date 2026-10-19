@@ -2,7 +2,8 @@
 
     PYTHONPATH=<root> python revision7_avr/run_r7_replay.py {B|C} {native|r7} --out DIR \
         [--symbols ALL|A,B] [--bars 390] [--warmup 60] [--synthetic] [--profile installed|validation] \
-        [--root <repo root to import R7/native from>]
+        [--root <repo root to import R7/native CODE from; not the data root>] \
+        [--data-dir DIR] [--grid-manifest FILE]
 
 Uses the project's own runners (engine_b.runner.run_engine_b / engine_c.runner.run_engine_c)
 and the frozen data contract. In ``r7`` mode the runner module's orchestrator class is
@@ -25,7 +26,37 @@ from pathlib import Path
 
 warnings.filterwarnings("ignore")
 os.environ.setdefault("EA1_SHADOW_MODE", "True")
-GRID = Path("/home/srinivas/projects/zerodha-phase1/local_workspace/records/grid-manifest-local.json")
+DEFAULT_GRID = Path(__file__).resolve().parent.parent / "local_workspace/records/grid-manifest-local.json"
+# Files a code root must contain. Checked before anything is imported from it, so a data
+# directory or an older checkout passed as --root fails with a clear message instead of
+# silently shadowing revision5/engine modules.
+REQUIRED_CODE = ("revision7_avr/r7_engine.py", "revision5/controller_parameters.py", "revision5/topology.py",
+                 "engine_b/runner.py", "engine_c/runner.py")
+
+
+def _check_code_root(root):
+    missing = [f for f in REQUIRED_CODE if not (Path(root) / f).is_file()]
+    if missing:
+        raise SystemExit(f"--root {root} is not an R7 code checkout (missing: {', '.join(missing)}). "
+                         "--root selects code, not data; use --data-dir for the frozen dataset.")
+
+
+def _provenance():
+    """Where each critical module was actually imported from."""
+    names = ("revision7_avr.r7_engine", "revision5.controller_parameters", "revision5.topology",
+             "revision6_avr.r6_turbine_governor", "engine_b.runner", "engine_c.runner")
+    return {n: getattr(sys.modules.get(n), "__file__", None) for n in names}
+
+
+def _native_counts(o, tel):
+    """Native telemetry evidence. In compact mode the event list is not retained, so the
+    figures come from the engine's event counters and are labelled as such."""
+    if getattr(o, "telemetry_mode", "full") == "full":
+        return None
+    counts = dict(getattr(o, "_controller_event_counts", {}) or {})
+    return {"telemetry_mode": "compact", "event_list_retained": False,
+            "native_event_counts": {k: v for k, v in counts.items() if not str(k).startswith("R7_")},
+            "r7_event_counts": {k: v for k, v in counts.items() if str(k).startswith("R7_")}}
 
 
 def _configs(symbols, profile):
@@ -87,7 +118,8 @@ def _extended(o, a, trades, tel, log_path):
     ext["exits"] = {"r7_coordinated": reasons.get("r7_coordinated_exit", 0),
                     "native_protective_or_native_other": sum(v for k, v in reasons.items() if k != "r7_coordinated_exit"),
                     "by_reason": dict(reasons),
-                    "native_exit_advisories": sum(1 for e in tel if e.get("event_type") == "R7_NATIVE_EXIT_ADVISORY")}
+                    # Counted by R7 itself, so the figure is valid in compact telemetry mode too.
+                    "native_exit_advisories": int(getattr(o, "r7_gate_counts", {}).get("NATIVE_NORMAL_EXIT_ADVISORY", 0))}
     # Duplicate-fill / exposure-violation checks from the order audit and trades.
     audit = getattr(o, "order_audit", [])
     filled, requested = collections.Counter(), {}
@@ -120,7 +152,8 @@ def _extended(o, a, trades, tel, log_path):
                       "mean_abs_i": sum(abs(g["i"]) for g in gov) / max(1, len(gov)),
                       "mean_abs_d": sum(abs(g["d"]) for g in gov) / max(1, len(gov)),
                       "max_abs_i": max((abs(g["i"]) for g in gov), default=0.0),
-                      "integration_frozen": sum(1 for g in gov if g.get("integration_frozen"))}
+                      "integration_frozen": sum(1 for g in gov if g.get("integration_frozen")),
+                      "over_budget": sum(1 for g in gov if g.get("over_budget"))}
         last, trans, hunting, last_change = {}, 0, 0, {}
         for r in rows:
             s_ = r["symbol"]
@@ -173,8 +206,12 @@ def main() -> int:
     p.add_argument("--synthetic", action="store_true")
     p.add_argument("--profile", choices=["installed", "validation"], default="installed")
     p.add_argument("--root", default=str(Path(__file__).resolve().parent.parent))
+    p.add_argument("--data-dir", default=os.environ.get("DATA_DIR"),
+                   help="frozen dataset directory (default: $DATA_DIR, else the manifest's data_dir)")
+    p.add_argument("--grid-manifest", type=Path, default=DEFAULT_GRID)
     p.add_argument("--out", required=True)
     a = p.parse_args()
+    _check_code_root(a.root)
     sys.path.insert(0, a.root)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -183,7 +220,7 @@ def main() -> int:
     from revision5.topology import SYMBOL_TO_BAY
     symbols = sorted(SYMBOL_TO_BAY) if a.symbols == "ALL" else a.symbols.split(",")
     data, nifty, vix, info = (load_synthetic(symbols, a.bars, a.warmup) if a.synthetic
-                              else load_real(symbols, a.bars, None, GRID, a.warmup))
+                              else load_real(symbols, a.bars, a.data_dir, a.grid_manifest, a.warmup))
     if a.engine == "B":
         import engine_b.runner as runner
         native_cls, run = runner.EngineBOrchestrator, runner.run_engine_b
@@ -239,9 +276,13 @@ def main() -> int:
         "plant_engine_mode": getattr(o, "plant_engine_mode", None),
         "funnel": ledger.get("funnel"), "orders": report.get("orders"),
         "net_pnl": ledger.get("net_pnl"), "gross_pnl": ledger.get("gross_pnl"), "costs": ledger.get("costs"),
-        "exit_reasons": dict(exits), "entry_sides": dict(entry_sides), "plant_entry": dict(plant),
+        "exit_reasons": dict(exits), "entry_sides": dict(entry_sides),
+        "plant_entry": dict(plant) if _native_counts(o, tel) is None else "not recorded (telemetry_mode=compact)",
         "reconciliation": report.get("reconciliation"),
-        "native_telemetry_sha256": dig(native_tel), "native_telemetry_len": len(native_tel),
+        "native_telemetry_sha256": dig(native_tel) if _native_counts(o, tel) is None else None,
+        "native_telemetry_len": len(native_tel) if _native_counts(o, tel) is None else None,
+        "native_telemetry_compact": _native_counts(o, tel),
+        "code_provenance": _provenance(),
         "order_audit_sha256": dig(getattr(o, "order_audit", [])),
         "trades_sha256": dig(trades),
     }

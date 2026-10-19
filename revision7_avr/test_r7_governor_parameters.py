@@ -28,17 +28,71 @@ def test_over_budget_direction_preserves_reference_side_for_fsm(config):
         result = controller.step(make_bar(i), Context(1.4, 0.8, 0.6))
     assert result.pulse != 'SELL'
     assert result.actual == pytest.approx(1.4)
-from .r7_market_governor import MarketGovernor
+
+
+def _pulses(config, held, bars=30, study=0.8, dispatch=0.6):
+    """Bullish replay that fills ``held`` budget-pu at the first BUY pulse."""
+    from .r7_coordinated_controller import SymbolController
+    from .conftest import make_bar
+
+    controller, actual, out = SymbolController(config), 0.0, []
+    for i in range(bars):
+        result = controller.step(make_bar(i), Context(actual, study, dispatch))
+        if result.pulse == 'BUY' and actual == 0:
+            actual = held
+        out.append(result)
+    return controller, out
+
+
+def test_native_position_size_does_not_change_pulse_sequence(config):
+    # The pulse is a market decision; native sizing beyond the target must not alter it.
+    _, small = _pulses(config, 0.3)
+    _, large = _pulses(config, 3.0)
+    assert [r.pulse for r in small] == [r.pulse for r in large]
+    assert all(r.pulse != 'SELL' for r in large)
+
+
+def test_over_budget_position_does_not_wind_up_governor(config):
+    controller, out = _pulses(config, 3.0)
+    assert any(r.governor.over_budget for r in out)
+    assert controller.governor.integral >= 0
+    assert all(r.governor.applied >= 0 for r in out)
+    assert out[-1].governor.error == pytest.approx(out[-1].target - 3.0)   # true error stays visible
+
+
+def test_closed_position_exit_pulse_never_becomes_entry(config):
+    from .r7_coordinated_controller import SymbolController
+    from .conftest import make_bar
+
+    def bear_bar(i):   # falling price, each candle opening high and closing near its low
+        bar = make_bar(i, close=100 - 0.08 * i)
+        p = bar.close
+        return type(bar)(bar.index, bar.timestamp, p + 0.06, p + 0.08, p - 0.01, p, bar.volume)
+
+    controller = SymbolController(config)
+    for i in range(20):
+        d = controller.step(bear_bar(i), Context(3.0, -0.8, -0.6))    # long held into a bearish market
+    assert d.pulse == 'SELL' and d.action_intent == 'REDUCE_OR_EXIT_LONG'
+    # Once flat, the pulse is this bar's consensus only: neutral evidence -> HOLD, no carried SELL.
+    closed = controller.step(make_bar(20, close=100.0), Context(0.0, 0.0, 0.0))
+    assert closed.pulse == 'HOLD'
+    assert not all(v == 'BEAR' for v in closed.consensus_votes.values())
+
+
 from .r7_coordinated_controller import SymbolController
 from .conftest import make_bar, context
 from revision5.topology import FLEET_TOPOLOGY, SYMBOL_TO_BAY
 
 
 # ---- Parameter 1: three-source signed reference ----------------------------------
-def test_p1_reference_is_weighted_sum_of_signed_inputs(config):
+def test_p1_reference_follows_consensus_with_no_weights(config):
+    # R1: no weighted blend exists; the reference is set by the four-way consensus only.
+    assert not {'avr_weight', 'study_weight', 'dispatch_weight'} & set(asdict(config))
     c = SymbolController(config)
-    d = c.step(make_bar(0), Context(0.0, 0.8, -0.6))
-    assert d.reference == pytest.approx(config.avr_weight * d.avr.score + 0.3 * 0.8 + 0.2 * -0.6)
+    for i in range(30):
+        d = c.step(make_bar(i), Context(0.0, 0.8, -0.6))
+        expected = {'BUY': 1.0, 'SELL': -1.0}.get(c.last_consensus['direction'], 0.0)
+        assert d.reference == pytest.approx(expected)
     with pytest.raises(ValueError):
         Context(0.0, 1.2, 0.0)
     with pytest.raises(ValueError):
@@ -61,14 +115,13 @@ def test_p2_governor_and_controller_take_no_price_speed_input(config):
     assert 'speed_droop_command' not in src
 
 
-def test_p2_ordinary_price_trend_does_not_saturate_target(config):
-    # A strong steady 1%-per-bar rally with neutral studies and dispatch: the old
-    # 1/R price-speed path drove the target to full scale. Now only the AVR term
-    # (weight 0.5) can contribute, so the reference stays bounded by 0.5.
+def test_p2_price_rally_alone_never_buys(config):
+    # A strong 1%-per-bar rally with neutral studies and dispatch: price evidence alone is
+    # one vote of four, so there is no consensus, no BUY and no exposure demand.
     c = SymbolController(config)
     for i in range(60):
         d = c.step(make_bar(i, close=100 * 1.01 ** i), Context(0.0, 0.0, 0.0))
-        assert abs(d.target) <= config.avr_weight + 1e-12
+        assert d.pulse == 'HOLD' and d.target == 0.0
 
 
 # ---- Parameter 3: settable droop and droop-inspired sharing ----------------------
@@ -231,7 +284,7 @@ def test_checkpoint_restore_reproduces_future_decisions(config):
     for i in range(25):
         a.step(make_bar(i), Context(0.1 * (i % 3), 0.7, 0.2, increase_capacity=0.4))
     snap = json.loads(json.dumps(a.snapshot()))
-    assert snap['schema'] == 2
+    assert snap['schema'] == 3
     b = SymbolController(cfg)
     b.restore(snap)
     for i in range(25, 50):
