@@ -65,6 +65,10 @@ class PulseFSM:
                 self.active_age = min(c.max_pulse_age, self.active_age + 1)
         return self.pulse, f'{previous}_TO_{self.pulse}'
 
+    def reset_after_close(self):
+        """A closed position starts a fresh cooldown; its exit pulse never becomes an entry."""
+        self.pulse, self.active_age, self.hold_age, self.emergency_age = 'HOLD', 0, 0, 0
+
 
 class SymbolController:
     def __init__(self, config):
@@ -115,6 +119,12 @@ class SymbolController:
         c = self.config
         # Parameters 2/3: portfolio-capacity allocation result for this symbol.
         target = approve_target(reference, context.actual_exposure, context.increase_capacity)
+        previous = self.last_input[1].actual_exposure if self.last_input is not None else 0.0
+        if previous != 0 and previous * context.actual_exposure <= 0:
+            # Position closed (or reversed) since the last bar: the closing effort held in
+            # the governor and the exit pulse must not be read as a new entry signal.
+            self.governor.reset()
+            self.fsm.reset_after_close()
         gov = self.governor.step(target, context.actual_exposure, f.dt_seconds,
                                  enabled=eligible, execution_blocked=context.execution_blocked)
         # A native position can legitimately be larger than the supervisory R7

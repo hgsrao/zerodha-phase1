@@ -28,7 +28,50 @@ def test_over_budget_direction_preserves_reference_side_for_fsm(config):
         result = controller.step(make_bar(i), Context(1.4, 0.8, 0.6))
     assert result.pulse != 'SELL'
     assert result.actual == pytest.approx(1.4)
-from .r7_market_governor import MarketGovernor
+
+
+def _pulses(config, held, bars=30, study=0.8, dispatch=0.6):
+    """Bullish replay that fills ``held`` budget-pu at the first BUY pulse."""
+    from .r7_coordinated_controller import SymbolController
+    from .conftest import make_bar
+
+    controller, actual, out = SymbolController(config), 0.0, []
+    for i in range(bars):
+        result = controller.step(make_bar(i), Context(actual, study, dispatch))
+        if result.pulse == 'BUY' and actual == 0:
+            actual = held
+        out.append(result)
+    return controller, out
+
+
+def test_native_position_size_does_not_change_pulse_sequence(config):
+    # The pulse is a market decision; native sizing beyond the target must not alter it.
+    _, small = _pulses(config, 0.3)
+    _, large = _pulses(config, 3.0)
+    assert [r.pulse for r in small] == [r.pulse for r in large]
+    assert all(r.pulse != 'SELL' for r in large)
+
+
+def test_over_budget_position_does_not_wind_up_governor(config):
+    controller, out = _pulses(config, 3.0)
+    assert any(r.governor.over_budget for r in out)
+    assert controller.governor.integral >= 0
+    assert all(r.governor.applied >= 0 for r in out)
+    assert out[-1].governor.error == pytest.approx(out[-1].target - 3.0)   # true error stays visible
+
+
+def test_closed_position_exit_pulse_never_becomes_entry(config):
+    from .r7_coordinated_controller import SymbolController
+    from .conftest import make_bar
+
+    controller = SymbolController(config)
+    for i in range(20):
+        controller.step(make_bar(i), Context(3.0, -0.8, -0.6))    # long held into a bearish market
+    assert controller.last_result.pulse == 'SELL'
+    closed = controller.step(make_bar(20), Context(0.0, -0.8, -0.6))
+    # The close bar restarts from flat with a fresh cooldown instead of carrying the exit SELL.
+    assert closed.reason == 'HOLD_TO_HOLD' and closed.pulse == 'HOLD'
+    assert controller.governor.integral == pytest.approx(closed.governor.i)
 from .r7_coordinated_controller import SymbolController
 from .conftest import make_bar, context
 from revision5.topology import FLEET_TOPOLOGY, SYMBOL_TO_BAY

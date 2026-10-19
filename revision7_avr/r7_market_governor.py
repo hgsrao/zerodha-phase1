@@ -26,11 +26,17 @@ class MarketGovernor:
             raise ValueError('dt_seconds must be positive')
         if type(execution_blocked) is not bool:
             raise ValueError('execution state must be explicit')
-        # Actual exposure is measured and never clamped: an overrun stays visible.
-        error = target - actual
+        # Actual exposure is measured and never clamped: an overrun stays visible in
+        # telemetry. Control acts on it only up to the target on the reference side:
+        # R7 cannot size native orders, so a native fill beyond the target is an
+        # over-budget state, not tracking error to wind into P/I/D (it would later leak
+        # into the pulse as a false opposite signal).
+        over_budget = (target > 0 and actual > target) or (target < 0 and actual < target)
+        measured = target if over_budget else actual
+        error = target - measured
         p = c.kp * error
         # Derivative on measurement: a target step produces no derivative kick.
-        raw_d = 0.0 if self.previous_actual is None else -c.kd_seconds * (actual - self.previous_actual) / dt
+        raw_d = 0.0 if self.previous_actual is None else -c.kd_seconds * (measured - self.previous_actual) / dt
         if c.derivative_tau_seconds > 0:
             self.derivative += (1 - exp(-dt / c.derivative_tau_seconds)) * (raw_d - self.derivative)
         else:
@@ -57,9 +63,14 @@ class MarketGovernor:
         self.command = clamp(desired, self.command - c.command_slew_per_second * dt,
                              self.command + c.command_slew_per_second * dt)
         self.output += (1 - exp(-dt / c.market_response_tau_seconds)) * (self.command - self.output)
-        self.previous_actual = actual
-        return GovernorOutput(target, actual, error, p, self.integral, d, desired,
-                              clamp(self.output), frozen)
+        self.previous_actual = measured
+        return GovernorOutput(target, actual, target - actual, p, self.integral, d, desired,
+                              clamp(self.output), frozen, over_budget)
+
+    def reset(self):
+        """Bumpless restart from flat: no tracking effort survives a closed position."""
+        self.integral, self.previous_actual, self.derivative = 0.0, None, 0.0
+        self.command = self.output = 0.0
 
     @staticmethod
     def directional_signal(target, actual, applied):

@@ -187,12 +187,14 @@ class GovernorOutput:
     requested: float
     applied: float
     integration_frozen: bool = False
+    over_budget: bool = False   # native position beyond target: error clipped for control
 
     def __post_init__(self):
         for key, value in asdict(self).items():
-            if key != 'integration_frozen':
+            if key not in ('integration_frozen', 'over_budget'):
                 number(value)
-        if max(abs(self.target), abs(self.requested), abs(self.applied)) > 1 or type(self.integration_frozen) is not bool:
+        if max(abs(self.target), abs(self.requested), abs(self.applied)) > 1 or type(self.integration_frozen) is not bool \
+                or type(self.over_budget) is not bool:
             raise ValueError('invalid governor output')
 
 
