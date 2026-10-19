@@ -4,7 +4,7 @@ The default class is the engine, not a harness. No live client is constructed.
 The native entry/exit, safety, sizing and order/position ledger remain authoritative.
 """
 from collections import Counter, deque
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from copy import deepcopy
 import json
 from hashlib import sha256
@@ -43,6 +43,9 @@ class R7EngineMixin:
                  r7_decision_memory=5000, **kwargs):
         # Configs are explicit: selecting one symbol must not reallocate its entire bay.
         configs = {c.symbol: c for c in r7_configs}
+        if not r7_allow_native_shorts:
+            # Shorts disabled: a four-way BEAR while flat is HOLD at the source, not only at the gate.
+            configs = {s: replace(c, allow_shorts=False) for s, c in configs.items()}
         if len(configs) != len(r7_configs) or not configs or sum(c.budget_fraction for c in configs.values()) > 1 + 1e-12:
             raise ValueError('invalid or duplicated symbol allocations')
         for symbol, c in configs.items():

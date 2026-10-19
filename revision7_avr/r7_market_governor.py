@@ -1,13 +1,228 @@
-"""Trading exposure governor: PID tracking of the approved target exposure.
-
-Units are signed symbol-budget pu. The approved target already contains the
-droop-inspired portfolio capacity allocation (r7_allocator). No price-derived
-"market speed" enters here, and no 1/R amplifier is applied to market data.
-The R6 physical turbine model (speed droop, turbine lag, swing equation) remains a
-separate seconds-based model in revision6_avr and is not used for execution.
-"""
+"""Parallel evidence droop controllers and PID execution exposure governor."""
 from math import exp
 from .r7_state import GovernorOutput, clamp, number
+
+
+class PulseState:
+    BULL = "BULL"
+    BEAR = "BEAR"
+    FLAT = "FLAT"
+
+
+class BaseParallelDroopPID:
+    def __init__(self, kp=0.8, ki_per_second=0.0005, kd_seconds=0.2,
+                 droop_r=0.04, enter_threshold=0.12, integral_limit=0.5):
+        self.kp = number(kp)
+        self.ki_per_second = number(ki_per_second)
+        self.kd_seconds = number(kd_seconds)
+        self.droop_r = number(droop_r)
+        self.enter_threshold = number(enter_threshold)
+        self.integral_limit = number(integral_limit)
+        self.integral = 0.0
+        self.previous_measurement = None
+        self.derivative = 0.0
+        self.output = 0.0
+        self.droop_penalty = 0.0
+
+    def set_context(self, **kwargs):
+        raise NotImplementedError
+
+    def calculate_droop(self) -> float:
+        return clamp(self.droop_r, 0.0, 0.95)
+
+    def step(self, measurement, dt_seconds, enabled=True):
+        measurement = clamp(measurement)
+        dt_seconds = number(dt_seconds)
+
+        if dt_seconds <= 0:
+            raise ValueError("dt_seconds must be positive")
+        if type(enabled) is not bool:
+            raise ValueError("enabled must be bool")
+
+        if not enabled:
+            self.integral *= exp(-dt_seconds / 120.0)
+            self.output *= exp(-dt_seconds / 120.0)
+            self.derivative = 0.0
+            self.previous_measurement = measurement
+            self.droop_penalty = clamp(self.calculate_droop(), 0.0, 0.95)
+            return PulseState.FLAT
+
+        previous = self.previous_measurement
+        derivative = 0.0 if previous is None else (
+            self.kd_seconds * (measurement - previous) / dt_seconds
+        )
+        derivative = clamp(derivative, -0.5, 0.5)
+
+        proportional = self.kp * measurement
+        trial_integral = clamp(
+            self.integral + self.ki_per_second * measurement * dt_seconds,
+            -self.integral_limit,
+            self.integral_limit,
+        )
+
+        raw = proportional + trial_integral + derivative
+        if abs(raw) <= 1.0 or raw * measurement <= 0.0:
+            self.integral = trial_integral
+
+        self.derivative = derivative
+        self.previous_measurement = measurement
+        self.droop_penalty = clamp(self.calculate_droop(), 0.0, 0.95)
+        self.output = clamp(
+            (proportional + self.integral + derivative)
+            * (1.0 - self.droop_penalty)
+        )
+        return self.vote()
+
+    def vote(self) -> str:
+        if self.output >= self.enter_threshold:
+            return PulseState.BULL
+        if self.output <= -self.enter_threshold:
+            return PulseState.BEAR
+        return PulseState.FLAT
+
+    def snapshot_state(self) -> dict:
+        return {
+            "integral": self.integral,
+            "previous_measurement": self.previous_measurement,
+            "derivative": self.derivative,
+            "output": self.output,
+            "droop_penalty": self.droop_penalty,
+        }
+
+    def restore_state(self, state: dict) -> None:
+        expected = {"integral", "previous_measurement", "derivative", "output", "droop_penalty"}
+        if not isinstance(state, dict) or set(state) != expected:
+            raise ValueError("invalid parallel PID checkpoint schema")
+        integral = number(state["integral"])
+        previous = None if state["previous_measurement"] is None else number(state["previous_measurement"])
+        derivative = number(state["derivative"])
+        output = number(state["output"])
+        droop = number(state["droop_penalty"])
+        # Validate everything before assigning, so a rejected checkpoint changes nothing.
+        if abs(integral) > self.integral_limit or abs(derivative) > 0.5 or abs(output) > 1.0 \
+                or not 0.0 <= droop <= 0.95 or (previous is not None and abs(previous) > 1.0):
+            raise ValueError("parallel PID checkpoint value out of range")
+        self.integral, self.previous_measurement, self.derivative = integral, previous, derivative
+        self.output, self.droop_penalty = output, droop
+
+
+class TrendGovernorPID(BaseParallelDroopPID):
+    """1. Governor PID: price only - close vs its own moving reference (no volume)."""
+    def __init__(self, droop_r=0.04, enter_threshold=0.10, integral_limit=0.25):
+        super().__init__(kp=0.85, ki_per_second=0.0005, kd_seconds=0.25, droop_r=droop_r,
+                         enter_threshold=enter_threshold, integral_limit=integral_limit)
+        self.stagnant_bars = 0
+
+    def set_context(self, *, price_moved: bool):
+        if type(price_moved) is not bool:
+            raise ValueError("price_moved must be bool")
+        self.stagnant_bars = 0 if price_moved else min(50, self.stagnant_bars + 1)
+
+    def calculate_droop(self) -> float:
+        return clamp(self.droop_r + 0.005 * self.stagnant_bars, 0.0, 0.50)
+
+    def snapshot_state(self) -> dict:
+        d = super().snapshot_state()
+        d["stagnant_bars"] = self.stagnant_bars
+        return d
+
+    def restore_state(self, state: dict) -> None:
+        if not isinstance(state, dict) or "stagnant_bars" not in state:
+            raise ValueError("missing stagnant_bars in TrendGovernorPID checkpoint")
+        sb = state["stagnant_bars"]
+        if type(sb) is not int or not 0 <= sb <= 50:
+            raise ValueError("invalid stagnant_bars")
+        base = {k: v for k, v in state.items() if k != "stagnant_bars"}
+        super().restore_state(base)
+        self.stagnant_bars = sb
+
+
+class AvrParallelPID(BaseParallelDroopPID):
+    """2. AVR PID: participation - signed candle pressure x relative volume (no price trend)."""
+    def __init__(self, droop_r=0.04, enter_threshold=0.08, integral_limit=0.25):
+        super().__init__(kp=0.90, ki_per_second=0.0005, kd_seconds=0.20, droop_r=droop_r,
+                         enter_threshold=enter_threshold, integral_limit=integral_limit)
+        self.participation = 1.0
+
+    def set_context(self, *, participation: float):
+        self.participation = clamp(participation, -1.0, 1.0)
+
+    def calculate_droop(self) -> float:
+        deficiency = max(0.0, 0.5 - abs(self.participation))
+        return clamp(self.droop_r + 0.50 * deficiency, 0.0, 0.85)
+
+    def snapshot_state(self) -> dict:
+        d = super().snapshot_state()
+        d["participation"] = self.participation
+        return d
+
+    def restore_state(self, state: dict) -> None:
+        if not isinstance(state, dict) or "participation" not in state:
+            raise ValueError("missing participation in AvrParallelPID checkpoint")
+        part = number(state["participation"])
+        if not -1.0 <= part <= 1.0:
+            raise ValueError("invalid participation in checkpoint")
+        base = {k: v for k, v in state.items() if k != "participation"}
+        super().restore_state(base)
+        self.participation = part
+
+
+class DispatchParallelPID(BaseParallelDroopPID):
+    """3. Dispatch PID: Measures NIFTY Macro Grid Deviation."""
+    def __init__(self, droop_r=0.05, enter_threshold=0.10, integral_limit=0.25):
+        super().__init__(kp=0.90, ki_per_second=0.0004, kd_seconds=0.15, droop_r=droop_r,
+                         enter_threshold=enter_threshold, integral_limit=integral_limit)
+        self.grid_deviation = 0.0
+
+    def set_context(self, *, grid_deviation: float):
+        self.grid_deviation = clamp(grid_deviation, -1.0, 1.0)
+
+    def calculate_droop(self) -> float:
+        return clamp(self.droop_r + 0.35 * abs(self.grid_deviation), 0.0, 0.75)
+
+    def snapshot_state(self) -> dict:
+        d = super().snapshot_state()
+        d["grid_deviation"] = self.grid_deviation
+        return d
+
+    def restore_state(self, state: dict) -> None:
+        if not isinstance(state, dict) or "grid_deviation" not in state:
+            raise ValueError("missing grid_deviation in DispatchParallelPID checkpoint")
+        gd = number(state["grid_deviation"])
+        if not -1.0 <= gd <= 1.0:
+            raise ValueError("invalid grid_deviation in checkpoint")
+        base = {k: v for k, v in state.items() if k != "grid_deviation"}
+        super().restore_state(base)
+        self.grid_deviation = gd
+
+
+class StudiesParallelPID(BaseParallelDroopPID):
+    """4. Studies PID: Measures Technical Projection Confidence."""
+    def __init__(self, droop_r=0.05, enter_threshold=0.10, integral_limit=0.25):
+        super().__init__(kp=0.95, ki_per_second=0.0005, kd_seconds=0.20, droop_r=droop_r,
+                         enter_threshold=enter_threshold, integral_limit=integral_limit)
+        self.confidence = 1.0
+
+    def set_context(self, *, confidence: float):
+        self.confidence = clamp(confidence, 0.0, 1.0)
+
+    def calculate_droop(self) -> float:
+        return clamp(self.droop_r + 0.45 * (1.0 - self.confidence), 0.0, 0.80)
+
+    def snapshot_state(self) -> dict:
+        d = super().snapshot_state()
+        d["confidence"] = self.confidence
+        return d
+
+    def restore_state(self, state: dict) -> None:
+        if not isinstance(state, dict) or "confidence" not in state:
+            raise ValueError("missing confidence in StudiesParallelPID checkpoint")
+        conf = number(state["confidence"])
+        if not 0.0 <= conf <= 1.0:
+            raise ValueError("invalid confidence in checkpoint")
+        base = {k: v for k, v in state.items() if k != "confidence"}
+        super().restore_state(base)
+        self.confidence = conf
 
 
 class MarketGovernor:

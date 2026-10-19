@@ -52,11 +52,24 @@ steam, H=M/2, distinct turbine lag and real rotor swing. Invoke
 `r7_physical_governor_step` only with explicit physical power inputs. Machine
 MVA/pole data remain unavailable, so no J is invented.
 
-Trading governor (`r7_market_governor.py`), all in signed symbol-budget pu:
+Decision authority: four-way parallel consensus (`r7_coordinated_controller.py`).
+There are no weights. Four independent evidence PIDs (`r7_market_governor.py`), each
+with its own droop and vote threshold from `ControlConfig`, cast BULL / FLAT / BEAR:
 
-- Strategy reference: E_ref = clamp(0.5*AVR + 0.3*study + 0.2*dispatch).
-  Study is the signed studies direction*confidence, once per bar. Dispatch is the
-  Nifty grid deviation / `r7_dispatch_scale`.
+- Governor: price only, close against its own moving reference (0.5% = full scale).
+- AVR: participation, signed candle pressure x relative volume (capped at 2x volume).
+- Dispatch: the Nifty grid deviation / `r7_dispatch_scale`.
+- Studies: the signed studies direction*confidence, once per bar.
+
+`ConsensusInterlock` turns the four votes into BUY / HOLD / SELL with a reason code.
+BUY needs all four BULL and SELL all four BEAR on the same bar; anything else is HOLD.
+`PulseFSM.bind()` makes the pulse exactly that consensus; its only anti-churn is the
+entry cooldown after a release. A four-way BULL while long may scale in (allocator
+permitting); a four-way BEAR while flat opens a short only when `allow_shorts` is true
+(the engine sets it false when `r7_allow_native_shorts` is false). The reference sent
+to the allocator is +1 for BUY, flat (long) or -1 (flat/short) for SELL, and the held
+exposure (bounded to [-1, 1]) for HOLD. The evidence integrals are limited to
+`evidence_integral_limit` (0.25), which keeps entry and exit response symmetric.
 - Common measurement: portfolio gross utilization U = filled gross notional /
   authorized gross limit (equity x max_gross_fraction). Projected U adds working
   entry orders, valued conservatively; a missing price fails closed. U is never
@@ -73,7 +86,8 @@ Trading governor (`r7_market_governor.py`), all in signed symbol-budget pu:
   needs a native close first); the native per-symbol exposure cap bounds demand.
   Features, AVR and reference advance once when a symbol's bar is observed; governor and
   FSM advance once when the batch commits. This is capital sharing, not physical droop.
-- PID tracks approved target minus measured exposure (never clamped). Kp is
+- Execution ramp only (it no longer decides direction): the PID tracks approved target
+  minus measured exposure (never clamped). Kp is
   independent of R. Integral uses conditional anti-windup and is frozen while a
   native order is working. Derivative is on measurement, optionally filtered.
   Command slew and response lag use exchange-session seconds; an overnight
@@ -90,8 +104,9 @@ tuning and decision thresholds remain provisional research values.
 
 ## Recovery
 
-`r7_snapshot` (schema 2) includes configuration, symbol histories, caches, AVR,
-governor (including derivative filter state), pulse timing, physical units, bay
+`r7_snapshot` (engine schema 2; per-symbol controller schema 3) includes configuration,
+symbol histories, caches, AVR, the four evidence PIDs, the execution governor
+(including derivative filter state), pulse timing, physical units, bay
 totals, R7 counters, and the decision count with its rolling SHA-256 chain. It
 does not contain the per-bar decision history, so its size is bounded. The
 complete history streams to the external JSONL decision log and can be verified

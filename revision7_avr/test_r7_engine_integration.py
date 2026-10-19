@@ -131,7 +131,12 @@ def test_native_short_candidate_and_explicit_short_policy(config):
     e = TestEngine(['INFY'], r7_configs=[config])
     e._governor_grid_return = lambda ts: -0.006
     for i in range(30):
-        e._r7_step('INFY', i, asdict(make_bar(i)), -0.9, True)
+        # Falling price, each candle opening high and closing near its low: governor and
+        # AVR are bearish too, so all four sources agree on SELL.
+        p = 100 - 0.08 * i
+        bar = make_bar(i, close=p)
+        bar = type(bar)(bar.index, bar.timestamp, p + 0.06, p + 0.08, p - 0.01, p, bar.volume)
+        e._r7_step('INFY', i, asdict(bar), -0.9, True)
     c = e.r7_symbol_controllers['INFY']
     assert c.last_result.pulse == 'SELL'
     e._current_bar_idx = 29

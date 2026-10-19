@@ -1,5 +1,5 @@
 """Validated market contracts. Exposure is in units of a configured symbol budget."""
-from dataclasses import dataclass, asdict, replace
+from dataclasses import dataclass, asdict, replace, field
 from datetime import datetime
 from hashlib import sha256
 import json
@@ -20,13 +20,10 @@ def digest(x):
     return sha256(json.dumps(x, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
 
-# Commissioning limits for the trading allocation droop. R is a settable
-# characteristic, fixed for a deterministic run. It is not a gain on price.
 DROOP_LIMITS = (0.02, 0.10)
 
 
 def registry_bay_settings():
-    """Per-bay droop and capital weight from the authoritative R5 parameter registry."""
     from revision5.controller_parameters import default_controller_parameters
     specs = default_controller_parameters().governor_specs
     return {b: {'droop_r': float(s.droop_r), 'capital_weight': float(s.capital_weight)}
@@ -58,21 +55,46 @@ class ControlConfig:
     cooldown_bars: int = 1
     max_pulse_age: int = 30
     normal_exit_confirm_bars: int = 2
-    avr_weight: float = 0.5
-    study_weight: float = 0.3
-    dispatch_weight: float = 0.2
+    # Four parallel evidence controllers. There are no weights: each source casts its
+    # own BULL/FLAT/BEAR vote and the consensus interlock alone decides.
+    study_droop_r: float = 0.05
+    dispatch_droop_r: float = 0.05
+    governor_threshold: float = 0.10
+    avr_threshold: float = 0.08
+    dispatch_threshold: float = 0.10
+    studies_threshold: float = 0.10
+    # Input scaling (full-scale points), so each controller sees its own [-1, 1] signal:
+    # governor = close vs its own moving reference; AVR = candle pressure x relative volume.
+    governor_price_full_scale: float = 0.005
+    avr_volume_full_scale: float = 2.0
+    # Integral memory of the four evidence PIDs. 0.25 keeps entry and exit response
+    # symmetric (about 7-8 bars each way on a clean trend); 0.5 delayed exits to ~25 bars.
+    evidence_integral_limit: float = 0.25
+    # A four-way BEAR while flat may open a short only when shorts are allowed.
+    allow_shorts: bool = True
 
     def __post_init__(self):
         if not self.symbol or not self.bay_id:
             raise ValueError('missing identity')
         for key, val in asdict(self).items():
-            if key not in ('symbol', 'bay_id'):
+            if key not in ('symbol', 'bay_id', 'allow_shorts'):
                 number(val)
         if not 0 < self.budget_fraction <= 1 or self.bar_seconds <= 0:
             raise ValueError('invalid budget or clock')
-        if not DROOP_LIMITS[0] <= self.droop_r <= DROOP_LIMITS[1]:
-            raise ValueError(f'droop_r must be within commissioning limits {DROOP_LIMITS}')
-        if any(type(x) is not int for x in (self.feature_window, self.min_history, self.hold_bars, self.cooldown_bars, self.max_pulse_age, self.normal_exit_confirm_bars)):
+        for r_val in (self.droop_r, self.study_droop_r, self.dispatch_droop_r):
+            if not DROOP_LIMITS[0] <= r_val <= DROOP_LIMITS[1]:
+                raise ValueError(f'droop_r must be within commissioning limits {DROOP_LIMITS}')
+        if not all(0 < t <= 1 for t in (self.governor_threshold, self.avr_threshold,
+                                         self.dispatch_threshold, self.studies_threshold)):
+            raise ValueError('evidence vote thresholds must be in (0, 1]')
+        if self.governor_price_full_scale <= 0 or self.avr_volume_full_scale <= 0:
+            raise ValueError('evidence input scales must be positive')
+        if not 0 < self.evidence_integral_limit <= 1:
+            raise ValueError('evidence integral limit must be in (0, 1]')
+        if type(self.allow_shorts) is not bool:
+            raise ValueError('allow_shorts must be explicit')
+        if any(type(x) is not int for x in (self.feature_window, self.min_history, self.hold_bars,
+                                            self.cooldown_bars, self.max_pulse_age, self.normal_exit_confirm_bars)):
             raise ValueError('counts must be integers')
         if not 2 <= self.min_history <= self.feature_window or self.hold_bars < 1 or self.cooldown_bars < 1 or self.max_pulse_age < self.hold_bars:
             raise ValueError('invalid history or timing')
@@ -82,13 +104,9 @@ class ControlConfig:
             raise ValueError('invalid tuning')
         if not -self.emergency <= self.sell_enter < self.sell_release <= 0 <= self.buy_release < self.buy_enter <= self.emergency <= 1:
             raise ValueError('invalid hysteresis')
-        if min(self.avr_weight, self.study_weight, self.dispatch_weight) < 0 or not math.isclose(self.avr_weight + self.study_weight + self.dispatch_weight, 1):
-            raise ValueError('weights must sum to one')
 
 
 def default_configs(symbols, **overrides):
-    """Registry-commissioned configs. Budget = bay capital weight split equally over the
-    full certified bay, so selecting a subset never reallocates a whole bay to it."""
     from revision5.topology import FLEET_TOPOLOGY, SYMBOL_TO_BAY
     bays = registry_bay_settings()
     out = []
@@ -100,7 +118,6 @@ def default_configs(symbols, **overrides):
 
 
 def validation_config(config):
-    """First controlled validation tuning: derivative off. The baseline default is kept."""
     return replace(config, kd_seconds=0.0)
 
 
@@ -133,8 +150,6 @@ class Context:
     dispatch: float
     study_available: bool = True
     dispatch_available: bool = True
-    # Largest permitted increase of same-side exposure this bar, in symbol-budget pu.
-    # None means no portfolio capacity limit is applied (isolated component use).
     increase_capacity: object = None
     execution_blocked: bool = False
 
@@ -160,10 +175,10 @@ class Features:
     ready: bool
     degraded: bool
     gap: bool
-    market_speed_pu: float          # diagnostic telemetry only; never a governor input
+    market_speed_pu: float
     speed_reference_price: float
     relative_volume: float
-    dt_seconds: float               # exchange-session time since the previous bar
+    dt_seconds: float
 
 
 @dataclass(frozen=True)
@@ -178,8 +193,8 @@ class MarketVote:
 
 @dataclass(frozen=True)
 class GovernorOutput:
-    target: float        # approved signed target, symbol-budget pu
-    actual: float        # measured signed exposure, symbol-budget pu, NOT clamped
+    target: float
+    actual: float
     error: float
     p: float
     i: float
@@ -206,13 +221,17 @@ class Decision:
     timestamp: str
     pulse: str
     reason: str
-    target: float        # approved target after portfolio capacity allocation
+    target: float
     actual: float
     signal: float
     eligible: bool
     avr: MarketVote
     governor: GovernorOutput
-    reference: float = 0.0   # strategy reference E_ref before allocation
+    reference: float = 0.0
+    action_intent: str = "HOLD_POSITION"
+    consensus_reason: str = ""
+    consensus_votes: dict = field(default_factory=dict)
+    consensus_outputs: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if not self.symbol or not self.bay_id or type(self.bar_index) is not int or self.bar_index < 0:
@@ -223,6 +242,10 @@ class Decision:
             number(value)
         if abs(self.target) > 1 or abs(self.signal) > 1 or abs(self.reference) > 1:
             raise ValueError('invalid decision range')
+        if not isinstance(self.action_intent, str) or not isinstance(self.consensus_reason, str):
+            raise ValueError('invalid consensus metadata strings')
+        if not isinstance(self.consensus_votes, dict) or not isinstance(self.consensus_outputs, dict):
+            raise ValueError('consensus votes/outputs must be dicts')
 
 
 class BayAggregateState:
