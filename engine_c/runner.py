@@ -45,7 +45,7 @@ def run_engine_c(data: Dict[str, pd.DataFrame], nifty: pd.DataFrame, vix: pd.Dat
     config = config or EngineCConfig()
     symbols = sorted(data)
     kwargs = dict(plant_control_mode="PAPER_APPLY", closed_loop_mode="active_paper",
-                  telemetry_mode="full", governor_authority="full")
+                  telemetry_mode="compact", governor_authority="full")
     kwargs.update(orchestrator_kwargs or {})
     # R5's capital normally equals the broker's starting cash; a test may set them apart to
     # exercise Backtrader's native margin rejection.

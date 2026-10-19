@@ -24,10 +24,11 @@ STARTING_CAPITAL = 1_000_000
 def run_engine_b(data: Dict[str, pd.DataFrame], nifty: pd.DataFrame, vix: pd.DataFrame, *, warmup: int = 60,
                  orchestrator_kwargs: Optional[Dict[str, Any]] = None, log_level: str = "ERROR",
                  max_order_quantity: Optional[Dict[str, int]] = None,
-                 venue_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                 venue_overrides: Optional[Dict[str, Any]] = None,
+                 telemetry_mode: str = "compact") -> Dict[str, Any]:
     symbols = sorted(data)
     kwargs = dict(plant_control_mode="PAPER_APPLY", closed_loop_mode="active_paper",
-                  telemetry_mode="full", governor_authority="full")
+                  telemetry_mode=telemetry_mode, governor_authority="full")
     kwargs.update(orchestrator_kwargs or {})
     plant = CentralPlantMasterDCS(total_capital=STARTING_CAPITAL, db_path=":memory:")
     r5 = EngineBOrchestrator(symbols, grid_context_provider=SealedGridContextProvider(nifty, vix),

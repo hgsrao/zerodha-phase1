@@ -117,7 +117,11 @@ class SymbolController:
         target = approve_target(reference, context.actual_exposure, context.increase_capacity)
         gov = self.governor.step(target, context.actual_exposure, f.dt_seconds,
                                  enabled=eligible, execution_blocked=context.execution_blocked)
-        pulse, reason = self.fsm.step(gov.applied, eligible)
+        # A native position can legitimately be larger than the supervisory R7
+        # budget.  Do not turn that sizing mismatch into an opposing market pulse:
+        # the native risk path may reduce exposure, while R7 blocks further demand.
+        pulse_signal = self.governor.directional_signal(target, context.actual_exposure, gov.applied)
+        pulse, reason = self.fsm.step(pulse_signal, eligible)
         out = Decision(c.symbol, c.bay_id, bar.index, bar.timestamp, pulse, reason,
                        target, context.actual_exposure, gov.applied, eligible, vote, gov, reference)
         self.last_input, self.last_result, self._pending = (bar, context), out, None

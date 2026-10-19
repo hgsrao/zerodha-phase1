@@ -93,6 +93,7 @@ def main() -> int:
     parser.add_argument("--data-dir", default=os.environ.get("DATA_DIR"))
     parser.add_argument("--grid-manifest", type=Path, default=ROOT / "local_workspace/records/grid-manifest-local.json")
     parser.add_argument("--governor-authority", choices=["full", "advisory"], default="full")
+    parser.add_argument("--telemetry", choices=["full", "compact"], default="compact")
     parser.add_argument("--report", type=Path, default=ROOT / "local_workspace/validation/engine_b/engine_b_report.json")
     from r5_authority_cli import add_authority_arguments, authority_kwargs
     add_authority_arguments(parser)
@@ -108,6 +109,7 @@ def main() -> int:
     else:
         data, nifty, vix, source = load_real(symbols, args.bars, args.data_dir, args.grid_manifest)
     report = run_engine_b(data, nifty, vix, warmup=args.warmup,
+                          telemetry_mode=args.telemetry,
                           orchestrator_kwargs={**authority_kwargs(args), "governor_authority": args.governor_authority})
     report["source"] = source
     args.report.parent.mkdir(parents=True, exist_ok=True)

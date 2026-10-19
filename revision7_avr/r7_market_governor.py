@@ -60,3 +60,21 @@ class MarketGovernor:
         self.previous_actual = actual
         return GovernorOutput(target, actual, error, p, self.integral, d, desired,
                               clamp(self.output), frozen)
+
+    @staticmethod
+    def directional_signal(target, actual, applied):
+        """Return the signal used by the pulse FSM, without false reversal churn.
+
+        ``applied`` remains the complete PID tracking output for telemetry and risk
+        diagnostics.  When native sizing has already placed a valid position beyond
+        the R7 target, the tracking error can be negative even though the market
+        reference is still bullish (and vice versa).  That condition is an
+        over-budget risk state, not a market-direction reversal.  Preserve the
+        reference side for the FSM; native risk/protective exits remain authoritative.
+        """
+        target, actual, applied = clamp(target), number(actual), clamp(applied)
+        if target > 0 and actual > target:
+            return max(0.0, applied)
+        if target < 0 and actual < target:
+            return min(0.0, applied)
+        return applied

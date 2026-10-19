@@ -8,6 +8,27 @@ import pytest
 from .r7_state import ControlConfig, Context, DROOP_LIMITS, default_configs, registry_bay_settings, validation_config
 from .r7_allocator import Utilization, approve_target, droop_weights, allocate_headroom, increase_demand_pu
 from .r7_market_governor import MarketGovernor
+
+
+def test_over_budget_native_position_does_not_create_opposing_direction_signal():
+    # PID telemetry may request risk reduction, but an oversized native fill is
+    # not itself a bearish market reversal.
+    assert MarketGovernor.directional_signal(0.25, 1.4, -0.8) == pytest.approx(0.0)
+    assert MarketGovernor.directional_signal(-0.25, -1.4, 0.8) == pytest.approx(0.0)
+    assert MarketGovernor.directional_signal(0.25, 0.1, 0.2) == pytest.approx(0.2)
+
+
+def test_over_budget_direction_preserves_reference_side_for_fsm(config):
+    from .r7_coordinated_controller import SymbolController
+    from .conftest import make_bar
+
+    controller = SymbolController(config)
+    result = None
+    for i in range(30):
+        result = controller.step(make_bar(i), Context(1.4, 0.8, 0.6))
+    assert result.pulse != 'SELL'
+    assert result.actual == pytest.approx(1.4)
+from .r7_market_governor import MarketGovernor
 from .r7_coordinated_controller import SymbolController
 from .conftest import make_bar, context
 from revision5.topology import FLEET_TOPOLOGY, SYMBOL_TO_BAY

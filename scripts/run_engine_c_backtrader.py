@@ -35,7 +35,7 @@ def main() -> int:
                         help="frozen dataset directory (default: $DATA_DIR, else the manifest's data_dir)")
     parser.add_argument("--grid-manifest", type=Path, default=ROOT / "local_workspace/records/grid-manifest-local.json")
     parser.add_argument("--governor-authority", choices=["full", "advisory"], default="full")
-    parser.add_argument("--telemetry", choices=["full", "compact"], default="full")
+    parser.add_argument("--telemetry", choices=["full", "compact"], default="compact")
     parser.add_argument("--slippage-perc", type=float, default=None, help="override Engine C slippage fraction")
     parser.add_argument("--volume-fill-perc", type=float, default=None,
                         help="Backtrader FixedBarPerc filler: max %% of bar volume filled per bar")
