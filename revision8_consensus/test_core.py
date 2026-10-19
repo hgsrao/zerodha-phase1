@@ -35,7 +35,33 @@ def test_execution_ramp_is_separate_from_direction():
     c = R8Controller(slew_per_second=.01)
     d = c.decide(Evidence(.8, .8, .8, .8))
     assert d.direction is Vote.BUY
-    assert c.ramp(d.execution_target, d.evidence.actual_exposure, 60) == pytest.approx(.6)
+    assert d.execution_command == pytest.approx(.6)
+    assert c.ramp(d.execution_target, d.evidence.actual_exposure, 60) == pytest.approx(1.0)
+
+
+def test_decision_contains_all_independent_pid_outputs():
+    d = R8Controller().decide(Evidence(.4, .3, .2, .5))
+    assert set(d.pid) == {"governor", "avr", "dispatch", "studies"}
+    assert all(set(vars(value)) == {"measurement", "error", "p", "i", "d", "output", "integration_frozen"}
+               for value in d.pid.values())
+
+
+def test_checkpoint_restores_all_four_pid_states():
+    source = R8Controller()
+    source.decide(Evidence(.4, .3, .2, .5))
+    payload = source.snapshot()
+    restored = R8Controller()
+    restored.restore(payload)
+    assert restored.sequence == source.sequence
+    assert restored.snapshot() == payload
+
+
+def test_checkpoint_tampering_is_rejected():
+    controller = R8Controller()
+    payload = controller.snapshot()
+    payload["execution_command"] = .5
+    with pytest.raises(ValueError, match="integrity"):
+        controller.restore(payload)
 
 
 def test_ineligible_input_holds():
