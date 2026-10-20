@@ -19,7 +19,7 @@ from .r8_allocator import approve_target
 class ConsensusInterlock:
     @staticmethod
     def evaluate(gov_vote: str, avr_vote: str, dispatch_vote: str, study_vote: str,
-                 actual_exposure: float, allow_shorts: bool = True) -> tuple[str, str, str]:
+                 actual_exposure: float, allow_shorts: bool = False) -> tuple[str, str, str]:
         votes = (gov_vote, avr_vote, dispatch_vote, study_vote)
         actual = number(actual_exposure)
         in_long = actual > 1e-9

@@ -128,7 +128,7 @@ def test_actual_native_engine_warmup_and_completed_bars(config):
 
 
 def test_native_short_candidate_and_explicit_short_policy(config):
-    e = TestEngine(['INFY'], r8_configs=[config])
+    e = TestEngine(['INFY'], r8_configs=[replace(config, allow_shorts=True)], r8_allow_native_shorts=True)
     e._governor_grid_return = lambda ts: -0.006
     for i in range(30):
         # Falling price, each candle opening high and closing near its low: governor and

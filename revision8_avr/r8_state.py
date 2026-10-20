@@ -89,7 +89,7 @@ class ControlConfig:
     market_avr_kaw: float = 0.01                 # anti-windup tracking gain (not a derivative gain)
     market_avr_integral_limit: float = 0.50
     # A four-way BEAR while flat may open a short only when shorts are allowed.
-    allow_shorts: bool = True
+    allow_shorts: bool = False  # a four-way BEAR while flat stays HOLD unless shorts are explicitly enabled
 
     def __post_init__(self):
         if not self.symbol or not self.bay_id:
