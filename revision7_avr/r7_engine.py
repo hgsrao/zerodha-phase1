@@ -15,6 +15,7 @@ from revision6_avr.r6_turbine_governor import repository_defaults, TurbineGovern
 from .r7_state import Bar, Context, ControlConfig, BayAggregateState, number, clamp
 from .r7_coordinated_controller import SymbolController
 from .r7_allocator import Utilization, droop_weights, increase_demand_pu, allocate_headroom
+from .r7_r5_dynamic_adapter import R5EnvironmentState, R7DynamicParameterAdapter
 
 R7_DECISION_MEMORY_LIMIT = 1000
 
@@ -40,7 +41,7 @@ class _StudiesTap:
 class R7EngineMixin:
     def __init__(self, *args, r7_configs, r7_dispatch_scale=0.01,
                  r7_allow_native_shorts=True, r7_decision_log_path=None,
-                 r7_decision_memory=5000, **kwargs):
+                 r7_decision_memory=5000, r7_adaptation_mode='off', **kwargs):
         # Configs are explicit: selecting one symbol must not reallocate its entire bay.
         configs = {c.symbol: c for c in r7_configs}
         if not r7_allow_native_shorts:
@@ -89,8 +90,9 @@ class R7EngineMixin:
         self._r7_current_timestamp = None
         self._r7_exit_scope = False
         self.r7_normal_exit_state = {}
-        self.r7_adaptation_enabled = False
-        self.r7_adaptation_mode = 'off'
+        self.r7_adaptation_mode = str(r7_adaptation_mode)
+        self.r7_adaptation = R7DynamicParameterAdapter(self.r7_adaptation_mode)
+        self.r7_adaptation_enabled = self.r7_adaptation_mode != 'off'
         super().__init__(*args, **kwargs)
         if set(self.symbols) != set(configs):
             raise ValueError('R7 configs must exactly match requested universe')
@@ -98,6 +100,14 @@ class R7EngineMixin:
             raise ValueError('R7 requires runtime parameter adaptation/profile consumption off')
         self.chart_studies = _StudiesTap(self.chart_studies, self)
         self.r7_topology_report = {s: c.bay_id for s, c in configs.items()}
+
+    def r7_evaluate_dynamic_parameters(self, environment: R5EnvironmentState) -> dict:
+        """Evaluate the complete R5 snapshot for the current R7 bar.
+
+        This is an explicit integration point. It does not alter R7 decisions
+        or PID gains; callers may record the returned values in telemetry.
+        """
+        return self.r7_adaptation.evaluate(environment)
 
     def _r7_actual(self, symbol, close):
         equity = number(float(self._equity()))
