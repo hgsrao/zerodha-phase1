@@ -1,11 +1,11 @@
 """R8 integrated-engine acceptance matrix, run on the frozen dataset (outputs stay local).
 
 Runs revision8_avr/run_r8_replay.py for each engine (B = Nautilus, C = Backtrader) in R8 mode with
-plant physics off / observe / enforce, plus one Mark V veto arm, and checks:
+plant physics off / observe / enforce, and checks:
 
   1. observe leaves the trades byte-identical to off (trades_sha256 equal);
   2. in observe, every unit synchronized and the machine scan and relays ran;
-  3. enforce and veto runs complete and reconcile (broker vs ledger);
+  3. enforce runs complete and reconcile (broker vs ledger);
   4. no short entries while shorts are off (the default).
 
 Usage (on the machine that holds the dataset; never commit --out):
@@ -23,14 +23,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 REPLAY = ROOT / "revision8_avr" / "run_r8_replay.py"
-ARMS = [("off", "crosscheck"), ("observe", "crosscheck"), ("enforce", "crosscheck"), ("enforce", "veto")]
+ARMS = ["off", "observe", "enforce"]
 
 
-def _run(engine: str, physics: str, mark_v: str, a, out: Path) -> dict:
-    arm = out / f"engine_{engine}_{physics}_{mark_v}"
+def _run(engine: str, physics: str, a, out: Path) -> dict:
+    arm = out / f"engine_{engine}_{physics}"
     cmd = [sys.executable, str(REPLAY), engine, "r8", "--out", str(arm), "--bars", str(a.bars),
            "--warmup", str(a.warmup), "--symbols", a.symbols, "--plant-mode", a.plant_mode,
-           "--plant-physics", physics, "--mark-v", mark_v]
+           "--plant-physics", physics]
     if a.synthetic:
         cmd.append("--synthetic")
     elif a.data_dir:
@@ -68,13 +68,13 @@ def main() -> int:
 
     results, checks = {}, []
     for engine in a.engines.split(","):
-        runs = {f"{ph}/{mv}": _run(engine, ph, mv, a, out) for ph, mv in ARMS}
+        runs = {ph: _run(engine, ph, a, out) for ph in ARMS}
         results[engine] = runs
         failed = [k for k, s in runs.items() if "error" in s]
         checks.append((f"{engine}: every arm completed", not failed, failed))
         if failed:
             continue
-        off, obs = runs["off/crosscheck"], runs["observe/crosscheck"]
+        off, obs = runs["off"], runs["observe"]
         checks.append((f"{engine}: observe trades identical to off",
                        off["trades_sha256"] == obs["trades_sha256"],
                        f"{off['trades_sha256'][:12]} vs {obs['trades_sha256'][:12]}"))
@@ -95,8 +95,7 @@ def main() -> int:
                 continue
             table.append(f"{engine:2s} {key:22s} trades={len(s.get('trades') or []):5d} "
                          f"net_pnl={s.get('net_pnl')!s:>14s} "
-                         f"trips={sum(v for k, v in (s.get('plant_physics_counts') or {}).items() if k.startswith('TRIP:'))} "
-                         f"markv={s.get('mark_v_counts')}")
+                         f"trips={sum(v for k, v in (s.get('plant_physics_counts') or {}).items() if k.startswith('TRIP:'))}")
     passed = all(ok for _, ok, _ in checks)
     report = {"passed": passed, "checks": [{"check": c, "ok": ok, "detail": str(d)} for c, ok, d in checks],
               "table": table, "plant_mode": a.plant_mode, "synthetic": a.synthetic}

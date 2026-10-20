@@ -53,11 +53,12 @@ Each bar, per bay:
 `plant_trip:PHYSICS_<code>:<reason>` on every open position in that bay, through the same
 next-open exit path as the native SEL-300G / MiCOM / HRSG trips. In observe, positions are never touched.
 
-**Mark V** (`--mark-v {crosscheck,veto}`, default crosscheck). `MarkVExecutiveController` re-evaluates
-the governor's minimum value gate (FSRN/FSRT/FSRA/FSRS/FSRM) and records `MARK_V_CROSSCHECK`
-AGREE/DISAGREE. With veto, an ENTRY that Mark V refuses becomes `NO_ACTION` with reason
-`MARK_V_VETO:<reason>`. This takes effect where the governor is enforced (`governor_authority="full"`)
-and requires plant physics observe or enforce.
+**Mark V is the governor.** The bay governor's entry decision is the Mark V minimum value gate:
+FSR_selected = min(FSRN, FSRT, FSRA, FSRS, FSRM), compared against the registry entry hurdle
+(`revision5/governor_authority.py`). It is the single entry authority in R8.
+
+The separate `MarkVExecutiveController` in `ccpp_unified_plant.py` is an older duplicate of that
+gate with a hard-coded 0.60 hurdle. It is not called from trading.
 
 **Stack / cross-bay thermal.** The code has no "stack sector". The cross-bay thermal coupling it
 could mean is the HRSG's `calculate_cross_bay_correlations` / `compute_economizer_penalties`, which
@@ -69,7 +70,7 @@ are 51, 87G, 21 and 86, plus the existing SEL-300G and MiCOM.
     python scripts/r8_acceptance.py --data-dir <frozen 48-symbol dir> --out <local dir, never committed>
 
 For each of Engine B and Engine C (R8 mode, ENGINE_A by default), the script runs physics
-off / observe / enforce and an enforce + Mark V veto arm. It checks that:
+off / observe / enforce. It checks that:
 - observe trades are byte-identical to off;
 - in observe, every unit synchronized and the machine scan ran;
 - every arm reconciles;
@@ -92,6 +93,5 @@ in `settings_report()`. These are starting points, not calibrated values.
 
 ## Open decisions
 
-- Should enforce be the default instead of observe? Should Mark V be veto?
-- Should B/C runs default to ENGINE_B?
+- Should enforce be the default instead of observe?- Should B/C runs default to ENGINE_B?
 - Real-data acceptance has to run where the frozen dataset lives.

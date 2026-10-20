@@ -1,4 +1,4 @@
-"""Plant physics wired into trading: synchronizer, machine scan, relays, 86 lockout, Mark V cross-check.
+"""Plant physics wired into trading: synchronizer, machine scan, relays, 86 lockout.
 
 Synthetic bars only; no market data. Observe must leave trades identical to off; enforce must
 gate dispatch on the startup sequence and act on trips.
@@ -38,13 +38,12 @@ def _provider():
         pd.DataFrame({"timestamp": gt, "close": 15.0}))
 
 
-def _run(physics, mark_v="crosscheck"):
+def _run(physics):
     provider = _provider()
     plant = CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:")
     orch = Engine(SYMBOLS, grid_context_provider=provider, real_plant_dcs=plant,
                   plant_control_mode="PAPER_APPLY", closed_loop_mode="active_paper",
-                  governor_authority="full", plant_engine_mode="ENGINE_B", plant_physics_mode=physics,
-                  mark_v_mode=mark_v)
+                  governor_authority="full", plant_engine_mode="ENGINE_B", plant_physics_mode=physics)
     orch.pa.evaluate = lambda s, cfg: (signal(symbol=s.symbol), [])
     orch.id_box.evaluate = lambda *a, **k: (IDDecision(True, "test", .8, 2., .6), [])
     report = orch.run({s: _frame(i + 3) for i, s in enumerate(SYMBOLS)}, warmup=30)
@@ -113,14 +112,12 @@ class PlantPhysicsReplayTests(unittest.TestCase):
         orch = self.observe[0]
         events = {e["event_type"] for e in orch.controller_telemetry}
         self.assertIn("PLANT_PHYSICS_BAR", events)
-        self.assertIn("MARK_V_CROSSCHECK", events)
         counts = orch.plant_physics.counts
         for key in ("52G_CLOSED_SYNCHRONIZED", "SYNC_STEP", "MACHINE_SCAN_STEP", "BAR"):
             self.assertGreater(counts.get(key, 0), 0, key)
         bars = [e for e in orch.controller_telemetry if e["event_type"] == "PLANT_PHYSICS_BAR"]
         relays = [r for e in bars for b in (e.get("bays") or {}).values() for r in (b.get("relays") or {})]
         self.assertTrue({"51", "87G", "21"} <= set(relays))
-        self.assertGreater(sum(orch._markv_counts.values()), 0)
 
     def test_observe_physics_acts_on_a_shadow_plant_only(self):
         orch = self.observe[0]
@@ -130,22 +127,6 @@ class PlantPhysicsReplayTests(unittest.TestCase):
         orch, report = self.enforce
         self.assertIs(orch.plant_physics.plant, orch.real_plant_dcs)
         self.assertGreater(report["fills"], 0)
-
-    def test_mark_v_veto_blocks_exactly_the_entries_it_disagrees_with(self):
-        orch, report = _run("observe", mark_v="veto")
-        tel = orch.controller_telemetry
-        refused = sum(1 for e in tel if e["event_type"] == "MARK_V_CROSSCHECK"
-                      and e.get("governor_action") == "ENTRY" and e.get("agreement") == "DISAGREE")
-        vetoed = sum(1 for e in tel if e["event_type"] == "GOVERNOR_ENTRY_DECISION"
-                     and str(e.get("reason", "")).startswith("MARK_V_VETO"))
-        self.assertEqual(refused, vetoed)
-        self.assertLessEqual(report["fills"], self.observe[1]["fills"])
-
-    def test_mark_v_veto_needs_the_physics_runtime(self):
-        with self.assertRaises(ValueError):
-            Engine(SYMBOLS, grid_context_provider=_provider(),
-                   real_plant_dcs=CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:"),
-                   plant_control_mode="PAPER_APPLY", mark_v_mode="veto")
 
     def test_physics_requires_the_paper_apply_plant(self):
         with self.assertRaises(ValueError):
