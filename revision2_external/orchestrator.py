@@ -172,6 +172,7 @@ class Revision2ExternalEngineOrchestrator:
         dynamic_profile_mode: str = "off",
         avr_mvar_limiter_mode: str = "off",
         mvar_measurement_provider: Optional[Any] = None,
+        plant_physics_mode: str = "off",
     ) -> None:
         # Opt-in controller modes (defaults keep the baseline decision-identical):
         #   governor_position_mode   "legacy" V2 inner loop | "v3" Protocol V3 inner loop (full
@@ -316,6 +317,21 @@ class Revision2ExternalEngineOrchestrator:
         self.authority_telemetry = bool(authority_telemetry)
         self.entry_fill_anchor_mode = entry_fill_anchor_mode
         self.unit_protection_mode = unit_protection_mode
+        # Turbine physics (revision5/plant_physics_runtime.py): GT/ST machine models + mechanical
+        # protection, unit startup and 25A/25 synchronization, bay relays 51/87G/21 and 86 lockout.
+        #   "off"      not run (baseline unchanged)
+        #   "observe"  run every bar on a shadow plant fed the same inputs; trading unchanged
+        #   "enforce"  run on the live plant: trips open the unit breaker (bay unavailable for new
+        #              entries) and every bay must start and synchronize at each session open
+        from revision5.plant_physics_runtime import PHYSICS_MODES
+        if plant_physics_mode not in PHYSICS_MODES:
+            raise ValueError(f"plant_physics_mode must be one of {PHYSICS_MODES}")
+        if plant_physics_mode != "off" and plant_control_mode != PlantControlMode.PAPER_APPLY:
+            raise ValueError("plant_physics_mode observe/enforce requires the PAPER_APPLY plant")
+        self.plant_physics_mode = plant_physics_mode
+        self.plant_physics = None
+        self._markv = None
+        self._markv_counts: Counter[str] = Counter()
         self._position_control_v3 = self.controller_parameters.position_control_v3()
         self.dynamic_profile_mode = dynamic_profile_mode
         self.avr_mvar_limiter_mode = avr_mvar_limiter_mode
@@ -518,6 +534,19 @@ class Revision2ExternalEngineOrchestrator:
         # final execution controller remains telemetry-only unless enabled by a caller.
         self.final_exit_authority = bool(final_exit_authority)
         self.governor_config = GovernorAuthorityConfig.from_config(self.config)
+        if self.plant_physics_mode != "off":
+            from revision5.plant_physics_runtime import PlantPhysicsRuntime
+            from revision5.ccpp_unified_plant import CentralPlantMasterDCS, MarkVExecutiveController
+            physics_plant = (self.real_plant_dcs if self.plant_physics_mode == "enforce" else
+                             CentralPlantMasterDCS(total_capital=float(starting_equity), db_path=":memory:"))
+            self.plant_physics = PlantPhysicsRuntime(
+                physics_plant, mode=self.plant_physics_mode, load_plant=self.real_plant_dcs,
+                exhaust_spread_trip=self.governor_config.exhaust_spread_trip,
+                fsrt_drawdown_span=self.governor_config.fsrt_drawdown_span,
+                record=self._record_controller_event)
+            # Mark V runs as an independent cross-check of the governor's minimum value gate;
+            # the governor stays the single entry authority.
+            self._markv = MarkVExecutiveController()
         self.consumed_parameters.update(GOVERNOR_AUTHORITY_PARAMETERS)
         self.consumed_parameters.update(CONTROLLER_PARAMETER_NAMES)
         # Optional passive observer of the entry funnel (diagnostics only).  It receives
@@ -1013,6 +1042,56 @@ class Revision2ExternalEngineOrchestrator:
         median = lambda values: sorted(values)[len(values) // 2]
         return {bay_id: {"mass_flow_pu": median(flows[bay_id]), "exhaust_temp_pu": median(temps[bay_id])}
                 for bay_id in flows}
+
+    def _plant_physics_step(self, timestamp, tick_events) -> None:
+        """Step every bay's turbine machine, protection, startup/synchronization and relays from
+        this bar's causal measurements (see revision5/plant_physics_runtime.py)."""
+        from revision5.plant_physics_runtime import BayInputs
+        present = {_R5_SYMBOL_TO_BAY.get(e.symbol) for e in tick_events}
+        inputs = {}
+        for bay_id in self.real_plant_dcs.bays:
+            members = [t for sym, t in self._governor_telemetry.items()
+                       if _R5_SYMBOL_TO_BAY.get(sym) == bay_id and t.available]
+            broker_notional = 0.0
+            for sym, trade in self.open_trades.items():
+                if _R5_SYMBOL_TO_BAY.get(sym) == bay_id:
+                    broker_notional += abs(float(self._broker_position(sym).get("quantity", 0) or 0)) * float(
+                        self._last_close.get(sym, trade.get("entry_price", 0.0)))
+            inputs[bay_id] = BayInputs(
+                bar_present=bay_id in present,
+                vibration_ratio=max((t.vibration for t in members if t.vibration is not None), default=None),
+                velocity=max((t.velocity for t in members if t.velocity is not None), default=None),
+                exhaust_spread=self._bay_exhaust_spread.get(bay_id),
+                broker_notional=broker_notional)
+        out = self.plant_physics.step_bar(timestamp, inputs, self._current_drawdown())
+        if self.telemetry_mode == "full":
+            self._record_controller_event("PLANT_PHYSICS_BAR", timestamp, "PLANT", {"bays": out})
+
+    def _markv_crosscheck(self, timestamp, symbol, side, governor_entry) -> None:
+        """Mark V (Speedtronic MVG) evaluated on the governor's own limiters; recorded only."""
+        from revision5.ccpp_unified_plant import MarkVTelemetryInputs
+        bay_id = _R5_SYMBOL_TO_BAY.get(symbol)
+        limiters = governor_entry.get("limiters") or {}
+        if bay_id is None or not all(k in limiters for k in ("FSRN", "FSRT", "FSRA", "FSRS", "FSRM")):
+            self._markv_counts["NOT_EVALUATED"] += 1
+            return
+        network = self.real_plant_dcs.electrical_network
+        result = self._markv.evaluate(MarkVTelemetryInputs(
+            bay_id=bay_id, raw_signal_present=True, signal_side=side,
+            fsrn_speed_droop=float(limiters["FSRN"]), fsrt_exhaust_temp=float(limiters["FSRT"]),
+            fsra_acceleration=float(limiters["FSRA"]), fsrs_startup_ramp=float(limiters["FSRS"]),
+            fsrm_manual_stop=float(limiters["FSRM"]),
+            sync_bus_aligned=bool(network.unit_available(bay_id)),
+            master_protective_trip=bool(network.unit_breaker(bay_id).lockout_86),
+            current_position_lots=0))
+        markv_entry = bool(result["admitted"])
+        governor_entry_ok = governor_entry.get("action") == "ENTRY"
+        key = "AGREE" if markv_entry == governor_entry_ok else "DISAGREE"
+        self._markv_counts[key] += 1
+        self._record_controller_event("MARK_V_CROSSCHECK", timestamp, symbol, {
+            "bay_id": bay_id, "agreement": key, "governor_action": governor_entry.get("action"),
+            "markv_action": result["action"], "markv_fsr_selected": result["fsr_selected"],
+            "markv_controlling_limiter": result["controlling_limiter"], "markv_reason": result["reason"]})
 
     def _plant_bar_step(self, timestamp, tick_events, symbol_bars) -> None:
         """Every bar: dynamic operating snapshot, HRSG thermal cycle and capital balance on
@@ -2226,6 +2305,8 @@ class Revision2ExternalEngineOrchestrator:
             self.symbol_cooldown_until_bar.clear()
             self.symbol_consecutive_losses.clear()
             self.symbol_tripped.clear()
+            if self.plant_physics is not None:
+                self.plant_physics.begin_session(timestamp)
 
         for event in tick_events:
             self._last_close[event.symbol] = float(symbol_bars[event.symbol].iloc[event.bar_idx]["close"])
@@ -2235,6 +2316,8 @@ class Revision2ExternalEngineOrchestrator:
         self._plant_control_shadow_step(timestamp, max_gross_fraction)
         self._governor_tick_telemetry(tick_events, symbol_bars)
         self._plant_bar_step(timestamp, tick_events, symbol_bars)
+        if self.plant_physics is not None:
+            self._plant_physics_step(timestamp, tick_events)
 
         # Box 8: refit PyPortfolioOpt weights periodically from real
         # trailing prices across the universe -- not every tick (that
@@ -2566,6 +2649,8 @@ class Revision2ExternalEngineOrchestrator:
             symbol, timestamp, bar_idx, plan.side, signal, decision, composite_result,
             chart_studies_confidence)
         self._governor_entry_counts[f"{governor_entry['action']}:{governor_entry['reason']}"] += 1
+        if self._markv is not None:
+            self._markv_crosscheck(timestamp, symbol, plan.side, governor_entry)
         self._record_controller_event("GOVERNOR_ENTRY_DECISION", timestamp, symbol, {
             "candidate_id": candidate_id, "authority": self.governor_authority,
             **{key: governor_entry.get(key) for key in (

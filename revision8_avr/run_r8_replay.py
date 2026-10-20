@@ -87,6 +87,7 @@ def _extended(o, a, trades, tel, log_path):
     from revision5.topology import SYMBOL_TO_BAY
     ext = {"effective_profile": {
         "plant_engine_mode": getattr(o, "plant_engine_mode", None),
+        "plant_physics_mode": getattr(o, "plant_physics_mode", None),
         "no_entry_cutoff_time": (getattr(o, "safety_contract", None).values.get("no_entry_cutoff_time")
                                  if getattr(o, "safety_contract", None) else None),
         "max_gross_exposure_fraction": (getattr(o, "safety_contract", None).values.get("max_gross_exposure_fraction")
@@ -217,6 +218,10 @@ def main() -> int:
                         "square-off, one confirmed fill per bay per day). ENGINE_B: continuous/positional "
                         "(no daily fill latch, no 14:30 cutoff). Engine B/C (Nautilus/Backtrader) are "
                         "execution backends; this flag is the plant policy and is recorded in the output.")
+    p.add_argument("--plant-physics", choices=["off", "observe", "enforce"], default="observe",
+                   help="turbine/machine/synchronizer/relay physics. observe: runs every unit on a shadow "
+                        "plant and records it without touching trades. enforce: acts on the live plant "
+                        "(25A must close 52G before dispatch; 51/87G/21/mechanical trips open it, 86 locks out).")
     a = p.parse_args()
     _check_code_root(a.root)
     sys.path.insert(0, a.root)
@@ -252,12 +257,14 @@ def main() -> int:
                 extra.update(r8_adaptation_mode=a.adaptation,
                              r8_adaptation_log_path=str(out / "r8_adaptation.jsonl"))
             kw["plant_engine_mode"] = a.plant_mode
+            kw["plant_physics_mode"] = a.plant_physics
             o = cls(*args, r8_configs=configs, **extra, **kw)
             captured.append(o)
             return o
     else:
         def factory(*args, **kw):
             kw["plant_engine_mode"] = a.plant_mode
+            kw["plant_physics_mode"] = a.plant_physics
             o = native_cls(*args, **kw)
             captured.append(o)
             return o
@@ -286,6 +293,7 @@ def main() -> int:
         "engine": a.engine, "mode": a.mode, "profile": a.profile, "root": a.root, "seconds": round(secs, 1),
         "source": info.get("source"), "symbols": len(symbols),
         "plant_engine_mode": getattr(o, "plant_engine_mode", None),
+        "plant_physics_mode": getattr(o, "plant_physics_mode", None),
         "funnel": ledger.get("funnel"), "orders": report.get("orders"),
         "net_pnl": ledger.get("net_pnl"), "gross_pnl": ledger.get("gross_pnl"), "costs": ledger.get("costs"),
         "exit_reasons": dict(exits), "entry_sides": dict(entry_sides),
