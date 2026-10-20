@@ -19,26 +19,33 @@ CALM_TREND = R5EnvironmentState(1.0, 0.9, 0.05, 0.05, 0.0, 0.0)
 NEUTRAL = R5EnvironmentState()
 STRESSED = R5EnvironmentState(2.0, 0.05, 0.15, 0.8, 0.05, 0.5)
 ENVIRONMENTS = [CALM_TREND, NEUTRAL, STRESSED, R5EnvironmentState(0.4, 0.2, 0.7, 0.1, 0.15, -1.2)]
-VENDORED = ('r8_topology.py', 'r8_controller_parameters.py', 'r8_dynamic_parameters.py', 'r8_governor_spec.py',
-            'r8_machine_dynamics.py', 'r8_machine_archetypes.py', 'r8_turbine_governor.py', 'r8_avr_core.py')
+ALIASES = {'r8_topology.py': 'revision5.topology', 'r8_controller_parameters.py': 'revision5.controller_parameters',
+           'r8_dynamic_parameters.py': 'revision5.dynamic_parameters', 'r8_governor_spec.py': 'revision5.governor',
+           'r8_machine_dynamics.py': 'revision5.machine_dynamics', 'r8_machine_archetypes.py': 'revision5.machine_archetypes',
+           'r8_turbine_governor.py': 'revision6_avr.r6_turbine_governor', 'r8_avr_core.py': 'revision6_avr.r6_avr_core_fixed'}
 
 
 def build(mode='off'):
     return Revision8Engine(['INFY'], r8_configs=[CFG], r8_adaptation_mode=mode, **plant_kwargs())
 
 
-# --- the formulas live in R8 ---------------------------------------------------------------------
+# --- one source: R8 aliases the R5/R6 modules instead of copying them -----------------------------
 
-def test_r8_runtime_code_does_not_import_revision5_or_revision6():
+@pytest.mark.parametrize('name', sorted(ALIASES))
+def test_r8_modules_are_the_single_source_not_copies(name):
+    import importlib
+    alias = importlib.import_module(f'revision8_avr.{name[:-3]}')
+    assert alias is importlib.import_module(ALIASES[name])
+    # The file holds no formula code of its own: it only re-binds the module name.
+    code = [l for l in (HERE / name).read_text().splitlines()
+            if l.strip() and not l.lstrip().startswith(('"""', '#', 'import ', '_sys.modules'))
+            and not l.startswith(('``', 'the ', 'R8 alias'))]
+    assert len((HERE / name).read_text().splitlines()) < 15, name
+
+
+def test_no_r8_module_is_a_vendored_copy():
     for path in HERE.glob('r8_*.py'):
-        imports = [l for l in path.read_text().splitlines() if re.match(r'\s*(from|import)\s', l)]
-        assert not [l for l in imports if 'revision5' in l or 'revision6' in l], path.name
-
-
-@pytest.mark.parametrize('name', VENDORED)
-def test_vendored_modules_record_their_source(name):
-    head = (HERE / name).read_text().splitlines()[0]
-    assert head.startswith('"""R8 vendored copy of revision') and 'sha256' in head
+        assert 'vendored copy' not in path.read_text(), path.name
 
 
 @pytest.mark.parametrize('env', ENVIRONMENTS)
@@ -207,8 +214,14 @@ def test_r8_parameter_image_equals_the_host_image_at_startup():
 def test_startup_refuses_a_different_parameter_image(monkeypatch):
     from . import r8_engine
     real = r8_engine.r8_parameter_fingerprint
-    monkeypatch.setattr(r8_engine, 'r8_parameter_fingerprint',
-                        lambda p: real(p) if p.__class__.__module__.startswith('revision8') else 'host-differs')
+    # R8 and the host share one parameter class now, so the mismatch is simulated by call order:
+    # the engine fingerprints its own image first, then the host's.
+    calls = []
+
+    def fingerprint(p):
+        calls.append(p)
+        return real(p) if len(calls) == 1 else 'host-differs'
+    monkeypatch.setattr(r8_engine, 'r8_parameter_fingerprint', fingerprint)
     with pytest.raises(ValueError, match='differs from the host'):
         build('off')
 

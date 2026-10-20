@@ -31,6 +31,7 @@ import itertools
 import math
 from dataclasses import replace, asdict
 from collections import Counter, deque
+from copy import deepcopy
 from dataclasses import dataclass
 from types import SimpleNamespace
 from datetime import datetime
@@ -171,6 +172,7 @@ class Revision2ExternalEngineOrchestrator:
         dynamic_profile_mode: str = "off",
         avr_mvar_limiter_mode: str = "off",
         mvar_measurement_provider: Optional[Any] = None,
+        plant_physics_mode: str = "off",
     ) -> None:
         # Opt-in controller modes (defaults keep the baseline decision-identical):
         #   governor_position_mode   "legacy" V2 inner loop | "v3" Protocol V3 inner loop (full
@@ -315,6 +317,19 @@ class Revision2ExternalEngineOrchestrator:
         self.authority_telemetry = bool(authority_telemetry)
         self.entry_fill_anchor_mode = entry_fill_anchor_mode
         self.unit_protection_mode = unit_protection_mode
+        # Turbine physics (revision5/plant_physics_runtime.py): GT/ST machine models + mechanical
+        # protection, unit startup and 25A/25 synchronization, bay relays 51/87G/21 and 86 lockout.
+        #   "off"      not run (baseline unchanged)
+        #   "observe"  run every bar on a shadow plant fed the same inputs; trading unchanged
+        #   "enforce"  run on the live plant: trips open the unit breaker (bay unavailable for new
+        #              entries) and every bay must start and synchronize at each session open
+        from revision5.plant_physics_runtime import PHYSICS_MODES
+        if plant_physics_mode not in PHYSICS_MODES:
+            raise ValueError(f"plant_physics_mode must be one of {PHYSICS_MODES}")
+        if plant_physics_mode != "off" and plant_control_mode != PlantControlMode.PAPER_APPLY:
+            raise ValueError("plant_physics_mode observe/enforce requires the PAPER_APPLY plant")
+        self.plant_physics_mode = plant_physics_mode
+        self.plant_physics = None
         self._position_control_v3 = self.controller_parameters.position_control_v3()
         self.dynamic_profile_mode = dynamic_profile_mode
         self.avr_mvar_limiter_mode = avr_mvar_limiter_mode
@@ -517,8 +532,23 @@ class Revision2ExternalEngineOrchestrator:
         # final execution controller remains telemetry-only unless enabled by a caller.
         self.final_exit_authority = bool(final_exit_authority)
         self.governor_config = GovernorAuthorityConfig.from_config(self.config)
+        if self.plant_physics_mode != "off":
+            from revision5.plant_physics_runtime import PlantPhysicsRuntime
+            from revision5.ccpp_unified_plant import CentralPlantMasterDCS
+            physics_plant = (self.real_plant_dcs if self.plant_physics_mode == "enforce" else
+                             CentralPlantMasterDCS(total_capital=float(starting_equity), db_path=":memory:"))
+            self.plant_physics = PlantPhysicsRuntime(
+                physics_plant, mode=self.plant_physics_mode, load_plant=self.real_plant_dcs,
+                exhaust_spread_trip=self.governor_config.exhaust_spread_trip,
+                fsrt_drawdown_span=self.governor_config.fsrt_drawdown_span,
+                record=self._record_controller_event)
         self.consumed_parameters.update(GOVERNOR_AUTHORITY_PARAMETERS)
         self.consumed_parameters.update(CONTROLLER_PARAMETER_NAMES)
+        # Optional passive observer of the entry funnel (diagnostics only).  It receives
+        # (stage, symbol, timestamp, bar_idx, side) at each gate a candidate passes and is never
+        # read back, so it cannot change any decision, order or fill.  Observer faults are
+        # recorded as DIAGNOSTIC_OBSERVER_FAULT and never propagate.
+        self.gate_observer = None
         self._governor_telemetry: Dict[str, BarTelemetry] = {}
         self._bay_exhaust_spread: Dict[str, Optional[float]] = {}
         self._session_bar_index: Dict[str, Any] = {}
@@ -1008,6 +1038,37 @@ class Revision2ExternalEngineOrchestrator:
         return {bay_id: {"mass_flow_pu": median(flows[bay_id]), "exhaust_temp_pu": median(temps[bay_id])}
                 for bay_id in flows}
 
+    def _plant_physics_step(self, timestamp, tick_events) -> None:
+        """Step every bay's turbine machine, protection, startup/synchronization and relays from
+        this bar's causal measurements (see revision5/plant_physics_runtime.py)."""
+        from revision5.plant_physics_runtime import BayInputs
+        present = {_R5_SYMBOL_TO_BAY.get(e.symbol) for e in tick_events}
+        inputs = {}
+        for bay_id in self.real_plant_dcs.bays:
+            members = [t for sym, t in self._governor_telemetry.items()
+                       if _R5_SYMBOL_TO_BAY.get(sym) == bay_id and t.available]
+            broker_notional = 0.0
+            for sym, trade in self.open_trades.items():
+                if _R5_SYMBOL_TO_BAY.get(sym) == bay_id:
+                    broker_notional += abs(float(self._broker_position(sym).get("quantity", 0) or 0)) * float(
+                        self._last_close.get(sym, trade.get("entry_price", 0.0)))
+            inputs[bay_id] = BayInputs(
+                bar_present=bay_id in present,
+                vibration_ratio=max((t.vibration for t in members if t.vibration is not None), default=None),
+                velocity=max((t.velocity for t in members if t.velocity is not None), default=None),
+                exhaust_spread=self._bay_exhaust_spread.get(bay_id),
+                broker_notional=broker_notional)
+        out = self.plant_physics.step_bar(timestamp, inputs, self._current_drawdown())
+        if self.plant_physics_mode == "enforce":
+            # A physical trip on a bay exits that bay's open positions at the next open.
+            for trip in self.plant_physics.last_bar_trips:
+                for sym, trade in self.open_trades.items():
+                    if (_R5_SYMBOL_TO_BAY.get(sym) == trip["bay_id"]
+                            and trade.get("controller_exit_pending") is None):
+                        self._arm_plant_trip(sym, timestamp, trade, f"PHYSICS_{trip['code']}:{trip['reason']}")
+        if self.telemetry_mode == "full":
+            self._record_controller_event("PLANT_PHYSICS_BAR", timestamp, "PLANT", {"bays": out})
+
     def _plant_bar_step(self, timestamp, tick_events, symbol_bars) -> None:
         """Every bar: dynamic operating snapshot, HRSG thermal cycle and capital balance on
         the native plant, then the snapshot's gains onto the execution PIDs."""
@@ -1279,6 +1340,54 @@ class Revision2ExternalEngineOrchestrator:
         return side_aligned_conviction(
             side, pa_direction=int(signal.direction), pa_confidence=ranks[pa_key],
             studies_direction=(composite_result or {}).get("direction"), studies_confidence=ranks["studies"])
+
+    def _gate(self, stage, symbol, timestamp, bar_idx, side) -> None:
+        if self.gate_observer is not None:
+            try:
+                self.gate_observer.on_gate(stage, symbol, str(timestamp), int(bar_idx), side)
+            except Exception as exc:
+                self._record_controller_event("DIAGNOSTIC_OBSERVER_FAULT", timestamp, symbol,
+                                              {"stage": stage, "error_type": type(exc).__name__})
+
+    def _decide(self, point, symbol, timestamp, bar_idx, side, passed, reason, features) -> None:
+        """Research-only: one admit/reject decision at an entry choke point, with its reason.
+        ``features`` is a zero-argument callable, evaluated only when an observer is attached."""
+        if self.gate_observer is not None and hasattr(self.gate_observer, "on_decision"):
+            try:
+                book = Counter(str(t.get("side")) for t in self.open_trades.values())
+                # Observers own their copy, including nested diagnostic measurements.
+                payload = deepcopy({"book_buy": book.get("BUY", 0), "book_sell": book.get("SELL", 0),
+                                    **features()})
+                self.gate_observer.on_decision(
+                    point, symbol, str(timestamp), int(bar_idx), side, bool(passed), str(reason), payload)
+            except Exception as exc:
+                self._record_controller_event("DIAGNOSTIC_OBSERVER_FAULT", timestamp, symbol,
+                                              {"stage": point, "error_type": type(exc).__name__})
+
+    def _pa_components(self, symbol, signal) -> Dict[str, Any]:
+        """Research-only: PA's four weighted inputs for this bar.  Momentum and VWAP deviation are
+        signed; the volatility score and volume confirmation carry no direction, yet enter the
+        same signed sum.  Reports the side the directional terms alone would give."""
+        baseline = float((self.pa._scale.get(symbol) or {}).get("baseline_vol", float("nan")))
+        vol_score = (max(-1.0, min(1.0, (baseline - float(signal.volatility)) / baseline))
+                     if baseline and math.isfinite(baseline) else float("nan"))
+        w = {k: float(self.config.require(k)) for k in
+             ("momentum_weight", "vwap_weight", "volatility_weight", "confirmation_2bar_weight")}
+        directional = (max(-1.0, min(1.0, float(signal.momentum))) * w["momentum_weight"]
+                       + float(signal.vwap_deviation) * w["vwap_weight"])
+        undirected = (vol_score * w["volatility_weight"]
+                      + max(-1.0, min(1.0, float(signal.volume_confirmation))) * w["confirmation_2bar_weight"])
+        side = self._signal_side(signal)
+        directional_side = "BUY" if directional > 0 else "SELL" if directional < 0 else "FLAT"
+        return {"pa_momentum": float(signal.momentum), "pa_vwap_deviation": float(signal.vwap_deviation),
+                "pa_volatility_score": vol_score, "pa_volume_confirmation": float(signal.volume_confirmation),
+                "pa_directional_part": directional, "pa_undirected_part": undirected,
+                "pa_direction_from_directional_terms": ("agrees" if directional_side == side
+                                                        else f"flips_to_{directional_side}")}
+
+    @staticmethod
+    def _signal_side(signal) -> str:
+        return "BUY" if signal.direction > 0 else "SELL" if signal.direction < 0 else "FLAT"
 
     def _governor_entry(self, symbol, timestamp, bar_idx, side, signal, decision, composite_result,
                         chart_studies_confidence) -> Dict[str, Any]:
@@ -2172,6 +2281,8 @@ class Revision2ExternalEngineOrchestrator:
             self.symbol_cooldown_until_bar.clear()
             self.symbol_consecutive_losses.clear()
             self.symbol_tripped.clear()
+            if self.plant_physics is not None:
+                self.plant_physics.begin_session(timestamp)
 
         for event in tick_events:
             self._last_close[event.symbol] = float(symbol_bars[event.symbol].iloc[event.bar_idx]["close"])
@@ -2181,6 +2292,8 @@ class Revision2ExternalEngineOrchestrator:
         self._plant_control_shadow_step(timestamp, max_gross_fraction)
         self._governor_tick_telemetry(tick_events, symbol_bars)
         self._plant_bar_step(timestamp, tick_events, symbol_bars)
+        if self.plant_physics is not None:
+            self._plant_physics_step(timestamp, tick_events)
 
         # Box 8: refit PyPortfolioOpt weights periodically from real
         # trailing prices across the universe -- not every tick (that
@@ -2248,6 +2361,10 @@ class Revision2ExternalEngineOrchestrator:
             funnel["directional_signals"] += int(signal.direction != 0)
             funnel["confidence_qualified"] += int(signal.confidence >= float(self._decision_cfg().require("entry_confidence_threshold")))
             funnel["pa_" + signal.quality_band] += 1
+            if self.gate_observer is not None and signal.direction != 0:
+                self._gate("pa_directional", symbol, timestamp, bar_idx, self._signal_side(signal))
+                if signal.confidence >= float(self._decision_cfg().require("entry_confidence_threshold")):
+                    self._gate("pa_confident", symbol, timestamp, bar_idx, self._signal_side(signal))
 
             # Box 4b, the Chart-Studies Confirmation Layer -- a SECOND,
             # fully independent confidence reading (Ichimoku/Bollinger/
@@ -2287,8 +2404,20 @@ class Revision2ExternalEngineOrchestrator:
             if next_ts.date() != event_ts.date() or next_ts.strftime("%H:%M") >= str(self.safety_contract.values["no_entry_cutoff_time"]):
                 continue
 
+            if self.gate_observer is not None and signal.direction != 0:
+                self._gate("eligible", symbol, timestamp, bar_idx, self._signal_side(signal))
             decision, trace = self.id_box.evaluate(signal, self._decision_cfg(), latest_close=None)
             self._record(trace)
+            if self.gate_observer is not None and signal.direction != 0:
+                _id_obs = self.id_box.latest_regime_observation(symbol)
+                self._decide("id", symbol, timestamp, bar_idx, self._signal_side(signal), decision.approved,
+                             decision.reason, lambda: {
+                                 "pa_confidence": float(signal.confidence), "quality_band": signal.quality_band,
+                                 "volatility": float(signal.volatility),
+                                 "id_risk_reward": float(decision.risk_reward_ratio),
+                                 "hmm_stress_probability": _id_obs.get("stress_probability"),
+                                 "hmm_available": bool(_id_obs.get("available")),
+                                 **self._pa_components(symbol, signal)})
             self.bb05_bb06_supervisory_by_symbol[symbol] = (
                 self.supervisory_bridge.snapshot_bb05_bb06(symbol=symbol, decision=decision)
             )
@@ -2312,6 +2441,7 @@ class Revision2ExternalEngineOrchestrator:
                 funnel["id_rejections"] += 1
                 continue
             funnel["id_approvals"] += 1
+            self._gate("id_approved", symbol, timestamp, bar_idx, self._signal_side(signal))
 
             if self.grid_context_provider is not None:
                 observation = self.grid_context_provider.observe(
@@ -2340,6 +2470,7 @@ class Revision2ExternalEngineOrchestrator:
             )
             if plan is None:
                 continue
+            self._gate("mpc_plan", symbol, timestamp, bar_idx, plan.side)
             # Inter-box Closed Loop Lockout Checks
             if self.symbol_tripped.get(symbol, False):
                 self._controller_sequence += 1
@@ -2428,6 +2559,7 @@ class Revision2ExternalEngineOrchestrator:
             # capacity, sizing, gate submission, or broker mutation is
             # allowed until every symbol at this timestamp has reached
             # this same boundary.
+            self._gate("candidate", symbol, timestamp, bar_idx, plan.side)
             pending_entry_candidates.append({
                 "symbol": symbol,
                 "bar_idx": bar_idx,
@@ -2488,6 +2620,7 @@ class Revision2ExternalEngineOrchestrator:
             self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "pre_sizing_safety")
             funnel["safety_rejections"] += 1
             return
+        self._gate("pre_sizing_ok", symbol, timestamp, bar_idx, plan.side)
         governor_entry = self._governor_entry(
             symbol, timestamp, bar_idx, plan.side, signal, decision, composite_result,
             chart_studies_confidence)
@@ -2499,9 +2632,36 @@ class Revision2ExternalEngineOrchestrator:
                 "fsr_selected", "controlling_limiter", "limiters", "entry_hurdle", "vibration",
                 "velocity", "z_score", "bay_exhaust_spread", "comparator")},
         })
+        self._decide("governor", symbol, timestamp, bar_idx, plan.side, governor_entry["action"] == "ENTRY",
+                     governor_entry["reason"], lambda: {
+                         "enforced": bool(self._governor_full),
+                         "conviction_fsrn": governor_entry.get("conviction"),
+                         "pa_rank": (self._conviction_rank.get(symbol) or {}).get("pa"),
+                         "studies_rank": (self._conviction_rank.get(symbol) or {}).get("studies"),
+                         "studies_direction_aligned": (
+                             None if composite_result.get("direction") is None
+                             else int(composite_result.get("direction")) * (1 if plan.side == "BUY" else -1)),
+                         "pa_confidence": float(signal.confidence),
+                         "studies_confidence": float(chart_studies_confidence),
+                         "grid_return_fraction": governor_entry.get("grid_return_fraction"),
+                         "signed_grid_return": (
+                             None if governor_entry.get("grid_return_fraction") is None
+                             else (1 if plan.side == "BUY" else -1) * float(governor_entry["grid_return_fraction"])),
+                         "z_score": governor_entry.get("z_score"),
+                         "signed_z": (governor_entry.get("comparator") or {}).get("signed_z"),
+                         "signed_z_limit": (governor_entry.get("comparator") or {}).get("signed_z_limit"),
+                         "dynamic_z": (governor_entry.get("comparator") or {}).get("dynamic_z"),
+                         "fsr_selected": governor_entry.get("fsr_selected"),
+                         "entry_hurdle": governor_entry.get("entry_hurdle"),
+                         "controlling_limiter": governor_entry.get("controlling_limiter"),
+                         **{f"limiter_{k}": v for k, v in (governor_entry.get("limiters") or {}).items()},
+                         "velocity": governor_entry.get("velocity"),
+                         "vibration": governor_entry.get("vibration"),
+                         "bay_exhaust_spread": governor_entry.get("bay_exhaust_spread")})
         if self._governor_full and governor_entry["action"] != "ENTRY":
             self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "governor_no_action")
             return
+        self._gate("governor_admitted", symbol, timestamp, bar_idx, plan.side)
         symbol_dynamics = self.closed_loop.dynamics_profiler.estimate(bars.iloc[:bar_idx + 1])
         final_entry = self.final_execution_controller.entry_decision(
             side=plan.side, pa_confidence=float(signal.confidence), id_approved=bool(decision.approved),
@@ -2522,6 +2682,7 @@ class Revision2ExternalEngineOrchestrator:
                 "candidate_id": candidate_id, **final_entry,
             })
             return
+        self._gate("final_admitted", symbol, timestamp, bar_idx, plan.side)
         size_mult *= pid_info["entry_timing_multiplier"]
         if self._governor_full:
             # The governor's selected FSR (<= 1) can only derate the approved size.
@@ -2582,6 +2743,7 @@ class Revision2ExternalEngineOrchestrator:
         if quantity <= 0:
             self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "position_sizing_zero")
             return
+        self._gate("sized", symbol, timestamp, bar_idx, plan.side)
 
         if self.plant_control.mode is PlantControlMode.PAPER_APPLY:
             # Use the greater of planned price and the actual costed replay fill price.
@@ -2590,6 +2752,7 @@ class Revision2ExternalEngineOrchestrator:
             quantity = self._paper_plant_entry_limit(symbol, quantity, cap_price, timestamp)
             if quantity <= 0:
                 self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "plant_control_paper_cap")
+                self._decide("risk", symbol, timestamp, bar_idx, plan.side, False, "plant_control_paper_cap", lambda: {"quantity": 0})
                 funnel["portfolio_cap_rejections"] += 1
                 return
         plant_quantity = None
@@ -2601,12 +2764,14 @@ class Revision2ExternalEngineOrchestrator:
             quantity = min(quantity, plant_quantity)
             if quantity <= 0:
                 self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "plant_dcs_entry_rejected")
+                self._decide("risk", symbol, timestamp, bar_idx, plan.side, False, "plant_dcs_entry_rejected", lambda: {"quantity": 0})
                 funnel["plant_entry_rejections"] += 1
                 return
 
         real_notional = plan.entry_price * quantity
         if self._gross_exposure_notional() + real_notional > equity_now * max_gross_fraction:
             self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "gross_exposure_cap")
+            self._decide("risk", symbol, timestamp, bar_idx, plan.side, False, "gross_exposure_cap", lambda: {"quantity": int(quantity)})
             funnel["portfolio_cap_rejections"] += 1
             return
         sector_notional = sum(
@@ -2615,6 +2780,7 @@ class Revision2ExternalEngineOrchestrator:
         )
         if sector_notional + real_notional > equity_now * sector_cap_fraction:
             self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "sector_exposure_cap")
+            self._decide("risk", symbol, timestamp, bar_idx, plan.side, False, "sector_exposure_cap", lambda: {"quantity": int(quantity)})
             funnel["portfolio_cap_rejections"] += 1
             return
 
@@ -2625,9 +2791,13 @@ class Revision2ExternalEngineOrchestrator:
         self._record(trace)
         if not post_ok:
             self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "post_sizing_safety")
+            self._decide("risk", symbol, timestamp, bar_idx, plan.side, False, "post_sizing_safety", lambda: {"quantity": int(quantity)})
             funnel["safety_rejections"] += 1
             return
         funnel["safety_approvals"] += 1
+        self._decide("risk", symbol, timestamp, bar_idx, plan.side, True, "passed",
+                     lambda: {"quantity": int(quantity)})
+        self._gate("risk_checked", symbol, timestamp, bar_idx, plan.side)
 
         order, trace = self.p01d.create_order(symbol, plan, quantity, self.config)
         self._record(trace)
@@ -2653,6 +2823,13 @@ class Revision2ExternalEngineOrchestrator:
             proposed_notional=real_notional,
         )
         funnel["gates_evaluated"] += 1
+        if self.gate_observer is not None:
+            self._decide("pre_submit", symbol, timestamp, bar_idx, plan.side, gate_result["passed"],
+                         str(gate_result.get("gate") or ("passed" if gate_result["passed"] else "rejected")),
+                         lambda: {"detail": str(gate_result.get("reason") or gate_result.get("detail") or ""),
+                                  "signal_confidence": float(decision.confidence),
+                                  "risk_reward_ratio": float(entry_signal.risk_reward_ratio),
+                                  "proposed_notional": float(real_notional)})
         if not gate_result["passed"]:
             self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_gate",
                 details={**gate_result, "decisions": [asdict(d) for d in gate_result["decisions"]]})
@@ -2663,6 +2840,7 @@ class Revision2ExternalEngineOrchestrator:
         if quantity <= 0:
             self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "entry_decision_quantity_zero")
             return
+        self._gate("gates_passed", symbol, timestamp, bar_idx, plan.side)
 
         gate2 = ExecutionGate().validate_pre_submit(
             self.safety_contract.as_dict(),
@@ -2687,6 +2865,7 @@ class Revision2ExternalEngineOrchestrator:
             self.entry_candidate_observations.dispose(candidate_id, "REJECTED", "lot_rounding_zero")
             return
         self._intent_ledger.record(symbol, order.side, current_time)
+        self._gate("submitted", symbol, timestamp, bar_idx, plan.side)
         self._submit_entry_order({
             "symbol": symbol, "order": order, "quantity": quantity, "timestamp": timestamp,
             "next_ts": next_ts, "bar_idx": bar_idx, "pid_info": pid_info, "candidate_id": candidate_id,
@@ -2756,6 +2935,7 @@ class Revision2ExternalEngineOrchestrator:
                 raise RuntimeError("Paper fill has no reconcilable positive quantity")
             quantity = actual_quantity
             self.entry_candidate_observations.dispose(candidate_id, "FILLED", "paper_fill")
+            self._gate("filled", symbol, timestamp, bar_idx, plan.side)
             funnel["fills"] += 1
             self._trade_sequence += 1
             risk = abs(float(plan.entry_price) - float(plan.stop_price))

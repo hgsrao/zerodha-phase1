@@ -1,4 +1,4 @@
-"""R8 runtime adaptation: R8's own copy of the dynamic-parameter formulas, evaluated every bar.
+"""R8 runtime adaptation: the single-source R5 dynamic-parameter formulas, evaluated every bar.
 
 Modes
 -----

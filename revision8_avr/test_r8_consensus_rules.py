@@ -145,13 +145,18 @@ def test_short_policy_never_blocks_exiting_a_long(config):
 
 def test_engine_short_policy_reaches_the_controllers(config):
     from .test_r8_engine_integration import TestEngine
-    assert TestEngine(['INFY'], r8_configs=[config]).r8_symbol_controllers['INFY'].config.allow_shorts is True
-    e = TestEngine(['INFY'], r8_configs=[config], r8_allow_native_shorts=False)
+    # Shorts are off by default: a four-way BEAR while flat stays HOLD.
+    assert TestEngine(['INFY'], r8_configs=[config]).r8_symbol_controllers['INFY'].config.allow_shorts is False
+    e = TestEngine(['INFY'], r8_configs=[replace(config, allow_shorts=True)], r8_allow_native_shorts=True)
+    assert e.r8_symbol_controllers['INFY'].config.allow_shorts is True
+    e = TestEngine(['INFY'], r8_configs=[replace(config, allow_shorts=True)], r8_allow_native_shorts=False)
     assert e.r8_symbol_controllers['INFY'].config.allow_shorts is False
 
 
 def _reversal_lag(config, up_bars=60):
-    c, px, buy, sell = SymbolController(config), 100.0, None, None
+    # Measures pulse response, not short policy: the controller holds no position here, so shorts
+    # are enabled explicitly for the SELL pulse to be observable.
+    c, px, buy, sell = SymbolController(replace(config, allow_shorts=True)), 100.0, None, None
     for i in range(up_bars + 120):
         up = i < up_bars
         o = px
@@ -183,3 +188,12 @@ def test_governor_stagnation_and_avr_droop_read_their_own_inputs(config):
         if c.last_result.eligible:
             moved = abs(inputs['governor']) > 0.005
             assert c.pid_gov.stagnant_bars == (0 if moved else min(50, before + 1))
+
+
+def test_flat_four_way_bear_is_hold_by_default():
+    from .r8_coordinated_controller import ConsensusInterlock
+    # Default policy: SELL is reserved for exiting a long; flat stays flat.
+    assert ConsensusInterlock.evaluate('BEAR', 'BEAR', 'BEAR', 'BEAR', 0.0) == (
+        'HOLD', 'STAY_FLAT', 'FOUR_WAY_BEAR_CONSENSUS_SHORT_BLOCKED_BY_POLICY')
+    assert ConsensusInterlock.evaluate('BEAR', 'BEAR', 'BEAR', 'BEAR', 1.0)[0] == 'SELL'  # still exits a long
+    assert ConsensusInterlock.evaluate('BEAR', 'BEAR', 'BEAR', 'BEAR', 0.0, allow_shorts=True)[0] == 'SELL'

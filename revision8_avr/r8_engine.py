@@ -51,7 +51,7 @@ class _StudiesTap:
 
 class R8EngineMixin:
     def __init__(self, *args, r8_configs, r8_dispatch_scale=0.01,
-                 r8_allow_native_shorts=True, r8_decision_log_path=None,
+                 r8_allow_native_shorts=False, r8_decision_log_path=None,
                  r8_decision_memory=5000, r8_adaptation_mode='off', r8_adaptation_log_path=None,
                  **kwargs):
         if r8_adaptation_mode not in R8_ADAPTATION_MODES:
