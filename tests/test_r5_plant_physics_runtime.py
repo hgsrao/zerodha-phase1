@@ -30,16 +30,21 @@ def _frame(seed):
                          "low": np.minimum(o, c) * .999, "close": c, "volume": 1000.})
 
 
-def _run(physics):
+def _provider():
     gt = pd.date_range("2024-03-01 09:15", "2024-03-05 15:30", freq="1min", tz="Asia/Kolkata")
     gt = gt[(gt.hour * 60 + gt.minute >= 555) & (gt.hour * 60 + gt.minute <= 930)]
-    provider = SealedGridContextProvider(
+    return SealedGridContextProvider(
         pd.DataFrame({"timestamp": gt, "close": 21000 * (1 + 0.0005 * np.sin(np.arange(len(gt)) / 30))}),
         pd.DataFrame({"timestamp": gt, "close": 15.0}))
+
+
+def _run(physics, mark_v="crosscheck"):
+    provider = _provider()
     plant = CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:")
     orch = Engine(SYMBOLS, grid_context_provider=provider, real_plant_dcs=plant,
                   plant_control_mode="PAPER_APPLY", closed_loop_mode="active_paper",
-                  governor_authority="full", plant_engine_mode="ENGINE_B", plant_physics_mode=physics)
+                  governor_authority="full", plant_engine_mode="ENGINE_B", plant_physics_mode=physics,
+                  mark_v_mode=mark_v)
     orch.pa.evaluate = lambda s, cfg: (signal(symbol=s.symbol), [])
     orch.id_box.evaluate = lambda *a, **k: (IDDecision(True, "test", .8, 2., .6), [])
     report = orch.run({s: _frame(i + 3) for i, s in enumerate(SYMBOLS)}, warmup=30)
@@ -126,9 +131,57 @@ class PlantPhysicsReplayTests(unittest.TestCase):
         self.assertIs(orch.plant_physics.plant, orch.real_plant_dcs)
         self.assertGreater(report["fills"], 0)
 
+    def test_mark_v_veto_blocks_exactly_the_entries_it_disagrees_with(self):
+        orch, report = _run("observe", mark_v="veto")
+        tel = orch.controller_telemetry
+        refused = sum(1 for e in tel if e["event_type"] == "MARK_V_CROSSCHECK"
+                      and e.get("governor_action") == "ENTRY" and e.get("agreement") == "DISAGREE")
+        vetoed = sum(1 for e in tel if e["event_type"] == "GOVERNOR_ENTRY_DECISION"
+                     and str(e.get("reason", "")).startswith("MARK_V_VETO"))
+        self.assertEqual(refused, vetoed)
+        self.assertLessEqual(report["fills"], self.observe[1]["fills"])
+
+    def test_mark_v_veto_needs_the_physics_runtime(self):
+        with self.assertRaises(ValueError):
+            Engine(SYMBOLS, grid_context_provider=_provider(),
+                   real_plant_dcs=CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:"),
+                   plant_control_mode="PAPER_APPLY", mark_v_mode="veto")
+
     def test_physics_requires_the_paper_apply_plant(self):
         with self.assertRaises(ValueError):
             Engine(SYMBOLS, plant_physics_mode="observe")
+
+
+class PhysicsTripExitTests(unittest.TestCase):
+    def _orchestrator(self, physics):
+        plant = CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:")
+        return Engine(SYMBOLS, grid_context_provider=_provider(), real_plant_dcs=plant, plant_control_mode="PAPER_APPLY",
+                      closed_loop_mode="active_paper", governor_authority="full",
+                      plant_engine_mode="ENGINE_B", plant_physics_mode=physics)
+
+    def _trip_bay_of(self, orch, symbol):
+        from revision2_external.orchestrator import _R5_SYMBOL_TO_BAY
+        bay_id = _R5_SYMBOL_TO_BAY[symbol]
+        trip = {"bay_id": bay_id, "code": "87G", "reason": "TEST", "lockout_86": True}
+
+        def step_bar(*a, **k):
+            orch.plant_physics.last_bar_trips = [trip]
+            return {}
+        orch.plant_physics.step_bar = step_bar
+        orch._broker_position = lambda sym: {"quantity": 0}
+        orch.open_trades = {symbol: {"trade_id": "t1", "side": "BUY", "entry_price": 100.0, "quantity": 1}}
+        orch._plant_physics_step(pd.Timestamp("2024-03-04 10:00", tz="Asia/Kolkata"), [])
+        return orch.open_trades[symbol]
+
+    def test_enforce_trip_arms_an_exit_on_that_bays_open_position(self):
+        trade = self._trip_bay_of(self._orchestrator("enforce"), "INFY")
+        pending = trade.get("controller_exit_pending")
+        self.assertIsNotNone(pending)
+        self.assertEqual(pending["exit_reason"], "plant_trip:PHYSICS_87G:TEST")
+
+    def test_observe_trip_never_touches_a_position(self):
+        trade = self._trip_bay_of(self._orchestrator("observe"), "INFY")
+        self.assertIsNone(trade.get("controller_exit_pending"))
 
 
 if __name__ == "__main__":

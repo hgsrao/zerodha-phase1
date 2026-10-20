@@ -88,6 +88,7 @@ def _extended(o, a, trades, tel, log_path):
     ext = {"effective_profile": {
         "plant_engine_mode": getattr(o, "plant_engine_mode", None),
         "plant_physics_mode": getattr(o, "plant_physics_mode", None),
+        "mark_v_mode": getattr(o, "mark_v_mode", None),
         "no_entry_cutoff_time": (getattr(o, "safety_contract", None).values.get("no_entry_cutoff_time")
                                  if getattr(o, "safety_contract", None) else None),
         "max_gross_exposure_fraction": (getattr(o, "safety_contract", None).values.get("max_gross_exposure_fraction")
@@ -222,6 +223,9 @@ def main() -> int:
                    help="turbine/machine/synchronizer/relay physics. observe: runs every unit on a shadow "
                         "plant and records it without touching trades. enforce: acts on the live plant "
                         "(25A must close 52G before dispatch; 51/87G/21/mechanical trips open it, 86 locks out).")
+    p.add_argument("--mark-v", choices=["crosscheck", "veto"], default="crosscheck",
+                   help="Mark V re-evaluates the governor's minimum value gate. crosscheck records AGREE/"
+                        "DISAGREE; veto also blocks entries Mark V refuses (needs --plant-physics on).")
     a = p.parse_args()
     _check_code_root(a.root)
     sys.path.insert(0, a.root)
@@ -258,6 +262,7 @@ def main() -> int:
                              r8_adaptation_log_path=str(out / "r8_adaptation.jsonl"))
             kw["plant_engine_mode"] = a.plant_mode
             kw["plant_physics_mode"] = a.plant_physics
+            kw["mark_v_mode"] = a.mark_v
             o = cls(*args, r8_configs=configs, **extra, **kw)
             captured.append(o)
             return o
@@ -265,6 +270,7 @@ def main() -> int:
         def factory(*args, **kw):
             kw["plant_engine_mode"] = a.plant_mode
             kw["plant_physics_mode"] = a.plant_physics
+            kw["mark_v_mode"] = a.mark_v
             o = native_cls(*args, **kw)
             captured.append(o)
             return o
@@ -294,6 +300,9 @@ def main() -> int:
         "source": info.get("source"), "symbols": len(symbols),
         "plant_engine_mode": getattr(o, "plant_engine_mode", None),
         "plant_physics_mode": getattr(o, "plant_physics_mode", None),
+        "mark_v_mode": getattr(o, "mark_v_mode", None),
+        "plant_physics_counts": dict(getattr(getattr(o, "plant_physics", None), "counts", {}) or {}),
+        "mark_v_counts": dict(getattr(o, "_markv_counts", {}) or {}),
         "funnel": ledger.get("funnel"), "orders": report.get("orders"),
         "net_pnl": ledger.get("net_pnl"), "gross_pnl": ledger.get("gross_pnl"), "costs": ledger.get("costs"),
         "exit_reasons": dict(exits), "entry_sides": dict(entry_sides),

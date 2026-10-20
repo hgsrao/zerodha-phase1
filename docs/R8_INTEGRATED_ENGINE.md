@@ -49,9 +49,35 @@ Each bar, per bay:
   identical to `off` (this is tested).
 - **enforce** acts on the live plant.
 
-**Mark V cross-check.** `MarkVExecutiveController` repeats the governor's minimum value gate. It runs
-as a cross-check only and records `MARK_V_CROSSCHECK` AGREE/DISAGREE; the governor stays the single
-entry authority.
+**Trips exit positions (enforce).** A physics trip on a bay (mechanical protection, 51, 87G, 21) arms
+`plant_trip:PHYSICS_<code>:<reason>` on every open position in that bay, through the same
+next-open exit path as the native SEL-300G / MiCOM / HRSG trips. In observe, positions are never touched.
+
+**Mark V** (`--mark-v {crosscheck,veto}`, default crosscheck). `MarkVExecutiveController` re-evaluates
+the governor's minimum value gate (FSRN/FSRT/FSRA/FSRS/FSRM) and records `MARK_V_CROSSCHECK`
+AGREE/DISAGREE. With veto, an ENTRY that Mark V refuses becomes `NO_ACTION` with reason
+`MARK_V_VETO:<reason>`. This takes effect where the governor is enforced (`governor_authority="full"`)
+and requires plant physics observe or enforce.
+
+**Stack / cross-bay thermal.** The code has no "stack sector". The cross-bay thermal coupling it
+could mean is the HRSG's `calculate_cross_bay_correlations` / `compute_economizer_penalties`, which
+already run every bar. There are no ANSI 81 or 27/59 relay models in the code; the relays wired here
+are 51, 87G, 21 and 86, plus the existing SEL-300G and MiCOM.
+
+## Acceptance (run where the dataset lives)
+
+    python scripts/r8_acceptance.py --data-dir <frozen 48-symbol dir> --out <local dir, never committed>
+
+For each of Engine B and Engine C (R8 mode, ENGINE_A by default), the script runs physics
+off / observe / enforce and an enforce + Mark V veto arm. It checks that:
+- observe trades are byte-identical to off;
+- in observe, every unit synchronized and the machine scan ran;
+- every arm reconciles;
+- there are no short entries.
+
+It writes `acceptance.json` and exits non-zero on any failure. A `--synthetic` smoke run passed for
+Engine C here. Engine B needs `nautilus_trader==1.231.0`, which is not installable in this
+environment.
 
 **Settings.** Every relay and synchronizer setting is marked `ENGINEERING_INITIAL_VALUE; NOT_CALIBRATED`
 in `settings_report()`. These are starting points, not calibrated values.
@@ -66,7 +92,6 @@ in `settings_report()`. These are starting points, not calibrated values.
 
 ## Open decisions
 
-- Should enforce be the default instead of observe?
+- Should enforce be the default instead of observe? Should Mark V be veto?
 - Should B/C runs default to ENGINE_B?
-- "Stack sector" is not defined anywhere in the code.
 - Real-data acceptance has to run where the frozen dataset lives.

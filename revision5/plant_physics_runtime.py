@@ -178,6 +178,7 @@ class PlantPhysicsRuntime:
         self.fsrt_drawdown_span = float(fsrt_drawdown_span)
         self._record = record or (lambda *a, **k: None)
         self.counts: Dict[str, int] = {}
+        self.last_bar_trips: List[Dict[str, Any]] = []   # trips raised by the latest step_bar
         self.bays: Dict[str, _BayRuntime] = {}
         for bay_id in plant.bays:
             plant.configure_unit_synchronizer(
@@ -199,6 +200,7 @@ class PlantPhysicsRuntime:
         rt = self.bays[bay_id]
         rt.lockout_86.trip(f"{code}:{reason}") if lockout else None
         self._count(f"TRIP:{code}")
+        self.last_bar_trips.append({"bay_id": bay_id, "code": code, "reason": reason, "lockout_86": lockout})
         self.plant.trip_unit_breaker(bay_id=bay_id, reason=f"{code}:{reason}", source=source, lockout=lockout)
         self._record("PLANT_PHYSICS_TRIP", timestamp, bay_id, {
             "mode": self.mode, "code": code, "reason": reason, "source": source, "lockout_86": lockout})
@@ -287,6 +289,7 @@ class PlantPhysicsRuntime:
     def step_bar(self, timestamp, inputs_by_bay: Dict[str, BayInputs], drawdown: float) -> Dict[str, Any]:
         network = self.plant.electrical_network
         drawdown = max(0.0, _finite_or(drawdown, 0.0))
+        self.last_bar_trips = []
         out: Dict[str, Any] = {}
         for bay_id, rt in self.bays.items():
             bay = self.plant.bays[bay_id]

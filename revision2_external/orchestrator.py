@@ -103,6 +103,7 @@ ENTRY_FILL_ANCHOR_MODES = ("reanchor_distances", "box6_levels")
 UNIT_PROTECTION_MODES = ("pre_synchronization", "pre_sync_and_in_flight")
 DYNAMIC_PROFILE_MODES = ("off", "consume")
 AVR_MVAR_LIMITER_MODES = ("off", "required")
+MARK_V_MODES = ("crosscheck", "veto")
 
 # Native plant EXIT reasons that are protection trips (actuated at the next open as
 # ``plant_trip:<reason>``).  A plant-governor EXIT is advisory: the orchestrator's own
@@ -173,6 +174,7 @@ class Revision2ExternalEngineOrchestrator:
         avr_mvar_limiter_mode: str = "off",
         mvar_measurement_provider: Optional[Any] = None,
         plant_physics_mode: str = "off",
+        mark_v_mode: str = "crosscheck",
     ) -> None:
         # Opt-in controller modes (defaults keep the baseline decision-identical):
         #   governor_position_mode   "legacy" V2 inner loop | "v3" Protocol V3 inner loop (full
@@ -329,6 +331,11 @@ class Revision2ExternalEngineOrchestrator:
         if plant_physics_mode != "off" and plant_control_mode != PlantControlMode.PAPER_APPLY:
             raise ValueError("plant_physics_mode observe/enforce requires the PAPER_APPLY plant")
         self.plant_physics_mode = plant_physics_mode
+        if mark_v_mode not in MARK_V_MODES:
+            raise ValueError(f"mark_v_mode must be one of {MARK_V_MODES}")
+        if mark_v_mode == "veto" and plant_physics_mode == "off":
+            raise ValueError("mark_v_mode='veto' requires plant_physics_mode observe or enforce")
+        self.mark_v_mode = mark_v_mode
         self.plant_physics = None
         self._markv = None
         self._markv_counts: Counter[str] = Counter()
@@ -544,8 +551,9 @@ class Revision2ExternalEngineOrchestrator:
                 exhaust_spread_trip=self.governor_config.exhaust_spread_trip,
                 fsrt_drawdown_span=self.governor_config.fsrt_drawdown_span,
                 record=self._record_controller_event)
-            # Mark V runs as an independent cross-check of the governor's minimum value gate;
-            # the governor stays the single entry authority.
+            # Mark V re-evaluates the governor's minimum value gate.  "crosscheck" records
+            # AGREE/DISAGREE only; "veto" also blocks an ENTRY that Mark V refuses (where the
+            # governor is enforced, i.e. governor_authority="full").
             self._markv = MarkVExecutiveController()
         self.consumed_parameters.update(GOVERNOR_AUTHORITY_PARAMETERS)
         self.consumed_parameters.update(CONTROLLER_PARAMETER_NAMES)
@@ -1064,17 +1072,25 @@ class Revision2ExternalEngineOrchestrator:
                 exhaust_spread=self._bay_exhaust_spread.get(bay_id),
                 broker_notional=broker_notional)
         out = self.plant_physics.step_bar(timestamp, inputs, self._current_drawdown())
+        if self.plant_physics_mode == "enforce":
+            # A physical trip on a bay exits that bay's open positions at the next open.
+            for trip in self.plant_physics.last_bar_trips:
+                for sym, trade in self.open_trades.items():
+                    if (_R5_SYMBOL_TO_BAY.get(sym) == trip["bay_id"]
+                            and trade.get("controller_exit_pending") is None):
+                        self._arm_plant_trip(sym, timestamp, trade, f"PHYSICS_{trip['code']}:{trip['reason']}")
         if self.telemetry_mode == "full":
             self._record_controller_event("PLANT_PHYSICS_BAR", timestamp, "PLANT", {"bays": out})
 
-    def _markv_crosscheck(self, timestamp, symbol, side, governor_entry) -> None:
-        """Mark V (Speedtronic MVG) evaluated on the governor's own limiters; recorded only."""
+    def _markv_crosscheck(self, timestamp, symbol, side, governor_entry) -> Optional[Dict[str, Any]]:
+        """Mark V (Speedtronic MVG) evaluated on the governor's own limiters.  Returns the Mark V
+        result, or None when it could not be evaluated."""
         from revision5.ccpp_unified_plant import MarkVTelemetryInputs
         bay_id = _R5_SYMBOL_TO_BAY.get(symbol)
         limiters = governor_entry.get("limiters") or {}
         if bay_id is None or not all(k in limiters for k in ("FSRN", "FSRT", "FSRA", "FSRS", "FSRM")):
             self._markv_counts["NOT_EVALUATED"] += 1
-            return
+            return None
         network = self.real_plant_dcs.electrical_network
         result = self._markv.evaluate(MarkVTelemetryInputs(
             bay_id=bay_id, raw_signal_present=True, signal_side=side,
@@ -1092,6 +1108,7 @@ class Revision2ExternalEngineOrchestrator:
             "bay_id": bay_id, "agreement": key, "governor_action": governor_entry.get("action"),
             "markv_action": result["action"], "markv_fsr_selected": result["fsr_selected"],
             "markv_controlling_limiter": result["controlling_limiter"], "markv_reason": result["reason"]})
+        return result
 
     def _plant_bar_step(self, timestamp, tick_events, symbol_bars) -> None:
         """Every bar: dynamic operating snapshot, HRSG thermal cycle and capital balance on
@@ -2648,9 +2665,13 @@ class Revision2ExternalEngineOrchestrator:
         governor_entry = self._governor_entry(
             symbol, timestamp, bar_idx, plan.side, signal, decision, composite_result,
             chart_studies_confidence)
-        self._governor_entry_counts[f"{governor_entry['action']}:{governor_entry['reason']}"] += 1
         if self._markv is not None:
-            self._markv_crosscheck(timestamp, symbol, plan.side, governor_entry)
+            markv = self._markv_crosscheck(timestamp, symbol, plan.side, governor_entry)
+            if (self.mark_v_mode == "veto" and governor_entry["action"] == "ENTRY"
+                    and (markv is None or not markv["admitted"])):
+                governor_entry = {**governor_entry, "action": "NO_ACTION", "size_multiplier": 0.0,
+                                  "reason": f"MARK_V_VETO:{markv['reason'] if markv else 'NOT_EVALUATED'}"}
+        self._governor_entry_counts[f"{governor_entry['action']}:{governor_entry['reason']}"] += 1
         self._record_controller_event("GOVERNOR_ENTRY_DECISION", timestamp, symbol, {
             "candidate_id": candidate_id, "authority": self.governor_authority,
             **{key: governor_entry.get(key) for key in (
