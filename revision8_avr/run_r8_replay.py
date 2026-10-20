@@ -212,6 +212,11 @@ def main() -> int:
     p.add_argument("--out", required=True)
     p.add_argument("--adaptation", choices=["off", "shadow", "paper"], default="off",
                    help="R8 runtime adaptation (there is no live mode)")
+    p.add_argument("--plant-mode", choices=["ENGINE_A", "ENGINE_B"], default="ENGINE_A",
+                   help="native plant operating rules. ENGINE_A: intraday (14:30 entry cutoff, 15:15 "
+                        "square-off, one confirmed fill per bay per day). ENGINE_B: continuous/positional "
+                        "(no daily fill latch, no 14:30 cutoff). Engine B/C (Nautilus/Backtrader) are "
+                        "execution backends; this flag is the plant policy and is recorded in the output.")
     a = p.parse_args()
     _check_code_root(a.root)
     sys.path.insert(0, a.root)
@@ -246,11 +251,13 @@ def main() -> int:
             if a.adaptation != "off":
                 extra.update(r8_adaptation_mode=a.adaptation,
                              r8_adaptation_log_path=str(out / "r8_adaptation.jsonl"))
+            kw["plant_engine_mode"] = a.plant_mode
             o = cls(*args, r8_configs=configs, **extra, **kw)
             captured.append(o)
             return o
     else:
         def factory(*args, **kw):
+            kw["plant_engine_mode"] = a.plant_mode
             o = native_cls(*args, **kw)
             captured.append(o)
             return o
