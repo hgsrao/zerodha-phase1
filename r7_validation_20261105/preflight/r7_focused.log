@@ -1,0 +1,23 @@
+........................................................................ [ 29%]
+........................................................................ [ 58%]
+........................................................................ [ 87%]
+................................                                         [100%]
+=============================== warnings summary ===============================
+revision7_avr/test_r7_engine_integration.py::test_native_engine_class_factory_installs_r7_mixin
+  /home/user/r7/engine_b/orchestrator.py:32: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    BAR_SPAN = pd.Timedelta(minutes=1)
+
+revision7_avr/test_r7_engine_integration.py::test_native_engine_class_factory_installs_r7_mixin
+  /home/user/r7/engine_c/orchestrator.py:39: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    BAR_SPAN = pd.Timedelta(minutes=1)
+
+revision7_avr/test_r7_grid_freshness.py: 10 warnings
+  /home/user/r7/revision7_avr/test_r7_grid_freshness.py:24: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    return pd.Timestamp(n_first, tz="Asia/Kolkata") + pd.Timedelta(minutes=minutes_after_first_bar)
+
+revision7_avr/test_r7_grid_freshness.py::test_staleness_boundary_is_inclusive_of_the_limit
+  /home/user/r7/revision7_avr/test_r7_grid_freshness.py:40: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    assert not provider().causal_context(ts(7 * 15 + 20) + pd.Timedelta(seconds=1)).available
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+248 passed, 13 warnings in 31.11s
