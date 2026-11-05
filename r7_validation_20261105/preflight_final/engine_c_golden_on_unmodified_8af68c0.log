@@ -1,0 +1,25 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed11] _
+
+scenario = 'single_signal_paper_apply_full_seed11'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: single_signal_paper_apply_full_seed11        c4ae1a959cb29dd1  orders=2 fills=2 exits=2 trades=2 net=306.6054954837027
+E         MISMATCH single_signal_paper_apply_full_seed11: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7_base/scripts/capture_r5_golden_master.py', '--check', '--onl...ull_seed11: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+=========================== short test summary info ============================
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed11]
+1 failed in 10.25s
