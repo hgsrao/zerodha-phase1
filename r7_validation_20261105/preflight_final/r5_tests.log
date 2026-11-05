@@ -6,4 +6,214 @@
 ........................................................................ [ 37%]
 ........................................................................ [ 43%]
 ........................................................................ [ 49%]
-....................................................
+........................................................................ [ 56%]
+........................................................................ [ 62%]
+.................. [ 64%]
+....................sss. [ 66%]
+............................ [ 68%]
+........................................................................ [ 74%]
+...........................F...........F.....FF......................... [ 81%]
+..............................FF...F.................................... [ 87%]
+...................................................................F.... [ 93%]
+........................................................................ [ 99%]
+...                                                                      [100%]
+=================================== FAILURES ===================================
+_ test_attaching_a_real_plant_with_a_tripped_bay_still_leaves_the_shadow_ledger_unchanged _
+
+    def test_attaching_a_real_plant_with_a_tripped_bay_still_leaves_the_shadow_ledger_unchanged():
+        """Requirement 17: SHADOW ledger and net P&L remain identical whether or not real plant
+        protection (with a tripped bay) is attached -- plant-control output is never consumed."""
+        from market_data_loader import MarketDataLoader
+        from revision2.dataset_manifest import DatasetManifest
+    
+        manifest = DatasetManifest.load("revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json")
+        loader = MarketDataLoader(manifest.data_dir, synthetic_if_missing=False)
+>       bars = {"INFY": loader._load_symbol_csv("INFY").tail(800).reset_index(drop=True)}
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'tail'
+
+tests/test_r5_paper_apply_blocker_closure.py:385: AttributeError
+______________ test_replay_wiring_never_reaches_the_order_timeout ______________
+
+    def test_replay_wiring_never_reaches_the_order_timeout():
+        """order_timeout_seconds is a FIXED execution-timeout policy.  In the current
+        replay/paper path the paper adapter acknowledges synchronously
+        (ack_elapsed_seconds == 0.0) and Gate14 is never given a non-zero elapsed
+        time, so changing the fixed value cannot change any replay result."""
+        from dataclasses import replace
+        default_registry = CanonicalParameterRegistry()
+        tight_registry = CanonicalParameterRegistry()
+        tight_registry.params["order_timeout_seconds"] = replace(
+            tight_registry.params["order_timeout_seconds"], default=5)
+    
+>       base_orch, base_report, base_fills = _short_run(default_registry)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_revision5_bb09_bb10_parameterization.py:234: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+registry = <canonical_parameter_registry.CanonicalParameterRegistry object at 0x7f5df0568d70>
+symbol = 'INFY', bars = 1500, warmup = 60, before_run = None
+
+    def _short_run(registry, symbol="INFY", bars=1500, warmup=60, before_run=None):
+        manifest = DatasetManifest.load("revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json")
+        loader = MarketDataLoader(manifest.data_dir, synthetic_if_missing=False)
+>       data = {symbol: loader._load_symbol_csv(symbol).tail(bars).reset_index(drop=True)}
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'tail'
+
+tests/test_revision5_bb09_bb10_parameterization.py:203: AttributeError
+_______ test_bb09_bb10_supervisory_snapshot_populated_during_a_real_run ________
+
+    def test_bb09_bb10_supervisory_snapshot_populated_during_a_real_run():
+        manifest = DatasetManifest.load("revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json")
+        loader = MarketDataLoader(manifest.data_dir, synthetic_if_missing=False)
+>       bars = {"INFY": loader._load_symbol_csv("INFY").tail(1500).reset_index(drop=True)}
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'tail'
+
+tests/test_revision5_bb09_bb10_parameterization.py:405: AttributeError
+___ test_invalid_post_fill_snapshot_data_does_not_interrupt_fill_bookkeeping ___
+
+    def test_invalid_post_fill_snapshot_data_does_not_interrupt_fill_bookkeeping():
+        """max_retries is never read by the broker path, so corrupting it breaks ONLY the
+        supervisory snapshot.  The run must still complete every fill, position and ledger
+        update exactly as an undisturbed run, and the observer failure must be recorded."""
+        registry = CanonicalParameterRegistry()
+>       base_orch, base_report, base_fills = _short_run(registry)
+                                             ^^^^^^^^^^^^^^^^^^^^
+
+tests/test_revision5_bb09_bb10_parameterization.py:453: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+registry = <canonical_parameter_registry.CanonicalParameterRegistry object at 0x7f5dec93b4d0>
+symbol = 'INFY', bars = 1500, warmup = 60, before_run = None
+
+    def _short_run(registry, symbol="INFY", bars=1500, warmup=60, before_run=None):
+        manifest = DatasetManifest.load("revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json")
+        loader = MarketDataLoader(manifest.data_dir, synthetic_if_missing=False)
+>       data = {symbol: loader._load_symbol_csv(symbol).tail(bars).reset_index(drop=True)}
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'tail'
+
+tests/test_revision5_bb09_bb10_parameterization.py:203: AttributeError
+____________ test_unexpected_observer_exceptions_are_not_swallowed _____________
+
+    def test_unexpected_observer_exceptions_are_not_swallowed():
+        """Only the bridge's data-validation error is contained; a real defect still surfaces."""
+        registry = CanonicalParameterRegistry()
+    
+        def boom(orch):
+            def broken(**kwargs):
+                raise RuntimeError("programming error")
+            orch.supervisory_bridge.snapshot_bb09_bb10 = broken
+    
+        with pytest.raises(RuntimeError, match="programming error"):
+>           _short_run(registry, before_run=boom)
+
+tests/test_revision5_bb09_bb10_parameterization.py:492: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+registry = <canonical_parameter_registry.CanonicalParameterRegistry object at 0x7f5dede8b350>
+symbol = 'INFY', bars = 1500, warmup = 60
+before_run = <function test_unexpected_observer_exceptions_are_not_swallowed.<locals>.boom at 0x7f5dede9cf40>
+
+    def _short_run(registry, symbol="INFY", bars=1500, warmup=60, before_run=None):
+        manifest = DatasetManifest.load("revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json")
+        loader = MarketDataLoader(manifest.data_dir, synthetic_if_missing=False)
+>       data = {symbol: loader._load_symbol_csv(symbol).tail(bars).reset_index(drop=True)}
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'tail'
+
+tests/test_revision5_bb09_bb10_parameterization.py:203: AttributeError
+___ test_every_optimizer_and_search_space_caller_selects_an_explicit_engine ____
+
+    def test_every_optimizer_and_search_space_caller_selects_an_explicit_engine():
+        checked, unscoped = 0, []
+        for path in _tracked_source():
+            if path.name in _UNION_REPORTING:
+                continue
+            tree = ast.parse(path.read_text(errors="ignore"))
+            for node, name, receiver in _calls(tree):
+                relevant = (name in _ENGINE_ARG_POSITION or name == "ContractValidator"
+                            or (name == "from_registry" and receiver == "SearchSpace"))
+                if not relevant:
+                    continue
+                if path.name == "contract_validator.py" and receiver == "self":
+                    continue     # ContractValidator's own methods already apply self.engine
+                checked += 1
+                if not _selects_engine(node, name, receiver):
+                    unscoped.append(f"{path.relative_to(ROOT)}:{node.lineno} {name}")
+        assert checked >= 12, "scan found suspiciously few call sites"
+>       assert not unscoped, unscoped
+E       AssertionError: ['r7_station/R7_ENGINEERING_STATION_20261018/execution_audit/claude_local_20261018/baseline_f0ad7af/tests/legacy_quara...on_audit/claude_local_20261018/baseline_f0ad7af/tests/test_canonical_parameter_registry.py:26 calibratable_names', ...]
+E       assert not ['r7_station/R7_ENGINEERING_STATION_20261018/execution_audit/claude_local_20261018/baseline_f0ad7af/tests/legacy_quara...on_audit/claude_local_20261018/baseline_f0ad7af/tests/test_canonical_parameter_registry.py:26 calibratable_names', ...]
+
+tests/test_revision5_engine_applicability.py:341: AssertionError
+_ test_no_tracked_source_reads_spec_calibratable_outside_the_registry_and_reports _
+
+    def test_no_tracked_source_reads_spec_calibratable_outside_the_registry_and_reports():
+        allowed = _UNION_REPORTING | {"canonical_config.py"}   # canonical_config: by-box reporting table only
+        offenders = []
+        for path in _tracked_source():
+            if path.name in allowed:
+                continue
+            for node in ast.walk(ast.parse(path.read_text(errors="ignore"))):
+                if isinstance(node, ast.Attribute) and node.attr == "calibratable" and isinstance(node.ctx, ast.Load):
+                    offenders.append(f"{path.relative_to(ROOT)}:{node.lineno}")
+>       assert not offenders, offenders
+E       AssertionError: ['r7_station/R7_ENGINEERING_STATION_20261018/execution_audit/claude_local_20261018/baseline_f0ad7af/tests/test_r5_para...018/execution_audit/claude_local_20261018/baseline_f0ad7af/tests/test_revision5_bb05_bb06_parameterization.py:75', ...]
+E       assert not ['r7_station/R7_ENGINEERING_STATION_20261018/execution_audit/claude_local_20261018/baseline_f0ad7af/tests/test_r5_para...018/execution_audit/claude_local_20261018/baseline_f0ad7af/tests/test_revision5_bb05_bb06_parameterization.py:75', ...]
+
+tests/test_revision5_engine_applicability.py:353: AssertionError
+_ test_production_code_never_passes_literal_studies_gains_to_composite_study_signal _
+
+    def test_production_code_never_passes_literal_studies_gains_to_composite_study_signal():
+        seen = []
+        for path in _tracked_source():
+            rel = str(path.relative_to(ROOT))
+            if rel.startswith("scripts/"):
+                continue     # research scripts use registry defaults via default_config()
+            for node, name, _ in _calls(ast.parse(path.read_text(errors="ignore"))):
+                if name == "CompositeStudySignal":
+                    seen.append(rel)
+>                   assert not {k.arg for k in node.keywords} & {"kp", "ki", "kd", "clamp"}, rel
+E                   AssertionError: r7_station/R7_ENGINEERING_STATION_20261018/execution_audit/claude_local_20261018/baseline_f0ad7af/tests/test_revision5_three_controller_parameterization.py
+E                   assert not ({'clamp', 'kd', 'ki', 'kp'} & {'clamp', 'kd', 'ki', 'kp'})
+
+tests/test_revision5_engine_applicability.py:401: AssertionError
+__________ test_shadow_mode_leaves_the_replay_trade_ledger_unchanged ___________
+
+    def test_shadow_mode_leaves_the_replay_trade_ledger_unchanged():
+        """No grid, a synchronized grid and a fully-blocking (UNSYNCHRONIZED, demand 0) grid must give
+        the IDENTICAL trade ledger: the chain records, it never applies."""
+>       base_orch, base_report = _replay()
+                                 ^^^^^^^^^
+
+tests/test_revision5_plant_control.py:558: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+provider = None, bars = 1500
+
+    def _replay(provider=None, bars=1500):
+        from market_data_loader import MarketDataLoader
+        from revision2.dataset_manifest import DatasetManifest
+        from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
+        manifest = DatasetManifest.load("revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json")
+        loader = MarketDataLoader(manifest.data_dir, synthetic_if_missing=False)
+>       data = {"INFY": loader._load_symbol_csv("INFY").tail(bars).reset_index(drop=True)}
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'tail'
+
+tests/test_revision5_plant_control.py:532: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_r5_paper_apply_blocker_closure.py::test_attaching_a_real_plant_with_a_tripped_bay_still_leaves_the_shadow_ledger_unchanged
+FAILED tests/test_revision5_bb09_bb10_parameterization.py::test_replay_wiring_never_reaches_the_order_timeout
+FAILED tests/test_revision5_bb09_bb10_parameterization.py::test_bb09_bb10_supervisory_snapshot_populated_during_a_real_run
+FAILED tests/test_revision5_bb09_bb10_parameterization.py::test_invalid_post_fill_snapshot_data_does_not_interrupt_fill_bookkeeping
+FAILED tests/test_revision5_bb09_bb10_parameterization.py::test_unexpected_observer_exceptions_are_not_swallowed
+FAILED tests/test_revision5_engine_applicability.py::test_every_optimizer_and_search_space_caller_selects_an_explicit_engine
+FAILED tests/test_revision5_engine_applicability.py::test_no_tracked_source_reads_spec_calibratable_outside_the_registry_and_reports
+FAILED tests/test_revision5_engine_applicability.py::test_production_code_never_passes_literal_studies_gains_to_composite_study_signal
+FAILED tests/test_revision5_plant_control.py::test_shadow_mode_leaves_the_replay_trade_ledger_unchanged
+9 failed, 1137 passed, 7 skipped, 146 subtests passed in 5279.48s (1:27:59)
