@@ -7,7 +7,7 @@
 | Did the fixed one-month dump replay (Test 1) pass? | **No. BLOCKED.** It never ran on historical data, because the frozen 48-symbol dataset is not in this environment. |
 | Did the one-hour adaptive replay (Test 2) pass? | **No. BLOCKED** for the same reason. The adaptation path it needed did not exist at `8af68c0`. It has now been implemented and tested in code (§5). |
 | Is further paper testing justified? | **Yes, as the next step.** Run Test 1 and Test 2 on the frozen data with the harnesses here. Not before. |
-| Do code or dependency issues still block? | **Data only.** No Python dependency is missing. The code blocker for Test 2 is resolved in this change. |
+| Do code or dependency issues still block? | **Data blocks both tests.** No Python dependency is missing. The Test 2 code blocker is resolved in this change. Pre-existing red tests remain on `8af68c0`, unchanged by this work: the Engine A golden master (17 scenarios), the protected-path guard and 9 R5 tests. The red golden master means Test 1's "regression-safe" question cannot be fully answered against that oracle until it is triaged. |
 
 No result in this report comes from fallback data. Synthetic runs are labelled `SYNTHETIC_HARNESS_SMOKE_NOT_EVIDENCE`. They prove only that a harness executes end to end.
 
@@ -50,9 +50,9 @@ All suites below ran against the final tree (`8af68c0` plus this change) with `L
 | Checkpoint / restore | `test_r7_checkpoint.py` (6), `test_r7_restore_atomicity.py` (21), adaptive round trip in `test_r7_governor_adaptation.py` | passed | **PASS** (R7 state only) |
 | Live-trading launcher guard | `tests/test_launcher_live_trading_guard.py` (72) | passed | **PASS** |
 | R6 AVR / turbine (AVR preservation) | `revision6_avr/` | 121 passed, 1 xfailed (documented strict xfail: open limit cycle at dt = 3 s) | **PASS** |
-| Engine B integration | `tests_engine_b/` | {{ENGINE_B}} | {{ENGINE_B_STATUS}} |
-| Engine C integration | `tests_engine_c/` | {{ENGINE_C}} | {{ENGINE_C_STATUS}} |
-| R5 / shared-engine regression | `tests/` (excluding `legacy_quarantine`) | {{R5}} | {{R5_STATUS}} |
+| Engine B integration | `tests_engine_b/` | 21 passed (690 s) | **PASS** |
+| Engine C integration | `tests_engine_c/` | 50 passed, 18 failed: 17 Engine A golden-master scenarios (F-05) and the protected-path guard. All 18 fail identically on unmodified `8af68c0` (`engine_c_golden_on_unmodified_8af68c0.log`, same output hash `c4ae1a959cb29dd1`). | **FAIL (pre-existing, not caused by this change)** |
+| R5 / shared-engine regression | `tests/` (excluding `legacy_quarantine`) | 1,137 passed, 9 failed, 7 skipped, 146 subtests passed (88 min). All 9 fail identically on unmodified `8af68c0` (`r5_failures_rerun_r7_base.log` vs `r5_failures_rerun_r7.log`). Three come from source scans that pick up the `r7_station/` archive copies committed in `0f1da68`. | **FAIL (pre-existing, not caused by this change)** |
 | Missing dependencies | — | None. Missing **data**: the frozen dataset and the grid manifest. | reported |
 
 ## 4. Test 1: fixed one-month dump replay, adaptation off
