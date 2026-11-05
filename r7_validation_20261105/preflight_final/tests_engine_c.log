@@ -1,0 +1,477 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-9.2.0, pluggy-1.7.0 -- /usr/bin/python3
+rootdir: /home/user/r7
+plugins: typeguard-4.6.0, anyio-4.15.1
+collecting ... collected 68 items
+
+tests_engine_c/test_engine_c_backtrader.py::test_native_backtrader_entry_fill_exit_lifecycle PASSED [  1%]
+tests_engine_c/test_engine_c_backtrader.py::test_independent_backtrader_accounting_reconciles PASSED [  2%]
+tests_engine_c/test_engine_c_backtrader.py::test_causal_clock_warmup_and_next_bar_fills PASSED [  4%]
+tests_engine_c/test_engine_c_backtrader.py::test_no_lookahead_future_bars_cannot_change_past_decisions PASSED [  5%]
+tests_engine_c/test_engine_c_backtrader.py::test_data_contract_detects_missing_duplicate_and_out_of_order_bars PASSED [  7%]
+tests_engine_c/test_engine_c_backtrader.py::test_special_session_calendar_is_explicit_and_sourced PASSED [  8%]
+tests_engine_c/test_engine_c_backtrader.py::test_muhurat_session_rows_are_legitimate PASSED [ 10%]
+tests_engine_c/test_engine_c_backtrader.py::test_evening_rows_outside_the_calendar_are_fatal[2023-11-13T18:15:00+05:30] PASSED [ 11%]
+tests_engine_c/test_engine_c_backtrader.py::test_evening_rows_outside_the_calendar_are_fatal[2024-11-04T18:00:00+05:30] PASSED [ 13%]
+tests_engine_c/test_engine_c_backtrader.py::test_evening_rows_outside_the_calendar_are_fatal[2023-11-12T18:14:00+05:30] PASSED [ 14%]
+tests_engine_c/test_engine_c_backtrader.py::test_evening_rows_outside_the_calendar_are_fatal[2023-11-12T19:15:00+05:30] PASSED [ 16%]
+tests_engine_c/test_engine_c_backtrader.py::test_evening_rows_outside_the_calendar_are_fatal[2023-11-12T19:25:00+05:30] PASSED [ 17%]
+tests_engine_c/test_engine_c_backtrader.py::test_evening_rows_outside_the_calendar_are_fatal[2023-11-12T18:05:00+05:30] PASSED [ 19%]
+tests_engine_c/test_engine_c_backtrader.py::test_evening_rows_outside_the_calendar_are_fatal[2024-11-01T17:59:00+05:30] PASSED [ 20%]
+tests_engine_c/test_engine_c_backtrader.py::test_evening_rows_outside_the_calendar_are_fatal[2024-11-01T19:00:00+05:30] PASSED [ 22%]
+tests_engine_c/test_engine_c_backtrader.py::test_evening_rows_outside_the_calendar_are_fatal[2023-11-12T18:00:00+05:30] PASSED [ 23%]
+tests_engine_c/test_engine_c_backtrader.py::test_evening_rows_outside_the_calendar_are_fatal[2024-11-01T10:00:00+05:30] PASSED [ 25%]
+tests_engine_c/test_engine_c_backtrader.py::test_evening_rows_outside_the_calendar_are_fatal[2023-11-12T09:15:00+05:30] PASSED [ 26%]
+tests_engine_c/test_engine_c_backtrader.py::test_malformed_timestamps_are_fatal[garbage] PASSED [ 27%]
+tests_engine_c/test_engine_c_backtrader.py::test_malformed_timestamps_are_fatal[] PASSED [ 29%]
+tests_engine_c/test_engine_c_backtrader.py::test_malformed_timestamps_are_fatal[None] PASSED [ 30%]
+tests_engine_c/test_engine_c_backtrader.py::test_malformed_timestamps_are_fatal[2023-11-12T25:00:00+05:30] PASSED [ 32%]
+tests_engine_c/test_engine_c_backtrader.py::test_malformed_timestamps_are_fatal[2023-02-30T18:16:00+05:30] PASSED [ 33%]
+tests_engine_c/test_engine_c_backtrader.py::test_malformed_timestamps_are_fatal[2023-11-12T12:47:00+00:00] PASSED [ 35%]
+tests_engine_c/test_engine_c_backtrader.py::test_replay_window_is_invariant_to_muhurat_rows_and_audits_the_whole_file PASSED [ 36%]
+tests_engine_c/test_engine_c_backtrader.py::test_multi_symbol_isolation_and_ordering PASSED [ 38%]
+tests_engine_c/test_engine_c_backtrader.py::test_stop_target_anchoring_and_exit_semantics PASSED [ 39%]
+tests_engine_c/test_engine_c_backtrader.py::test_gap_through_planned_stop_arms_plant_trip_exit PASSED [ 41%]
+tests_engine_c/test_engine_c_backtrader.py::test_short_session_position_is_flattened_at_next_session PASSED [ 42%]
+tests_engine_c/test_engine_c_backtrader.py::test_working_entries_reserve_concurrency_sector_and_bay_capacity PASSED [ 44%]
+tests_engine_c/test_engine_c_backtrader.py::test_one_working_order_per_symbol_and_no_duplicate_submissions PASSED [ 45%]
+tests_engine_c/test_engine_c_backtrader.py::test_native_rejection_margin_and_unfilled_order_disposal PASSED [ 47%]
+tests_engine_c/test_engine_c_backtrader.py::test_order_working_at_end_of_data_is_cancelled_not_filled PASSED [ 48%]
+tests_engine_c/test_engine_c_backtrader.py::test_native_partial_entry_and_exit_fills_reconcile PASSED [ 50%]
+tests_engine_c/test_engine_c_backtrader.py::test_commission_scheme_matches_r5_cost_model_and_cap_effect_is_explained PASSED [ 51%]
+tests_engine_c/test_engine_c_backtrader.py::test_deterministic_repeatability_in_process_and_across_hash_seeds PASSED [ 52%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_and_b_code_golden_masters_and_data_untouched FAILED [ 54%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_c_is_independent_of_engine_a_and_b_execution_code PASSED [ 55%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[multiday_paper_apply_full] FAILED [ 57%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_no_plant_seed14] FAILED [ 58%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_default_governor_seed11] FAILED [ 60%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed11] FAILED [ 61%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed12] FAILED [ 63%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed13] FAILED [ 64%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed14] FAILED [ 66%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_plant_shadow_seed13] FAILED [ 67%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_shadow_closed_loop_seed12] FAILED [ 69%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_no_plant] FAILED [ 70%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_paper_apply_default_governor] FAILED [ 72%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_paper_apply_full] FAILED [ 73%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_plant_shadow] FAILED [ 75%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed11] FAILED [ 76%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed12] FAILED [ 77%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed13] FAILED [ 79%]
+tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed14] FAILED [ 80%]
+tests_engine_c/test_engine_c_backtrader.py::test_golden_master_split_covers_every_baseline_scenario PASSED [ 82%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_base_has_filled_orders PASSED [ 83%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_parameter_and_mode_changes_reach_backtrader_orders[{'registry': 'avr_loading_fraction_base=0.08'}] PASSED [ 85%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_parameter_and_mode_changes_reach_backtrader_orders[{'registry': 'gov_gtg2_base_z=-1.0'}] PASSED [ 86%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_parameter_and_mode_changes_reach_backtrader_orders[{'calibration_overrides': {'pid_ki_exit': 0.15}}] PASSED [ 88%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_parameter_and_mode_changes_reach_backtrader_orders[{'calibration_overrides': {'pid_kd_exit': 0.15}}] PASSED [ 89%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_parameter_and_mode_changes_reach_backtrader_orders[{'avr_voltage_mode': 'measured'}] PASSED [ 91%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_startup_report_carries_the_effective_controller_values PASSED [ 92%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_authority_telemetry_does_not_change_engine_c_orders PASSED [ 94%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_box6_entry_pid_has_no_actuator_in_this_engine PASSED [ 95%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_box6_levels_mode_carries_the_entry_pid_into_the_booked_position PASSED [ 97%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_bounded_dispatcher_keeps_every_applied_allocation_inside_its_bounds PASSED [ 98%]
+tests_engine_c/test_engine_c_parameter_authority.py::test_in_flight_protection_mode_runs_through_the_harness PASSED [100%]
+
+=================================== FAILURES ===================================
+__________ test_engine_a_and_b_code_golden_masters_and_data_untouched __________
+
+    def test_engine_a_and_b_code_golden_masters_and_data_untouched():
+        base = subprocess.run(["git", "cat-file", "-t", BASE_COMMIT], cwd=ROOT, capture_output=True, text=True)
+        if base.returncode != 0:
+            pytest.skip("Engine B base commit not in this checkout")
+        diff = subprocess.run(["git", "diff", "--name-only", BASE_COMMIT, "--", *PROTECTED], cwd=ROOT,
+                              capture_output=True, text=True, check=True)
+        changed = set(diff.stdout.split())
+        assert not {p for p in changed if p.startswith(("golden_master/", "data/"))}
+>       assert changed <= PARAMETER_AUTHORITY_SURFACE, sorted(changed - PARAMETER_AUTHORITY_SURFACE)
+E       AssertionError: ['revision2_external/closed_loop_control.py', 'revision2_external/composite_study_signal.py', 'revision5/plant_control.py', 'runtime/live_trading_guard.py', 'tests/test_launcher_live_trading_guard.py', 'tests/test_r5_dynamization.py', ...]
+E       assert {'engine_b/or...ator.py', ...} <= {'engine_b/or...lant.py', ...}
+E         
+E         Extra items in the left set:
+E         'runtime/live_trading_guard.py'
+E         'tests/test_launcher_live_trading_guard.py'
+E         'revision2_external/closed_loop_control.py'
+E         'revision2_external/composite_study_signal.py'
+E         'tests/test_r5_dynamization_closure.py'
+E         'revision5/plant_control.py'
+E         'tests/test_r5_dynamization.py'
+
+tests_engine_c/test_engine_c_backtrader.py:546: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[multiday_paper_apply_full] _
+
+scenario = 'multiday_paper_apply_full'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: multiday_paper_apply_full                    7e38c5a364650a1b  orders=0 fills=0 exits=0 trades=0 net=0
+E         MISMATCH multiday_paper_apply_full: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'multiday_paper_apply_full'], returncode=1, stdout="multiday_paper_apply_full                    7e38c5a364650a1b  orders=0 fills=0 exits=0 trades=0 net=0\nMISMATCH multiday_paper_apply_full: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+___ test_engine_a_golden_master_scenario_still_passes[probe_no_plant_seed14] ___
+
+scenario = 'probe_no_plant_seed14'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: probe_no_plant_seed14                        bf0232034a210c31  orders=8 fills=8 exits=8 trades=8 net=6129.986667224971
+E         MISMATCH probe_no_plant_seed14: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'probe_no_plant_seed14'], returncode=1, stdout="probe_no_plant_seed14                        bf0232034a210c31  orders=8 fills=8 exits=8 trades=8 net=6129.986667224971\nMISMATCH probe_no_plant_seed14: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_default_governor_seed11] _
+
+scenario = 'probe_paper_apply_default_governor_seed11'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: probe_paper_apply_default_governor_seed11    eed9233e0e7f49e1  orders=4 fills=4 exits=4 trades=4 net=1181.0675385209984
+E         MISMATCH probe_paper_apply_default_governor_seed11: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'probe_paper_apply_default_governor_seed11'], returncode=1, stdout="probe_paper_apply_default_governor_seed11    eed9233e0e7f49e1  orders=4 fills=4 exits=4 trades=4 net=1181.0675385209984\nMISMATCH probe_paper_apply_default_governor_seed11: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed11] _
+
+scenario = 'probe_paper_apply_full_seed11'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: probe_paper_apply_full_seed11                064c548911975b1c  orders=4 fills=4 exits=4 trades=4 net=791.6317636901001
+E         MISMATCH probe_paper_apply_full_seed11: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'probe_paper_apply_full_seed11'], returncode=1, stdout="probe_paper_apply_full_seed11                064c548911975b1c  orders=4 fills=4 exits=4 trades=4 net=791.6317636901001\nMISMATCH probe_paper_apply_full_seed11: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed12] _
+
+scenario = 'probe_paper_apply_full_seed12'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: probe_paper_apply_full_seed12                594462149e9259fa  orders=3 fills=3 exits=3 trades=3 net=733.7752767399038
+E         MISMATCH probe_paper_apply_full_seed12: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'probe_paper_apply_full_seed12'], returncode=1, stdout="probe_paper_apply_full_seed12                594462149e9259fa  orders=3 fills=3 exits=3 trades=3 net=733.7752767399038\nMISMATCH probe_paper_apply_full_seed12: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed13] _
+
+scenario = 'probe_paper_apply_full_seed13'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: probe_paper_apply_full_seed13                68f0d19430017fbf  orders=4 fills=4 exits=4 trades=4 net=651.548570892596
+E         MISMATCH probe_paper_apply_full_seed13: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'probe_paper_apply_full_seed13'], returncode=1, stdout="probe_paper_apply_full_seed13                68f0d19430017fbf  orders=4 fills=4 exits=4 trades=4 net=651.548570892596\nMISMATCH probe_paper_apply_full_seed13: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed14] _
+
+scenario = 'probe_paper_apply_full_seed14'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: probe_paper_apply_full_seed14                d91c9f5c15f601fe  orders=2 fills=2 exits=2 trades=2 net=500.35197645654773
+E         MISMATCH probe_paper_apply_full_seed14: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'probe_paper_apply_full_seed14'], returncode=1, stdout="probe_paper_apply_full_seed14                d91c9f5c15f601fe  orders=2 fills=2 exits=2 trades=2 net=500.35197645654773\nMISMATCH probe_paper_apply_full_seed14: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[probe_plant_shadow_seed13] _
+
+scenario = 'probe_plant_shadow_seed13'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: probe_plant_shadow_seed13                    65cca3d47bf32f16  orders=12 fills=12 exits=12 trades=12 net=9628.23318620601
+E         MISMATCH probe_plant_shadow_seed13: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'probe_plant_shadow_seed13'], returncode=1, stdout="probe_plant_shadow_seed13                    65cca3d47bf32f16  orders=12 fills=12 exits=12 trades=12 net=9628.23318620601\nMISMATCH probe_plant_shadow_seed13: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[probe_shadow_closed_loop_seed12] _
+
+scenario = 'probe_shadow_closed_loop_seed12'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: probe_shadow_closed_loop_seed12              a9540c8e585e5cd0  orders=3 fills=3 exits=3 trades=3 net=804.0296120588523
+E         MISMATCH probe_shadow_closed_loop_seed12: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'probe_shadow_closed_loop_seed12'], returncode=1, stdout="probe_shadow_closed_loop_seed12              a9540c8e585e5cd0  orders=3 fills=3 exits=3 trades=3 net=804.0296120588523\nMISMATCH probe_shadow_closed_loop_seed12: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[regime_multiday_no_plant] __
+
+scenario = 'regime_multiday_no_plant'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: regime_multiday_no_plant                     1b48e75d5c118f1d  orders=61 fills=61 exits=61 trades=61 net=36242.058071489446
+E         MISMATCH regime_multiday_no_plant: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'regime_multiday_no_plant'], returncode=1, stdout="regime_multiday_no_plant                     1b48e75d5c118f1d  orders=61 fills=61 exits=61 trades=61 net=36242.058071489446\nMISMATCH regime_multiday_no_plant: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[regime_multiday_paper_apply_default_governor] _
+
+scenario = 'regime_multiday_paper_apply_default_governor'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: regime_multiday_paper_apply_default_governor a7d1fa96c4a460af  orders=1 fills=1 exits=1 trades=1 net=42.792686784399905
+E         MISMATCH regime_multiday_paper_apply_default_governor: sections ['controller_telemetry', 'entry_candidate_observations', 'governor_authority']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'regime_multiday_paper_apply_default_governor'], returncode=1, stdout="regime_multiday_paper_apply_default_governor a7d1fa96c4a460af  orders=1 fills=1 exits=1 trades=1 net=42.792686784399905\nMISMATCH regime_multiday_paper_apply_default_governor: sections ['controller_telemetry', 'entry_candidate_observations', 'governor_authority']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[regime_multiday_paper_apply_full] _
+
+scenario = 'regime_multiday_paper_apply_full'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: regime_multiday_paper_apply_full             a27d8bdc4002e1eb  orders=1 fills=1 exits=1 trades=1 net=22.357328036949767
+E         MISMATCH regime_multiday_paper_apply_full: sections ['controller_telemetry', 'entry_candidate_observations', 'position_sizing_events', 'governor_authority', 'plant_control']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'regime_multiday_paper_apply_full'], returncode=1, stdout="regime_multiday_paper_apply_full             a27d8bdc4002e1eb  orders=1 fills=1 exits=1 trades=1 net=22.357328036949767\nMISMATCH regime_multiday_paper_apply_full: sections ['controller_telemetry', 'entry_candidate_observations', 'position_sizing_events', 'governor_authority', 'plant_control']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[regime_multiday_plant_shadow] _
+
+scenario = 'regime_multiday_plant_shadow'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: regime_multiday_plant_shadow                 0beb4d7fe93ee4ef  orders=61 fills=61 exits=61 trades=61 net=36242.058071489446
+E         MISMATCH regime_multiday_plant_shadow: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'regime_multiday_plant_shadow'], returncode=1, stdout="regime_multiday_plant_shadow                 0beb4d7fe93ee4ef  orders=61 fills=61 exits=61 trades=61 net=36242.058071489446\nMISMATCH regime_multiday_plant_shadow: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed11] _
+
+scenario = 'single_signal_paper_apply_full_seed11'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: single_signal_paper_apply_full_seed11        c4ae1a959cb29dd1  orders=2 fills=2 exits=2 trades=2 net=306.6054954837027
+E         MISMATCH single_signal_paper_apply_full_seed11: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'single_signal_paper_apply_full_seed11'], returncode=1, stdout="single_signal_paper_apply_full_seed11        c4ae1a959cb29dd1  orders=2 fills=2 exits=2 trades=2 net=306.6054954837027\nMISMATCH single_signal_paper_apply_full_seed11: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed12] _
+
+scenario = 'single_signal_paper_apply_full_seed12'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: single_signal_paper_apply_full_seed12        27c848de3afeb645  orders=0 fills=0 exits=0 trades=0 net=0
+E         MISMATCH single_signal_paper_apply_full_seed12: sections ['entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'single_signal_paper_apply_full_seed12'], returncode=1, stdout="single_signal_paper_apply_full_seed12        27c848de3afeb645  orders=0 fills=0 exits=0 trades=0 net=0\nMISMATCH single_signal_paper_apply_full_seed12: sections ['entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed13] _
+
+scenario = 'single_signal_paper_apply_full_seed13'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: single_signal_paper_apply_full_seed13        2e56046068ea6825  orders=2 fills=2 exits=2 trades=2 net=230.33764364159987
+E         MISMATCH single_signal_paper_apply_full_seed13: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'single_signal_paper_apply_full_seed13'], returncode=1, stdout="single_signal_paper_apply_full_seed13        2e56046068ea6825  orders=2 fills=2 exits=2 trades=2 net=230.33764364159987\nMISMATCH single_signal_paper_apply_full_seed13: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+_ test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed14] _
+
+scenario = 'single_signal_paper_apply_full_seed14'
+
+    @pytest.mark.skipif(os.environ.get("ENGINE_C_SKIP_GOLDEN_MASTER") == "1", reason="golden master check skipped by env")
+    @pytest.mark.parametrize("scenario", GOLDEN_SCENARIOS)
+    def test_engine_a_golden_master_scenario_still_passes(scenario):
+        """Scenario-level split of the Engine A golden-master check: one subprocess and one baseline entry per test."""
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/capture_r5_golden_master.py"), "--check", "--only", scenario],
+                                cwd=ROOT, capture_output=True, text=True, timeout=GOLDEN_TIMEOUT_SECONDS,
+                                env={**os.environ, "PYTHONPATH": str(ROOT)})
+>       assert result.returncode == 0 and "GOLDEN MASTER: PASS" in result.stdout, result.stdout[-2000:]
+E       AssertionError: single_signal_paper_apply_full_seed14        21289f38bb4b6eef  orders=0 fills=0 exits=0 trades=0 net=0
+E         MISMATCH single_signal_paper_apply_full_seed14: sections ['controller_telemetry', 'entry_candidate_observations']
+E         GOLDEN MASTER: FAIL (1/1)
+E         
+E       assert (1 == 0)
+E        +  where 1 = CompletedProcess(args=['/usr/bin/python3', '/home/user/r7/scripts/capture_r5_golden_master.py', '--check', '--only', 'single_signal_paper_apply_full_seed14'], returncode=1, stdout="single_signal_paper_apply_full_seed14        21289f38bb4b6eef  orders=0 fills=0 exits=0 trades=0 net=0\nMISMATCH single_signal_paper_apply_full_seed14: sections ['controller_telemetry', 'entry_candidate_observations']\nGOLDEN MASTER: FAIL (1/1)\n", stderr='').returncode
+
+tests_engine_c/test_engine_c_backtrader.py:584: AssertionError
+- generated xml file: /home/user/zerodha-phase1/r7_validation_20261105/preflight_final/tests_engine_c.xml -
+============================= slowest 15 durations =============================
+217.50s call     tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[multiday_paper_apply_full]
+192.98s setup    tests_engine_c/test_engine_c_backtrader.py::test_multi_symbol_isolation_and_ordering
+179.22s call     tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_paper_apply_full]
+173.71s call     tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_plant_shadow]
+171.14s call     tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_paper_apply_default_governor]
+169.26s call     tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_no_plant]
+143.97s call     tests_engine_c/test_engine_c_parameter_authority.py::test_box6_levels_mode_carries_the_entry_pid_into_the_booked_position
+111.55s call     tests_engine_c/test_engine_c_parameter_authority.py::test_box6_entry_pid_has_no_actuator_in_this_engine
+77.05s call     tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed13]
+71.90s call     tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed14]
+71.25s call     tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed12]
+70.20s call     tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_no_plant_seed14]
+67.84s call     tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed11]
+66.99s call     tests_engine_c/test_engine_c_backtrader.py::test_deterministic_repeatability_in_process_and_across_hash_seeds
+66.68s call     tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_shadow_closed_loop_seed12]
+=========================== short test summary info ============================
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_and_b_code_golden_masters_and_data_untouched
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[multiday_paper_apply_full]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_no_plant_seed14]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_default_governor_seed11]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed11]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed12]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed13]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_paper_apply_full_seed14]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_plant_shadow_seed13]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[probe_shadow_closed_loop_seed12]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_no_plant]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_paper_apply_default_governor]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_paper_apply_full]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[regime_multiday_plant_shadow]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed11]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed12]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed13]
+FAILED tests_engine_c/test_engine_c_backtrader.py::test_engine_a_golden_master_scenario_still_passes[single_signal_paper_apply_full_seed14]
+================== 18 failed, 50 passed in 2593.38s (0:43:13) ==================

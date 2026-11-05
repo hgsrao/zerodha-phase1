@@ -1,0 +1,174 @@
+{
+ "engine": "A",
+ "mode": "native",
+ "profile": "installed",
+ "r7_adaptation": "off",
+ "root": "/home/user/r7",
+ "seconds": 435.9,
+ "source": {
+  "kind": "SYNTHETIC_SMOKE",
+  "label": "SYNTHETIC SMOKE FEED (seeded) -- not market data, P&L is meaningless",
+  "bars_per_symbol": 200,
+  "warmup": 60,
+  "seed_base": 11
+ },
+ "symbols": 48,
+ "plant_engine_mode": "ENGINE_A",
+ "funnel": null,
+ "orders": {
+  "entry_submitted": 5,
+  "exit_submitted": 5,
+  "fills": 5
+ },
+ "net_pnl": 718.62283885565,
+ "gross_pnl": 836.6967000000025,
+ "costs": null,
+ "exit_reasons": {
+  "target": 3,
+  "governor_exit:FSR_BELOW_EXIT:FSRN": 1,
+  "stop": 1
+ },
+ "entry_sides": {},
+ "plant_entry": {
+  "ADMITTED": 86,
+  "AVR_CLAMP": 26,
+  "ENGINE_A_DAILY_BAY_FILL_ALREADY_USED": 761
+ },
+ "reconciliation": null,
+ "native_telemetry_sha256": "0033b12ad7ecb9e64eb311b0a31e50531491ef4fadef1032297d6ae644d2ac85",
+ "native_telemetry_len": 23022,
+ "order_audit_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+ "trades_sha256": "8ea2e899b46ff33d8d47610c57197568f4f0da0c0a6bdbf575471a452bb52c4c",
+ "effective_profile": {
+  "plant_engine_mode": "ENGINE_A",
+  "no_entry_cutoff_time": "15:20",
+  "max_gross_exposure_fraction": 0.5,
+  "max_exposure_per_symbol_fraction": 0.15,
+  "live_trading_enabled": "False"
+ },
+ "cost_assumptions": {
+  "r5_slippage_fraction": 0.0005,
+  "engine_cost_model": "Engine B: Nautilus R5LegCostFeeModel"
+ },
+ "drawdown": {
+  "realized_equity_max_drawdown_fraction": 0.00013796414055857156,
+  "mtm_max_drawdown_fraction": 0.00019641262677012474
+ },
+ "per_bay_trades": {
+  "CSTG2_CONSUMER_AUTO": {
+   "trades": 1,
+   "net_pnl": 208.34162882699977,
+   "long": 0,
+   "short": 1
+  },
+  "CSTG1_BFSI": {
+   "trades": 1,
+   "net_pnl": 248.17390555199825,
+   "long": 0,
+   "short": 1
+  },
+  "GTG1_HEAVY_INDUSTRY": {
+   "trades": 1,
+   "net_pnl": 400.1896396282018,
+   "long": 0,
+   "short": 1
+  },
+  "GTG2_TECH_TELECOM": {
+   "trades": 1,
+   "net_pnl": -39.730364389999224,
+   "long": 0,
+   "short": 1
+  },
+  "BPSTG_HEALTHCARE": {
+   "trades": 1,
+   "net_pnl": -98.35197076155062,
+   "long": 1,
+   "short": 0
+  }
+ },
+ "exits": {
+  "r7_coordinated": 0,
+  "native_protective_or_native_other": 5,
+  "by_reason": {
+   "target": 3,
+   "governor_exit:FSR_BELOW_EXIT:FSRN": 1,
+   "stop": 1
+  },
+  "native_exit_advisories": 0
+ },
+ "integrity": {
+  "overfilled_orders": 0,
+  "duplicate_trade_ids": 0,
+  "audit_events": 0
+ },
+ "trades": [
+  {
+   "symbol": "ETERNAL",
+   "side": "SELL",
+   "entry_timestamp": "2024-03-04 10:21:00+05:30",
+   "exit_timestamp": "2024-03-04 10:25:00+05:30",
+   "quantity": 17,
+   "entry_price": 1468.7263,
+   "exit_price": 1455.1257,
+   "reason": "target",
+   "net_pnl": 208.34162882699977,
+   "costs": 22.868571173
+  },
+  {
+   "symbol": "ICICIBANK",
+   "side": "SELL",
+   "entry_timestamp": "2024-03-04 10:23:00+05:30",
+   "exit_timestamp": "2024-03-04 10:27:00+05:30",
+   "quantity": 20,
+   "entry_price": 1558.5778,
+   "exit_price": 1544.7414,
+   "reason": "target",
+   "net_pnl": 248.17390555199825,
+   "costs": 28.554094448
+  },
+  {
+   "symbol": "ADANIPORTS",
+   "side": "SELL",
+   "entry_timestamp": "2024-03-04 10:24:00+05:30",
+   "exit_timestamp": "2024-03-04 10:30:00+05:30",
+   "quantity": 29,
+   "entry_price": 1438.5351,
+   "exit_price": 1423.4185,
+   "reason": "target",
+   "net_pnl": 400.1896396282018,
+   "costs": 38.191760371799994
+  },
+  {
+   "symbol": "BHARTIARTL",
+   "side": "SELL",
+   "entry_timestamp": "2024-03-04 10:43:00+05:30",
+   "exit_timestamp": "2024-03-04 10:47:00+05:30",
+   "quantity": 10,
+   "entry_price": 1449.7861,
+   "exit_price": 1452.4259,
+   "reason": "governor_exit:FSR_BELOW_EXIT:FSRN",
+   "net_pnl": -39.730364389999224,
+   "costs": 13.332364389999999
+  },
+  {
+   "symbol": "MAXHEALTH",
+   "side": "BUY",
+   "entry_timestamp": "2024-03-04 10:44:00+05:30",
+   "exit_timestamp": "2024-03-04 10:48:00+05:30",
+   "quantity": 11,
+   "entry_price": 1501.2084,
+   "exit_price": 1493.6425,
+   "reason": "stop",
+   "net_pnl": -98.35197076155062,
+   "costs": 15.127070761549998
+  }
+ ],
+ "data_window": {
+  "symbols": 48,
+  "first": "None",
+  "last": "None",
+  "sessions_min": 0,
+  "sessions_max": 0,
+  "missing_minutes_total": 0
+ }
+}
