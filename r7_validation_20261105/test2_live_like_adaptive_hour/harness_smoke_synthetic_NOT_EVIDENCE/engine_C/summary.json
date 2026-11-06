@@ -1,0 +1,100 @@
+{
+ "engine": "C",
+ "r7_adaptation": "paper",
+ "seconds_full_run": 45.8,
+ "evidence_class": "SYNTHETIC_HARNESS_SMOKE_NOT_EVIDENCE",
+ "engine_clock": "every bar ticked",
+ "source": {
+  "kind": "SYNTHETIC_SMOKE",
+  "label": "SYNTHETIC SMOKE FEED (seeded) -- not market data, P&L is meaningless",
+  "bars_per_symbol": 70,
+  "warmup": 60,
+  "seed_base": 11
+ },
+ "window": {
+  "first": "2024-03-04 10:15:00+05:30",
+  "last": "2024-03-04 10:24:00+05:30",
+  "minutes": 10,
+  "warmup_bars": 60,
+  "end_offset_minutes": 0
+ },
+ "symbols": 48,
+ "missing_symbols": [],
+ "checks": {
+  "live_trading_enabled_is_False": true,
+  "data_is_frozen_historical": false,
+  "all_48_symbols_loaded": true,
+  "minutes_replayed": true,
+  "every_minute_one_decision_per_delivered_symbol": true,
+  "every_minute_full_coverage": true,
+  "causal_order_and_own_minute_decisions": true,
+  "prefix_run_reproduces_first_half": true,
+  "checkpoint_restore_reproduces_snapshot": true,
+  "restored_run_equals_reference_run": true,
+  "native_profiles_not_consumed": true,
+  "adaptation_applied_every_live_decision": true,
+  "fresh_snapshot_every_live_minute": true,
+  "active_parameters_differ_from_base": true,
+  "governor_runs_adapted_config": true,
+  "limits_never_relaxed": true,
+  "adaptation_fail_closed_count_zero": true
+ },
+ "status": "FAIL",
+ "violations": [],
+ "warmup_decisions_settled_at_first_tick": 1,
+ "checkpoint": {
+  "minute": 4,
+  "timestamp": "2024-03-04 10:19:00+05:30",
+  "sha256": "e0913fb97353792b996723d29002c74a87fbadf84f1797c0352bd14ffb44347e",
+  "restore_reproduces_snapshot": true,
+  "adaptation": "paper",
+  "adaptation_state": {
+   "last_snapshot_version": 5
+  }
+ },
+ "gate_counts": {
+  "ALLOCATION_NO_DEMAND": 2880,
+  "ADAPTATION_WARMUP": 2880,
+  "BARS_PROCESSED": 3360,
+  "ALLOCATION_FITS": 10,
+  "ADAPTATION_APPLIED": 10,
+  "UPSTREAM_CANDIDATES_RECEIVED": 228,
+  "REJECTED_BEFORE_NATIVE_ADMISSION": 33,
+  "ADMITTED_TO_NATIVE_CANDIDATE_PATH": 195,
+  "CANDIDATES_RECEIVED": 61,
+  "ADMITTED_BY_R7_PULSE": 61,
+  "ADMITTED_BY_NATIVE_PLANT_GATE": 44,
+  "REJECTED_BY_NATIVE_PLANT_GATE": 17
+ },
+ "orders": {
+  "submitted": 2,
+  "entry_submitted": 1,
+  "exit_submitted": 1,
+  "accepted": 2,
+  "rejected": 0,
+  "margin": 0,
+  "canceled": 0,
+  "expired": 0,
+  "fill_events": 2,
+  "entry_fills": 1,
+  "entry_partial_fills": 0,
+  "exit_partial_fill_events": 0,
+  "exit_residual_resubmitted": 0,
+  "positions_closed": 1,
+  "entry_capacity_rejections": 0,
+  "max_working_orders_per_symbol": 1,
+  "working_at_end": 0
+ },
+ "net_pnl": null,
+ "trades": 1,
+ "exits_by_authority": {
+  "NATIVE:target": 1
+ },
+ "safety_contract_sha256": "4c4a899fa622ea294df181df03e699335cc733a5b4910d4d1f312cbc345c3717",
+ "base_parameter_sha256": "43442f56164a6bb0467efe87329f13bf14d11040a94cf8247ed1e051f885097d",
+ "decision_count": 3360,
+ "decision_digest": "e3b84f597d5427cee5b77e969a88919a35949cde489700025815ef5f16eba730",
+ "minutes_jsonl_sha256": "d6c7f13e936f9f95b7a981c542416a6d957f1e095a23683955e81c76d5702742",
+ "r7_decisions_jsonl_sha256": "1a222e2614c6f9a9648203316dfbb4bd7e6da558359628cb4e6b9fdb232c8dc9",
+ "trades_sha256": "f2cd35aebcf63ff85b1e1baf5aeeffbfb22622fd6230773379871ad88cc38490"
+}

@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/user/r7/revision7_avr/run_r7_replay.py", line 284, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/home/user/r7/revision7_avr/run_r7_replay.py", line 186, in main
+    else load_real(symbols, a.bars, None, GRID, a.warmup))
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/r7/engine_c/data_contract.py", line 196, in load_real
+    raise DataContractError(f"frozen dataset failed manifest verification under {data_dir}: {verification.message}")
+engine_c.data_contract.DataContractError: frozen dataset failed manifest verification under /home/srinivas/projects/zerodha-phase1/data/frozen_48_1min_20230703_20260824: integrity check failed: 0 mismatched, 48 missing

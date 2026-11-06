@@ -106,6 +106,15 @@ class SymbolController:
         self._pending = (bar, context, f, vote, reference, eligible)
         return reference, eligible
 
+    def set_governor_config(self, config):
+        """Install this bar's governor parameters (runtime adaptation). Identity, FSM,
+        features and reference weights stay on the commissioned config."""
+        if self._pending is None:
+            raise RuntimeError('governor parameters change only between prepare and commit')
+        if (config.symbol, config.bay_id, config.budget_fraction) != (self.config.symbol, self.config.bay_id, self.config.budget_fraction):
+            raise ValueError('governor config identity mismatch')
+        self.governor.config = config
+
     def commit(self, increase_capacity, execution_blocked):
         """Apply the allocated capacity and advance governor and FSM exactly once."""
         if self._pending is None:

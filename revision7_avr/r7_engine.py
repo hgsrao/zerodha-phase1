@@ -15,7 +15,9 @@ from revision6_avr.r6_turbine_governor import repository_defaults, TurbineGovern
 from .r7_state import Bar, Context, ControlConfig, BayAggregateState, number, clamp
 from .r7_coordinated_controller import SymbolController
 from .r7_allocator import Utilization, droop_weights, increase_demand_pu, allocate_headroom
-from .r7_r5_dynamic_adapter import R5EnvironmentState, R7DynamicParameterAdapter
+from .r7_r5_dynamic_adapter import (R5EnvironmentState, R7DynamicParameterAdapter, DynamicParameterSnapshot,
+                                    adapted_governor_config, governor_parameter_values, governor_scales,
+                                    parameter_hash)
 
 R7_DECISION_MEMORY_LIMIT = 1000
 
@@ -90,11 +92,17 @@ class R7EngineMixin:
         self.r7_adaptation_mode = str(r7_adaptation_mode)
         self.r7_adaptation = R7DynamicParameterAdapter(self.r7_adaptation_mode)
         self.r7_adaptation_enabled = self.r7_adaptation_mode != 'off'
+        # Last native R5 snapshot version consumed; a snapshot is used at most once.
+        self._r7_adaptation_version = None
         super().__init__(*args, **kwargs)
         if set(self.symbols) != set(configs):
             raise ValueError('R7 configs must exactly match requested universe')
         if getattr(self, 'full_adaptation', False) or getattr(self, 'dynamic_profile_mode', 'off') != 'off':
             raise ValueError('R7 requires runtime parameter adaptation/profile consumption off')
+        # R7 governor adaptation reads the native PAPER_APPLY plant's per-bar R5 snapshot;
+        # the native strategy/safety profiles stay unconsumed (checked above).
+        if self.r7_adaptation_enabled and not getattr(self, '_plant_wired', False):
+            raise ValueError('R7 governor adaptation requires the PAPER_APPLY native plant')
         self.chart_studies = _StudiesTap(self.chart_studies, self)
         self.r7_topology_report = {s: c.bay_id for s, c in configs.items()}
 
@@ -229,13 +237,17 @@ class R7EngineMixin:
         if not batch:
             return {}
         util = self.r7_utilization(ts)
+        adaptation = self._r7_adaptation_for_batch()
+        # Paper adaptation without a fresh, valid snapshot blocks increases; reductions
+        # and native exits are unaffected.
+        adaptation_blocked = adaptation['status'] == 'FAIL_CLOSED' and self.r7_adaptation_mode == 'paper'
         equity = number(float(self._equity()))
         demands, blocked = {}, {}
         for symbol in sorted(batch):
             item = batch[symbol]
             blocked[symbol] = self._r7_execution_blocked(symbol)
             pu = increase_demand_pu(item['reference'], item['context'].actual_exposure)
-            if not item['eligible'] or blocked[symbol] or util is None:
+            if not item['eligible'] or blocked[symbol] or util is None or adaptation_blocked:
                 pu = 0.0
             notional = pu * equity * self.r7_configs[symbol].budget_fraction
             demands[symbol] = min(notional, self._r7_symbol_cap_notional(symbol, item['context'].actual_exposure, equity))
@@ -244,21 +256,89 @@ class R7EngineMixin:
         self.r7_gate_counts[f'ALLOCATION_{case}'] += 1
         if util is None:
             self.r7_gate_counts['ALLOCATION_FAIL_CLOSED'] += 1
+        if self.r7_adaptation_enabled:
+            self.r7_gate_counts[f"ADAPTATION_{adaptation['status']}"] += 1
         out = {}
         for symbol in sorted(batch):
             item = batch[symbol]
             ctrl = self.r7_symbol_controllers[symbol]
             base = equity * self.r7_configs[symbol].budget_fraction
-            capacity = 0.0 if util is None else grants[symbol] / base
+            governor_config, adapt_record = self._r7_governor_config(symbol, adaptation)
+            symbol_blocked = adaptation_blocked or (self.r7_adaptation_mode == 'paper' and adapt_record['status'] == 'FAIL_CLOSED')
+            capacity = 0.0 if util is None or symbol_blocked else grants[symbol] / base
+            ctrl.set_governor_config(governor_config)
             decision = ctrl.commit(capacity, blocked[symbol])
             out[symbol] = decision
-            self._r7_record(decision, item, util, case, demands[symbol], grants[symbol], capacity, blocked[symbol])
+            self._r7_record(decision, item, util, case, demands[symbol], grants[symbol], capacity, blocked[symbol],
+                            adapt_record)
         for symbol, args in sorted(self._r7_deferred_exits.items()):
             self._r7_arm_normal_exit(symbol, *args)
         self._r7_deferred_exits = {}
         return out
 
-    def _r7_record(self, decision, item, util, case, demand, grant, capacity, blocked):
+    def _r7_adaptation_for_batch(self):
+        """This timestamp's governor scales from the native plant's R5 snapshot.
+
+        The native plant evaluates the snapshot at the top of the tick from completed
+        bars only, before exits and admission, so it is causal for this commit. A
+        snapshot whose version is the one already consumed was not re-evaluated for this
+        timestamp and is stale. (Inequality, not ordering: a restarted native plant may
+        restart its version counter.)
+        """
+        if not self.r7_adaptation_enabled:
+            return {'status': 'OFF'}
+        snapshot = getattr(getattr(self, 'real_plant_dcs', None), 'dynamic_snapshot', None)
+        if not isinstance(snapshot, DynamicParameterSnapshot):
+            # Warmup bars are committed outside any tick, before the plant's first step
+            # (the last one at the head of the first tick). The commissioned parameters
+            # apply and no admission exists to block. Inside a tick a missing snapshot fails.
+            if snapshot is None and self._r7_tick_events is None:
+                return {'status': 'WARMUP', 'reason': 'BEFORE_FIRST_PLANT_STEP', 'version': None}
+            return {'status': 'FAIL_CLOSED', 'reason': 'R5_SNAPSHOT_UNAVAILABLE', 'version': None}
+        version = snapshot.version
+        if version == self._r7_adaptation_version:
+            return {'status': 'FAIL_CLOSED', 'reason': 'R5_SNAPSHOT_STALE', 'version': version}
+        try:
+            specs = self.controller_parameters.governor_specs
+            scales = {b: governor_scales(snapshot, specs, b) for b in {c.bay_id for c in self.r7_configs.values()}}
+        except (KeyError, TypeError, ValueError) as exc:
+            return {'status': 'FAIL_CLOSED', 'reason': f'R5_SNAPSHOT_INVALID: {exc}', 'version': version}
+        self._r7_adaptation_version = version
+        return {'status': 'APPLIED' if self.r7_adaptation_mode == 'paper' else 'SHADOW', 'version': version,
+                'scales': scales, 'stress_index': snapshot.stress_index,
+                'risk_derate_factor': snapshot.risk_derate_factor,
+                'environment': {'normalized_vol': snapshot.normalized_vol,
+                                'trend_probability': snapshot.trend_probability,
+                                'chop_probability': snapshot.chop_probability,
+                                'turbulent_probability': snapshot.turbulent_probability}}
+
+    def _r7_governor_config(self, symbol, adaptation):
+        """The governor config this commit uses and its telemetry record."""
+        base = self.r7_configs[symbol]
+        status = adaptation['status']
+        if status == 'OFF':
+            # Fixed-parameter runs keep the pre-adaptation decision record byte for byte.
+            return base, None
+        candidate = None
+        if status in ('APPLIED', 'SHADOW'):
+            try:
+                candidate = adapted_governor_config(base, adaptation['scales'][base.bay_id])
+            except ValueError as exc:
+                status, adaptation = 'FAIL_CLOSED', {**adaptation, 'reason': f'R7_CONFIG_INVALID: {exc}'}
+        active = candidate if status == 'APPLIED' else base
+        values = governor_parameter_values(active)
+        record = {'mode': self.r7_adaptation_mode, 'status': status,
+                  'snapshot_version': adaptation.get('version'), 'reason': adaptation.get('reason'),
+                  'active_parameters': values, 'parameter_hash': parameter_hash(values),
+                  'base_parameter_hash': parameter_hash(governor_parameter_values(base))}
+        if candidate is not None:
+            record['scales'] = dict(adaptation['scales'][base.bay_id])
+            record['proposed_parameters'] = governor_parameter_values(candidate)
+            for key in ('stress_index', 'risk_derate_factor', 'environment'):
+                record[key] = adaptation[key]
+        return active, record
+
+    def _r7_record(self, decision, item, util, case, demand, grant, capacity, blocked, adaptation=None):
         context, grid = item['context'], item['grid']
         self.r7_gate_counts['BARS_PROCESSED'] += 1
         fraction = self.r7_configs[decision.symbol].budget_fraction
@@ -282,6 +362,8 @@ class R7EngineMixin:
                             'grid_deviation': None if grid is None else float(grid),
                             'study_available': item['study_available'],
                             'dispatch_available': context.dispatch_available}
+        if adaptation is not None:
+            record['adaptation'] = adaptation
         self._r7_emit_decision(record)
         self._record_controller_event('R7_COMPLETED_BAR', decision.timestamp, decision.symbol, record)
 
@@ -511,20 +593,33 @@ class R7EngineMixin:
     def r7_snapshot(self):
         if self._r7_observed or self._r7_batch or self._r7_deferred_exits:
             raise RuntimeError('snapshot requires a completed control handoff')
-        return deepcopy({'schema': 2, 'adaptation': 'off', 'dispatch_scale': self.r7_dispatch_scale,
+        payload = {'schema': 2, 'adaptation': self.r7_adaptation_mode, 'dispatch_scale': self.r7_dispatch_scale,
             'allow_shorts': self.r7_allow_native_shorts, 'topology': self.r7_topology_report,
             'controllers': {s: c.snapshot() for s, c in self.r7_symbol_controllers.items()},
             'physical': {b: x.snapshot() for b, x in self.r7_physical_units.items()},
             'bay_state': {b: x.symbols for b, x in self.r7_bay_state.items()},
             'normal_exit_state': self.r7_normal_exit_state,
             'counts': dict(self.r7_gate_counts),
-            'decision_count': self.r7_decision_count, 'decision_digest': self.r7_decision_digest})
+            'decision_count': self.r7_decision_count, 'decision_digest': self.r7_decision_digest}
+        if self.r7_adaptation_enabled:
+            payload['adaptation_state'] = {'last_snapshot_version': self._r7_adaptation_version}
+        return deepcopy(payload)
 
     def r7_restore(self, payload):
         """Restore R7 control state only, alongside a separately restored native ledger."""
         json.dumps(payload, allow_nan=False)
-        if (payload['schema'], payload['adaptation'], payload['dispatch_scale'], payload['allow_shorts'], payload['topology']) != (2, 'off', self.r7_dispatch_scale, self.r7_allow_native_shorts, self.r7_topology_report):
+        if (payload['schema'], payload['adaptation'], payload['dispatch_scale'], payload['allow_shorts'], payload['topology']) != (2, self.r7_adaptation_mode, self.r7_dispatch_scale, self.r7_allow_native_shorts, self.r7_topology_report):
             raise ValueError('R7 checkpoint identity/configuration mismatch')
+        adaptation_version = None
+        if self.r7_adaptation_enabled:
+            state = payload.get('adaptation_state')
+            if not isinstance(state, dict) or set(state) != {'last_snapshot_version'}:
+                raise ValueError('invalid adaptation checkpoint')
+            adaptation_version = state['last_snapshot_version']
+            if adaptation_version is not None and (type(adaptation_version) is not int or adaptation_version < 0):
+                raise ValueError('invalid adaptation checkpoint')
+        elif 'adaptation_state' in payload:
+            raise ValueError('adaptation state in a non-adaptive checkpoint')
         if set(payload['controllers']) != set(self.r7_symbol_controllers) or set(payload['physical']) != set(BAY_IDS) or set(payload['bay_state']) != set(BAY_IDS):
             raise ValueError('R7 checkpoint universe mismatch')
         new = {s: SymbolController(c) for s, c in self.r7_configs.items()}
@@ -556,6 +651,7 @@ class R7EngineMixin:
         self.r7_decisions.clear()
         self.r7_decision_count, self.r7_decision_digest = payload['decision_count'], payload['decision_digest']
         self.r7_normal_exit_state = deepcopy(payload['normal_exit_state'])
+        self._r7_adaptation_version = adaptation_version
 
 
 def engine_class(base=None):
