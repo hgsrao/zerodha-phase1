@@ -231,7 +231,8 @@ def main() -> int:
                                                         "quarters": [j["label"] for j in jobs]}, indent=1))
     results = []
     with cf.ProcessPoolExecutor(max_workers=a.workers) as pool:
-        futures = {pool.submit(run_quarter, j): j["label"] for j in jobs}
+        # Most recent quarters first, so the latest market regime reports soonest.
+        futures = {pool.submit(run_quarter, j): j["label"] for j in sorted(jobs, key=lambda j: j["label"], reverse=True)}
         for fut in cf.as_completed(futures):
             r = fut.result()
             results.append(r)
