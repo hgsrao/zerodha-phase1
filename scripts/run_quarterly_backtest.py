@@ -2,7 +2,7 @@
 
     LIVE_TRADING_ENABLED=False PYTHONPATH=. python scripts/run_quarterly_backtest.py \
         --data-dir <frozen_48_1min dir> --grid-manifest <grid-manifest-local.json> --out DIR \
-        [--mode native|r7] [--workers 4] [--quarters 2023Q3,2023Q4,...] [--warmup 60]
+        [--mode native|r7] [--workers 4] [--period quarter|month] [--quarters 2023Q3,...] [--warmup 60]
 
 Engine A (the shared core orchestrator with its paper broker, configured exactly as
 scripts/run_engine_a_reference.py configures it) runs each calendar quarter of the frozen
@@ -11,6 +11,11 @@ wraps the same engine in R7 with adaptation off. Every quarter starts from the s
 capital; the engine squares off intraday positions each session, so quarters are
 independent. The dataset is verified against its manifest and audited once, before any
 quarter starts. The grid feeds are verified by checksum. Nothing connects to a broker.
+
+``--period month`` splits the same range into calendar-month windows, so more cores can work
+at once; the verdict still aggregates net P&L and trades by quarter, and the drawdown limit
+applies to every window. A finished window's result file is never recomputed, so rerunning
+the same command after an interruption resumes where it stopped.
 
 The pass/fail criteria are fixed in PREREGISTERED_CRITERIA below and written to the output
 before any quarter runs. ``--synthetic`` replays a seeded synthetic feed split into two
@@ -57,6 +62,36 @@ def quarters_between(first: date, last: date):
     return out
 
 
+def months_between(first: date, last: date):
+    out, y, m = [], first.year, first.month
+    while date(y, m, 1) <= last:
+        ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
+        out.append((f"{y}M{m:02d}", max(first, date(y, m, 1)), min(last, date.fromordinal(date(ny, nm, 1).toordinal() - 1))))
+        y, m = ny, nm
+    return out
+
+
+def quarter_of(label: str) -> str:
+    if "M" not in label:
+        return label
+    y, m = label.split("M")
+    return f"{y}Q{(int(m) - 1) // 3 + 1}"
+
+
+def _read_window_csv(path, start, end):
+    """Rows from ten days before ``start`` (enough for the warmup bars) through ``end``, read
+    in chunks so a worker never holds a whole three-year file."""
+    import pandas as pd
+    lo, hi = pd.Timestamp(start) - pd.Timedelta(days=10), pd.Timestamp(end) + pd.Timedelta(days=1)
+    parts = []
+    for chunk in pd.read_csv(path, chunksize=200_000):
+        stamps = pd.to_datetime(chunk["timestamp"].astype(str).str[:19])
+        keep = chunk[(stamps >= lo) & (stamps < hi)]
+        if len(keep):
+            parts.append(keep)
+    return pd.concat(parts, ignore_index=True) if parts else pd.read_csv(path, nrows=0)
+
+
 def _dig(x):
     return hashlib.sha256(json.dumps(x, sort_keys=True, default=str).encode()).hexdigest()
 
@@ -92,7 +127,7 @@ def run_quarter(job):
         from scripts.run_r5_paper_replay import load_verified_grid_feeds
         data = {}
         for symbol, path in job["files"].items():
-            frame, used_warmup = _window(normalise(pd.read_csv(path)), start, end, warmup)
+            frame, used_warmup = _window(normalise(_read_window_csv(path, start, end)), start, end, warmup)
             if used_warmup < warmup or len(frame) <= warmup:
                 raise RuntimeError(f"{label}: {symbol} has {used_warmup} warmup bars / {len(frame)} rows")
             data[symbol] = frame
@@ -159,11 +194,15 @@ def verdict(results, synthetic):
     c = PREREGISTERED_CRITERIA
     total_trades = sum(r["trades"] for r in results)
     total_net = sum(r["net_pnl"] for r in results)
-    positive = sum(1 for r in results if r["net_pnl"] > 0)
-    last_four = sum(r["net_pnl"] for r in results[-4:])
+    by_quarter = {}
+    for r in results:
+        by_quarter[quarter_of(r["quarter"])] = by_quarter.get(quarter_of(r["quarter"]), 0.0) + r["net_pnl"]
+    quarter_net = [by_quarter[q] for q in sorted(by_quarter)]
+    positive = sum(1 for x in quarter_net if x > 0)
+    last_four = sum(quarter_net[-4:])
     checks = {
         "total_net_pnl_positive": total_net > 0,
-        "fraction_of_quarters_net_positive": positive / len(results) >= c["minimum_fraction_of_quarters_net_positive"],
+        "fraction_of_quarters_net_positive": positive / len(quarter_net) >= c["minimum_fraction_of_quarters_net_positive"],
         "average_net_pnl_per_trade_positive": total_trades > 0 and total_net / total_trades > 0,
         "worst_quarter_mtm_drawdown_within_limit":
             max(r["mtm_max_drawdown_fraction"] for r in results) <= c["maximum_quarter_mtm_drawdown_fraction"],
@@ -177,7 +216,8 @@ def verdict(results, synthetic):
         status = "PASS" if all(checks.values()) else "FAIL"
     return {"status": status, "checks": checks, "total_trades": total_trades, "total_net_pnl": total_net,
             "total_gross_pnl": sum(r["gross_pnl"] for r in results), "total_costs": sum(r["costs"] for r in results),
-            "quarters_net_positive": positive, "quarters": len(results), "last_four_quarters_net": last_four,
+            "quarters_net_positive": positive, "quarters": len(quarter_net), "windows": len(results),
+            "net_pnl_by_quarter": dict(sorted(by_quarter.items())), "last_four_quarters_net": last_four,
             "net_pnl_per_trade": (total_net / total_trades) if total_trades else None,
             "worst_quarter_mtm_drawdown_fraction": max(r["mtm_max_drawdown_fraction"] for r in results)}
 
@@ -191,7 +231,8 @@ def main() -> int:
     p.add_argument("--grid-manifest", type=Path)
     p.add_argument("--mode", choices=["native", "r7"], default="native")
     p.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
-    p.add_argument("--quarters", default="ALL")
+    p.add_argument("--quarters", default="ALL", help="window labels to run (e.g. 2026Q2 or 2026M05), or ALL")
+    p.add_argument("--period", choices=["quarter", "month"], default="quarter")
     p.add_argument("--warmup", type=int, default=60)
     p.add_argument("--synthetic", action="store_true")
     p.add_argument("--synthetic-bars", type=int, default=400)
@@ -221,15 +262,25 @@ def main() -> int:
         require_clean(audits)                                  # whole files, before any quarter
         first = min(date.fromisoformat(f.first_timestamp[:10]) for f in manifest.files)
         last = max(date.fromisoformat(f.last_timestamp[:10]) for f in manifest.files)
-        all_q = quarters_between(first, last)
+        all_q = (months_between if a.period == "month" else quarters_between)(first, last)
         wanted = None if a.quarters == "ALL" else set(a.quarters.split(","))
         jobs = [{**base, "label": lab, "start": s, "end": e, "files": files, "grid_manifest": str(a.grid_manifest)}
                 for lab, s, e in all_q if wanted is None or lab in wanted]
         identity = {"source": "FROZEN_NSE_48_1MIN", "manifest_hash": manifest.manifest_hash,
                     "symbols": len(files), "first": str(first), "last": str(last)}
     (out / "RUN_IDENTITY.json").write_text(json.dumps({**identity, "mode": a.mode, "engine": "A",
+                                                        "period": a.period,
                                                         "quarters": [j["label"] for j in jobs]}, indent=1))
     results = []
+    # Resume: a window whose result file exists finished in an earlier run; keep it.
+    for j in list(jobs):
+        done = out / f"{j['label']}.json"
+        if done.is_file():
+            r = json.loads(done.read_text())
+            if r.get("mode") == a.mode:
+                results.append(r)
+                jobs.remove(j)
+                print(f"{r['quarter']}: already done (resumed) net={r['net_pnl']:.2f}", flush=True)
     with cf.ProcessPoolExecutor(max_workers=a.workers) as pool:
         # Most recent quarters first, so the latest market regime reports soonest.
         futures = {pool.submit(run_quarter, j): j["label"] for j in sorted(jobs, key=lambda j: j["label"], reverse=True)}
