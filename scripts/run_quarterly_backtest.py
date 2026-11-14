@@ -106,6 +106,27 @@ def _window(frame, start, end, warmup):
     return frame.iloc[lo:hi].reset_index(drop=True), first - lo
 
 
+def select_window_frames(frames_by_symbol, start, end, warmup):
+    """Each symbol's replay frame for the window, plus what was done about listings.
+
+    A symbol with enough history before ``start`` warms up on it. A symbol listed during the
+    window warms up on its own first ``warmup`` bars inside the window (the engine never
+    trades a frame's warmup bars, so this stays causal). A symbol with no more than
+    ``warmup + 1`` bars in the window was not listed yet and is left out, by name.
+    """
+    data, late, absent = {}, {}, {}
+    for symbol, full in sorted(frames_by_symbol.items()):
+        frame, used = _window(full, start, end, warmup)
+        if used >= warmup:
+            data[symbol] = frame
+        elif len(frame) > warmup + 1:
+            data[symbol] = frame.iloc[used:].reset_index(drop=True)      # own first bars warm up
+            late[symbol] = str(data[symbol]["timestamp"].iloc[0])
+        else:
+            absent[symbol] = f"{len(frame)} bars in window: not listed yet"
+    return data, late, absent
+
+
 def run_quarter(job):
     os.environ.setdefault("LIVE_TRADING_ENABLED", "False")
     assert os.environ["LIVE_TRADING_ENABLED"] == "False"
@@ -122,15 +143,13 @@ def run_quarter(job):
         half = job["synthetic_bars"] // 2
         data = {s: (f.iloc[:half] if job["part"] == 0 else f.iloc[half - warmup:]).reset_index(drop=True)
                 for s, f in full.items()}
+        late_listed, not_listed = {}, {}
     else:
         from engine_c.data_contract import normalise
         from scripts.run_r5_paper_replay import load_verified_grid_feeds
-        data = {}
-        for symbol, path in job["files"].items():
-            frame, used_warmup = _window(normalise(_read_window_csv(path, start, end)), start, end, warmup)
-            if used_warmup < warmup or len(frame) <= warmup:
-                raise RuntimeError(f"{label}: {symbol} has {used_warmup} warmup bars / {len(frame)} rows")
-            data[symbol] = frame
+        data, late_listed, not_listed = select_window_frames(
+            {symbol: normalise(_read_window_csv(path, start, end)) for symbol, path in job["files"].items()},
+            start, end, warmup)
         feeds = load_verified_grid_feeds(job["grid_manifest"])
         cut = pd.Timestamp(end, tz="Asia/Kolkata") + pd.Timedelta(days=1)
         nifty = feeds["NIFTY_50_15MIN"][feeds["NIFTY_50_15MIN"]["timestamp"] < cut].reset_index(drop=True)
@@ -170,6 +189,7 @@ def run_quarter(job):
     result = {
         "quarter": label, "mode": mode, "start": str(start), "end": str(end),
         "first_bar": str(first_ts), "last_bar": str(last_ts), "symbols": len(symbols),
+        "warmed_up_on_own_first_bars_in_window": late_listed, "not_listed_in_window": not_listed,
         "bars_replayed": int(sum(len(f) for f in live.values())), "warmup_bars_per_symbol": warmup,
         "trades": len(trades), "wins": sum(1 for x in net if x > 0), "losses": sum(1 for x in net if x < 0),
         "gross_pnl": float(report.get("gross_pnl") or 0.0), "costs": costs, "net_pnl": float(sum(net)),
@@ -284,14 +304,23 @@ def main() -> int:
     with cf.ProcessPoolExecutor(max_workers=a.workers) as pool:
         # Most recent quarters first, so the latest market regime reports soonest.
         futures = {pool.submit(run_quarter, j): j["label"] for j in sorted(jobs, key=lambda j: j["label"], reverse=True)}
+        failed = {}
         for fut in cf.as_completed(futures):
-            r = fut.result()
+            try:
+                r = fut.result()
+            except Exception as exc:                  # record it; the other windows carry on
+                failed[futures[fut]] = repr(exc)
+                (out / f"{futures[fut]}.FAILED.txt").write_text(repr(exc))
+                print(f"{futures[fut]}: FAILED {exc!r}", flush=True)
+                continue
             results.append(r)
             print(f"{r['quarter']}: trades={r['trades']} net={r['net_pnl']:.2f} costs={r['costs']:.2f} "
                   f"mtm_dd={r['mtm_max_drawdown_fraction']:.4f} ({r['seconds']}s)", flush=True)
     results.sort(key=lambda r: r["quarter"])
     summary = {**verdict(results, a.synthetic), "criteria": PREREGISTERED_CRITERIA, "identity": identity,
                "mode": a.mode, "per_quarter": results}
+    if failed:
+        summary.update(status="INCOMPLETE", failed_windows=failed)
     (out / "SUMMARY.json").write_text(json.dumps(summary, indent=1, default=str))
     print(json.dumps({k: summary[k] for k in ("status", "checks", "total_trades", "total_net_pnl", "total_costs",
                                               "quarters_net_positive", "quarters")}, default=str))
