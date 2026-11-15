@@ -1,0 +1,9 @@
+{
+ "minimum_total_trades": 30,
+ "total_net_pnl_positive": true,
+ "minimum_fraction_of_quarters_net_positive": 0.6,
+ "average_net_pnl_per_trade_positive": true,
+ "maximum_quarter_mtm_drawdown_fraction": 0.1,
+ "last_four_quarters_combined_net_positive": true,
+ "verdict_rule": "INCONCLUSIVE if total trades < minimum_total_trades; otherwise PASS only if every other criterion holds, else FAIL. Nifty buy-and-hold is reported, not a criterion."
+}

@@ -1,0 +1,9 @@
+{
+ "source": "SYNTHETIC_SMOKE (seeded) -- not market data, P&L is meaningless",
+ "mode": "native",
+ "engine": "A",
+ "quarters": [
+  "SYNTH1",
+  "SYNTH2"
+ ]
+}

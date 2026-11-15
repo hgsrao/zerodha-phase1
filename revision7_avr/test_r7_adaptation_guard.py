@@ -1,4 +1,6 @@
-"""R7 never runs with runtime adaptation. These tests pin the guard; they do not enable adaptation."""
+"""Adaptation guards. R7 never consumes the native strategy/safety runtime profiles and has no
+full-adaptation switch. Its own governor adaptation (test_r7_governor_adaptation.py) is opt-in
+via r7_adaptation_mode, off by default, and only from the PAPER_APPLY plant's R5 snapshot."""
 import json
 from pathlib import Path
 import pandas as pd
@@ -25,6 +27,11 @@ def plant_kwargs():
 CFG = ControlConfig('INFY', 'GTG2_TECH_TELECOM', 0.02)
 
 
+def test_adaptation_defaults_off():
+    e = Revision7Engine(['INFY'], r7_configs=[CFG], **plant_kwargs())
+    assert e.r7_adaptation_mode == 'off' and 'adaptation_state' not in e.r7_snapshot()
+
+
 def test_engine_constructs_with_a_paper_apply_plant_when_adaptation_is_off():
     e = Revision7Engine(['INFY'], r7_configs=[CFG], **plant_kwargs())
     assert e.dynamic_profile_mode == 'off' and e.r7_adaptation_enabled is False and e.r7_adaptation_mode == 'off'
@@ -49,9 +56,13 @@ def test_checkpoint_declares_adaptation_off_and_rejects_anything_else():
         e.r7_restore(snap)
 
 
-def test_replay_harness_exposes_no_adaptation_option():
-    text = (HERE / 'run_r7_replay.py').read_text()
-    assert 'dynamic_profile_mode' not in text and 'full_adaptation' not in text and '--adapt' not in text
+def test_replay_harnesses_expose_only_the_explicit_r7_governor_adaptation_option():
+    for name in ('run_r7_replay.py', 'run_r7_live_like_replay.py'):
+        text = (HERE / name).read_text()
+        assert 'dynamic_profile_mode=' not in text and 'full_adaptation' not in text
+        assert '"--r7-adaptation", choices=["off", "shadow", "paper"]' in text
+    # The historical replay stays fixed-parameter unless adaptation is requested.
+    assert 'choices=["off", "shadow", "paper"], default="off"' in (HERE / 'run_r7_replay.py').read_text()
 
 
 def test_r7_parameters_are_immutable_during_a_run():

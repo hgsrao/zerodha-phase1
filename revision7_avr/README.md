@@ -88,6 +88,33 @@ AVR closes a loop around an internal participation model. OHLCV relative volume
 is a liquidity proxy, not order-book liquidity or measured spread/depth. All
 tuning and decision thresholds remain provisional research values.
 
+## Governor adaptation (opt-in, paper only)
+
+`r7_adaptation_mode` is `off` by default; in `off` the decision records, counters and
+checkpoint are exactly those of the fixed-parameter engine. `shadow` and `paper` need the
+PAPER_APPLY native plant. At each timestamp's batch commit R7 reads the plant's R5
+`DynamicParameterSnapshot`, which the native tick evaluates first from completed bars only.
+It never calls the R5 evaluator itself.
+
+Five of the eleven governor parameters follow the R5 bay schedule as dimensionless ratios
+of R5's current value to its own commissioned base. This is the ratio the native engine
+applies to its execution PIDs, so no R5 gain is copied across units:
+Kp x kp/kp0, Ki x ki/ki0, Kd x kd/kd0, integral limit x min(1, clamp/clamp0) and
+command slew x min(1, risk derate). The last two are tighten-only. Derivative filter,
+response lag, droop R (fixed per run by the allocation spec) and the three reference
+weights have no approved R5 schedule and stay commissioned. `shadow` records the proposed
+values while the governor keeps the commissioned ones; `paper` installs them on the
+governor for that commit only. Features, AVR, FSM and the commissioned `r7_configs` never
+change. Native strategy/safety profile consumption (`dynamic_profile_mode`) stays refused.
+
+A snapshot is used once. A missing, repeated (stale) or invalid snapshot inside a tick
+fails closed: commissioned parameters and zero increase capacity for every symbol at that
+timestamp, while reductions and native exits continue. Warmup bars, committed before the
+plant's first step, are labelled `WARMUP`. Each decision record carries the mode, status,
+snapshot version, R5 inputs, scales, active and proposed parameter values and their SHA-256.
+An adaptive checkpoint declares its mode and the last snapshot version consumed.
+`run_r7_live_like_replay.py` is the minute-by-minute paper harness for this mode.
+
 ## Recovery
 
 `r7_snapshot` (schema 2) includes configuration, symbol histories, caches, AVR,

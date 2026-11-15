@@ -1,15 +1,19 @@
 """Exact R5 dynamic-parameter evaluation for the R7 engine.
 
 R7 does not duplicate the R5 formulas.  It calls the certified R5 evaluator and
-records every field in the immutable ``DynamicParameterSnapshot``.  ``shadow``
-and ``paper`` are observation modes here; neither mode overwrites R7's four
-evidence-PID gains.
+records every field in the immutable ``DynamicParameterSnapshot``.  The evidence-PID
+gains are never overwritten. In the engine, ``shadow`` records the governor scales
+derived from the native plant's per-bar snapshot and ``paper`` also applies them to
+the R7 market governor (see ``governor_scales``).
 """
 
 from __future__ import annotations
 
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 from enum import Enum
+from hashlib import sha256
+import json
+import math
 from typing import Any, Mapping
 
 from revision5.dynamic_parameters import (
@@ -110,3 +114,52 @@ class R7DynamicParameterAdapter:
             if name in current and name in proposed:
                 result[name] = min(float(current[name]), float(proposed[name]))
         return result
+
+
+# The eleven R7 governor parameters. Five follow the R5 governor schedule; six stay at
+# the commissioned value because R5 has no approved schedule for them (droop R is fixed
+# per run by the allocation spec). All eleven are read by the decision loop every bar.
+R7_GOVERNOR_PARAMETERS = (
+    'kp', 'ki_per_second', 'kd_seconds', 'integral_limit', 'command_slew_per_second',
+    'derivative_tau_seconds', 'market_response_tau_seconds', 'droop_r',
+    'avr_weight', 'study_weight', 'dispatch_weight')
+R7_ADAPTED_GOVERNOR_PARAMETERS = R7_GOVERNOR_PARAMETERS[:5]
+
+
+def governor_scales(snapshot: DynamicParameterSnapshot, governor_specs: Mapping[str, Any],
+                    bay_id: str) -> dict[str, float]:
+    """Dimensionless multipliers for one bay from the native R5 snapshot.
+
+    Each is the R5 schedule's current value over its own commissioned base, the same
+    ratio the native engine applies to its execution PIDs, so no R5 gain is copied
+    across units. Integral limit and slew are tighten-only (multiplier <= 1).
+    """
+    profile, spec = snapshot.governor_by_bay[bay_id], governor_specs[bay_id]
+
+    def ratio(name):
+        base = float(getattr(spec, name))
+        return float(getattr(profile, name)) / base if base else 1.0
+
+    scales = {'kp': ratio('kp'), 'ki_per_second': ratio('ki'), 'kd_seconds': ratio('kd'),
+              'integral_limit': min(1.0, ratio('integral_clamp')),
+              'command_slew_per_second': min(1.0, float(snapshot.risk_derate_factor))}
+    for name, value in scales.items():
+        if not math.isfinite(value) or value < 0.0:
+            raise ValueError(f'invalid R5 governor scale for {bay_id}.{name}: {value!r}')
+    if scales['integral_limit'] <= 0.0 or scales['command_slew_per_second'] <= 0.0:
+        raise ValueError(f'R5 governor scale would disable a limit for {bay_id}')
+    return scales
+
+
+def adapted_governor_config(base, scales: Mapping[str, float]):
+    """The base ControlConfig with the scaled governor parameters (validated on build)."""
+    return replace(base, **{name: getattr(base, name) * float(scales[name])
+                            for name in R7_ADAPTED_GOVERNOR_PARAMETERS})
+
+
+def governor_parameter_values(config) -> dict[str, float]:
+    return {name: float(getattr(config, name)) for name in R7_GOVERNOR_PARAMETERS}
+
+
+def parameter_hash(values: Mapping[str, Any]) -> str:
+    return sha256(json.dumps(values, sort_keys=True, allow_nan=False).encode()).hexdigest()

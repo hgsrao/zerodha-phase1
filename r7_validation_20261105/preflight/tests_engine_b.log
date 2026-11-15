@@ -1,0 +1,88 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-9.2.0, pluggy-1.7.0 -- /usr/bin/python3
+rootdir: /home/user/r7
+plugins: typeguard-4.6.0, anyio-4.15.1
+collecting ... collected 21 items
+
+tests_engine_b/test_engine_b_nautilus.py::test_native_order_fill_lifecycle PASSED [  4%]
+tests_engine_b/test_engine_b_nautilus.py::test_independent_nautilus_accounting_reconciles_with_r5_ledger PASSED [  9%]
+tests_engine_b/test_engine_b_nautilus.py::test_event_chronology_and_causal_decision_clock PASSED [ 14%]
+tests_engine_b/test_engine_b_nautilus.py::test_option_a_post_fill_risk_stop_target_and_plant_capacity PASSED [ 19%]
+tests_engine_b/test_engine_b_nautilus.py::test_no_lookahead_future_bars_cannot_change_past_decisions PASSED [ 23%]
+tests_engine_b/test_engine_b_nautilus.py::test_paper_broker_is_disabled_and_port_is_required PASSED [ 28%]
+tests_engine_b/test_engine_b_nautilus.py::test_protected_engine_a_files_unchanged PASSED [ 33%]
+tests_engine_b/test_engine_b_nautilus.py::test_nautilus_denied_entry_is_disposed_and_nothing_is_booked PASSED [ 38%]
+tests_engine_b/test_engine_b_nautilus.py::test_native_partial_entry_and_exit_fills_reconcile PASSED [ 42%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_base_has_filled_orders PASSED [ 47%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_parameter_and_mode_changes_reach_nautilus_orders[{'registry': 'avr_loading_fraction_base=0.08'}] PASSED [ 52%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_parameter_and_mode_changes_reach_nautilus_orders[{'registry': 'gov_gtg2_base_z=-1.0'}] PASSED [ 57%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_parameter_and_mode_changes_reach_nautilus_orders[{'calibration_overrides': {'pid_ki_exit': 0.15}}] PASSED [ 61%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_parameter_and_mode_changes_reach_nautilus_orders[{'calibration_overrides': {'pid_kd_exit': 0.15}}] PASSED [ 66%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_parameter_and_mode_changes_reach_nautilus_orders[{'avr_voltage_mode': 'measured'}] PASSED [ 71%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_startup_report_carries_the_effective_controller_values PASSED [ 76%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_authority_telemetry_does_not_change_engine_b_orders PASSED [ 80%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_box6_entry_pid_has_no_actuator_in_this_engine PASSED [ 85%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_box6_levels_mode_carries_the_entry_pid_into_the_booked_position PASSED [ 90%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_bounded_dispatcher_keeps_every_applied_allocation_inside_its_bounds PASSED [ 95%]
+tests_engine_b/test_engine_b_parameter_authority.py::test_in_flight_protection_mode_runs_through_the_harness PASSED [100%]
+
+=============================== warnings summary ===============================
+engine_b/orchestrator.py:32
+  /home/user/r7/engine_b/orchestrator.py:32: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    BAR_SPAN = pd.Timedelta(minutes=1)
+
+../../../usr/local/lib/python3.13/dist-packages/nautilus_trader/persistence/catalog/parquet.py:829
+  /usr/local/lib/python3.13/dist-packages/nautilus_trader/persistence/catalog/parquet.py:829: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    period: pd.Timedelta = pd.Timedelta(days=1),
+
+../../../usr/local/lib/python3.13/dist-packages/nautilus_trader/persistence/catalog/parquet.py:895
+  /usr/local/lib/python3.13/dist-packages/nautilus_trader/persistence/catalog/parquet.py:895: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    period: pd.Timedelta = pd.Timedelta(days=1),
+
+engine_b/nautilus_market.py:21
+  /home/user/r7/engine_b/nautilus_market.py:21: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    BAR_SPAN = pd.Timedelta(minutes=1)
+
+tests_engine_b/test_engine_b_nautilus.py::test_native_order_fill_lifecycle
+tests_engine_b/test_engine_b_nautilus.py::test_native_order_fill_lifecycle
+tests_engine_b/test_engine_b_parameter_authority.py::test_base_has_filled_orders
+tests_engine_b/test_engine_b_parameter_authority.py::test_base_has_filled_orders
+  /home/user/r7/scripts/run_engine_b_nautilus.py:61: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    day += pd.Timedelta(days=1)
+
+tests_engine_b/test_engine_b_nautilus.py::test_native_order_fill_lifecycle
+tests_engine_b/test_engine_b_nautilus.py::test_native_order_fill_lifecycle
+tests_engine_b/test_engine_b_parameter_authority.py::test_base_has_filled_orders
+tests_engine_b/test_engine_b_parameter_authority.py::test_base_has_filled_orders
+  /home/user/r7/scripts/run_engine_b_nautilus.py:78: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    grid_t = pd.date_range(start - pd.Timedelta(days=12), stamps[-1] + pd.Timedelta(hours=1), freq="15min")
+
+tests_engine_b/test_engine_b_nautilus.py: 8 warnings
+tests_engine_b/test_engine_b_parameter_authority.py: 34 warnings
+  /usr/local/lib/python3.13/dist-packages/pandas/core/tools/timedeltas.py:233: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    result = Timedelta(r, unit)
+
+tests_engine_b/test_engine_b_nautilus.py: 625 warnings
+tests_engine_b/test_engine_b_parameter_authority.py: 3130 warnings
+  /home/user/r7/revision2_external/grid_context.py:176: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    age = pd.Timedelta(seconds=grid.age_seconds)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /home/user/zerodha-phase1/r7_validation_20261105/preflight/tests_engine_b.xml -
+============================= slowest 15 durations =============================
+137.56s call     tests_engine_b/test_engine_b_parameter_authority.py::test_box6_levels_mode_carries_the_entry_pid_into_the_booked_position
+99.53s call     tests_engine_b/test_engine_b_parameter_authority.py::test_box6_entry_pid_has_no_actuator_in_this_engine
+36.17s call     tests_engine_b/test_engine_b_parameter_authority.py::test_parameter_and_mode_changes_reach_nautilus_orders[{'calibration_overrides': {'pid_kd_exit': 0.15}}]
+35.66s call     tests_engine_b/test_engine_b_parameter_authority.py::test_parameter_and_mode_changes_reach_nautilus_orders[{'calibration_overrides': {'pid_ki_exit': 0.15}}]
+35.29s call     tests_engine_b/test_engine_b_parameter_authority.py::test_in_flight_protection_mode_runs_through_the_harness
+34.77s call     tests_engine_b/test_engine_b_parameter_authority.py::test_parameter_and_mode_changes_reach_nautilus_orders[{'avr_voltage_mode': 'measured'}]
+34.72s call     tests_engine_b/test_engine_b_parameter_authority.py::test_parameter_and_mode_changes_reach_nautilus_orders[{'registry': 'avr_loading_fraction_base=0.08'}]
+34.54s call     tests_engine_b/test_engine_b_parameter_authority.py::test_bounded_dispatcher_keeps_every_applied_allocation_inside_its_bounds
+34.49s setup    tests_engine_b/test_engine_b_parameter_authority.py::test_base_has_filled_orders
+34.23s call     tests_engine_b/test_engine_b_parameter_authority.py::test_authority_telemetry_does_not_change_engine_b_orders
+34.12s call     tests_engine_b/test_engine_b_nautilus.py::test_no_lookahead_future_bars_cannot_change_past_decisions
+34.12s call     tests_engine_b/test_engine_b_parameter_authority.py::test_startup_report_carries_the_effective_controller_values
+32.97s call     tests_engine_b/test_engine_b_nautilus.py::test_nautilus_denied_entry_is_disposed_and_nothing_is_booked
+32.92s call     tests_engine_b/test_engine_b_parameter_authority.py::test_parameter_and_mode_changes_reach_nautilus_orders[{'registry': 'gov_gtg2_base_z=-1.0'}]
+32.33s setup    tests_engine_b/test_engine_b_nautilus.py::test_native_order_fill_lifecycle
+================ 21 passed, 3809 warnings in 717.53s (0:11:57) =================

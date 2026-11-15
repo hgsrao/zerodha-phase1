@@ -1,0 +1,331 @@
+"""Quarter-by-quarter offline backtest of the engine as it stands, fixed parameters, frozen data.
+
+    LIVE_TRADING_ENABLED=False PYTHONPATH=. python scripts/run_quarterly_backtest.py \
+        --data-dir <frozen_48_1min dir> --grid-manifest <grid-manifest-local.json> --out DIR \
+        [--mode native|r7] [--workers 4] [--period quarter|month] [--quarters 2023Q3,...] [--warmup 60]
+
+Engine A (the shared core orchestrator with its paper broker, configured exactly as
+scripts/run_engine_a_reference.py configures it) runs each calendar quarter of the frozen
+48-symbol dataset in its own process, so memory is bounded by one quarter. ``--mode r7``
+wraps the same engine in R7 with adaptation off. Every quarter starts from the same
+capital; the engine squares off intraday positions each session, so quarters are
+independent. The dataset is verified against its manifest and audited once, before any
+quarter starts. The grid feeds are verified by checksum. Nothing connects to a broker.
+
+``--period month`` splits the same range into calendar-month windows, so more cores can work
+at once; the verdict still aggregates net P&L and trades by quarter, and the drawdown limit
+applies to every window. A finished window's result file is never recomputed, so rerunning
+the same command after an interruption resumes where it stopped.
+
+The pass/fail criteria are fixed in PREREGISTERED_CRITERIA below and written to the output
+before any quarter runs. ``--synthetic`` replays a seeded synthetic feed split into two
+windows: a harness smoke only, whose verdict is always NOT_EVIDENCE.
+"""
+from __future__ import annotations
+
+import argparse
+import concurrent.futures as cf
+import hashlib
+import json
+import os
+import sys
+import time
+import warnings
+from datetime import date
+from pathlib import Path
+
+warnings.filterwarnings("ignore")
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+STARTING_EQUITY = 1_000_000.0
+
+PREREGISTERED_CRITERIA = {
+    "minimum_total_trades": 30,
+    "total_net_pnl_positive": True,
+    "minimum_fraction_of_quarters_net_positive": 0.6,
+    "average_net_pnl_per_trade_positive": True,
+    "maximum_quarter_mtm_drawdown_fraction": 0.10,
+    "last_four_quarters_combined_net_positive": True,
+    "verdict_rule": ("INCONCLUSIVE if total trades < minimum_total_trades; otherwise PASS only if every "
+                     "other criterion holds, else FAIL. Nifty buy-and-hold is reported, not a criterion."),
+}
+
+
+def quarters_between(first: date, last: date):
+    out, y, q = [], first.year, (first.month - 1) // 3 + 1
+    while date(y, 3 * q - 2, 1) <= last:
+        start = max(first, date(y, 3 * q - 2, 1))
+        end = min(last, date(y + (q == 4), 1 if q == 4 else 3 * q + 1, 1).fromordinal(
+            date(y + (q == 4), 1 if q == 4 else 3 * q + 1, 1).toordinal() - 1))
+        out.append((f"{y}Q{q}", start, end))
+        y, q = (y + 1, 1) if q == 4 else (y, q + 1)
+    return out
+
+
+def months_between(first: date, last: date):
+    out, y, m = [], first.year, first.month
+    while date(y, m, 1) <= last:
+        ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
+        out.append((f"{y}M{m:02d}", max(first, date(y, m, 1)), min(last, date.fromordinal(date(ny, nm, 1).toordinal() - 1))))
+        y, m = ny, nm
+    return out
+
+
+def quarter_of(label: str) -> str:
+    if "M" not in label:
+        return label
+    y, m = label.split("M")
+    return f"{y}Q{(int(m) - 1) // 3 + 1}"
+
+
+def _read_window_csv(path, start, end):
+    """Rows from ten days before ``start`` (enough for the warmup bars) through ``end``, read
+    in chunks so a worker never holds a whole three-year file."""
+    import pandas as pd
+    lo, hi = pd.Timestamp(start) - pd.Timedelta(days=10), pd.Timestamp(end) + pd.Timedelta(days=1)
+    parts = []
+    for chunk in pd.read_csv(path, chunksize=200_000):
+        stamps = pd.to_datetime(chunk["timestamp"].astype(str).str[:19])
+        keep = chunk[(stamps >= lo) & (stamps < hi)]
+        if len(keep):
+            parts.append(keep)
+    return pd.concat(parts, ignore_index=True) if parts else pd.read_csv(path, nrows=0)
+
+
+def _dig(x):
+    return hashlib.sha256(json.dumps(x, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _window(frame, start, end, warmup):
+    """Warmup bars strictly before ``start``, then every bar dated start..end (inclusive)."""
+    import pandas as pd
+    day = frame["timestamp"].dt.date
+    first = int((day < start).sum())
+    lo = max(0, first - warmup)
+    hi = int((day <= end).sum())
+    return frame.iloc[lo:hi].reset_index(drop=True), first - lo
+
+
+def select_window_frames(frames_by_symbol, start, end, warmup):
+    """Each symbol's replay frame for the window, plus what was done about listings.
+
+    A symbol with enough history before ``start`` warms up on it. A symbol listed during the
+    window warms up on its own first ``warmup`` bars inside the window (the engine never
+    trades a frame's warmup bars, so this stays causal). A symbol with no more than
+    ``warmup + 1`` bars in the window was not listed yet and is left out, by name.
+    """
+    data, late, absent = {}, {}, {}
+    for symbol, full in sorted(frames_by_symbol.items()):
+        frame, used = _window(full, start, end, warmup)
+        if used >= warmup:
+            data[symbol] = frame
+        elif len(frame) > warmup + 1:
+            data[symbol] = frame.iloc[used:].reset_index(drop=True)      # own first bars warm up
+            late[symbol] = str(data[symbol]["timestamp"].iloc[0])
+        else:
+            absent[symbol] = f"{len(frame)} bars in window: not listed yet"
+    return data, late, absent
+
+
+def run_quarter(job):
+    os.environ.setdefault("LIVE_TRADING_ENABLED", "False")
+    assert os.environ["LIVE_TRADING_ENABLED"] == "False"
+    import pandas as pd
+    from revision2_external.grid_context import SealedGridContextProvider
+    from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
+    from revision5.ccpp_unified_plant import CentralPlantMasterDCS
+    t0 = time.time()
+    label, start, end, warmup, mode = job["label"], job["start"], job["end"], job["warmup"], job["mode"]
+    if job["synthetic"]:
+        from engine_c.data_contract import load_synthetic
+        from revision5.topology import SYMBOL_TO_BAY
+        full, nifty, vix, _ = load_synthetic(sorted(SYMBOL_TO_BAY), job["synthetic_bars"], warmup)
+        half = job["synthetic_bars"] // 2
+        data = {s: (f.iloc[:half] if job["part"] == 0 else f.iloc[half - warmup:]).reset_index(drop=True)
+                for s, f in full.items()}
+        late_listed, not_listed = {}, {}
+    else:
+        from engine_c.data_contract import normalise
+        from scripts.run_r5_paper_replay import load_verified_grid_feeds
+        data, late_listed, not_listed = select_window_frames(
+            {symbol: normalise(_read_window_csv(path, start, end)) for symbol, path in job["files"].items()},
+            start, end, warmup)
+        feeds = load_verified_grid_feeds(job["grid_manifest"])
+        cut = pd.Timestamp(end, tz="Asia/Kolkata") + pd.Timedelta(days=1)
+        nifty = feeds["NIFTY_50_15MIN"][feeds["NIFTY_50_15MIN"]["timestamp"] < cut].reset_index(drop=True)
+        vix = feeds["INDIA_VIX_15MIN"][feeds["INDIA_VIX_15MIN"]["timestamp"] < cut].reset_index(drop=True)
+    kwargs = dict(grid_context_provider=SealedGridContextProvider(nifty, vix),
+                  real_plant_dcs=CentralPlantMasterDCS(total_capital=int(STARTING_EQUITY), db_path=":memory:"),
+                  plant_control_mode="PAPER_APPLY", closed_loop_mode="active_paper", telemetry_mode="compact",
+                  governor_authority="full", starting_equity=STARTING_EQUITY)
+    symbols = sorted(data)
+    if mode == "r7":
+        from revision7_avr import Revision7Engine
+        from revision7_avr.r7_state import default_configs
+        engine = Revision7Engine(symbols, r7_configs=default_configs(symbols), **kwargs)
+    else:
+        engine = Revision2ExternalEngineOrchestrator(symbols, **kwargs)
+    report = engine.run({s: data[s] for s in symbols}, warmup=warmup)
+    trades = [t for t in report["trades"] if isinstance(t, dict)]
+    net = [float(t.get("net_pnl", 0.0)) for t in trades]
+    costs = sum(float(t.get("costs", 0.0)) for t in trades)
+    turnover = sum(abs(float(t.get("quantity", 0))) * (float(t.get("entry_price", 0)) + float(t.get("exit_price", 0)))
+                   for t in trades)
+    curve = [float(x) for x in getattr(engine, "_equity_curve", []) or []] or [STARTING_EQUITY]
+    peak, realized_dd = curve[0], 0.0
+    for x in curve:
+        peak = max(peak, x)
+        realized_dd = max(realized_dd, (peak - x) / peak if peak > 0 else 0.0)
+    live = {s: f.iloc[warmup:] for s, f in data.items()}
+    first_ts = min(f["timestamp"].iloc[0] for f in live.values())
+    last_ts = max(f["timestamp"].iloc[-1] for f in live.values())
+    in_window = nifty[(nifty["timestamp"] >= first_ts) & (nifty["timestamp"] <= last_ts)]
+    nifty_return = (float(in_window["close"].iloc[-1]) / float(in_window["close"].iloc[0]) - 1.0
+                    if len(in_window) >= 2 else None)
+    exits = {}
+    for t in trades:
+        reason = str(t.get("reason") or t.get("exit_reason"))
+        exits[reason] = exits.get(reason, 0) + 1
+    result = {
+        "quarter": label, "mode": mode, "start": str(start), "end": str(end),
+        "first_bar": str(first_ts), "last_bar": str(last_ts), "symbols": len(symbols),
+        "warmed_up_on_own_first_bars_in_window": late_listed, "not_listed_in_window": not_listed,
+        "bars_replayed": int(sum(len(f) for f in live.values())), "warmup_bars_per_symbol": warmup,
+        "trades": len(trades), "wins": sum(1 for x in net if x > 0), "losses": sum(1 for x in net if x < 0),
+        "gross_pnl": float(report.get("gross_pnl") or 0.0), "costs": costs, "net_pnl": float(sum(net)),
+        "net_pnl_per_trade": (sum(net) / len(net)) if net else None,
+        "return_on_capital": float(sum(net)) / STARTING_EQUITY,
+        "mtm_max_drawdown_fraction": float(getattr(engine, "_mtm_max_drawdown_fraction", 0.0) or 0.0),
+        "realized_max_drawdown_fraction": realized_dd, "turnover": turnover,
+        "orders": {"entries": report.get("orders_submitted"), "exits": report.get("exit_orders_submitted"),
+                   "fills": report.get("fills")},
+        "exit_reasons": exits, "nifty_buy_and_hold_return": nifty_return,
+        "trades_sha256": _dig(trades), "seconds": round(time.time() - t0, 1),
+        "data_identity": {s: _dig([str(f["timestamp"].iloc[0]), str(f["timestamp"].iloc[-1]), len(f),
+                                   float(f["close"].sum())]) for s, f in sorted(data.items())},
+    }
+    out = Path(job["out"])
+    (out / f"{label}.json").write_text(json.dumps(result, indent=1, default=str))
+    (out / f"{label}_trades.json").write_text(json.dumps(trades, indent=1, default=str))
+    return result
+
+
+def verdict(results, synthetic):
+    c = PREREGISTERED_CRITERIA
+    total_trades = sum(r["trades"] for r in results)
+    total_net = sum(r["net_pnl"] for r in results)
+    by_quarter = {}
+    for r in results:
+        by_quarter[quarter_of(r["quarter"])] = by_quarter.get(quarter_of(r["quarter"]), 0.0) + r["net_pnl"]
+    quarter_net = [by_quarter[q] for q in sorted(by_quarter)]
+    positive = sum(1 for x in quarter_net if x > 0)
+    last_four = sum(quarter_net[-4:])
+    checks = {
+        "total_net_pnl_positive": total_net > 0,
+        "fraction_of_quarters_net_positive": positive / len(quarter_net) >= c["minimum_fraction_of_quarters_net_positive"],
+        "average_net_pnl_per_trade_positive": total_trades > 0 and total_net / total_trades > 0,
+        "worst_quarter_mtm_drawdown_within_limit":
+            max(r["mtm_max_drawdown_fraction"] for r in results) <= c["maximum_quarter_mtm_drawdown_fraction"],
+        "last_four_quarters_combined_net_positive": last_four > 0,
+    }
+    if synthetic:
+        status = "NOT_EVIDENCE"
+    elif total_trades < c["minimum_total_trades"]:
+        status = "INCONCLUSIVE"
+    else:
+        status = "PASS" if all(checks.values()) else "FAIL"
+    return {"status": status, "checks": checks, "total_trades": total_trades, "total_net_pnl": total_net,
+            "total_gross_pnl": sum(r["gross_pnl"] for r in results), "total_costs": sum(r["costs"] for r in results),
+            "quarters_net_positive": positive, "quarters": len(quarter_net), "windows": len(results),
+            "net_pnl_by_quarter": dict(sorted(by_quarter.items())), "last_four_quarters_net": last_four,
+            "net_pnl_per_trade": (total_net / total_trades) if total_trades else None,
+            "worst_quarter_mtm_drawdown_fraction": max(r["mtm_max_drawdown_fraction"] for r in results)}
+
+
+def main() -> int:
+    from runtime.live_trading_guard import require_live_trading_disabled
+    require_live_trading_disabled()
+    p = argparse.ArgumentParser()
+    p.add_argument("--out", required=True)
+    p.add_argument("--data-dir")
+    p.add_argument("--grid-manifest", type=Path)
+    p.add_argument("--mode", choices=["native", "r7"], default="native")
+    p.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
+    p.add_argument("--quarters", default="ALL", help="window labels to run (e.g. 2026Q2 or 2026M05), or ALL")
+    p.add_argument("--period", choices=["quarter", "month"], default="quarter")
+    p.add_argument("--warmup", type=int, default=60)
+    p.add_argument("--synthetic", action="store_true")
+    p.add_argument("--synthetic-bars", type=int, default=400)
+    a = p.parse_args()
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "PREREGISTERED_CRITERIA.json").write_text(json.dumps(PREREGISTERED_CRITERIA, indent=1))
+    base = {"warmup": a.warmup, "mode": a.mode, "out": str(out), "synthetic": a.synthetic,
+            "synthetic_bars": a.synthetic_bars}
+    if a.synthetic:
+        jobs = [{**base, "label": f"SYNTH{i + 1}", "start": None, "end": None, "part": i} for i in range(2)]
+        identity = {"source": "SYNTHETIC_SMOKE (seeded) -- not market data, P&L is meaningless"}
+    else:
+        if not a.data_dir or not a.grid_manifest:
+            raise SystemExit("--data-dir and --grid-manifest are required for the frozen-data run")
+        import pandas as pd
+        from engine_c.data_contract import MANIFEST, audit_bars, require_clean
+        from market_data_loader import MarketDataLoader
+        from revision2.dataset_manifest import DatasetManifest, verify_manifest
+        manifest = DatasetManifest.load(str(MANIFEST))
+        check = verify_manifest(manifest, data_dir=a.data_dir)
+        if not check.valid:
+            raise SystemExit(f"frozen dataset failed manifest verification: {check.message}")
+        loader = MarketDataLoader(a.data_dir, synthetic_if_missing=False)
+        files = {f.symbol: str(loader._resolve_csv(f.symbol)) for f in manifest.files}
+        audits = {s: audit_bars(s, pd.read_csv(path)) for s, path in sorted(files.items())}
+        require_clean(audits)                                  # whole files, before any quarter
+        first = min(date.fromisoformat(f.first_timestamp[:10]) for f in manifest.files)
+        last = max(date.fromisoformat(f.last_timestamp[:10]) for f in manifest.files)
+        all_q = (months_between if a.period == "month" else quarters_between)(first, last)
+        wanted = None if a.quarters == "ALL" else set(a.quarters.split(","))
+        jobs = [{**base, "label": lab, "start": s, "end": e, "files": files, "grid_manifest": str(a.grid_manifest)}
+                for lab, s, e in all_q if wanted is None or lab in wanted]
+        identity = {"source": "FROZEN_NSE_48_1MIN", "manifest_hash": manifest.manifest_hash,
+                    "symbols": len(files), "first": str(first), "last": str(last)}
+    (out / "RUN_IDENTITY.json").write_text(json.dumps({**identity, "mode": a.mode, "engine": "A",
+                                                        "period": a.period,
+                                                        "quarters": [j["label"] for j in jobs]}, indent=1))
+    results = []
+    # Resume: a window whose result file exists finished in an earlier run; keep it.
+    for j in list(jobs):
+        done = out / f"{j['label']}.json"
+        if done.is_file():
+            r = json.loads(done.read_text())
+            if r.get("mode") == a.mode:
+                results.append(r)
+                jobs.remove(j)
+                print(f"{r['quarter']}: already done (resumed) net={r['net_pnl']:.2f}", flush=True)
+    with cf.ProcessPoolExecutor(max_workers=a.workers) as pool:
+        # Most recent quarters first, so the latest market regime reports soonest.
+        futures = {pool.submit(run_quarter, j): j["label"] for j in sorted(jobs, key=lambda j: j["label"], reverse=True)}
+        failed = {}
+        for fut in cf.as_completed(futures):
+            try:
+                r = fut.result()
+            except Exception as exc:                  # record it; the other windows carry on
+                failed[futures[fut]] = repr(exc)
+                (out / f"{futures[fut]}.FAILED.txt").write_text(repr(exc))
+                print(f"{futures[fut]}: FAILED {exc!r}", flush=True)
+                continue
+            results.append(r)
+            print(f"{r['quarter']}: trades={r['trades']} net={r['net_pnl']:.2f} costs={r['costs']:.2f} "
+                  f"mtm_dd={r['mtm_max_drawdown_fraction']:.4f} ({r['seconds']}s)", flush=True)
+    results.sort(key=lambda r: r["quarter"])
+    summary = {**verdict(results, a.synthetic), "criteria": PREREGISTERED_CRITERIA, "identity": identity,
+               "mode": a.mode, "per_quarter": results}
+    if failed:
+        summary.update(status="INCOMPLETE", failed_windows=failed)
+    (out / "SUMMARY.json").write_text(json.dumps(summary, indent=1, default=str))
+    print(json.dumps({k: summary[k] for k in ("status", "checks", "total_trades", "total_net_pnl", "total_costs",
+                                              "quarters_net_positive", "quarters")}, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

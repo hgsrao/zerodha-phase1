@@ -1,11 +1,12 @@
-"""Offline Engine B / Engine C historical replay for Revision 7 (no broker, no Kite).
+"""Offline Engine A / B / C historical replay for Revision 7 (no broker, no Kite).
 
-    PYTHONPATH=<root> python revision7_avr/run_r7_replay.py {B|C} {native|r7} --out DIR \
+    PYTHONPATH=<root> python revision7_avr/run_r7_replay.py {A|B|C} {native|r7} --out DIR \
         [--symbols ALL|A,B] [--bars 390] [--warmup 60] [--synthetic] [--profile installed|validation] \
-        [--root <repo root to import R7/native from>]
+        [--r7-adaptation off|shadow|paper] [--data-dir DIR] [--root <repo root to import R7/native from>]
 
-Uses the project's own runners (engine_b.runner.run_engine_b / engine_c.runner.run_engine_c)
-and the frozen data contract. In ``r7`` mode the runner module's orchestrator class is
+Uses the project's own runners (engine_b.runner.run_engine_b / engine_c.runner.run_engine_c; for
+Engine A the shared core orchestrator built as scripts/run_engine_a_reference.py builds it) and the
+frozen data contract. ``--r7-adaptation`` defaults to ``off`` (fixed commissioned parameters). In ``r7`` mode the runner module's orchestrator class is
 rebound, for this process only, to ``engine_class(base=<native orchestrator>)``. ``--root``
 lets the same harness drive a different checkout (e.g. the frozen baseline export), so an
 original/modified comparison uses identical harness code. Nothing on disk changes except
@@ -26,6 +27,30 @@ from pathlib import Path
 warnings.filterwarnings("ignore")
 os.environ.setdefault("EA1_SHADOW_MODE", "True")
 GRID = Path("/home/srinivas/projects/zerodha-phase1/local_workspace/records/grid-manifest-local.json")
+
+
+def _engine_a():
+    """Engine A: the shared core orchestrator with the paper broker, configured exactly as
+    scripts/run_engine_a_reference.py configures it, behind the same factory seam as B/C."""
+    import types
+    from revision2_external.grid_context import SealedGridContextProvider
+    from revision2_external.orchestrator import Revision2ExternalEngineOrchestrator
+    from revision5.ccpp_unified_plant import CentralPlantMasterDCS
+    runner = types.SimpleNamespace(EngineAOrchestrator=Revision2ExternalEngineOrchestrator)
+
+    def run(data, nifty, vix, warmup):
+        o = runner.EngineAOrchestrator(
+            sorted(data), grid_context_provider=SealedGridContextProvider(nifty, vix),
+            real_plant_dcs=CentralPlantMasterDCS(total_capital=1_000_000, db_path=":memory:"),
+            plant_control_mode="PAPER_APPLY", closed_loop_mode="active_paper", telemetry_mode="full",
+            governor_authority="full", starting_equity=1_000_000.0)
+        r5 = o.run({s: data[s] for s in sorted(data)}, warmup=warmup)
+        return {"trades": r5["trades"], "orders": {"entry_submitted": r5["orders_submitted"],
+                                                   "exit_submitted": r5["exit_orders_submitted"],
+                                                   "fills": r5["fills"]},
+                "r5_ledger": {"funnel": r5.get("funnel"), "net_pnl": r5.get("net_pnl"),
+                              "gross_pnl": r5.get("gross_pnl"), "costs": r5.get("costs")}}
+    return runner, Revision2ExternalEngineOrchestrator, run
 
 
 def _configs(symbols, profile):
@@ -165,13 +190,15 @@ def main() -> int:
     from runtime.live_trading_guard import require_live_trading_disabled
     require_live_trading_disabled()
     p = argparse.ArgumentParser()
-    p.add_argument("engine", choices=["B", "C"])
+    p.add_argument("engine", choices=["A", "B", "C"])
     p.add_argument("mode", choices=["native", "r7"])
     p.add_argument("--symbols", default="ALL")
     p.add_argument("--bars", type=int, default=390)
     p.add_argument("--warmup", type=int, default=60)
     p.add_argument("--synthetic", action="store_true")
     p.add_argument("--profile", choices=["installed", "validation"], default="installed")
+    p.add_argument("--r7-adaptation", choices=["off", "shadow", "paper"], default="off")
+    p.add_argument("--data-dir", default=None)
     p.add_argument("--root", default=str(Path(__file__).resolve().parent.parent))
     p.add_argument("--out", required=True)
     a = p.parse_args()
@@ -183,8 +210,12 @@ def main() -> int:
     from revision5.topology import SYMBOL_TO_BAY
     symbols = sorted(SYMBOL_TO_BAY) if a.symbols == "ALL" else a.symbols.split(",")
     data, nifty, vix, info = (load_synthetic(symbols, a.bars, a.warmup) if a.synthetic
-                              else load_real(symbols, a.bars, None, GRID, a.warmup))
-    if a.engine == "B":
+                              else load_real(symbols, a.bars, a.data_dir, GRID, a.warmup))
+    if a.mode == "native" and a.r7_adaptation != "off":
+        raise SystemExit("--r7-adaptation applies to r7 mode only")
+    if a.engine == "A":
+        runner, native_cls, run = _engine_a()
+    elif a.engine == "B":
         import engine_b.runner as runner
         native_cls, run = runner.EngineBOrchestrator, runner.run_engine_b
     else:
@@ -204,6 +235,8 @@ def main() -> int:
 
         def factory(*args, **kw):
             extra = {"r7_decision_log_path": str(log_path)} if accepts_log else {}
+            if a.r7_adaptation != "off":
+                extra["r7_adaptation_mode"] = a.r7_adaptation
             o = cls(*args, r7_configs=configs, **extra, **kw)
             captured.append(o)
             return o
@@ -212,7 +245,9 @@ def main() -> int:
             o = native_cls(*args, **kw)
             captured.append(o)
             return o
-    if a.engine == "B":
+    if a.engine == "A":
+        runner.EngineAOrchestrator = factory
+    elif a.engine == "B":
         runner.EngineBOrchestrator = factory
     else:
         runner.EngineCOrchestrator = factory
@@ -234,7 +269,8 @@ def main() -> int:
     entry_sides = collections.Counter(str(e.get("side")) for e in getattr(o, "order_audit", [])
                                       if e.get("event") == "SUBMIT" and e.get("kind") == "entry")
     summary = {
-        "engine": a.engine, "mode": a.mode, "profile": a.profile, "root": a.root, "seconds": round(secs, 1),
+        "engine": a.engine, "mode": a.mode, "profile": a.profile, "r7_adaptation": a.r7_adaptation,
+        "root": a.root, "seconds": round(secs, 1),
         "source": info.get("source"), "symbols": len(symbols),
         "plant_engine_mode": getattr(o, "plant_engine_mode", None),
         "funnel": ledger.get("funnel"), "orders": report.get("orders"),
