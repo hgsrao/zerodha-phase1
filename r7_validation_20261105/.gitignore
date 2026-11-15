@@ -1,0 +1,2 @@
+# Test logs are part of the validation evidence.
+!*.log

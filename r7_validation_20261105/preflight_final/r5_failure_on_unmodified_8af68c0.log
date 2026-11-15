@@ -1,0 +1,20 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_attaching_a_real_plant_with_a_tripped_bay_still_leaves_the_shadow_ledger_unchanged _
+
+    def test_attaching_a_real_plant_with_a_tripped_bay_still_leaves_the_shadow_ledger_unchanged():
+        """Requirement 17: SHADOW ledger and net P&L remain identical whether or not real plant
+        protection (with a tripped bay) is attached -- plant-control output is never consumed."""
+        from market_data_loader import MarketDataLoader
+        from revision2.dataset_manifest import DatasetManifest
+    
+        manifest = DatasetManifest.load("revision2/DATASET_MANIFEST_48SYMBOL_1MIN.json")
+        loader = MarketDataLoader(manifest.data_dir, synthetic_if_missing=False)
+>       bars = {"INFY": loader._load_symbol_csv("INFY").tail(800).reset_index(drop=True)}
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'tail'
+
+tests/test_r5_paper_apply_blocker_closure.py:385: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_r5_paper_apply_blocker_closure.py::test_attaching_a_real_plant_with_a_tripped_bay_still_leaves_the_shadow_ledger_unchanged
+1 failed in 1.64s
